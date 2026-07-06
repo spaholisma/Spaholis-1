@@ -375,7 +375,7 @@ const BookingPage = () => {
         setBookingComplete(true);
         setStep(confirmationStepIdx);
       } catch (err: any) {
-        if (err?.code === "SLOT_TAKEN") {
+        if (err?.code === "SLOT_TAKEN" || err?.code === "INVALID_SLOT") {
           toast.error(err.message);
           handleSlotTaken();
         } else {
@@ -412,7 +412,7 @@ const BookingPage = () => {
         toast.success(t("booking.redirectingToPayment", { defaultValue: "Redirecting to secure payment…" }));
         window.location.href = link;
       } catch (err: any) {
-        if (err?.code === "SLOT_TAKEN") {
+        if (err?.code === "SLOT_TAKEN" || err?.code === "INVALID_SLOT") {
           toast.error(err.message);
           handleSlotTaken();
         } else {

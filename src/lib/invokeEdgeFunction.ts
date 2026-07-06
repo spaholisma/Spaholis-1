@@ -51,7 +51,15 @@ export async function invokeEdgeFunction<T = any>(
     const { data, error } = await supabase.functions.invoke(functionName, options);
 
     if (error) {
-      const response: Response | undefined = (error as any).context?.response;
+      // functions-js throws `new FunctionsHttpError(response)`, so `error.context`
+      // IS the Response object. Older versions nested it under `context.response`.
+      // Support both so non-2xx bodies (reason/message/validation) are never lost
+      // and reported as a bogus network failure.
+      const ctx: any = (error as any).context;
+      const response: Response | undefined =
+        ctx && typeof ctx.status === "number" && typeof ctx.text === "function"
+          ? (ctx as Response)
+          : ctx?.response;
       const { data: bodyData, raw } = await readResponseBody(response);
       return {
         data: (bodyData ?? null) as T | null,
