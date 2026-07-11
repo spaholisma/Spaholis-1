@@ -143,6 +143,18 @@ Deno.serve(async (req) => {
     const coupon = await validateClassCoupon(admin, body.coupon_code, basePrice, String(cls.id));
     const totalPrice = Math.max(0, Math.round((basePrice - coupon.discount) * 100) / 100);
 
+    // The reused Drop-in CompraClick link charges a FIXED amount (the full
+    // class price). A partial discount (>0 and <full) can't be charged by it,
+    // so we only support: full price (no/covered discount) or a 100% coupon
+    // (free, handled below). Reject partial coupons rather than mis-charge.
+    if (totalPrice > 0 && coupon.discount > 0) {
+      return json({
+        ok: false,
+        reason: "partial_coupon_unsupported",
+        message: "Partial coupons can't be used for card payment on classes. Use a 100% coupon or pay the full price.",
+      }, 400);
+    }
+
     // 3. Capacity check.
     if (Number(schedule.spots_remaining) <= 0) {
       return json({ ok: false, reason: "class_full" }, 409);
