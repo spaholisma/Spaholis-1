@@ -564,9 +564,12 @@ const ClassBookingPage = () => {
           <div className="hidden lg:block">
             <div className="sticky top-24 bg-card rounded-2xl border border-border p-6 space-y-4">
               <h3 className="font-heading text-lg font-medium text-foreground">Class Details</h3>
-              {cls.image_url && (
-                <img src={cls.image_url} alt={cls.title} className="w-full h-32 object-cover rounded-xl" />
-              )}
+              <img
+                src={cls.image_url || "/class-placeholder.svg"}
+                alt={cls.title}
+                className="w-full h-32 object-cover rounded-xl"
+                onError={(e) => { const el = e.currentTarget as HTMLImageElement; if (!el.src.endsWith("/class-placeholder.svg")) el.src = "/class-placeholder.svg"; }}
+              />
               <div className="space-y-3">
                 <p className="font-heading text-base font-medium text-foreground">{cls.title}</p>
                 <div className="flex items-center gap-2 text-sm font-body text-muted-foreground">

@@ -7,8 +7,8 @@ import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
 import { formatCRC } from "@/lib/currency";
 import { formatSpaDate } from "@/lib/businessHours";
 
-const fallbackImg =
-  "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg";
+// Branded default shown whenever a class has no image (or a broken one).
+const fallbackImg = "/class-placeholder.svg";
 
 export function EventCard({ event }: { event: ScheduleRow }) {
   const cls = event.classes;
@@ -25,6 +25,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
           alt={cls.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
+          onError={(e) => { const el = e.currentTarget as HTMLImageElement; if (el.src !== window.location.origin + fallbackImg) el.src = fallbackImg; }}
         />
       </div>
 
