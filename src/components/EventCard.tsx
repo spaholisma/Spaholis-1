@@ -8,7 +8,7 @@ import { formatCRC } from "@/lib/currency";
 import { formatSpaDate } from "@/lib/businessHours";
 
 // Branded default shown whenever a class has no image (or a broken one).
-const fallbackImg = "/class-placeholder.svg";
+const fallbackImg = "/class-placeholder.jpg";
 
 export function EventCard({ event }: { event: ScheduleRow }) {
   const cls = event.classes;

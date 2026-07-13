@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Holis Wellness Center">
-  <rect width="1200" height="900" fill="#1d5b6a"/>
-  <g fill="none" stroke="#ffffff" stroke-linecap="round">
-    <circle cx="600" cy="450" r="258" stroke-width="6"/>
-    <g transform="translate(600 450) scale(5.6) translate(-50 -50)" stroke-width="1.25">
-      <path d="M50 28 C36 28, 26 38, 26 50 C26 62, 36 72, 50 72 C62 72, 70 64, 70 54 C70 44, 62 38, 54 38 C46 38, 40 44, 40 50 C40 56, 44 60, 50 60 C55 60, 58 57, 58 53 C58 49, 55 47, 52 47"/>
-    </g>
-  </g>
-</svg>
