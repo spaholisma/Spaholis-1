@@ -47,7 +47,7 @@ const sidebarLinks = [
   { label: "BAC Verifications", icon: ShieldAlert, id: "bac-verifications" },
   { label: "BAC Links", icon: Link2, id: "bac-links" },
   { label: "Services", icon: Briefcase, id: "services" },
-  { label: "Events", icon: CalendarDays, id: "events" },
+  { label: "Classes", icon: CalendarDays, id: "events" },
   { label: "Weekly Schedule", icon: CalendarDays, id: "weekly-schedule" },
   { label: "Business Hours", icon: Clock, id: "business-hours" },
   { label: "Educational", icon: GraduationCap, id: "educational" },

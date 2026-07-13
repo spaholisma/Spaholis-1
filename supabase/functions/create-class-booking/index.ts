@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     // 1. Load schedule + class.
     const { data: schedule, error: schErr } = await admin
       .from("class_schedule")
-      .select("id, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active)")
+      .select("id, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active, payment_link)")
       .eq("id", body.schedule_id)
       .maybeSingle();
 
@@ -211,18 +211,21 @@ Deno.serve(async (req) => {
     }
 
     // ============ CASE B: total > 0 -> pending_payment + BAC link ============
-    // Fetch the reused Drop-in offering's CompraClick link.
-    const { data: dropIn, error: linkErr } = await admin
-      .from("offerings")
-      .select("payment_link")
-      .eq("type", "drop_in")
-      .eq("status", "active")
-      .not("payment_link", "is", null)
-      .order("sort_order")
-      .limit(1)
-      .maybeSingle();
-    if (linkErr) throw linkErr;
-    const bacLink = dropIn?.payment_link || null;
+    // Prefer the class's OWN CompraClick link; fall back to the Drop-in offering.
+    let bacLink: string | null = (cls.payment_link || "").trim() || null;
+    if (!bacLink) {
+      const { data: dropIn, error: linkErr } = await admin
+        .from("offerings")
+        .select("payment_link")
+        .eq("type", "drop_in")
+        .eq("status", "active")
+        .not("payment_link", "is", null)
+        .order("sort_order")
+        .limit(1)
+        .maybeSingle();
+      if (linkErr) throw linkErr;
+      bacLink = dropIn?.payment_link || null;
+    }
     if (!bacLink) return json({ ok: false, reason: "no_payment_link" }, 503);
 
     const { error: insErr } = await admin.from("class_bookings").insert({

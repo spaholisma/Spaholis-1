@@ -499,18 +499,9 @@ const ClassBookingPage = () => {
                       </div>
 
                       {payMethod === "card" ? (
-                        (() => {
-                          const cardTotal = Math.max(0, Number(cls.price) - (appliedCoupon?.discount ?? 0));
-                          return (
-                            <Button className="w-full" onClick={handleCardCheckout} disabled={submitting}>
-                              {submitting
-                                ? t("booking.booking")
-                                : cardTotal > 0
-                                  ? `Book & pay ${formatCRC(cardTotal)}`
-                                  : t("booking.confirmBooking")}
-                            </Button>
-                          );
-                        })()
+                        <Button className="w-full" onClick={handleCardCheckout} disabled={submitting}>
+                          {submitting ? t("booking.booking") : "Book"}
+                        </Button>
                       ) : (
                         <Button className="w-full" onClick={handleRedeem} disabled={submitting || !selectedOfferingId}>
                           {submitting ? t("booking.booking") : t("booking.confirmBooking")}

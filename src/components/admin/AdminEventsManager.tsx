@@ -27,6 +27,7 @@ interface ClassRow {
   recurrence_rule: string | null;
   requires_payment: boolean;
   max_capacity: number;
+  payment_link: string | null;
 }
 
 interface ScheduleRow {
@@ -56,6 +57,7 @@ const emptyClass: Omit<ClassRow, "id"> = {
   recurrence_rule: "",
   requires_payment: false,
   max_capacity: 15,
+  payment_link: null,
 };
 
 const eventCategories = ["Studio Classes", "Yoga", "Workshop", "Sound Bath", "Breathwork", "Meditation", "Fitness", "Retreat", "Special Event"];
@@ -70,7 +72,7 @@ export function AdminEventsManager() {
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("classes").select("*").order("title");
-    setClasses((data as ClassRow[]) ?? []);
+    setClasses((data as unknown as ClassRow[]) ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -105,14 +107,15 @@ export function AdminEventsManager() {
       recurrence_rule: editing.recurrence_rule || null,
       requires_payment: editing.requires_payment,
       max_capacity: editing.max_capacity,
+      payment_link: (editing.payment_link || "").trim() || null,
     };
 
     if ("id" in editing && editing.id) {
-      const { error } = await supabase.from("classes").update(payload).eq("id", editing.id);
+      const { error } = await supabase.from("classes").update(payload as any).eq("id", editing.id);
       if (error) { toast.error(error.message); return; }
       toast.success("Event updated");
     } else {
-      const { error } = await supabase.from("classes").insert(payload);
+      const { error } = await supabase.from("classes").insert(payload as any);
       if (error) { toast.error(error.message); return; }
       toast.success("Event created");
     }
@@ -342,6 +345,21 @@ export function AdminEventsManager() {
             Requires Payment
           </label>
         </div>
+
+        {editing.requires_payment && (
+          <div>
+            <label className="font-body text-sm font-medium text-foreground mb-1.5 block">CompraClick payment link</label>
+            <Input
+              type="url"
+              placeholder="https://checkout.baccredomatic.com/..."
+              value={editing.payment_link || ""}
+              onChange={(e) => setEditing({ ...editing, payment_link: e.target.value || null })}
+            />
+            <p className="text-xs text-muted-foreground mt-1 font-body">
+              BAC link that charges this class's price. Used when a customer pays by card. If left blank, the Drop-in link is used as a fallback. Change the price? Generate a matching link.
+            </p>
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <Button onClick={handleSave}>Save</Button>
