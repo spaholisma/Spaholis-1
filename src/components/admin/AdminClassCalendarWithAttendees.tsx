@@ -13,6 +13,7 @@ import {
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useOfferings } from "@/hooks/useOfferings";
 
 interface ScheduledClass {
   id: string;
@@ -106,6 +107,42 @@ export function AdminClassCalendarWithAttendees() {
     message?: string;
     detail?: string;
   }>({ status: "idle" });
+
+  // ---- "New Order": create a membership/pass for a customer (Acuity-style) ----
+  const { data: sellableOfferings = [] } = useOfferings();
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [orderForm, setOrderForm] = useState({ firstName: "", lastName: "", email: "", phone: "", offeringId: "" });
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [orderResult, setOrderResult] = useState<{ code: string; link: string; offeringName: string } | null>(null);
+
+  const resetOrder = () => {
+    setOrderResult(null);
+    setOrderForm({ firstName: "", lastName: "", email: "", phone: "", offeringId: "" });
+  };
+
+  const submitOrder = async () => {
+    if (!orderForm.firstName.trim() || !orderForm.email.trim()) return toast.error("First name and email are required");
+    if (!orderForm.offeringId) return toast.error("Select a membership or pass");
+    setCreatingOrder(true);
+    try {
+      const fullName = `${orderForm.firstName.trim()} ${orderForm.lastName.trim()}`.trim();
+      const { data, error } = await supabase.rpc("create_membership_order" as any, {
+        _offering_id: orderForm.offeringId,
+        _guest_name: fullName,
+        _guest_email: orderForm.email.trim(),
+        _guest_phone: orderForm.phone.trim() || null,
+      });
+      if (error) throw error;
+      const res = data as any;
+      const link = `${window.location.origin}/classes?m=${res.access_token}`;
+      setOrderResult({ code: res.code, link, offeringName: res.offering_name });
+      toast.success(`Order created — code ${res.code}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to create order");
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
   const lookupRedemptionCode = async () => {
     const code = attendeeForm.coupon_code.trim();
@@ -473,9 +510,14 @@ export function AdminClassCalendarWithAttendees() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button size="sm" onClick={() => openNewSession()}>
-          <Plus className="h-4 w-4 mr-1" /> New session
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => { resetOrder(); setOrderOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> New Order
+          </Button>
+          <Button size="sm" onClick={() => openNewSession()}>
+            <Plus className="h-4 w-4 mr-1" /> New session
+          </Button>
+        </div>
       </div>
 
       <div className="border border-border rounded-xl overflow-hidden">
@@ -725,6 +767,78 @@ export function AdminClassCalendarWithAttendees() {
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New Order — create a membership/pass for a customer */}
+      <Dialog open={orderOpen} onOpenChange={(v) => { setOrderOpen(v); if (!v) resetOrder(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Order — Membership / Pass</DialogTitle>
+          </DialogHeader>
+          {orderResult ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-spa-sage/40 bg-spa-sage/10 p-4 space-y-1">
+                <p className="text-sm font-body text-foreground">Order created for <strong>{orderResult.offeringName}</strong>.</p>
+                <p className="text-sm font-body">Code: <span className="font-mono font-semibold tracking-wider">{orderResult.code}</span></p>
+              </div>
+              <div>
+                <label className="font-body text-sm font-medium mb-1.5 block">Scheduling link (send to the customer)</label>
+                <div className="flex gap-2">
+                  <Input readOnly value={orderResult.link} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+                  <Button type="button" variant="outline" onClick={() => { navigator.clipboard?.writeText(orderResult.link); toast.success("Link copied"); }}>Copy</Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 font-body">Opening this link lets them book eligible classes at $0 — no login. (Auto-email is added in the next phase.)</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={resetOrder}>Create another</Button>
+                <Button onClick={() => setOrderOpen(false)}>Done</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-body text-sm font-medium mb-1.5 block">First name *</label>
+                  <Input value={orderForm.firstName} onChange={(e) => setOrderForm({ ...orderForm, firstName: e.target.value })} />
+                </div>
+                <div>
+                  <label className="font-body text-sm font-medium mb-1.5 block">Last name</label>
+                  <Input value={orderForm.lastName} onChange={(e) => setOrderForm({ ...orderForm, lastName: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="font-body text-sm font-medium mb-1.5 block">Email *</label>
+                <Input type="email" value={orderForm.email} onChange={(e) => setOrderForm({ ...orderForm, email: e.target.value })} placeholder="customer@example.com" />
+              </div>
+              <div>
+                <label className="font-body text-sm font-medium mb-1.5 block">Phone</label>
+                <Input value={orderForm.phone} onChange={(e) => setOrderForm({ ...orderForm, phone: e.target.value })} placeholder="+506 8888 8888" />
+              </div>
+              <div>
+                <label className="font-body text-sm font-medium mb-1.5 block">Membership / Pass *</label>
+                <select
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-body"
+                  value={orderForm.offeringId}
+                  onChange={(e) => setOrderForm({ ...orderForm, offeringId: e.target.value })}
+                >
+                  <option value="">Select…</option>
+                  {sellableOfferings
+                    .filter((o) => o.type === "membership" || o.type === "class_pass")
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} — {o.is_unlimited ? "Unlimited" : `${o.credits ?? 0} credits`}{o.duration_days ? ` · ${o.duration_days}d` : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <p className="text-xs text-muted-foreground font-body">Creating the order confirms payment was received. A unique code + booking link are generated automatically.</p>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setOrderOpen(false)}>Cancel</Button>
+                <Button onClick={submitOrder} disabled={creatingOrder}>{creatingOrder ? "Creating…" : "Create order"}</Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>
