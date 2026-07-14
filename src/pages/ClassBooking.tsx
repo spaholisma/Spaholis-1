@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatCRC } from "@/lib/currency";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,7 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMyOfferings, redeemOffering, type UserOffering } from "@/hooks/useOfferings";
-import { useOfferingEligibilityMap, filterEligibleOfferings } from "@/hooks/useOfferingEligibility";
+import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
+import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
 
 function useScheduleEvent(scheduleId: string | null) {
   return useQuery({
@@ -49,6 +50,8 @@ const ClassBookingPage = () => {
   const { data: event, isLoading } = useScheduleEvent(scheduleId);
   const { data: myOfferings = [] } = useMyOfferings();
   const { data: eligibilityMap = {} } = useOfferingEligibilityMap();
+  const tokenQuery = useTokenOffering();
+  const tokenOffering = tokenQuery.data ?? null;
 
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
@@ -56,6 +59,8 @@ const ClassBookingPage = () => {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [payMethod, setPayMethod] = useState<PayMethod>("card");
   const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
+  // True when paying with the membership behind the emailed link (no login).
+  const [useLinkMembership, setUseLinkMembership] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
@@ -73,6 +78,28 @@ const ClassBookingPage = () => {
     (o) => o.type === "class_pass" && (o.credits_remaining ?? 0) > 0,
   );
   const hasRedeemable = memberships.length > 0 || passes.length > 0;
+
+  // The membership behind the emailed link — usable without login if it's valid
+  // and covers THIS class. This is the Acuity-style "recognized" flow.
+  const tokenEligible =
+    !!tokenOffering &&
+    tokenOffering.valid &&
+    !!classId &&
+    isOfferingEligibleForClass({ offering_id: tokenOffering.offering_id }, classId, eligibilityMap);
+  const tokenMethod: PayMethod = tokenOffering?.is_unlimited ? "membership" : "credits";
+
+  // Prefill the details form from the recognized membership so the customer
+  // doesn't retype what we already know.
+  useEffect(() => {
+    if (tokenOffering && !formData.name && !formData.email) {
+      setFormData({
+        name: tokenOffering.guest_name ?? "",
+        email: tokenOffering.guest_email ?? "",
+        phone: tokenOffering.guest_phone ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenOffering]);
 
   // For the entitlements panel: what the user owns but can't use here
   const ineligibleOwned = myOfferings.filter(
@@ -141,13 +168,20 @@ const ClassBookingPage = () => {
         }
         return;
       }
-      // Default to membership if available
+      // Default to whichever redeemable option is available (logged-in first,
+      // then the recognized membership from the emailed link).
       if (memberships.length > 0) {
         setPayMethod("membership");
         setSelectedOfferingId(memberships[0].id);
+        setUseLinkMembership(false);
       } else if (passes.length > 0) {
         setPayMethod("credits");
         setSelectedOfferingId(passes[0].id);
+        setUseLinkMembership(false);
+      } else if (tokenEligible) {
+        setPayMethod(tokenMethod);
+        setSelectedOfferingId(null);
+        setUseLinkMembership(true);
       }
       setStep(1);
     }
@@ -248,6 +282,37 @@ const ClassBookingPage = () => {
     }
   };
 
+  // Redeem the membership behind the emailed link (no login). The RPC validates
+  // the token, eligibility and capacity, creates the booking and deducts a
+  // credit atomically on the server — the browser can't fake a $0 booking.
+  const handleTokenRedeem = async () => {
+    const token = getStoredMembershipToken();
+    if (!token || !scheduleId) return;
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("book_class_with_membership_token" as any, {
+        _token: token,
+        _schedule_id: scheduleId,
+      });
+      if (error) throw error;
+      const res = data as any;
+      const bookingId = res?.booking_id as string | undefined;
+      if (!bookingId) throw new Error(t("booking.redeemFailed"));
+      // Fire-and-forget: send USD-formatted class confirmation email (+ admin copy).
+      supabase.functions
+        .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
+        .catch((e) => console.error("[class-booking] notify failed", e));
+      tokenQuery.refetch();
+      toast.success(tokenMethod === "membership" ? t("booking.bookedWithMembership") : t("booking.bookedWithCredit"));
+      setBookingComplete(true);
+      setStep(steps.length - 1);
+    } catch (err: any) {
+      toast.error(err.message || t("booking.redeemFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -311,6 +376,21 @@ const ClassBookingPage = () => {
                 {step === 0 && (
                   <div>
                     <h2 className="spa-heading-md text-foreground mb-6">Your Details</h2>
+
+                    {/* Recognized membership from the emailed link */}
+                    {tokenEligible && tokenOffering && needsPayment && (
+                      <div className="max-w-md mb-6 rounded-2xl border border-spa-sage/40 bg-spa-sage/10 p-4">
+                        <p className="flex items-center gap-2 font-body text-sm font-semibold text-foreground">
+                          <Check className="h-4 w-4 text-spa-sage" /> Membership recognized
+                        </p>
+                        <p className="mt-1 text-sm font-body text-muted-foreground">
+                          <span className="font-medium text-foreground">{tokenOffering.name_snapshot}</span>
+                          {" · "}
+                          {tokenOffering.is_unlimited ? "Unlimited" : `${tokenOffering.credits_remaining} credits left`}
+                          {" — "}this class is <span className="font-medium text-foreground">free</span> for you.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Entitlements summary — what you can use for THIS class */}
                     {user && needsPayment && (myOfferings.length > 0) && (
@@ -394,13 +474,27 @@ const ClassBookingPage = () => {
                     <h2 className="spa-heading-md text-foreground mb-6">Choose Payment</h2>
                     <div className="max-w-md space-y-3">
 
+                      {/* Recognized membership from the emailed link (no login) */}
+                      {tokenEligible && tokenOffering && (
+                        <PayOption
+                          icon={tokenOffering.is_unlimited ? <InfinityIcon className="h-4 w-4" /> : <Ticket className="h-4 w-4" />}
+                          title="Use your membership"
+                          selected={useLinkMembership}
+                          onClick={() => { setUseLinkMembership(true); setPayMethod(tokenMethod); setSelectedOfferingId(null); }}
+                        >
+                          <p className="text-xs font-body text-muted-foreground">
+                            {tokenOffering.name_snapshot} — {tokenOffering.is_unlimited ? "Unlimited" : `${tokenOffering.credits_remaining} credits left`}
+                          </p>
+                        </PayOption>
+                      )}
+
                       {/* Membership option */}
                       {user && memberships.length > 0 && (
                         <PayOption
                           icon={<InfinityIcon className="h-4 w-4" />}
                           title="Use my membership"
-                          selected={payMethod === "membership"}
-                          onClick={() => { setPayMethod("membership"); setSelectedOfferingId(memberships[0].id); }}
+                          selected={payMethod === "membership" && !useLinkMembership}
+                          onClick={() => { setUseLinkMembership(false); setPayMethod("membership"); setSelectedOfferingId(memberships[0].id); }}
                         >
                           <OfferingPicker
                             options={memberships}
@@ -416,8 +510,8 @@ const ClassBookingPage = () => {
                         <PayOption
                           icon={<Ticket className="h-4 w-4" />}
                           title="Use class credits"
-                          selected={payMethod === "credits"}
-                          onClick={() => { setPayMethod("credits"); setSelectedOfferingId(passes[0].id); }}
+                          selected={payMethod === "credits" && !useLinkMembership}
+                          onClick={() => { setUseLinkMembership(false); setPayMethod("credits"); setSelectedOfferingId(passes[0].id); }}
                         >
                           <OfferingPicker
                             options={passes}
@@ -444,10 +538,10 @@ const ClassBookingPage = () => {
                         icon={<CreditCard className="h-4 w-4" />}
                         title={`Pay ${formatCRC(cls.price)} by card`}
                         selected={payMethod === "card"}
-                        onClick={() => setPayMethod("card")}
+                        onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
 
-                      {!user && (
+                      {!user && !tokenEligible && (
                         <p className="text-xs font-body text-muted-foreground px-1">
                           <Link to="/auth" className="underline">Sign in</Link> to use a membership or class credits.
                         </p>
@@ -513,6 +607,10 @@ const ClassBookingPage = () => {
                       {payMethod === "card" ? (
                         <Button className="w-full" onClick={handleCardCheckout} disabled={submitting}>
                           {submitting ? t("booking.booking") : "Book"}
+                        </Button>
+                      ) : useLinkMembership ? (
+                        <Button className="w-full" onClick={handleTokenRedeem} disabled={submitting}>
+                          {submitting ? t("booking.booking") : t("booking.confirmBooking")}
                         </Button>
                       ) : (
                         <Button className="w-full" onClick={handleRedeem} disabled={submitting || !selectedOfferingId}>

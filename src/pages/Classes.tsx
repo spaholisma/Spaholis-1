@@ -11,6 +11,8 @@ import { CalendarDays, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
 import { useTranslation } from "react-i18next";
+import { useTokenOffering } from "@/hooks/useMembershipToken";
+import { Check } from "lucide-react";
 import classesHero from "@/assets/classes-hero.jpg";
 
 const fadeIn = {
@@ -25,6 +27,7 @@ const ClassesPage = () => {
   const { data: events, isLoading } = useUpcomingEvents();
   const { data: siteContent } = useSiteContent();
   const { data: seoData } = useSiteSeo();
+  const { data: tokenOffering } = useTokenOffering();
   const cls = siteContent?.classes || defaults.classes;
   const seo = seoData || seoDefaults;
 
@@ -37,9 +40,22 @@ const ClassesPage = () => {
       <SEO title={seo.classes.title} description={seo.classes.description} canonical={seo.classes.canonical} />
       <Navbar />
 
+      {/* Membership recognized from the emailed link */}
+      {tokenOffering?.valid && (
+        <div className="bg-spa-sage text-spa-cream">
+          <div className="pt-24 pb-4 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto flex items-center justify-center gap-2 text-center">
+            <Check className="h-4 w-4 shrink-0" />
+            <p className="font-body text-sm">
+              <span className="font-semibold">{tokenOffering.name_snapshot}</span> is active
+              {tokenOffering.is_unlimited ? "" : ` · ${tokenOffering.credits_remaining} credits left`}. Pick any class below to book it free.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Banner */}
       <div className="bg-spa-sage/10 border-b border-spa-sage/20">
-        <div className="pt-24 pb-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center">
+        <div className={`${tokenOffering?.valid ? "pt-6" : "pt-24"} pb-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center`}>
           <p className="font-body text-sm italic text-muted-foreground">
             {cls.banner}
           </p>
