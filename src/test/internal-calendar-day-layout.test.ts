@@ -7,7 +7,12 @@
  * spa schedule means a double-booked room goes unnoticed — so lock it here.
  */
 import { describe, it, expect } from "vitest";
-import { layoutDay, type CalendarEntry } from "@/components/admin/AdminInternalCalendars";
+import {
+  layoutDay,
+  minutesLabel,
+  rangeLabel,
+  type CalendarEntry,
+} from "@/components/admin/AdminInternalCalendars";
 
 let seq = 0;
 const entry = (start_time: string, duration_minutes: number, title = `e${++seq}`): CalendarEntry => ({
@@ -103,5 +108,36 @@ describe("internal calendar day layout", () => {
 
   it("handles an empty day", () => {
     expect(layoutDay([])).toEqual([]);
+  });
+});
+
+describe("day view time labels", () => {
+  it("renders 12-hour clock times", () => {
+    expect(minutesLabel(0)).toBe("12 AM");
+    expect(minutesLabel(9 * 60)).toBe("9 AM");
+    expect(minutesLabel(9 * 60 + 30)).toBe("9:30 AM");
+    expect(minutesLabel(12 * 60)).toBe("12 PM");
+    expect(minutesLabel(13 * 60 + 30)).toBe("1:30 PM");
+    expect(minutesLabel(19 * 60)).toBe("7 PM");
+  });
+
+  it("wraps past midnight instead of reading 13 PM", () => {
+    // An entry can end at or beyond 24:00 — e.g. 11 PM + 2h.
+    expect(minutesLabel(24 * 60)).toBe("12 AM");
+    expect(minutesLabel(25 * 60)).toBe("1 AM");
+    expect(minutesLabel(25 * 60 + 30)).toBe("1:30 AM");
+  });
+
+  it("drops the repeated meridiem within one half of the day", () => {
+    expect(rangeLabel(9 * 60, 10 * 60)).toBe("9 – 10 AM");
+    expect(rangeLabel(15 * 60, 16 * 60 + 30)).toBe("3 – 4:30 PM");
+  });
+
+  it("keeps both meridiems when the entry crosses noon", () => {
+    expect(rangeLabel(11 * 60, 13 * 60 + 30)).toBe("11 AM – 1:30 PM");
+  });
+
+  it("labels a treatment that runs past midnight", () => {
+    expect(rangeLabel(23 * 60, 25 * 60)).toBe("11 PM – 1 AM");
   });
 });

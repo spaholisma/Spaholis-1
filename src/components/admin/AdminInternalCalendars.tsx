@@ -66,12 +66,26 @@ const toMinutes = (hhmm: string): number => {
   return (h || 0) * 60 + (m || 0);
 };
 
-const minutesLabel = (mins: number): string => {
-  const h = Math.floor(mins / 60);
+export const minutesLabel = (mins: number): string => {
+  // Wrap past midnight: an entry can end at or beyond 24:00, and 25:00 must
+  // read as 1 AM rather than "13 PM".
+  const h24 = Math.floor(mins / 60) % 24;
   const m = mins % 60;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  const suffix = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 > 12 ? h24 - 12 : h24 === 0 ? 12 : h24;
   return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+};
+
+/**
+ * "9 – 10 AM" when both ends share a meridiem, "11 AM – 1:30 PM" when they
+ * don't — the repeated AM/PM is noise in a block that's already tight.
+ */
+export const rangeLabel = (startMin: number, endMin: number): string => {
+  const from = minutesLabel(startMin);
+  const to = minutesLabel(endMin);
+  return from.slice(-2) === to.slice(-2)
+    ? `${from.slice(0, -3)} – ${to}`
+    : `${from} – ${to}`;
 };
 
 export interface LaidOutEntry {
@@ -591,10 +605,10 @@ export function AdminInternalCalendars() {
                               borderColor: `${color}55`,
                               color,
                             }}
-                            title={`${minutesLabel(startMin)} – ${minutesLabel(endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
+                            title={`${rangeLabel(startMin, endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                           >
                             <p className="text-[13px] font-semibold leading-snug truncate">
-                              {minutesLabel(startMin)} · {entry.title}
+                              {rangeLabel(startMin, endMin)} · {entry.title}
                             </p>
                             {loc && <p className="text-[11px] leading-snug truncate opacity-80">{loc}</p>}
                           </div>
