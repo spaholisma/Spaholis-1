@@ -37,6 +37,7 @@ interface Attendee {
   user_id: string | null;
   guest_name: string | null;
   guest_email: string | null;
+  guest_phone: string | null;
   status: string;
   payment_status: string;
   payment_method: string | null;
@@ -67,10 +68,27 @@ type EditForm = {
 type AttendeeForm = {
   name: string;
   email: string;
+  phone: string;
   total_price: number;
   payment_method: string;
   payment_status: string;
   coupon_code: string;
+};
+
+/** A previously-seen customer surfaced by the admin typeahead. */
+type KnownContact = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  last_seen: string;
+  membership: {
+    id: string;
+    code: string | null;
+    name_snapshot: string;
+    is_unlimited: boolean;
+    credits_remaining: number | null;
+    expires_at: string | null;
+  } | null;
 };
 
 const PAYMENT_METHODS = [
@@ -99,8 +117,14 @@ export function AdminClassCalendarWithAttendees() {
   const [saving, setSaving] = useState(false);
   const [attendeeOpen, setAttendeeOpen] = useState(false);
   const [editingAttendeeId, setEditingAttendeeId] = useState<string | null>(null);
-  const [attendeeForm, setAttendeeForm] = useState<AttendeeForm>({ name: "", email: "", total_price: 0, payment_method: "cash", payment_status: "paid", coupon_code: "" });
+  const [attendeeForm, setAttendeeForm] = useState<AttendeeForm>({ name: "", email: "", phone: "", total_price: 0, payment_method: "cash", payment_status: "paid", coupon_code: "" });
   const [addingAttendee, setAddingAttendee] = useState(false);
+  // ---- Contact recall: typeahead over everyone we've ever recorded ----
+  const [contactMatches, setContactMatches] = useState<KnownContact[]>([]);
+  const [showContactList, setShowContactList] = useState(false);
+  // The customer's existing pass, pulled by the typeahead and applied on submit
+  // (booking through it deducts a credit server-side).
+  const [linkedPass, setLinkedPass] = useState<KnownContact["membership"]>(null);
   const [codeLookup, setCodeLookup] = useState<{
     status: "idle" | "loading" | "valid" | "invalid";
     kind?: "coupon" | "gift_card" | "user_offering";
@@ -151,6 +175,50 @@ export function AdminClassCalendarWithAttendees() {
       toast.error(e.message || "Failed to create order");
     } finally {
       setCreatingOrder(false);
+    }
+  };
+
+  // Debounced recall of previously-recorded customers as the admin types a name.
+  // Skipped while editing an existing attendee (their details are already set).
+  useEffect(() => {
+    const q = attendeeForm.name.trim();
+    if (editingAttendeeId || !attendeeOpen || q.length < 2) {
+      setContactMatches([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("search_known_contacts" as any, { _q: q });
+      if (cancelled || error) return;
+      setContactMatches((data as unknown as KnownContact[]) ?? []);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [attendeeForm.name, editingAttendeeId, attendeeOpen]);
+
+  // Fill the form from a recalled customer, pulling their pass if they have one.
+  const applyContact = (c: KnownContact) => {
+    setAttendeeForm((f) => ({
+      ...f,
+      name: c.name,
+      email: c.email ?? "",
+      phone: c.phone ?? "",
+      ...(c.membership
+        ? { payment_method: "offering", payment_status: "paid", total_price: 0, coupon_code: c.membership.code ?? "" }
+        : {}),
+    }));
+    setLinkedPass(c.membership);
+    setShowContactList(false);
+    if (c.membership) {
+      setCodeLookup({
+        status: "valid",
+        kind: "user_offering",
+        message: `Pass on file: ${c.membership.name_snapshot}${c.membership.code ? ` (code ${c.membership.code})` : ""}`,
+        detail: c.membership.is_unlimited
+          ? "Unlimited membership — booking through it won't use a credit."
+          : `${c.membership.credits_remaining} credits remaining — booking will use 1.`,
+      });
+    } else {
+      setCodeLookup({ status: "idle" });
     }
   };
 
@@ -223,12 +291,15 @@ export function AdminClassCalendarWithAttendees() {
       return;
     }
 
-    // 3. Try user offering (package/membership) — code = user_offering id (short match)
-    const { data: uo } = await supabase
+    // 3. Try user offering (membership / class pass) — match the order code the
+    //    customer was given (e.g. MU3477), or the raw id for older records.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+    const uoSelect = () => supabase
       .from("user_offerings")
-      .select("id, name_snapshot, is_unlimited, credits_remaining, status, expires_at, user_id")
-      .eq("id", code)
-      .maybeSingle();
+      .select("id, code, name_snapshot, is_unlimited, credits_remaining, status, expires_at, user_id");
+    const { data: uo } = isUuid
+      ? await uoSelect().eq("id", code).maybeSingle()
+      : await uoSelect().ilike("code", code).maybeSingle();
 
     if (uo) {
       if (uo.status !== "active") { setCodeLookup({ status: "invalid", message: `Package is ${uo.status}` }); return; }
@@ -240,15 +311,27 @@ export function AdminClassCalendarWithAttendees() {
       }
       setAttendeeForm((f) => ({
         ...f,
+        coupon_code: (uo as any).code ?? f.coupon_code,
         payment_method: "offering",
         payment_status: "paid",
         total_price: 0,
       }));
+      // Link it so saving redeems through the pass (deducting a credit).
+      setLinkedPass({
+        id: uo.id,
+        code: (uo as any).code ?? null,
+        name_snapshot: uo.name_snapshot,
+        is_unlimited: !!uo.is_unlimited,
+        credits_remaining: uo.credits_remaining ?? null,
+        expires_at: uo.expires_at ?? null,
+      });
       setCodeLookup({
         status: "valid",
         kind: "user_offering",
         message: `Package: ${uo.name_snapshot}`,
-        detail: uo.is_unlimited ? "Unlimited membership. Payment method set to Package." : `${uo.credits_remaining} credits remaining. Payment method set to Package.`,
+        detail: uo.is_unlimited
+          ? "Unlimited membership. Payment method set to Package."
+          : `${uo.credits_remaining} credits remaining — saving will use 1.`,
       });
       return;
     }
@@ -274,7 +357,7 @@ export function AdminClassCalendarWithAttendees() {
     setLoadingAttendees(true);
     const { data } = await supabase
       .from("class_bookings")
-      .select("id, user_id, guest_name, guest_email, status, payment_status, payment_method, total_price, coupon_code, created_at")
+      .select("id, user_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, coupon_code, created_at")
       .eq("schedule_id", scheduleId)
       .order("created_at", { ascending: true });
 
@@ -416,12 +499,16 @@ export function AdminClassCalendarWithAttendees() {
     setAttendeeForm({
       name: "",
       email: "",
+      phone: "",
       total_price: Number(selected?.classes?.price ?? 0),
       payment_method: "cash",
       payment_status: "paid",
       coupon_code: "",
     });
     setCodeLookup({ status: "idle" });
+    setLinkedPass(null);
+    setContactMatches([]);
+    setShowContactList(false);
     setAttendeeOpen(true);
   };
 
@@ -430,12 +517,16 @@ export function AdminClassCalendarWithAttendees() {
     setAttendeeForm({
       name: a.profile_name || a.guest_name || "",
       email: a.profile_email || a.guest_email || "",
+      phone: a.guest_phone || "",
       total_price: Number(a.total_price ?? 0),
       payment_method: a.payment_method || "cash",
       payment_status: a.payment_status || "paid",
       coupon_code: a.coupon_code || "",
     });
     setCodeLookup({ status: "idle" });
+    setLinkedPass(null);
+    setContactMatches([]);
+    setShowContactList(false);
     setAttendeeOpen(true);
   };
 
@@ -448,6 +539,7 @@ export function AdminClassCalendarWithAttendees() {
         const { error } = await supabase.from("class_bookings").update({
           guest_name: attendeeForm.name.trim(),
           guest_email: attendeeForm.email.trim() || null,
+          guest_phone: attendeeForm.phone.trim() || null,
           payment_status: attendeeForm.payment_status,
           payment_method: attendeeForm.payment_method,
           total_price: attendeeForm.total_price,
@@ -459,10 +551,33 @@ export function AdminClassCalendarWithAttendees() {
         loadAttendees(selected.id);
       } else {
         if (selected.spots_remaining <= 0) { toast.error("This session is full"); return; }
+        // Booking through the customer's own pass goes via the server so the
+        // credit, the redemption record and the spot all move atomically.
+        if (linkedPass && attendeeForm.payment_method === "offering") {
+          const { error } = await supabase.rpc("admin_book_class_with_offering" as any, {
+            _user_offering_id: linkedPass.id,
+            _schedule_id: selected.id,
+            _guest_name: attendeeForm.name.trim(),
+            _guest_email: attendeeForm.email.trim() || null,
+            _guest_phone: attendeeForm.phone.trim() || null,
+          });
+          if (error) throw error;
+          toast.success(
+            linkedPass.is_unlimited
+              ? `Added with ${linkedPass.name_snapshot}`
+              : `Added — 1 credit used from ${linkedPass.name_snapshot}`,
+          );
+          setAttendeeOpen(false);
+          loadAttendees(selected.id);
+          loadScheduled();
+          setSelected((prev) => prev ? { ...prev, spots_remaining: Math.max(0, prev.spots_remaining - 1) } : prev);
+          return;
+        }
         const { error } = await supabase.from("class_bookings").insert({
           schedule_id: selected.id,
           guest_name: attendeeForm.name.trim(),
           guest_email: attendeeForm.email.trim() || null,
+          guest_phone: attendeeForm.phone.trim() || null,
           status: "confirmed",
           payment_status: attendeeForm.payment_status,
           payment_method: attendeeForm.payment_method,
@@ -948,14 +1063,55 @@ export function AdminClassCalendarWithAttendees() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative">
                 <Label>Name *</Label>
-                <Input value={attendeeForm.name} onChange={(e) => setAttendeeForm({ ...attendeeForm, name: e.target.value })} placeholder="Full name" />
+                <Input
+                  value={attendeeForm.name}
+                  onChange={(e) => {
+                    setAttendeeForm({ ...attendeeForm, name: e.target.value });
+                    setShowContactList(true);
+                    setLinkedPass(null);
+                  }}
+                  onFocus={() => setShowContactList(true)}
+                  onBlur={() => setTimeout(() => setShowContactList(false), 150)}
+                  placeholder="Start typing to find a past customer"
+                  autoComplete="off"
+                />
+                {showContactList && contactMatches.length > 0 && (
+                  <ul className="absolute z-50 top-full left-0 right-0 mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover shadow-md">
+                    {contactMatches.map((c, i) => (
+                      <li key={`${c.email ?? c.name}-${i}`}>
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applyContact(c)}
+                        >
+                          <span className="block text-sm font-medium text-foreground">{c.name}</span>
+                          <span className="block text-xs text-muted-foreground truncate">
+                            {[c.email, c.phone].filter(Boolean).join(" · ") || "no contact details on file"}
+                          </span>
+                          {c.membership && (
+                            <span className="mt-0.5 inline-block rounded-full bg-spa-sage/15 px-2 py-0.5 text-[11px] font-medium text-spa-sage">
+                              {c.membership.name_snapshot}
+                              {c.membership.code ? ` · ${c.membership.code}` : ""}
+                              {c.membership.is_unlimited ? " · Unlimited" : ` · ${c.membership.credits_remaining} left`}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Email</Label>
                 <Input type="email" value={attendeeForm.email} onChange={(e) => setAttendeeForm({ ...attendeeForm, email: e.target.value })} placeholder="optional" />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={attendeeForm.phone} onChange={(e) => setAttendeeForm({ ...attendeeForm, phone: e.target.value })} placeholder="optional" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

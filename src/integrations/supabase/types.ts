@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -415,6 +415,7 @@ export type Database = {
           discount_amount: number | null
           guest_email: string | null
           guest_name: string | null
+          guest_phone: string | null
           id: string
           notification_sent_at: string | null
           payment_id: string | null
@@ -433,6 +434,7 @@ export type Database = {
           discount_amount?: number | null
           guest_email?: string | null
           guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           notification_sent_at?: string | null
           payment_id?: string | null
@@ -451,6 +453,7 @@ export type Database = {
           discount_amount?: number | null
           guest_email?: string | null
           guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           notification_sent_at?: string | null
           payment_id?: string | null
@@ -575,6 +578,7 @@ export type Database = {
           location: string | null
           location_es: string | null
           max_capacity: number
+          payment_link: string | null
           price: number
           recurrence_rule: string | null
           requires_payment: boolean
@@ -597,6 +601,7 @@ export type Database = {
           location?: string | null
           location_es?: string | null
           max_capacity?: number
+          payment_link?: string | null
           price?: number
           recurrence_rule?: string | null
           requires_payment?: boolean
@@ -619,6 +624,7 @@ export type Database = {
           location?: string | null
           location_es?: string | null
           max_capacity?: number
+          payment_link?: string | null
           price?: number
           recurrence_rule?: string | null
           requires_payment?: boolean
@@ -1351,7 +1357,7 @@ export type Database = {
           id: string
           notes: string | null
           redemption_type: string
-          user_id: string
+          user_id: string | null
           user_offering_id: string
         }
         Insert: {
@@ -1361,7 +1367,7 @@ export type Database = {
           id?: string
           notes?: string | null
           redemption_type: string
-          user_id: string
+          user_id?: string | null
           user_offering_id: string
         }
         Update: {
@@ -1371,7 +1377,7 @@ export type Database = {
           id?: string
           notes?: string | null
           redemption_type?: string
-          user_id?: string
+          user_id?: string | null
           user_offering_id?: string
         }
         Relationships: [
@@ -1396,6 +1402,7 @@ export type Database = {
           is_unlimited: boolean
           name: string
           name_es: string | null
+          payment_link: string | null
           price: number
           sort_order: number
           status: string
@@ -1413,6 +1420,7 @@ export type Database = {
           is_unlimited?: boolean
           name: string
           name_es?: string | null
+          payment_link?: string | null
           price?: number
           sort_order?: number
           status?: string
@@ -1430,6 +1438,7 @@ export type Database = {
           is_unlimited?: boolean
           name?: string
           name_es?: string | null
+          payment_link?: string | null
           price?: number
           sort_order?: number
           status?: string
@@ -2020,11 +2029,16 @@ export type Database = {
       }
       user_offerings: {
         Row: {
+          access_token: string | null
+          code: string | null
           created_at: string
           credits_remaining: number | null
           credits_total: number | null
           expires_at: string | null
           granted_by: string | null
+          guest_email: string | null
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           is_unlimited: boolean
           name_snapshot: string
@@ -2037,14 +2051,19 @@ export type Database = {
           status: string
           type: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
+          access_token?: string | null
+          code?: string | null
           created_at?: string
           credits_remaining?: number | null
           credits_total?: number | null
           expires_at?: string | null
           granted_by?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           is_unlimited?: boolean
           name_snapshot: string
@@ -2057,14 +2076,19 @@ export type Database = {
           status?: string
           type: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
+          access_token?: string | null
+          code?: string | null
           created_at?: string
           credits_remaining?: number | null
           credits_total?: number | null
           expires_at?: string | null
           granted_by?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           is_unlimited?: boolean
           name_snapshot?: string
@@ -2077,7 +2101,7 @@ export type Database = {
           status?: string
           type?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2172,6 +2196,20 @@ export type Database = {
       }
     }
     Functions: {
+      admin_book_class_with_offering: {
+        Args: {
+          _guest_email?: string
+          _guest_name?: string
+          _guest_phone?: string
+          _schedule_id: string
+          _user_offering_id: string
+        }
+        Returns: Json
+      }
+      book_class_with_membership_token: {
+        Args: { _schedule_id: string; _token: string }
+        Returns: Json
+      }
       claim_bac_payment_link: {
         Args: { _amount: number; _booking_id: string }
         Returns: {
@@ -2180,15 +2218,26 @@ export type Database = {
           url: string
         }[]
       }
+      create_membership_order: {
+        Args: {
+          _guest_email: string
+          _guest_name: string
+          _guest_phone?: string
+          _notes?: string
+          _offering_id: string
+        }
+        Returns: Json
+      }
+      decrement_class_spot: { Args: { _schedule_id: string }; Returns: number }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
-      email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_user_offering_by_token: { Args: { _token: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2196,6 +2245,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_class_spot: { Args: { _schedule_id: string }; Returns: number }
+      increment_coupon_usage: { Args: { _coupon_id: string }; Returns: number }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -2217,6 +2268,7 @@ export type Database = {
         Args: { _class_booking_id?: string; _user_offering_id: string }
         Returns: Json
       }
+      search_known_contacts: { Args: { _q: string }; Returns: Json }
     }
     Enums: {
       app_role: "super_admin" | "manager" | "client"
