@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -179,6 +179,9 @@ export function AdminInternalCalendars() {
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
+  /** The day to reopen once the entry form closes, so adding or editing from
+   *  the day view doesn't kick you back out to the month. */
+  const [returnToDay, setReturnToDay] = useState<Date | null>(null);
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
 
@@ -293,6 +296,15 @@ export function AdminInternalCalendars() {
     return null;
   };
 
+  /** Close the entry form and drop back into the day it was opened from. */
+  const closeEntryModal = () => {
+    setModalOpen(false);
+    if (returnToDay) {
+      setDayViewDate(returnToDay);
+      setReturnToDay(null);
+    }
+  };
+
   const openNew = (date?: Date) => {
     setEditingEntry(null);
     const day = format(date || new Date(), "yyyy-MM-dd");
@@ -321,6 +333,16 @@ export function AdminInternalCalendars() {
     });
     setCreatingGroup(false);
     setModalOpen(true);
+  };
+
+  /**
+   * Turn the open entry into a new one carrying the same details. Nothing is
+   * written until Create, so the original is never touched.
+   */
+  const duplicateEntry = () => {
+    setEditingEntry(null);
+    setForm((f) => ({ ...f, title: `${f.title} (copy)` }));
+    toast.info("Duplicated — change the title, then press Create");
   };
 
   const handleSave = async () => {
@@ -373,7 +395,7 @@ export function AdminInternalCalendars() {
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success(editingEntry ? "Entry updated" : "Entry created");
-    setModalOpen(false);
+    closeEntryModal();
     loadEntries();
   };
 
@@ -520,7 +542,16 @@ export function AdminInternalCalendars() {
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(entry)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Duplicate"
+                      onClick={() => { openEdit(entry); duplicateEntry(); }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit" onClick={() => openEdit(entry)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(entry.id)}>
@@ -574,7 +605,7 @@ export function AdminInternalCalendars() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => { const d = dayViewDate; setDayViewDate(null); openNew(d); }}
+                    onClick={() => { const d = dayViewDate; setReturnToDay(d); setDayViewDate(null); openNew(d); }}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
                   </Button>
@@ -588,7 +619,7 @@ export function AdminInternalCalendars() {
                       return (
                         <div
                           key={entry.id}
-                          onClick={() => { setDayViewDate(null); openEdit(entry); }}
+                          onClick={() => { setReturnToDay(dayViewDate); setDayViewDate(null); openEdit(entry); }}
                           className="flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer hover:opacity-80 transition-opacity"
                           style={{ backgroundColor: `${color}20`, borderColor: `${color}55`, color }}
                           title={`All day · ${entry.title}${loc ? ` · ${loc}` : ""}`}
@@ -626,7 +657,7 @@ export function AdminInternalCalendars() {
                         return (
                           <div
                             key={entry.id}
-                            onClick={() => { setDayViewDate(null); openEdit(entry); }}
+                            onClick={() => { setReturnToDay(dayViewDate); setDayViewDate(null); openEdit(entry); }}
                             className="absolute rounded-md border px-2 py-1 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                             style={{
                               top: ((startMin - dayStartMin) / 60) * hourPx,
@@ -656,7 +687,7 @@ export function AdminInternalCalendars() {
       </Dialog>
 
       {/* Add/Edit Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={modalOpen} onOpenChange={(o) => { if (o) setModalOpen(true); else closeEntryModal(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingEntry ? "Edit Entry" : "New Entry"} — {TYPE_LABELS[calendarType]}</DialogTitle>
@@ -811,8 +842,13 @@ export function AdminInternalCalendars() {
               <Label>Notes (optional)</Label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Internal notes..." />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <div className="flex items-center gap-2 pt-2">
+              {editingEntry && (
+                <Button variant="ghost" onClick={duplicateEntry} disabled={saving} title="Copy this entry into a new one">
+                  <Copy className="h-4 w-4 mr-1.5" /> Duplicate
+                </Button>
+              )}
+              <Button variant="outline" className="ml-auto" onClick={closeEntryModal}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingEntry ? "Update" : "Create"}</Button>
             </div>
           </div>
