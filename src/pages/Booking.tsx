@@ -186,9 +186,19 @@ const BookingPage = () => {
           <PackageDetailView
             pkg={selectedPackage}
             onProceed={() => {
-              // Clear package param and proceed to booking with notes about the package
-              setSearchParams({});
               setFormData((prev) => ({ ...prev, notes: `Spa Package: ${selectedPackage.name}` }));
+              // Every package mirrors a bookable service, so go straight to
+              // date & time with the package already selected — never back to
+              // the treatment list.
+              if (selectedPackage.service_id) {
+                setSearchParams({ service: selectedPackage.service_id });
+                setSelectedService(selectedPackage.service_id);
+                setActiveCategory("Spa Packages");
+                setStep(1);
+                return;
+              }
+              // Fallback for a package with no mirrored service yet.
+              setSearchParams({});
               setStep(0);
             }}
           />

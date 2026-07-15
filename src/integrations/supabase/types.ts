@@ -1941,6 +1941,7 @@ export type Database = {
           name_es: string | null
           position: number
           price: number
+          service_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1960,6 +1961,7 @@ export type Database = {
           name_es?: string | null
           position?: number
           price?: number
+          service_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1979,9 +1981,18 @@ export type Database = {
           name_es?: string | null
           position?: number
           price?: number
+          service_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "spa_packages_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff: {
         Row: {
@@ -2293,6 +2304,7 @@ export type Database = {
         }
         Returns: number
       }
+      parse_duration_label: { Args: { _label: string }; Returns: number }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {

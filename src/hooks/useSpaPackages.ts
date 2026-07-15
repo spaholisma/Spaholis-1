@@ -23,6 +23,9 @@ export interface SpaPackage {
   gallery_images?: string[] | any;
   booking_url: string | null;
   is_active: boolean;
+  /** Mirrored bookable service (kept in sync by a DB trigger) so a package can
+   *  be booked directly without picking a treatment from the list. */
+  service_id: string | null;
   items: SpaPackageItem[];
 }
 
