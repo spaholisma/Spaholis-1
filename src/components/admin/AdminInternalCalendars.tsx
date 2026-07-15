@@ -49,14 +49,17 @@ interface Room {
 const OFFSITE = "offsite";
 
 /**
- * Day view: pixels per hour, and the default window before entries stretch it.
- * The window is the spa's working day (9–7) and the height is sized so that
- * whole window fits on screen without scrolling; anything outside it still
- * stretches the timeline and scrolls.
+ * Day view. The default window is the spa's working day (9–7); entries outside
+ * it stretch the timeline. Hour height is computed per screen (see hourPx) so
+ * the window fits in one view, between these bounds — below MIN a row can't
+ * hold its two lines of text, above MAX it just wastes space.
  */
-const HOUR_PX = 56;
 const DEFAULT_DAY_START_H = 9;
 const DEFAULT_DAY_END_H = 19;
+const MIN_HOUR_PX = 46;
+const MAX_HOUR_PX = 72;
+/** Header + toolbar + dialog padding sitting above the timeline. */
+const DAY_VIEW_CHROME_PX = 200;
 
 const toMinutes = (hhmm: string): number => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -509,6 +512,14 @@ export function AdminInternalCalendars() {
             const endH = Math.max(DEFAULT_DAY_END_H, ...laid.map((l) => Math.ceil(l.endMin / 60)));
             const dayStartMin = startH * 60;
             const hours = Array.from({ length: endH - startH + 1 }, (_, i) => startH + i);
+            // Size the hours to the screen so the whole window lands in one view
+            // rather than assuming a laptop height. Clamped so rows stay
+            // readable on a short screen and don't balloon on a tall one.
+            const availPx = (typeof window !== "undefined" ? window.innerHeight : 900) - DAY_VIEW_CHROME_PX;
+            const hourPx = Math.max(
+              MIN_HOUR_PX,
+              Math.min(MAX_HOUR_PX, Math.floor((availPx - 8) / Math.max(endH - startH, 1))),
+            );
 
             return (
               <div>
@@ -549,10 +560,12 @@ export function AdminInternalCalendars() {
                   </div>
                 )}
 
-                <div className="overflow-y-auto max-h-[calc(100vh-14rem)] pr-1">
-                  <div className="relative" style={{ height: (endH - startH) * HOUR_PX + 8 }}>
+                {/* pt-2 gives the first hour label room — it sits half a line
+                    above its own gridline and would otherwise clip at the top. */}
+                <div className="overflow-y-auto max-h-[calc(100vh-11rem)] pr-1 pt-2">
+                  <div className="relative" style={{ height: (endH - startH) * hourPx + 8 }}>
                     {hours.map((h, i) => (
-                      <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * HOUR_PX }}>
+                      <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * hourPx }}>
                         <span className="w-14 shrink-0 -translate-y-2 pr-2 text-right text-xs font-medium text-muted-foreground">
                           {minutesLabel(h * 60)}
                         </span>
@@ -570,8 +583,8 @@ export function AdminInternalCalendars() {
                             onClick={() => { setDayViewDate(null); openEdit(entry); }}
                             className="absolute rounded-md border px-2 py-1 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                             style={{
-                              top: ((startMin - dayStartMin) / 60) * HOUR_PX,
-                              height: Math.max(((endMin - startMin) / 60) * HOUR_PX - 2, 22),
+                              top: ((startMin - dayStartMin) / 60) * hourPx,
+                              height: Math.max(((endMin - startMin) / 60) * hourPx - 2, 22),
                               left: `calc(${(lane / lanes) * 100}% + 2px)`,
                               width: `calc(${(1 / lanes) * 100}% - 4px)`,
                               backgroundColor: `${color}20`,
