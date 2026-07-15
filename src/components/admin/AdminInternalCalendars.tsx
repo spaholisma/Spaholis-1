@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
-import { readableOn } from "./AttendeeLabelPicker";
+import { readableOn, PALETTE } from "./AttendeeLabelPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CalendarType = "treatment" | "retreat" | "class";
@@ -174,6 +174,40 @@ export function AdminInternalCalendars() {
       return next;
     });
 
+  // Create a sub-calendar without leaving the entry form — the moment you need
+  // one is the moment you're filling this in.
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupDraft, setGroupDraft] = useState({ name: "", color: PALETTE[0] });
+  const [savingGroup, setSavingGroup] = useState(false);
+
+  const startNewGroup = () => {
+    setGroupDraft({ name: "", color: PALETTE[groups.length % PALETTE.length] });
+    setCreatingGroup(true);
+  };
+
+  const saveNewGroup = async () => {
+    const name = groupDraft.name.trim();
+    if (!name) { toast.error("Calendar name is required"); return; }
+    setSavingGroup(true);
+    try {
+      const { data, error } = await supabase
+        .from("calendar_groups")
+        .insert({ name, color: groupDraft.color, sort_order: groups.length })
+        .select("id, name, color, sort_order")
+        .single();
+      if (error) throw error;
+      await loadGroups();
+      // Select it straight away, so creating it is part of one flow.
+      setForm((f) => ({ ...f, group_id: (data as CalendarGroup).id }));
+      setCreatingGroup(false);
+      toast.success(`Calendar "${name}" created`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to create calendar");
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -229,6 +263,7 @@ export function AdminInternalCalendars() {
       ...emptyForm,
       entry_date: format(date || new Date(), "yyyy-MM-dd"),
     });
+    setCreatingGroup(false);
     setModalOpen(true);
   };
 
@@ -245,6 +280,7 @@ export function AdminInternalCalendars() {
       group_id: entry.group_id ?? "",
       is_all_day: entry.is_all_day,
     });
+    setCreatingGroup(false);
     setModalOpen(true);
   };
 
@@ -583,7 +619,51 @@ export function AdminInternalCalendars() {
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
+                {!creatingGroup && (
+                  <Button type="button" variant="outline" size="sm" className="h-9 shrink-0" onClick={startNewGroup}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> New
+                  </Button>
+                )}
               </div>
+
+              {creatingGroup && (
+                <div className="rounded-md border border-border p-2 space-y-2">
+                  <Input
+                    autoFocus
+                    value={groupDraft.name}
+                    onChange={(e) => setGroupDraft({ ...groupDraft, name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); saveNewGroup(); }
+                      if (e.key === "Escape") { e.preventDefault(); setCreatingGroup(false); }
+                    }}
+                    placeholder="Calendar name — e.g. Ashley, No show, On call"
+                    className="h-8 text-sm"
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    {PALETTE.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setGroupDraft({ ...groupDraft, color: c })}
+                        className={cn(
+                          "h-6 w-6 rounded-full border-2 transition-transform",
+                          groupDraft.color === c ? "border-foreground scale-110" : "border-transparent",
+                        )}
+                        style={{ backgroundColor: c }}
+                        title={c}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" className="h-7 text-xs" onClick={saveNewGroup} disabled={savingGroup}>
+                      {savingGroup ? "Creating..." : "Create calendar"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setCreatingGroup(false)} disabled={savingGroup}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer w-fit">
