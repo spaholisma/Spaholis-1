@@ -29,6 +29,8 @@ interface CalendarEntry {
   room_id: string | null;
   /** Happening away from the spa — reserves no room, so the spa stays bookable. */
   is_offsite: boolean;
+  /** Free-text place for an off-site entry (hotel, villa, client's address). */
+  offsite_location: string | null;
 }
 
 interface Room {
@@ -58,6 +60,7 @@ const emptyForm = {
   duration_minutes: 60,
   notes: "",
   location: "",
+  offsite_location: "",
 };
 
 export function AdminInternalCalendars() {
@@ -101,6 +104,15 @@ export function AdminInternalCalendars() {
     end: endOfWeek(endOfMonth(currentDate)),
   });
 
+  /** Where the entry happens, for the list view. Null when unspecified. */
+  const locationLabel = (entry: CalendarEntry): string | null => {
+    if (entry.is_offsite) {
+      return entry.offsite_location ? `Off-site · ${entry.offsite_location}` : "Off-site";
+    }
+    if (entry.room_id) return rooms.find((r) => r.id === entry.room_id)?.name ?? null;
+    return null;
+  };
+
   const openNew = (date?: Date) => {
     setEditingEntry(null);
     setForm({
@@ -119,6 +131,7 @@ export function AdminInternalCalendars() {
       duration_minutes: entry.duration_minutes,
       notes: entry.notes || "",
       location: entry.is_offsite ? OFFSITE : (entry.room_id ?? ""),
+      offsite_location: entry.offsite_location || "",
     });
     setModalOpen(true);
   };
@@ -146,6 +159,9 @@ export function AdminInternalCalendars() {
       // Only a room pins the entry to the spa; off-site leaves every room free.
       room_id: form.location && form.location !== OFFSITE ? form.location : null,
       is_offsite: form.location === OFFSITE,
+      // Drop the place if the entry is no longer off-site, so a stale address
+      // can't linger on a room booking.
+      offsite_location: form.location === OFFSITE ? (form.offsite_location.trim() || null) : null,
     };
 
     let error;
@@ -276,6 +292,7 @@ export function AdminInternalCalendars() {
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(entry.entry_date), "MMM d, yyyy")} · {entry.start_time.slice(0, 5)}
                         {entry.end_time && ` – ${entry.end_time.slice(0, 5)}`} · {entry.duration_minutes}min
+                        {locationLabel(entry) && ` · ${locationLabel(entry)}`}
                       </p>
                       {entry.notes && <p className="text-xs text-muted-foreground truncate mt-0.5">{entry.notes}</p>}
                     </div>
@@ -343,6 +360,16 @@ export function AdminInternalCalendars() {
                     : "Pick a room to hold it, or Off-site to leave the spa free."}
               </p>
             </div>
+            {form.location === OFFSITE && (
+              <div className="space-y-1.5">
+                <Label>Place (optional)</Label>
+                <Input
+                  value={form.offsite_location}
+                  onChange={(e) => setForm({ ...form, offsite_location: e.target.value })}
+                  placeholder="e.g. Hotel Costa Verde, Villa 4"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Notes (optional)</Label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Internal notes..." />

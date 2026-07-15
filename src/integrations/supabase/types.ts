@@ -25,6 +25,7 @@ export type Database = {
           id: string
           is_offsite: boolean
           notes: string | null
+          offsite_location: string | null
           room_id: string | null
           start_time: string
           title: string
@@ -40,6 +41,7 @@ export type Database = {
           id?: string
           is_offsite?: boolean
           notes?: string | null
+          offsite_location?: string | null
           room_id?: string | null
           start_time: string
           title: string
@@ -55,6 +57,7 @@ export type Database = {
           id?: string
           is_offsite?: boolean
           notes?: string | null
+          offsite_location?: string | null
           room_id?: string | null
           start_time?: string
           title?: string
