@@ -48,10 +48,15 @@ interface Room {
 /** Form value for the location select: "" = unset, "offsite", or a room id. */
 const OFFSITE = "offsite";
 
-/** Day view: pixels per hour, and the default window before entries stretch it. */
-const HOUR_PX = 76;
-const DEFAULT_DAY_START_H = 8;
-const DEFAULT_DAY_END_H = 20;
+/**
+ * Day view: pixels per hour, and the default window before entries stretch it.
+ * The window is the spa's working day (9–7) and the height is sized so that
+ * whole window fits on screen without scrolling; anything outside it still
+ * stretches the timeline and scrolls.
+ */
+const HOUR_PX = 56;
+const DEFAULT_DAY_START_H = 9;
+const DEFAULT_DAY_END_H = 19;
 
 const toMinutes = (hhmm: string): number => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -490,7 +495,7 @@ export function AdminInternalCalendars() {
 
       {/* Day view — a single day laid out on a timeline */}
       <Dialog open={!!dayViewDate} onOpenChange={(o) => { if (!o) setDayViewDate(null); }}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh]">
           <DialogHeader>
             <DialogTitle>{dayViewDate ? format(dayViewDate, "EEEE, MMMM d, yyyy") : ""}</DialogTitle>
           </DialogHeader>
@@ -535,20 +540,20 @@ export function AdminInternalCalendars() {
                           style={{ backgroundColor: `${color}20`, borderColor: `${color}55`, color }}
                           title={`All day · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                         >
-                          <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70 shrink-0">All day</span>
-                          <span className="text-xs font-medium truncate">{entry.title}</span>
-                          {loc && <span className="ml-auto shrink-0 text-[10px] opacity-70">{loc}</span>}
+                          <span className="text-[11px] font-semibold uppercase tracking-wide opacity-70 shrink-0">All day</span>
+                          <span className="text-[13px] font-medium truncate">{entry.title}</span>
+                          {loc && <span className="ml-auto shrink-0 text-[11px] opacity-70">{loc}</span>}
                         </div>
                       );
                     })}
                   </div>
                 )}
 
-                <div className="overflow-y-auto max-h-[58vh] pr-1">
+                <div className="overflow-y-auto max-h-[calc(100vh-14rem)] pr-1">
                   <div className="relative" style={{ height: (endH - startH) * HOUR_PX + 8 }}>
                     {hours.map((h, i) => (
                       <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * HOUR_PX }}>
-                        <span className="w-14 shrink-0 -translate-y-1.5 pr-2 text-right text-[10px] text-muted-foreground">
+                        <span className="w-14 shrink-0 -translate-y-2 pr-2 text-right text-xs font-medium text-muted-foreground">
                           {minutesLabel(h * 60)}
                         </span>
                         <div className="flex-1 border-t border-border" />
@@ -575,10 +580,10 @@ export function AdminInternalCalendars() {
                             }}
                             title={`${minutesLabel(startMin)} – ${minutesLabel(endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                           >
-                            <p className="text-[11px] font-semibold leading-tight truncate">
+                            <p className="text-[13px] font-semibold leading-snug truncate">
                               {minutesLabel(startMin)} · {entry.title}
                             </p>
-                            {loc && <p className="text-[10px] leading-tight truncate opacity-80">{loc}</p>}
+                            {loc && <p className="text-[11px] leading-snug truncate opacity-80">{loc}</p>}
                           </div>
                         );
                       })}
