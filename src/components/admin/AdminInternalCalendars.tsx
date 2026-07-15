@@ -15,7 +15,7 @@ import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttende
 
 type CalendarType = "treatment" | "retreat" | "class";
 
-interface CalendarEntry {
+export interface CalendarEntry {
   id: string;
   calendar_type: string;
   title: string;
@@ -40,6 +40,78 @@ interface Room {
 
 /** Form value for the location select: "" = unset, "offsite", or a room id. */
 const OFFSITE = "offsite";
+
+/** Day view: pixels per hour, and the default window before entries stretch it. */
+const HOUR_PX = 56;
+const DEFAULT_DAY_START_H = 8;
+const DEFAULT_DAY_END_H = 20;
+
+const toMinutes = (hhmm: string): number => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+const minutesLabel = (mins: number): string => {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+};
+
+export interface LaidOutEntry {
+  entry: CalendarEntry;
+  startMin: number;
+  endMin: number;
+  /** Column index among entries it overlaps, and how many columns that group needs. */
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Position a day's entries like a calendar: stacked vertically by time, and
+ * split into side-by-side columns wherever they overlap.
+ */
+export function layoutDay(dayEntries: CalendarEntry[]): LaidOutEntry[] {
+  const items = dayEntries
+    .map((entry) => {
+      const startMin = toMinutes(entry.start_time);
+      // Keep very short entries clickable.
+      return { entry, startMin, endMin: startMin + Math.max(entry.duration_minutes || 0, 15) };
+    })
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  const out: LaidOutEntry[] = [];
+  let cluster: typeof items = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    if (!cluster.length) return;
+    const laneEnds: number[] = [];
+    const withLane = cluster.map((it) => {
+      let lane = laneEnds.findIndex((end) => end <= it.startMin);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(it.endMin);
+      } else {
+        laneEnds[lane] = it.endMin;
+      }
+      return { ...it, lane };
+    });
+    withLane.forEach((it) => out.push({ ...it, lanes: laneEnds.length }));
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const it of items) {
+    // A gap with no overlap starts a fresh group, so unrelated entries stay full width.
+    if (cluster.length && it.startMin >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.endMin);
+  }
+  flush();
+  return out;
+}
 
 const TYPE_COLORS: Record<CalendarType, string> = {
   treatment: "#8B5CF6",
@@ -72,6 +144,7 @@ export function AdminInternalCalendars() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -246,7 +319,8 @@ export function AdminInternalCalendars() {
                         "min-h-[100px] border-b border-r border-border p-1.5 cursor-pointer hover:bg-muted/30 transition-colors",
                         !inMonth && "opacity-40 bg-muted/10"
                       )}
-                      onClick={() => openNew(day)}
+                      onClick={() => setDayViewDate(day)}
+                      title="Open day view"
                     >
                       <div className={cn(
                         "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
@@ -313,6 +387,85 @@ export function AdminInternalCalendars() {
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Day view — a single day laid out on a timeline */}
+      <Dialog open={!!dayViewDate} onOpenChange={(o) => { if (!o) setDayViewDate(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{dayViewDate ? format(dayViewDate, "EEEE, MMMM d, yyyy") : ""}</DialogTitle>
+          </DialogHeader>
+          {dayViewDate && (() => {
+            const dayEntries = entries.filter((e) => e.entry_date === format(dayViewDate, "yyyy-MM-dd"));
+            const laid = layoutDay(dayEntries);
+            // Stretch the default window to fit anything outside it.
+            const startH = Math.min(DEFAULT_DAY_START_H, ...laid.map((l) => Math.floor(l.startMin / 60)));
+            const endH = Math.max(DEFAULT_DAY_END_H, ...laid.map((l) => Math.ceil(l.endMin / 60)));
+            const dayStartMin = startH * 60;
+            const hours = Array.from({ length: endH - startH + 1 }, (_, i) => startH + i);
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-muted-foreground">
+                    {dayEntries.length === 0
+                      ? "Nothing scheduled"
+                      : `${dayEntries.length} ${dayEntries.length === 1 ? "entry" : "entries"}`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { const d = dayViewDate; setDayViewDate(null); openNew(d); }}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
+                  </Button>
+                </div>
+
+                <div className="overflow-y-auto max-h-[60vh] pr-1">
+                  <div className="relative" style={{ height: (endH - startH) * HOUR_PX + 8 }}>
+                    {hours.map((h, i) => (
+                      <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * HOUR_PX }}>
+                        <span className="w-14 shrink-0 -translate-y-1.5 pr-2 text-right text-[10px] text-muted-foreground">
+                          {minutesLabel(h * 60)}
+                        </span>
+                        <div className="flex-1 border-t border-border" />
+                      </div>
+                    ))}
+
+                    <div className="absolute inset-y-0 left-14 right-0">
+                      {laid.map(({ entry, startMin, endMin, lane, lanes }) => {
+                        const color = entry.color || TYPE_COLORS[calendarType];
+                        const loc = locationLabel(entry);
+                        return (
+                          <div
+                            key={entry.id}
+                            onClick={() => { setDayViewDate(null); openEdit(entry); }}
+                            className="absolute rounded-md border px-1.5 py-1 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                            style={{
+                              top: ((startMin - dayStartMin) / 60) * HOUR_PX,
+                              height: Math.max(((endMin - startMin) / 60) * HOUR_PX - 2, 20),
+                              left: `calc(${(lane / lanes) * 100}% + 2px)`,
+                              width: `calc(${(1 / lanes) * 100}% - 4px)`,
+                              backgroundColor: `${color}20`,
+                              borderColor: `${color}55`,
+                              color,
+                            }}
+                            title={`${minutesLabel(startMin)} – ${minutesLabel(endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
+                          >
+                            <p className="text-[10px] font-semibold leading-tight truncate">
+                              {minutesLabel(startMin)} · {entry.title}
+                            </p>
+                            {loc && <p className="text-[9px] leading-tight truncate opacity-80">{loc}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
