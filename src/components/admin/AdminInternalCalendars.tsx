@@ -7,13 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy, Link2 as LinkIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, addDays, startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
+import { LinkifiedText, extractLinks } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CalendarType = "treatment" | "retreat" | "class";
@@ -651,7 +652,11 @@ export function AdminInternalCalendars() {
                           : ` · ${entry.start_time.slice(0, 5)}${entry.end_time ? ` – ${entry.end_time.slice(0, 5)}` : ""} · ${entry.duration_minutes}min`}
                         {locationLabel(entry) && ` · ${locationLabel(entry)}`}
                       </p>
-                      {entry.notes && <p className="text-xs text-muted-foreground truncate mt-0.5">{entry.notes}</p>}
+                      {entry.notes && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
+                          <LinkifiedText text={entry.notes} linkClassName="text-spa-sage" />
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -1024,7 +1029,31 @@ export function AdminInternalCalendars() {
             )}
             <div className="space-y-1.5">
               <Label>Notes (optional)</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Internal notes..." />
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={3}
+                placeholder="Internal notes — paste a link and it becomes clickable"
+              />
+              {/* The textarea itself can't be clicked through, so surface the
+                  pasted links here where they can actually be opened. */}
+              {extractLinks(form.notes).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {extractLinks(form.notes).map((href) => (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-spa-sage hover:bg-muted transition-colors"
+                      title={href}
+                    >
+                      <LinkIcon className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{href.replace(/^https?:\/\//, "")}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 pt-2">
               {editingEntry && (
