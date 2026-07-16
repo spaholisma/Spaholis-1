@@ -29,7 +29,10 @@ export type Database = {
           is_offsite: boolean
           notes: string | null
           offsite_location: string | null
+          recurrence: string
+          recurrence_until: string | null
           room_id: string | null
+          series_id: string | null
           start_time: string
           title: string
           updated_at: string
@@ -48,7 +51,10 @@ export type Database = {
           is_offsite?: boolean
           notes?: string | null
           offsite_location?: string | null
+          recurrence?: string
+          recurrence_until?: string | null
           room_id?: string | null
+          series_id?: string | null
           start_time: string
           title: string
           updated_at?: string
@@ -67,7 +73,10 @@ export type Database = {
           is_offsite?: boolean
           notes?: string | null
           offsite_location?: string | null
+          recurrence?: string
+          recurrence_until?: string | null
           room_id?: string | null
+          series_id?: string | null
           start_time?: string
           title?: string
           updated_at?: string

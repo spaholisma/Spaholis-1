@@ -11,6 +11,8 @@ import {
   layoutDay,
   minutesLabel,
   rangeLabel,
+  expandRecurrence,
+  MAX_OCCURRENCES,
   type CalendarEntry,
 } from "@/components/admin/AdminInternalCalendars";
 
@@ -31,6 +33,9 @@ const entry = (start_time: string, duration_minutes: number, title = `e${++seq}`
   offsite_location: null,
   group_id: null,
   is_all_day: false,
+  series_id: null,
+  recurrence: "none",
+  recurrence_until: null,
 });
 
 const byTitle = (laid: ReturnType<typeof layoutDay>, title: string) =>
@@ -140,5 +145,60 @@ describe("day view time labels", () => {
 
   it("labels a treatment that runs past midnight", () => {
     expect(rangeLabel(23 * 60, 25 * 60)).toBe("11 PM – 1 AM");
+  });
+});
+
+describe("recurrence expansion", () => {
+  it("a non-repeating entry is just its own date", () => {
+    expect(expandRecurrence("2026-07-15", "", "none")).toEqual(["2026-07-15"]);
+    // An end date is irrelevant when it doesn't repeat.
+    expect(expandRecurrence("2026-07-15", "2026-12-31", "none")).toEqual(["2026-07-15"]);
+  });
+
+  it("repeats weekly on the same weekday, inclusive of both ends", () => {
+    // Jul 15 2026 is a Wednesday — the case from the calendar.
+    const dates = expandRecurrence("2026-07-15", "2026-08-05", "weekly");
+    expect(dates).toEqual(["2026-07-15", "2026-07-22", "2026-07-29", "2026-08-05"]);
+  });
+
+  it("repeats every 2 weeks", () => {
+    expect(expandRecurrence("2026-07-15", "2026-08-15", "biweekly")).toEqual([
+      "2026-07-15", "2026-07-29", "2026-08-12",
+    ]);
+  });
+
+  it("repeats daily", () => {
+    expect(expandRecurrence("2026-07-15", "2026-07-18", "daily")).toEqual([
+      "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18",
+    ]);
+  });
+
+  it("repeats monthly on the same day of the month", () => {
+    expect(expandRecurrence("2026-07-15", "2026-10-15", "monthly")).toEqual([
+      "2026-07-15", "2026-08-15", "2026-09-15", "2026-10-15",
+    ]);
+  });
+
+  it("skips months that don't have the day rather than sliding to the 28th", () => {
+    // A 31st series has no February date — and must not quietly become Feb 28,
+    // which would put a treatment on a day nobody scheduled.
+    const dates = expandRecurrence("2026-01-31", "2026-05-31", "monthly");
+    expect(dates).toEqual(["2026-01-31", "2026-03-31", "2026-05-31"]);
+    expect(dates.some((d) => d.startsWith("2026-02"))).toBe(false);
+    expect(dates.some((d) => d.startsWith("2026-04"))).toBe(false);
+  });
+
+  it("never runs past the end date", () => {
+    const dates = expandRecurrence("2026-07-15", "2026-07-21", "weekly");
+    expect(dates).toEqual(["2026-07-15"]);
+  });
+
+  it("treats an end date before the start as a single entry", () => {
+    expect(expandRecurrence("2026-07-15", "2026-07-01", "weekly")).toEqual(["2026-07-15"]);
+  });
+
+  it("caps runaway series so a typo can't insert thousands of rows", () => {
+    const dates = expandRecurrence("2026-01-01", "2200-01-01", "daily");
+    expect(dates).toHaveLength(MAX_OCCURRENCES);
   });
 });

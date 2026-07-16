@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO, differenceInCalendarDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, addDays, startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
@@ -40,6 +40,10 @@ export interface CalendarEntry {
   group_id: string | null;
   /** Spans the whole day; shown in a band above the timeline, not on it. */
   is_all_day: boolean;
+  /** Shared by every occurrence of a repeating entry. Null when standalone. */
+  series_id: string | null;
+  recurrence: string;
+  recurrence_until: string | null;
 }
 
 interface Room {
@@ -62,6 +66,57 @@ const MIN_HOUR_PX = 46;
 const MAX_HOUR_PX = 72;
 /** Header + toolbar + dialog padding sitting above the timeline. */
 const DAY_VIEW_CHROME_PX = 200;
+
+export type Recurrence = "none" | "daily" | "weekly" | "biweekly" | "monthly";
+
+export const RECURRENCE_LABELS: Record<Recurrence, string> = {
+  none: "Does not repeat",
+  daily: "Daily",
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+};
+
+/** Hard stop so a typo in the end date can't generate thousands of rows. */
+export const MAX_OCCURRENCES = 400;
+
+/**
+ * The dates a series lands on, inclusive of both ends. Monthly keeps the day of
+ * the month and simply skips months that don't have it (a 31st series has no
+ * February date) rather than silently sliding to the 28th.
+ */
+export function expandRecurrence(
+  startISO: string,
+  untilISO: string,
+  rule: Recurrence,
+  cap: number = MAX_OCCURRENCES,
+): string[] {
+  if (rule === "none" || !startISO) return startISO ? [startISO] : [];
+  const start = parseISO(startISO);
+  const until = untilISO ? parseISO(untilISO) : start;
+  if (until < start) return [startISO];
+
+  const out: string[] = [];
+  if (rule === "monthly") {
+    const dayOfMonth = start.getDate();
+    for (let i = 0; out.length < cap; i++) {
+      const cursor = addMonths(start, i);
+      if (cursor > until) break;
+      // addMonths clamps (Jan 31 -> Feb 28); a clamped date isn't this series'.
+      if (cursor.getDate() === dayOfMonth) out.push(format(cursor, "yyyy-MM-dd"));
+      if (i > cap) break;
+    }
+    return out;
+  }
+
+  const step = rule === "daily" ? 1 : rule === "weekly" ? 7 : 14;
+  let cursor = start;
+  while (cursor <= until && out.length < cap) {
+    out.push(format(cursor, "yyyy-MM-dd"));
+    cursor = addDays(cursor, step);
+  }
+  return out;
+}
 
 const toMinutes = (hhmm: string): number => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -167,6 +222,8 @@ const emptyForm = {
   offsite_location: "",
   group_id: "",
   is_all_day: false,
+  recurrence: "none" as Recurrence,
+  recurrence_until: "",
 };
 
 export function AdminInternalCalendars() {
@@ -182,6 +239,8 @@ export function AdminInternalCalendars() {
   /** The day to reopen once the entry form closes, so adding or editing from
    *  the day view doesn't kick you back out to the month. */
   const [returnToDay, setReturnToDay] = useState<Date | null>(null);
+  /** When editing an occurrence: change just it, or the whole series. */
+  const [editScope, setEditScope] = useState<"one" | "series">("one");
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
 
@@ -330,7 +389,10 @@ export function AdminInternalCalendars() {
       offsite_location: entry.offsite_location || "",
       group_id: entry.group_id ?? "",
       is_all_day: entry.is_all_day,
+      recurrence: (entry.recurrence as Recurrence) ?? "none",
+      recurrence_until: entry.recurrence_until ?? "",
     });
+    setEditScope("one");
     setCreatingGroup(false);
     setModalOpen(true);
   };
@@ -385,24 +447,75 @@ export function AdminInternalCalendars() {
       offsite_location: form.location === OFFSITE ? (form.offsite_location.trim() || null) : null,
     };
 
+    const repeats = form.recurrence !== "none";
+    const spanDays = payload.end_date
+      ? differenceInCalendarDays(parseISO(payload.end_date), parseISO(payload.entry_date))
+      : 0;
+
     let error;
-    if (editingEntry) {
+    let created = 1;
+
+    if (editingEntry && editScope === "series" && editingEntry.series_id) {
+      // Change the whole series but leave each occurrence on its own date —
+      // rescheduling the series' dates is what deleting and recreating is for.
+      const { entry_date: _d, end_date: _e, ...seriesFields } = payload;
+      ({ error } = await supabase
+        .from("admin_calendar_entries")
+        .update(seriesFields)
+        .eq("series_id", editingEntry.series_id));
+    } else if (editingEntry) {
+      // Editing one occurrence detaches it from nothing — it keeps its
+      // series_id so the series can still be managed as a whole.
       ({ error } = await supabase.from("admin_calendar_entries").update(payload).eq("id", editingEntry.id));
+    } else if (repeats) {
+      const dates = expandRecurrence(form.entry_date, form.recurrence_until, form.recurrence);
+      const seriesId = crypto.randomUUID();
+      const rows = dates.map((d) => ({
+        ...payload,
+        entry_date: d,
+        end_date: spanDays > 0 ? format(addDays(parseISO(d), spanDays), "yyyy-MM-dd") : null,
+        series_id: seriesId,
+        recurrence: form.recurrence,
+        recurrence_until: form.recurrence_until || null,
+      }));
+      created = rows.length;
+      ({ error } = await supabase.from("admin_calendar_entries").insert(rows));
     } else {
       ({ error } = await supabase.from("admin_calendar_entries").insert(payload));
     }
 
     setSaving(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(editingEntry ? "Entry updated" : "Entry created");
+    toast.success(
+      editingEntry
+        ? (editScope === "series" && editingEntry.series_id ? "Series updated" : "Entry updated")
+        : created > 1 ? `Created ${created} entries` : "Entry created",
+    );
     closeEntryModal();
     loadEntries();
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("admin_calendar_entries").delete().eq("id", id);
+  const handleDelete = async (entry: CalendarEntry) => {
+    let query = supabase.from("admin_calendar_entries").delete();
+    let message = "Entry deleted";
+
+    if (entry.series_id) {
+      const wholeSeries = confirm(
+        `"${entry.title}" repeats.\n\nOK = delete EVERY occurrence in the series.\nCancel = delete only this one.`,
+      );
+      if (wholeSeries) {
+        query = query.eq("series_id", entry.series_id);
+        message = "Series deleted";
+      } else {
+        query = query.eq("id", entry.id);
+      }
+    } else {
+      query = query.eq("id", entry.id);
+    }
+
+    const { error } = await query;
     if (error) { toast.error(error.message); return; }
-    toast.success("Entry deleted");
+    toast.success(message);
     loadEntries();
   };
 
@@ -554,7 +667,7 @@ export function AdminInternalCalendars() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit" onClick={() => openEdit(entry)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(entry.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete" onClick={() => handleDelete(entry)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -799,6 +912,77 @@ export function AdminInternalCalendars() {
               <div className="space-y-1.5">
                 <Label>Start Time</Label>
                 <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+              </div>
+            )}
+
+            {/* Repeat rules only apply when creating — an existing series is
+                changed through the scope control below instead. */}
+            {!editingEntry && (
+              <div className="space-y-1.5">
+                <Label>Repeats</Label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={form.recurrence}
+                    onChange={(e) => {
+                      const recurrence = e.target.value as Recurrence;
+                      setForm({
+                        ...form,
+                        recurrence,
+                        // Default the series to ~3 months so it's never unbounded.
+                        recurrence_until:
+                          recurrence !== "none" && !form.recurrence_until
+                            ? format(addMonths(parseISO(form.entry_date), 3), "yyyy-MM-dd")
+                            : form.recurrence_until,
+                      });
+                    }}
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    {(Object.keys(RECURRENCE_LABELS) as Recurrence[]).map((r) => (
+                      <option key={r} value={r}>
+                        {r === "weekly" || r === "biweekly"
+                          ? `${RECURRENCE_LABELS[r]} on ${format(parseISO(form.entry_date), "EEEE")}`
+                          : r === "monthly"
+                            ? `${RECURRENCE_LABELS[r]} on day ${format(parseISO(form.entry_date), "d")}`
+                            : RECURRENCE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                  {form.recurrence !== "none" && (
+                    <>
+                      <span className="text-sm text-muted-foreground shrink-0">until</span>
+                      <Input
+                        type="date"
+                        min={form.entry_date}
+                        value={form.recurrence_until}
+                        onChange={(e) => setForm({ ...form, recurrence_until: e.target.value })}
+                      />
+                    </>
+                  )}
+                </div>
+                {form.recurrence !== "none" && (
+                  <p className="text-xs text-muted-foreground">
+                    Creates {expandRecurrence(form.entry_date, form.recurrence_until, form.recurrence).length} entries — each one can be edited or deleted on its own afterwards.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {editingEntry?.series_id && (
+              <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2">
+                <Label>This entry repeats — apply changes to</Label>
+                <select
+                  value={editScope}
+                  onChange={(e) => setEditScope(e.target.value as "one" | "series")}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="one">This entry only</option>
+                  <option value="series">Every entry in the series</option>
+                </select>
+                {editScope === "series" && (
+                  <p className="text-xs text-muted-foreground">
+                    Dates stay as they are — everything else (title, time, room, calendar, notes) is applied to the whole series.
+                  </p>
+                )}
               </div>
             )}
             {!form.is_all_day && (
