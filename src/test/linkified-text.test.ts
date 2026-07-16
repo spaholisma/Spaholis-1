@@ -8,7 +8,7 @@
  * rewrites the note without the admin ever typing markdown.
  */
 import { describe, it, expect } from "vitest";
-import { extractLinks, renameLinkInText } from "@/components/admin/LinkifiedText";
+import { extractLinks, renameLinkInText, prettyUrl } from "@/components/admin/LinkifiedText";
 
 const hrefs = (text: string) => extractLinks(text).map((l) => l.href);
 const labels = (text: string) => extractLinks(text).map((l) => l.label);
@@ -77,6 +77,32 @@ describe("extractLinks", () => {
   it("does not treat a bracketed javascript: URL as a named link", () => {
     // eslint-disable-next-line no-script-url
     expect(extractLinks("[Click me](javascript:alert(1))")).toEqual([]);
+  });
+});
+
+describe("prettyUrl", () => {
+  it("shortens a real Google Sheets link to something readable", () => {
+    const href =
+      "https://docs.google.com/spreadsheets/d/1bzuMi4zAqVbTcg0FkQFfiY-AZaaTT59JKxO1tOmUfJM/edit?gid=1938098551#gid=1938098551";
+    const short = prettyUrl(href);
+    expect(short.startsWith("docs.google.com/")).toBe(true);
+    expect(short.endsWith("…")).toBe(true);
+    // The whole point: far shorter than the 118-character original.
+    expect(short.length).toBeLessThan(45);
+    expect(href.length).toBeGreaterThan(100);
+  });
+
+  it("drops the scheme and www", () => {
+    expect(prettyUrl("https://www.spaholis.com")).toBe("spaholis.com");
+    expect(prettyUrl("https://spaholis.com/")).toBe("spaholis.com");
+  });
+
+  it("keeps a short path as-is", () => {
+    expect(prettyUrl("https://spaholis.com/classes")).toBe("spaholis.com/classes");
+  });
+
+  it("falls back to the raw string when it isn't parseable", () => {
+    expect(prettyUrl("not a url")).toBe("not a url");
   });
 });
 

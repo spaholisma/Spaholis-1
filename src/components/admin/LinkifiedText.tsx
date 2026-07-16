@@ -77,6 +77,23 @@ export function extractLinks(text: string | null | undefined): ParsedLink[] {
   return out;
 }
 
+/**
+ * A readable stand-in for a long URL: drop the scheme and `www.`, and clip the
+ * path. A Google Sheets link is ~90 characters of ids and query strings that
+ * tell a person nothing — the host plus the start of the path does.
+ */
+export function prettyUrl(href: string, maxPath = 24): string {
+  try {
+    const u = new URL(href);
+    const host = u.hostname.replace(/^www\./i, "");
+    const path = `${u.pathname}${u.search}${u.hash}`.replace(/\/$/, "");
+    if (!path || path === "/") return host;
+    return host + (path.length > maxPath ? `${path.slice(0, maxPath)}…` : path);
+  } catch {
+    return href;
+  }
+}
+
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -123,7 +140,8 @@ export function LinkifiedText({
         className={cn("underline underline-offset-2 hover:opacity-70 break-words", linkClassName)}
         title={t.href}
       >
-        {t.label}
+        {/* An unnamed link shows a readable short form; the full URL is on hover. */}
+        {t.named ? t.label : prettyUrl(t.href)}
       </a>,
     );
     cursor = t.end;

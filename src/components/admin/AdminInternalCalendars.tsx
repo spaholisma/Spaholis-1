@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
-import { LinkifiedText, extractLinks, renameLinkInText, type ParsedLink } from "./LinkifiedText";
+import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CalendarType = "treatment" | "retreat" | "class";
@@ -1049,9 +1049,12 @@ export function AdminInternalCalendars() {
                   links here — where they can be opened and named. */}
               {extractLinks(form.notes).length > 0 && (
                 <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Links in this note
+                  </p>
                   {extractLinks(form.notes).map((link) =>
                     renamingLink === link.href ? (
-                      <div key={link.href} className="flex items-center gap-1.5">
+                      <div key={link.href} className="space-y-1.5 rounded border border-border bg-background p-2">
                         <Input
                           autoFocus
                           value={linkNameDraft}
@@ -1060,32 +1063,47 @@ export function AdminInternalCalendars() {
                             if (e.key === "Enter") { e.preventDefault(); applyLinkName(link); }
                             if (e.key === "Escape") { e.preventDefault(); setRenamingLink(null); }
                           }}
-                          placeholder="Name for this link — e.g. Ficha del cliente"
+                          placeholder="e.g. Ficha del cliente"
                           className="h-7 text-xs"
                         />
-                        <Button size="sm" className="h-7 text-xs" onClick={() => applyLinkName(link)}>Save</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setRenamingLink(null)}>Cancel</Button>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" className="h-6 text-[11px]" onClick={() => applyLinkName(link)}>Save</Button>
+                          <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setRenamingLink(null)}>Cancel</Button>
+                          <span className="ml-auto truncate text-[10px] text-muted-foreground" title={link.href}>
+                            {prettyUrl(link.href)}
+                          </span>
+                        </div>
                       </div>
                     ) : (
-                      <div key={link.href} className="flex items-center gap-1.5">
+                      <div
+                        key={link.href}
+                        className="flex items-center gap-2 rounded border border-border bg-background px-2 py-1.5"
+                      >
+                        <LinkIcon className="h-3.5 w-3.5 shrink-0 text-spa-sage" />
                         <a
                           href={link.href}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-spa-sage hover:underline"
+                          className="min-w-0 flex-1"
                           title={link.href}
                         >
-                          <LinkIcon className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{link.label}</span>
+                          <span className="block truncate text-xs font-medium text-spa-sage hover:underline">
+                            {link.named ? link.label : prettyUrl(link.href)}
+                          </span>
+                          {link.named && (
+                            <span className="block truncate text-[10px] text-muted-foreground">
+                              {prettyUrl(link.href)}
+                            </span>
+                          )}
                         </a>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
-                          title={link.named ? "Rename this link" : "Give this link a name"}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 shrink-0 px-2 text-[11px]"
                           onClick={() => { setRenamingLink(link.href); setLinkNameDraft(link.named ? link.label : ""); }}
                         >
-                          <Pencil className="h-3 w-3" />
-                        </button>
+                          {link.named ? "Rename" : "Name it"}
+                        </Button>
                       </div>
                     ),
                   )}
