@@ -8,7 +8,13 @@
  * rewrites the note without the admin ever typing markdown.
  */
 import { describe, it, expect } from "vitest";
-import { extractLinks, renameLinkInText, prettyUrl } from "@/components/admin/LinkifiedText";
+import {
+  extractLinks,
+  renameLinkInText,
+  prettyUrl,
+  normalizeLinkInput,
+  sanitizeLinkLabel,
+} from "@/components/admin/LinkifiedText";
 
 const hrefs = (text: string) => extractLinks(text).map((l) => l.href);
 const labels = (text: string) => extractLinks(text).map((l) => l.label);
@@ -77,6 +83,53 @@ describe("extractLinks", () => {
   it("does not treat a bracketed javascript: URL as a named link", () => {
     // eslint-disable-next-line no-script-url
     expect(extractLinks("[Click me](javascript:alert(1))")).toEqual([]);
+  });
+});
+
+describe("normalizeLinkInput", () => {
+  it("accepts a full https URL as-is", () => {
+    expect(normalizeLinkInput("https://docs.google.com/d/1")).toBe("https://docs.google.com/d/1");
+  });
+
+  it("adds https:// to a bare host", () => {
+    expect(normalizeLinkInput("docs.google.com/d/1")).toBe("https://docs.google.com/d/1");
+    expect(normalizeLinkInput("www.spaholis.com")).toBe("https://www.spaholis.com");
+  });
+
+  it("keeps http:// (not everything is https)", () => {
+    expect(normalizeLinkInput("http://intranet.local.test/x")).toBe("http://intranet.local.test/x");
+  });
+
+  it("rejects a javascript: address instead of coercing it", () => {
+    // The whole point of the insert button's guard: a dangerous scheme must be
+    // refused, not turned into https://javascript:...
+    // eslint-disable-next-line no-script-url
+    expect(normalizeLinkInput("javascript:alert(1)")).toBeNull();
+    expect(normalizeLinkInput("data:text/html,<script>")).toBeNull();
+    expect(normalizeLinkInput("mailto:someone@x.com")).toBeNull();
+    expect(normalizeLinkInput("file:///etc/passwd")).toBeNull();
+  });
+
+  it("rejects blanks, typos and hosts with no dot", () => {
+    expect(normalizeLinkInput("")).toBeNull();
+    expect(normalizeLinkInput("   ")).toBeNull();
+    expect(normalizeLinkInput(null)).toBeNull();
+    expect(normalizeLinkInput("just some words")).toBeNull();
+    expect(normalizeLinkInput("localhost")).toBeNull();
+  });
+
+  it("round-trips: what it returns is what the renderer would link", () => {
+    const href = normalizeLinkInput("docs.google.com/spreadsheets/d/1")!;
+    expect(extractLinks(href)).toHaveLength(1);
+    expect(extractLinks(href)[0].href).toBe(href);
+  });
+});
+
+describe("sanitizeLinkLabel", () => {
+  it("strips brackets that would break the [text](url) form", () => {
+    expect(sanitizeLinkLabel("Ficha [importante]")).toBe("Ficha importante");
+    expect(sanitizeLinkLabel("  Planilla  ")).toBe("Planilla");
+    expect(sanitizeLinkLabel("line\nbreak")).toBe("linebreak");
   });
 });
 

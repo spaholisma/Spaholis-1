@@ -94,6 +94,35 @@ export function prettyUrl(href: string, maxPath = 24): string {
   }
 }
 
+/**
+ * Turn what someone typed into the link box into a URL safe to insert, or null
+ * if it isn't one. Bare hosts get https:// so "docs.google.com/x" works, but a
+ * scheme we don't allow is rejected outright rather than guessed at — the
+ * insert path must not become a way around the renderer's allowlist.
+ */
+export function normalizeLinkInput(input: string | null | undefined): string | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+  // Has an explicit scheme that isn't http(s)? Refuse — never coerce it.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) return null;
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    // A hostname with no dot is a typo, not a site.
+    if (!u.hostname.includes(".")) return null;
+    if (/\s/.test(candidate)) return null;
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+/** A link's display text lives inside `[...]`, so it can't contain brackets. */
+export function sanitizeLinkLabel(label: string): string {
+  return label.replace(/[[\]\n]/g, "").trim();
+}
+
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**

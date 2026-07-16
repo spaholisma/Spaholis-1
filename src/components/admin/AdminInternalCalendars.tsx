@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
-import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, type ParsedLink } from "./LinkifiedText";
+import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, normalizeLinkInput, sanitizeLinkLabel, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CalendarType = "treatment" | "retreat" | "class";
@@ -251,6 +251,28 @@ export function AdminInternalCalendars() {
     setForm((f) => ({ ...f, notes: renameLinkInText(f.notes, link, linkNameDraft) }));
     setRenamingLink(null);
     setLinkNameDraft("");
+  };
+
+  /** "Insert link" — two fields (display text + address), like Google's. */
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkText, setLinkText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+
+  const openInsertLink = () => {
+    setLinkText("");
+    setLinkUrl("");
+    setLinkDialogOpen(true);
+  };
+
+  const insertLink = () => {
+    const href = normalizeLinkInput(linkUrl);
+    if (!href) { toast.error("Enter a valid web address (starting with http:// or https://)"); return; }
+    const label = sanitizeLinkLabel(linkText);
+    // Store as [Text](url) when named, or the bare url — the same plain-text
+    // form pasted links already use, so nothing downstream changes.
+    const snippet = label ? `[${label}](${href})` : href;
+    setForm((f) => ({ ...f, notes: f.notes ? `${f.notes.replace(/\s*$/, "")}\n${snippet}` : snippet }));
+    setLinkDialogOpen(false);
   };
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
@@ -1038,15 +1060,20 @@ export function AdminInternalCalendars() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Notes (optional)</Label>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={openInsertLink}>
+                  <LinkIcon className="h-3.5 w-3.5 mr-1" /> Insert link
+                </Button>
+              </div>
               <Textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
-                placeholder="Internal notes — paste a link and it becomes clickable"
+                placeholder="Internal notes — use Insert link, or paste a link and it becomes clickable"
               />
-              {/* The textarea can't be clicked through, so surface the pasted
-                  links here — where they can be opened and named. */}
+              {/* The textarea can't be clicked through, so surface the note's
+                  links here — where they can be opened and renamed. */}
               {extractLinks(form.notes).length > 0 && (
                 <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1118,6 +1145,42 @@ export function AdminInternalCalendars() {
               )}
               <Button variant="outline" className="ml-auto" onClick={closeEntryModal}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editingEntry ? "Update" : "Create"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert link — display text + address, like Google Calendar's */}
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Insert link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Text to display</Label>
+              <Input
+                autoFocus
+                value={linkText}
+                onChange={(e) => setLinkText(e.target.value)}
+                placeholder="e.g. Ficha del cliente"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Link to web address</Label>
+              <Input
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); insertLink(); } }}
+                placeholder="https://docs.google.com/…"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave the text blank to show the address itself.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>Cancel</Button>
+              <Button onClick={insertLink} disabled={!linkUrl.trim()}>Insert</Button>
             </div>
           </div>
         </DialogContent>
