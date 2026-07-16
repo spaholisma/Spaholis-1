@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
-import { LinkifiedText, extractLinks } from "./LinkifiedText";
+import { LinkifiedText, extractLinks, renameLinkInText, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CalendarType = "treatment" | "retreat" | "class";
@@ -242,6 +242,16 @@ export function AdminInternalCalendars() {
   const [returnToDay, setReturnToDay] = useState<Date | null>(null);
   /** When editing an occurrence: change just it, or the whole series. */
   const [editScope, setEditScope] = useState<"one" | "series">("one");
+  /** Naming a link in the notes, keyed by its href. */
+  const [renamingLink, setRenamingLink] = useState<string | null>(null);
+  const [linkNameDraft, setLinkNameDraft] = useState("");
+
+  /** Write the name into the note itself, so notes stay plain text. */
+  const applyLinkName = (link: ParsedLink) => {
+    setForm((f) => ({ ...f, notes: renameLinkInText(f.notes, link, linkNameDraft) }));
+    setRenamingLink(null);
+    setLinkNameDraft("");
+  };
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
 
@@ -1035,23 +1045,50 @@ export function AdminInternalCalendars() {
                 rows={3}
                 placeholder="Internal notes — paste a link and it becomes clickable"
               />
-              {/* The textarea itself can't be clicked through, so surface the
-                  pasted links here where they can actually be opened. */}
+              {/* The textarea can't be clicked through, so surface the pasted
+                  links here — where they can be opened and named. */}
               {extractLinks(form.notes).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {extractLinks(form.notes).map((href) => (
-                    <a
-                      key={href}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-spa-sage hover:bg-muted transition-colors"
-                      title={href}
-                    >
-                      <LinkIcon className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{href.replace(/^https?:\/\//, "")}</span>
-                    </a>
-                  ))}
+                <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2">
+                  {extractLinks(form.notes).map((link) =>
+                    renamingLink === link.href ? (
+                      <div key={link.href} className="flex items-center gap-1.5">
+                        <Input
+                          autoFocus
+                          value={linkNameDraft}
+                          onChange={(e) => setLinkNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); applyLinkName(link); }
+                            if (e.key === "Escape") { e.preventDefault(); setRenamingLink(null); }
+                          }}
+                          placeholder="Name for this link — e.g. Ficha del cliente"
+                          className="h-7 text-xs"
+                        />
+                        <Button size="sm" className="h-7 text-xs" onClick={() => applyLinkName(link)}>Save</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setRenamingLink(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <div key={link.href} className="flex items-center gap-1.5">
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-spa-sage hover:underline"
+                          title={link.href}
+                        >
+                          <LinkIcon className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{link.label}</span>
+                        </a>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+                          title={link.named ? "Rename this link" : "Give this link a name"}
+                          onClick={() => { setRenamingLink(link.href); setLinkNameDraft(link.named ? link.label : ""); }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ),
+                  )}
                 </div>
               )}
             </div>
