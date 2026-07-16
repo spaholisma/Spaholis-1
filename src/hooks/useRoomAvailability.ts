@@ -7,11 +7,20 @@ import {
   spaLocalToInstant,
 } from "@/lib/businessHours";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
+import {
+  isRoomBusy,
+  placeCouplesSlot,
+  isCouplesTitle,
+  type RoomInfo,
+  type BusyInterval,
+} from "@/lib/roomPlacement";
 
 export interface TimeSlot {
   time: Date;
   label: string;
   room: { id: string; name: string };
+  /** For a couples booking that occupies a paired room (3A+3B) too. */
+  secondaryRoomId?: string;
 }
 
 function formatSlotLabel(d: Date): string {
@@ -24,20 +33,15 @@ function formatSlotLabel(d: Date): string {
   return `${hour12}:${minute.toString().padStart(2, "0")} ${suffix}`;
 }
 
-interface Room {
-  id: string;
-  name: string;
-  forbidden_categories: string[];
-}
-
 export function useRoomAvailability(
   date: Date | undefined,
   serviceCategory: string | undefined,
-  durationMinutes: number | undefined
+  durationMinutes: number | undefined,
+  serviceTitle?: string,
 ) {
   const { data: weeklyHours } = useBusinessHours();
   return useQuery({
-    queryKey: ["room-availability", date?.toISOString(), serviceCategory, durationMinutes, weeklyHours],
+    queryKey: ["room-availability", date?.toISOString(), serviceCategory, durationMinutes, serviceTitle, weeklyHours],
     enabled: !!date && !!serviceCategory && !!durationMinutes && !!weeklyHours,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -52,7 +56,7 @@ export function useRoomAvailability(
       if (roomErr) throw roomErr;
 
       // 2. Filter rooms by category rules
-      const validRooms = (rooms as Room[]).filter(
+      const validRooms = (rooms as RoomInfo[]).filter(
         (r) => !r.forbidden_categories.includes(serviceCategory.toLowerCase())
       );
 
@@ -71,7 +75,7 @@ export function useRoomAvailability(
 
       const { data: bookings, error: bookErr } = await supabase
         .from("bookings")
-        .select("room_id, start_time, end_time")
+        .select("room_id, secondary_room_id, start_time, end_time")
         .not("status", "eq", "cancelled")
         .gte("start_time", dayStart.toISOString())
         .lte("start_time", dayEnd.toISOString());
@@ -86,37 +90,52 @@ export function useRoomAvailability(
       );
       if (internalErr) throw internalErr;
 
-      const busy = [
+      const busy: BusyInterval[] = [
         ...(bookings ?? []).map((b: any) => ({
           room_id: b.room_id,
+          // A couples booking on the 3A+3B combo occupies its paired room too.
+          secondary_room_id: b.secondary_room_id ?? null,
           start: new Date(b.start_time),
           end: new Date(b.end_time),
         })),
         ...(internal ?? []).map((i: any) => ({
           room_id: i.room_id,
+          secondary_room_id: null,
           start: new Date(i.busy_start),
           end: new Date(i.busy_end),
         })),
       ].filter((x) => x.room_id && !isNaN(x.start.getTime()) && !isNaN(x.end.getTime()));
 
-      // 4. Generate slots per room, filtering conflicts. The shared spa
-      //    slot generator produces the EXACT same list the backend will
-      //    accept — same tz, same window, same 30-min interval, same
-      //    same-day 15-min lead time.
+      // 4. Generate slots, filtering conflicts. The shared spa slot generator
+      //    produces the EXACT same list the backend will accept — same tz,
+      //    window, 30-min interval and same-day 15-min lead time.
       const slots = generateSpaSlotsForCalendarDate(date, durationMinutes, new Date(), weeklyHours);
       const results: TimeSlot[] = [];
+      const couples = isCouplesTitle(serviceTitle);
 
-      for (const room of validRooms) {
-        const roomBusy = busy.filter((b) => b.room_id === room.id);
-        for (const slot of slots) {
-          const slotEnd = new Date(slot.getTime() + durationMinutes * 60000);
-          const hasConflict = roomBusy.some((b) => slot < b.end && slotEnd > b.start);
-          if (!hasConflict) {
+      for (const slot of slots) {
+        const slotEnd = new Date(slot.getTime() + durationMinutes * 60000);
+        if (couples) {
+          // Couples need Room 2, or the 3A+3B pair — one slot per time, room
+          // chosen by placeCouplesSlot (prefers the solo couples room).
+          const placement = placeCouplesSlot(validRooms, (roomId) => isRoomBusy(roomId, slot, slotEnd, busy));
+          if (placement) {
             results.push({
               time: slot,
               label: formatSlotLabel(slot),
-              room: { id: room.id, name: room.name },
+              room: { id: placement.roomId, name: placement.roomName },
+              secondaryRoomId: placement.secondaryRoomId,
             });
+          }
+        } else {
+          for (const room of validRooms) {
+            if (!isRoomBusy(room.id, slot, slotEnd, busy)) {
+              results.push({
+                time: slot,
+                label: formatSlotLabel(slot),
+                room: { id: room.id, name: room.name },
+              });
+            }
           }
         }
       }

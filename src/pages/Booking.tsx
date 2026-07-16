@@ -173,7 +173,8 @@ const BookingPage = () => {
   const { data: availableSlots, isLoading: slotsLoading } = useRoomAvailability(
     selectedDate,
     currentService?.category,
-    currentService?.duration_minutes
+    currentService?.duration_minutes,
+    currentService?.title
   );
 
   // Intercept consultation flow (after all hooks)
@@ -315,6 +316,8 @@ const BookingPage = () => {
       status: paymentId ? "paid" : (needsPayment ? "pending_payment" : "pending"),
       payment_id: paymentId || null,
       room_id: locationVisit ? null : (selectedSlot?.room.id || null),
+      // A couples booking on the 3A+3B pair also holds the second room.
+      secondary_room_id: locationVisit ? null : (selectedSlot?.secondaryRoomId || null),
       start_time: locationVisit ? null : startTime,
       end_time: locationVisit ? null : endTime,
       // guest_name is reused from the contact step so the customer never has
