@@ -11,8 +11,86 @@ import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff } 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarBooking } from "./calendarUtils";
+import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
 
 type CardOnFile = { card_brand: string | null; card_last4: string | null; card_expiry: string | null; cardholder_name: string | null };
+
+// ---- Readable intake-form rendering (named body areas, not raw ids) ----
+const INTAKE_MEANINGLESS = new Set(["", "none", "nothing", "n/a", "na"]);
+const isMeaningful = (v: unknown) =>
+  typeof v === "string" && !INTAKE_MEANINGLESS.has(v.trim().toLowerCase());
+
+const PERSON_FIELDS: [string, string][] = [
+  ["allergies", "Allergies"],
+  ["medications", "Medications"],
+  ["health_conditions", "Health conditions"],
+  ["recent_surgeries", "Recent surgeries"],
+  ["skin_conditions", "Skin conditions"],
+  ["additional_notes", "Notes"],
+];
+
+function IntakeRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 text-xs">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-foreground text-right">{value}</span>
+    </div>
+  );
+}
+
+function IntakePerson({ p, title }: { p: any; title?: string }) {
+  if (!p || typeof p !== "object") return null;
+  const rows = PERSON_FIELDS.filter(([k]) => isMeaningful(p[k]));
+  const contact = [p.emergency_contact_name, p.emergency_contact_phone].filter(Boolean).join(" · ");
+  const nothing = rows.length === 0 && !p.pregnancy && !p.blood_pressure_issues && !contact;
+  return (
+    <div className="space-y-1">
+      {title && (
+        <p className="text-xs font-semibold text-foreground">
+          {title}{p.guest_name ? ` — ${p.guest_name}` : ""}
+        </p>
+      )}
+      {p.pregnancy && <IntakeRow label="Pregnancy" value="Yes" />}
+      {p.blood_pressure_issues && <IntakeRow label="Blood pressure issues" value="Yes" />}
+      {rows.map(([k, l]) => <IntakeRow key={k} label={l} value={String(p[k])} />)}
+      {contact && <IntakeRow label="Emergency contact" value={contact} />}
+      {nothing && <p className="text-xs text-muted-foreground">No health notes provided.</p>}
+    </div>
+  );
+}
+
+function IntakeView({ intake, category, serviceTitle }: { intake: any; category: string | null; serviceTitle: string | null }) {
+  if (!intake || typeof intake !== "object") return null;
+  const zones = bodyZoneNames(category, serviceTitle, intake.body_zones);
+  const extras: Record<string, boolean> = intake.body_zone_extras || {};
+  const activeExtras = Object.entries(extras).filter(([, v]) => v);
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Intake form</p>
+      {zones.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-foreground mb-1">Focus areas</p>
+          <div className="flex flex-wrap gap-1">
+            {zones.map((z, i) => (
+              <span key={i} className="rounded-full bg-spa-sage/15 text-spa-sage text-[11px] px-2 py-0.5">{z}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {activeExtras.map(([k]) => (
+        <IntakeRow key={k} label={bodyZoneExtraLabel(category, serviceTitle, k)} value="Yes" />
+      ))}
+      {intake.is_couples ? (
+        <>
+          <IntakePerson p={intake.person1} title="Person 1" />
+          <IntakePerson p={intake.person2} title="Person 2" />
+        </>
+      ) : (
+        <IntakePerson p={intake} />
+      )}
+    </div>
+  );
+}
 
 interface BookingEditModalProps {
   booking: CalendarBooking | null;
@@ -238,12 +316,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                 />
               </div>
               {booking.intake_form && (
-                <div className="border border-border rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Intake Form Data</p>
-                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {JSON.stringify(booking.intake_form, null, 2)}
-                  </pre>
-                </div>
+                <IntakeView
+                  intake={booking.intake_form}
+                  category={booking.service_category}
+                  serviceTitle={booking.service_title}
+                />
               )}
               {booking.payment_id && (
                 <div className="text-xs text-muted-foreground">

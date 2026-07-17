@@ -104,6 +104,29 @@ function getCategoryKey(category: string, serviceTitle?: string): string | null 
   return null;
 }
 
+/** Translate stored body-zone ids into their human labels for a service. */
+export function bodyZoneNames(
+  category: string | null | undefined,
+  serviceTitle: string | null | undefined,
+  zoneIds: number[] | null | undefined,
+): string[] {
+  if (!Array.isArray(zoneIds) || zoneIds.length === 0) return [];
+  const key = getCategoryKey(category ?? "", serviceTitle ?? undefined);
+  const config = key ? ZONE_CONFIGS[key] : null;
+  return zoneIds.map((id) => config?.zones.find((z) => z.id === id)?.label ?? `Area #${id}`);
+}
+
+/** The label for an extra intake question (e.g. claustrophobia) in a service. */
+export function bodyZoneExtraLabel(
+  category: string | null | undefined,
+  serviceTitle: string | null | undefined,
+  extraId: string,
+): string {
+  const key = getCategoryKey(category ?? "", serviceTitle ?? undefined);
+  const config = key ? ZONE_CONFIGS[key] : null;
+  return config?.extraQuestions?.find((q) => q.id === extraId)?.label ?? extraId;
+}
+
 interface BodyZoneSelectorProps {
   category: string;
   serviceTitle?: string;
