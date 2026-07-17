@@ -45,11 +45,7 @@ function isClassType(service?: ServiceRow): boolean {
   return !!service && (service.type === "class" || service.type === "private");
 }
 
-import {
-  getBacCompraClickLink,
-  getBacDepositAmount,
-  isFacialService,
-} from "@/lib/bacLinks";
+import { isFacialService } from "@/lib/bacLinks";
 
 // Returns step KEYS (resolved via t() at render time)
 // NOTE: "booking.steps.cardAuth" has been intentionally removed from the
@@ -95,6 +91,22 @@ function getStepKeys(service?: ServiceRow): string[] {
 
 function translateCategory(t: (k: string, opts?: any) => string, cat: string): string {
   return t(`booking.categories.${cat}`, { defaultValue: cat });
+}
+
+// Cancellation policy the customer accepts when leaving a card on file.
+const CANCELLATION_POLICY = "Cancellations or changes must be made 24 hours before the appointment, or a 50% charge will apply. The no-show fee is 100% of the total amount of your appointment or class. By filling out this form, there is no charge in advance for the treatment. This form will be used for further reservations during your visit if necessary.";
+const CARD_AUTHORIZATION_LABEL = "I hereby authorize Holis Wellness Center to use the information provided in accordance with the cancellation policy above. My card information is stored securely and will only be charged in accordance with these policies.";
+
+/** Luhn check so an obviously invalid number is caught before submitting. */
+function luhnValid(num: string): boolean {
+  if (!/^\d{13,19}$/.test(num)) return false;
+  let sum = 0, dbl = false;
+  for (let i = num.length - 1; i >= 0; i--) {
+    let d = num.charCodeAt(i) - 48;
+    if (dbl) { d *= 2; if (d > 9) d -= 9; }
+    sum += d; dbl = !dbl;
+  }
+  return sum % 10 === 0;
 }
 
 const BookingPage = () => {
@@ -409,42 +421,9 @@ const BookingPage = () => {
       return;
     }
 
-    // Paid spa flows: create a pending booking, then redirect to the BAC
-    // CompraClick deposit link that matches the service ($10 facials / $20 other).
-    // Trigger from the Summary step so intake still runs before payment.
-    if (needsPayment && step === paidSubmitStepIdx && canProceed()) {
-      setSubmitting(true);
-      try {
-        const bookingId = await createBooking();
-        const link = getBacCompraClickLink(currentService);
-        // Persist context so /booking/return can render the confirmation.
-        try {
-          sessionStorage.setItem(
-            "holis:pending_booking",
-            JSON.stringify({
-              bookingId,
-              serviceTitle: currentService?.title,
-              guestName: formData.name,
-              guestEmail: formData.email,
-              amount: getBacDepositAmount(currentService),
-              returnedAt: null,
-            }),
-          );
-        } catch {}
-        toast.success(t("booking.redirectingToPayment", { defaultValue: "Redirecting to secure payment…" }));
-        window.location.href = link;
-      } catch (err: any) {
-        if (err?.code === "SLOT_TAKEN" || err?.code === "INVALID_SLOT") {
-          toast.error(err.message);
-          handleSlotTaken();
-        } else {
-          toast.error(err.message || t("booking.bookingRequestFailed"));
-        }
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
+    // Paid spa flows now confirm with a card-on-file authorization instead of a
+    // CompraClick redirect. From the Summary step just advance to the card step
+    // (below) — the booking is created and confirmed there, in handleCardAuthorize.
 
     if (step < steps.length - 1 && canProceed()) setStep(step + 1);
   };
@@ -453,6 +432,47 @@ const BookingPage = () => {
     queryClient.invalidateQueries({ queryKey: ["room-availability"] });
     setSelectedSlot(null);
     setStep(dateStepIdx);
+  };
+
+  const cardDigitsValue = cardDigits(cardAuth.card_number);
+  const cardAuthValid =
+    NAME_RE.test(cardAuth.cardholder_name.trim()) &&
+    luhnValid(cardDigitsValue) &&
+    /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardAuth.card_expiry) &&
+    cardAuth.authorized;
+
+  // Confirm the booking with a card on file (no charge now). Creates the pending
+  // booking, then stores the card ENCRYPTED via save_card_authorization (which
+  // also flips the booking to confirmed) and emails the confirmation.
+  const handleCardAuthorize = async () => {
+    if (!cardAuthValid) { toast.error(t("booking.cardAuth.fixFields", { defaultValue: "Please complete the card details and authorization." })); return; }
+    setSubmitting(true);
+    try {
+      const bookingId = await createBooking();
+      const { error } = await supabase.rpc("save_card_authorization" as any, {
+        _booking_id: bookingId,
+        _cardholder: cardAuth.cardholder_name.trim(),
+        _card_number: cardDigitsValue,
+        _expiry: cardAuth.card_expiry,
+        _authorized: true,
+        _auth_text: CANCELLATION_POLICY,
+      });
+      if (error) throw error;
+      // Confirmation email to customer + admin (idempotent).
+      supabase.functions.invoke("send-booking-notification", { body: { bookingId } }).catch((e) => console.error("[booking] notify failed", e));
+      setConfirmationCode((bookingId || "").slice(0, 8).toUpperCase());
+      setBookingComplete(true);
+      setStep(confirmationStepIdx);
+    } catch (err: any) {
+      if (err?.code === "SLOT_TAKEN" || err?.code === "INVALID_SLOT") {
+        toast.error(err.message);
+        handleSlotTaken();
+      } else {
+        toast.error(err.message || t("booking.bookingRequestFailed"));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePaymentSuccess = async (paymentId: string, authorizationCode?: string) => {
@@ -1089,11 +1109,75 @@ const BookingPage = () => {
                     a BAC CompraClick deposit link at the details step. This
                     step is retained as a payment marker but is not rendered. */}
                 {step === checkoutStepIdx && checkoutStepIdx > 0 && (
-                  <div className="text-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mb-3" />
-                    <p className="font-body text-sm text-muted-foreground">
-                      Redirecting to secure payment…
+                  <div>
+                    <h2 className="spa-heading-md text-foreground mb-2">Card authorization</h2>
+                    <p className="spa-body-sm mb-6">
+                      No charge is made now. Your card is kept on file only to apply the cancellation policy below.
                     </p>
+                    <div className="space-y-4 max-w-md">
+                      <div>
+                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Cardholder name</label>
+                        <Input
+                          value={cardAuth.cardholder_name}
+                          onChange={(e) => setCardAuth({ ...cardAuth, cardholder_name: formatName(e.target.value) })}
+                          placeholder="Name on the card"
+                          autoComplete="cc-name"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Card number</label>
+                        <Input
+                          value={cardAuth.card_number}
+                          onChange={(e) => setCardAuth({ ...cardAuth, card_number: formatCardNumber(e.target.value) })}
+                          placeholder="1234 5678 9012 3456"
+                          inputMode="numeric"
+                          autoComplete="cc-number"
+                          maxLength={23}
+                        />
+                      </div>
+                      <div className="max-w-[160px]">
+                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Expiration date</label>
+                        <Input
+                          value={cardAuth.card_expiry}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/[^\d/]/g, "");
+                            if (val.length === 2 && !val.includes("/") && cardAuth.card_expiry.length < val.length) val += "/";
+                            setCardAuth({ ...cardAuth, card_expiry: val.slice(0, 5) });
+                          }}
+                          placeholder="MM/YY"
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
+                          maxLength={5}
+                        />
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                        <p className="font-body text-sm font-semibold text-foreground">Cancellation policy</p>
+                        <p className="font-body text-xs text-muted-foreground leading-relaxed">{CANCELLATION_POLICY}</p>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={cardAuth.authorized}
+                            onCheckedChange={(checked) => setCardAuth({ ...cardAuth, authorized: !!checked })}
+                            className="mt-0.5"
+                          />
+                          <span className="font-body text-sm text-foreground">{CARD_AUTHORIZATION_LABEL}</span>
+                        </label>
+                      </div>
+
+                      <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-spa-sage" />
+                        Stored encrypted. We never store your security code (CVV).
+                      </p>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={submitting}>
+                          <ChevronLeft className="h-4 w-4 mr-1" /> {t("booking.nav.back")}
+                        </Button>
+                        <Button className="flex-1" onClick={handleCardAuthorize} disabled={submitting || !cardAuthValid}>
+                          {submitting ? t("booking.nav.submitting") : "Confirm reservation"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1258,8 +1342,8 @@ const BookingPage = () => {
               </div>
               {needsPayment && currentService && (
                 <div className="flex justify-between text-sm font-body">
-                  <span className="text-muted-foreground">{t("booking.summarySidebar.deposit")}</span>
-                  <span className="font-semibold text-foreground">${getBacDepositAmount(currentService)}</span>
+                  <span className="text-muted-foreground">Charged now</span>
+                  <span className="font-semibold text-spa-sage">$0 — card on file</span>
                 </div>
               )}
               {currentService && (
@@ -1271,7 +1355,7 @@ const BookingPage = () => {
               {needsPayment && (
                 <p className="text-xs font-body text-muted-foreground flex items-start gap-1">
                   <ShieldCheck className="h-3 w-3 inline mt-0.5 shrink-0" />
-                  <span>{t("booking.checkout.securePayment")}</span>
+                  <span>No charge in advance. Pay at the spa; your card is kept on file only for the cancellation policy.</span>
                 </p>
               )}
             </div>

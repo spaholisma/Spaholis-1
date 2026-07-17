@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
+import { BookingEditModal } from "./calendar/BookingEditModal";
+import type { CalendarBooking } from "./calendar/calendarUtils";
 import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, normalizeLinkInput, sanitizeLinkLabel, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -469,10 +471,38 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
     return null;
   };
 
-  // A website booking is read-only here; a manual entry opens the edit form.
-  const [bookingDetail, setBookingDetail] = useState<CalendarEntry | null>(null);
+  // A website booking opens the full (editable) booking modal; a manual entry
+  // opens the calendar-entry form.
+  const [editBooking, setEditBooking] = useState<CalendarBooking | null>(null);
+  const [bookingEditOpen, setBookingEditOpen] = useState(false);
+  const [servicesForEdit, setServicesForEdit] = useState<any[]>([]);
+  useEffect(() => {
+    supabase.from("services").select("id, title, category, type, duration_minutes, price")
+      .then(({ data }) => setServicesForEdit(data ?? []));
+  }, []);
+
+  const openBookingForEdit = async (bookingId: string) => {
+    const { data } = await supabase
+      .from("bookings")
+      .select("*, services(title, duration_minutes, category, type)")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (!data) { toast.error("Booking not found"); return; }
+    const b: any = data;
+    setEditBooking({
+      id: b.id, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
+      booking_date: b.booking_date, booking_time: b.booking_time, status: b.status,
+      total_price: b.total_price, notes: b.notes, service_id: b.service_id,
+      service_title: b.services?.title ?? null, service_category: b.services?.category ?? null,
+      service_type: b.services?.type ?? null, duration_minutes: b.services?.duration_minutes ?? 60,
+      intake_form: b.intake_form, card_authorization: b.card_authorization,
+      staff_id: b.staff_id, room_id: b.room_id, payment_id: b.payment_id,
+    });
+    setBookingEditOpen(true);
+  };
+
   const openItem = (entry: CalendarEntry, fromDay?: Date | null) => {
-    if (entry.booking) { setDayViewDate(null); setBookingDetail(entry); return; }
+    if (entry.booking) { setDayViewDate(null); openBookingForEdit(entry.booking.id); return; }
     if (fromDay !== undefined) setReturnToDay(fromDay);
     setDayViewDate(null);
     openEdit(entry);
@@ -936,61 +966,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
         </DialogContent>
       </Dialog>
 
-      {/* Website booking — read-only detail (real appointment, not a manual entry) */}
-      <Dialog open={!!bookingDetail} onOpenChange={(o) => { if (!o) setBookingDetail(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              🌐 Website booking
-            </DialogTitle>
-          </DialogHeader>
-          {bookingDetail?.booking && (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Guest</span>
-                <span className="font-medium text-right">{bookingDetail.booking.guest_name || "—"}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Treatment</span>
-                <span className="font-medium text-right">{bookingDetail.booking.service_title || "—"}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">When</span>
-                <span className="font-medium text-right">
-                  {format(parseISO(bookingDetail.entry_date), "EEE, MMM d")} · {minutesLabel(toMinutes(bookingDetail.start_time))}
-                </span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Room</span>
-                <span className="font-medium text-right">{rooms.find((r) => r.id === bookingDetail.room_id)?.name || "—"}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Status</span>
-                <span className="font-medium text-right capitalize">{bookingDetail.booking.status.replace("_", " ")}</span>
-              </div>
-              {bookingDetail.booking.total_price != null && (
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-medium text-right">${Number(bookingDetail.booking.total_price).toFixed(2)}</span>
-                </div>
-              )}
-              {(bookingDetail.booking.guest_email || bookingDetail.booking.guest_phone) && (
-                <div className="border-t border-border pt-2 mt-2 space-y-1">
-                  {bookingDetail.booking.guest_email && (
-                    <p className="text-xs text-muted-foreground break-all">{bookingDetail.booking.guest_email}</p>
-                  )}
-                  {bookingDetail.booking.guest_phone && (
-                    <p className="text-xs text-muted-foreground">{bookingDetail.booking.guest_phone}</p>
-                  )}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground pt-1">
-                Booked on the website — manage it under Appointments.
-              </p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Website booking — full editable modal (with card-on-file reveal) */}
+      <BookingEditModal
+        booking={editBooking}
+        open={bookingEditOpen}
+        onOpenChange={setBookingEditOpen}
+        onSaved={() => { loadBookings(); loadEntries(); }}
+        services={servicesForEdit}
+      />
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={(o) => { if (o) setModalOpen(true); else closeEntryModal(); }}>

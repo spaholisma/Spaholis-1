@@ -353,6 +353,53 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_card_authorizations: {
+        Row: {
+          authorization_text: string | null
+          authorized: boolean
+          booking_id: string
+          card_brand: string | null
+          card_encrypted: string
+          card_expiry: string | null
+          card_last4: string | null
+          cardholder_name: string | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          authorization_text?: string | null
+          authorized?: boolean
+          booking_id: string
+          card_brand?: string | null
+          card_encrypted: string
+          card_expiry?: string | null
+          card_last4?: string | null
+          cardholder_name?: string | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          authorization_text?: string | null
+          authorized?: boolean
+          booking_id?: string
+          card_brand?: string | null
+          card_encrypted?: string
+          card_expiry?: string | null
+          card_last4?: string | null
+          cardholder_name?: string | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_card_authorizations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booking_date: string
@@ -371,6 +418,7 @@ export type Database = {
           notification_sent_at: string | null
           payment_id: string | null
           room_id: string | null
+          secondary_room_id: string | null
           service_id: string | null
           staff_id: string | null
           start_time: string | null
@@ -396,6 +444,7 @@ export type Database = {
           notification_sent_at?: string | null
           payment_id?: string | null
           room_id?: string | null
+          secondary_room_id?: string | null
           service_id?: string | null
           staff_id?: string | null
           start_time?: string | null
@@ -421,6 +470,7 @@ export type Database = {
           notification_sent_at?: string | null
           payment_id?: string | null
           room_id?: string | null
+          secondary_room_id?: string | null
           service_id?: string | null
           staff_id?: string | null
           start_time?: string | null
@@ -433,6 +483,13 @@ export type Database = {
           {
             foreignKeyName: "bookings_room_id_fkey"
             columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_secondary_room_id_fkey"
+            columns: ["secondary_room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
             referencedColumns: ["id"]
@@ -1821,27 +1878,41 @@ export type Database = {
       }
       rooms: {
         Row: {
+          couples_capable: boolean
           created_at: string
           forbidden_categories: string[]
           id: string
           is_active: boolean
           name: string
+          pairs_with_room_id: string | null
         }
         Insert: {
+          couples_capable?: boolean
           created_at?: string
           forbidden_categories?: string[]
           id?: string
           is_active?: boolean
           name: string
+          pairs_with_room_id?: string | null
         }
         Update: {
+          couples_capable?: boolean
           created_at?: string
           forbidden_categories?: string[]
           id?: string
           is_active?: boolean
           name?: string
+          pairs_with_room_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rooms_pairs_with_room_id_fkey"
+            columns: ["pairs_with_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       services: {
         Row: {
@@ -2327,6 +2398,7 @@ export type Database = {
         Args: { _schedule_id: string; _token: string }
         Returns: Json
       }
+      card_luhn_ok: { Args: { _num: string }; Returns: boolean }
       claim_bac_payment_link: {
         Args: { _amount: number; _booking_id: string }
         Returns: {
@@ -2392,6 +2464,21 @@ export type Database = {
       }
       redeem_offering: {
         Args: { _class_booking_id?: string; _user_offering_id: string }
+        Returns: Json
+      }
+      reveal_card_authorization: {
+        Args: { _booking_id: string }
+        Returns: Json
+      }
+      save_card_authorization: {
+        Args: {
+          _auth_text: string
+          _authorized: boolean
+          _booking_id: string
+          _card_number: string
+          _cardholder: string
+          _expiry: string
+        }
         Returns: Json
       }
       search_known_contacts: { Args: { _q: string }; Returns: Json }

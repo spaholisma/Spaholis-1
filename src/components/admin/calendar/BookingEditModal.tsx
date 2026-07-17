@@ -7,10 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, ClipboardList, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarBooking } from "./calendarUtils";
+
+type CardOnFile = { card_brand: string | null; card_last4: string | null; card_expiry: string | null; cardholder_name: string | null };
 
 interface BookingEditModalProps {
   booking: CalendarBooking | null;
@@ -33,6 +35,39 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     total_price: "",
   });
   const [saving, setSaving] = useState(false);
+  // Card on file — masked by default; the full number is fetched on demand
+  // through an admin-only, audited RPC.
+  const [card, setCard] = useState<CardOnFile | null>(null);
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+
+  useEffect(() => {
+    setCard(null);
+    setRevealed(null);
+    if (!booking) return;
+    supabase
+      .from("booking_card_authorizations")
+      .select("card_brand, card_last4, card_expiry, cardholder_name")
+      .eq("booking_id", booking.id)
+      .maybeSingle()
+      .then(({ data }) => setCard((data as CardOnFile) ?? null));
+  }, [booking]);
+
+  const revealCard = async () => {
+    if (!booking) return;
+    setRevealing(true);
+    try {
+      const { data, error } = await supabase.rpc("reveal_card_authorization", { _booking_id: booking.id });
+      if (error) throw error;
+      const num = (data as any)?.card_number as string | undefined;
+      if (!num) { toast.error("No card on file"); return; }
+      setRevealed(num);
+    } catch (e: any) {
+      toast.error(e.message ?? "Could not reveal card");
+    } finally {
+      setRevealing(false);
+    }
+  };
 
   useEffect(() => {
     if (booking) {
@@ -162,6 +197,34 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   <Input type="number" value={form.total_price} onChange={(e) => update("total_price", e.target.value)} className="h-9 text-sm" />
                 </div>
               </div>
+
+              {card && (
+                <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <CreditCard className="h-3.5 w-3.5" /> Card on file
+                  </div>
+                  <p className="text-sm font-mono text-foreground">
+                    {revealed
+                      ? revealed.replace(/(.{4})/g, "$1 ").trim()
+                      : `${card.card_brand ?? "Card"} •••• ${card.card_last4 ?? "----"}`}
+                    <span className="ml-2 text-xs font-body text-muted-foreground">exp {card.card_expiry}</span>
+                  </p>
+                  {card.cardholder_name && (
+                    <p className="text-xs text-muted-foreground">{card.cardholder_name}</p>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => (revealed ? setRevealed(null) : revealCard())}
+                    disabled={revealing}
+                  >
+                    {revealed ? (<><EyeOff className="h-3 w-3 mr-1" /> Hide</>) : (<><Eye className="h-3 w-3 mr-1" /> {revealing ? "Revealing…" : "Reveal card"}</>)}
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground">Charge via your terminal per the cancellation policy. Revealing is logged. CVV is never stored.</p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="intake" className="space-y-3 mt-4">

@@ -107,14 +107,13 @@ describe("booking wizard step order", () => {
     expect(SRC).toMatch(/guest_name:\s*formData\.name/);
   });
 
-  it("paid submission moves to the Summary step (not Details)", () => {
-    // Regression: before this refactor the BAC redirect fired from
-    // detailsStepIdx, which meant intake never had a chance to render.
-    expect(SRC).toMatch(
-      /needsPayment\s*&&\s*step\s*===\s*paidSubmitStepIdx/,
-    );
-    expect(SRC).toMatch(
-      /paidSubmitStepIdx\s*=\s*summaryStepIdx\s*>\s*0\s*\?\s*summaryStepIdx\s*:\s*detailsStepIdx/,
-    );
+  it("paid flow confirms with a card-on-file authorization, not a CompraClick redirect", () => {
+    // The Checkout step is now a card-authorization form: it creates the booking
+    // and stores the card via save_card_authorization (no charge in advance).
+    expect(SRC).toMatch(/save_card_authorization/);
+    expect(SRC).toMatch(/handleCardAuthorize/);
+    // The old static CompraClick redirect is gone.
+    expect(SRC).not.toMatch(/getBacCompraClickLink/);
+    expect(SRC).not.toMatch(/window\.location\.href\s*=\s*link/);
   });
 });
