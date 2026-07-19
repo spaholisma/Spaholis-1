@@ -7,6 +7,7 @@ import { ArrowRight, Sparkles, Heart, Activity, BookOpen, X, Filter } from "luci
 import { useCollections, type ResolvedCollection } from "@/hooks/useCollections";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
+import { RichText } from "@/components/ui/rich-text";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -121,7 +122,7 @@ export function WellnessSection() {
             {wellness.title}
           </h2>
           <p className="spa-body text-muted-foreground max-w-xl mx-auto">
-            {wellness.subtitle}
+            <RichText value={wellness.subtitle} />
           </p>
         </motion.div>
 

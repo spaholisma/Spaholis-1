@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import holisLogo from "@/assets/holis-logo-clean.png";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
+import { RichText } from "@/components/ui/rich-text";
 import { HOLIS_WHATSAPP_URL, formatWhatsAppDisplay } from "@/lib/whatsapp";
 
 export function Footer() {
@@ -15,7 +16,7 @@ export function Footer() {
           <div className="md:col-span-2">
             <img src={holisLogo} alt="Holis Wellness Center" className="h-12 w-auto mb-4 brightness-0 invert" />
             <p className="font-body text-sm text-spa-sand/90 max-w-sm leading-relaxed">
-              {footer.description}
+              <RichText value={footer.description} />
             </p>
           </div>
           <div>
@@ -54,7 +55,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-spa-sand/20 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-spa-sand/70 font-body order-2 md:order-1">{footer.copyright}</p>
+          <p className="text-xs text-spa-sand/70 font-body order-2 md:order-1"><RichText value={footer.copyright} /></p>
           <nav aria-label="Legal" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-body order-1 md:order-2">
             <Link to="/education" className="text-spa-sand/80 hover:text-spa-cream transition-colors">
               Education

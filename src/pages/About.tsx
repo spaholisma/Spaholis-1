@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
+import { RichText } from "@/components/ui/rich-text";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 
@@ -41,7 +42,7 @@ function TeamCard({ member }: { member: TeamMember }) {
         {member.role}
       </p>
       <p className="font-body text-sm text-muted-foreground mt-2 leading-relaxed">
-        {member.bio}
+        <RichText value={member.bio} />
       </p>
     </motion.div>
   );
@@ -95,7 +96,7 @@ const AboutPage = () => {
           </h2>
           {about.brandParagraphs.map((p: string, i: number) => (
             <p key={i} className="font-body text-base text-muted-foreground leading-relaxed max-w-3xl mx-auto">
-              {p}
+              <RichText value={p} />
             </p>
           ))}
         </motion.div>
@@ -128,7 +129,7 @@ const AboutPage = () => {
 
               <div className="space-y-5 font-body text-base text-muted-foreground leading-relaxed">
                 {founderBio.map((p, i) => (
-                  <p key={i}>{p}</p>
+                  <p key={i}><RichText value={p} /></p>
                 ))}
 
                 {founderSections.map((section, i) => (

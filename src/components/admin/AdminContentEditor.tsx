@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, RotateCcw, Languages, Copy, Eraser, Eye, RefreshCw, ExternalLink } from "lucide-react";
+import { Save, RotateCcw, Languages, Copy, Eraser, Eye, RefreshCw, ExternalLink, Bold, Italic, Link2, Search, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { useSaveContent, setPreviewOverrides } from "@/hooks/useSiteContent";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +68,69 @@ function isUrlOrLink(key: string) {
   return /^(link|url|href|to)$/i.test(key);
 }
 
+// Long free-text leaves where rich formatting (links / bold) is offered in the
+// editor. Kept broad; the public <RichText> renderer is backward-compatible so
+// plain values are unaffected.
+const RICH_TEXT_KEY_HINT = /(description|subtitle|tagline|intent|body|bio|copyright|text|note|message|paragraph|caption|answer|excerpt|quote|blurb)/i;
+function isRichTextField(key: string) {
+  return RICH_TEXT_KEY_HINT.test(key) && !isUrlOrLink(key);
+}
+
+// Whether a node (or any descendant) should show under the current search query
+// / images-only filter. Used to hide non-matching fields and empty sections.
+function subtreeVisible(key: string, value: any, query: string, imagesOnly: boolean): boolean {
+  const q = query.trim().toLowerCase();
+  if (value == null) return false;
+  if (typeof value === "string") {
+    if (imagesOnly && !isImageValue(key, value)) return false;
+    if (q && !(key.toLowerCase().includes(q) || value.toLowerCase().includes(q))) return false;
+    return true;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    if (imagesOnly) return false;
+    if (q && !(key.toLowerCase().includes(q) || String(value).toLowerCase().includes(q))) return false;
+    return true;
+  }
+  if (Array.isArray(value)) return value.some((it, i) => subtreeVisible(String(i), it, query, imagesOnly));
+  if (typeof value === "object") return Object.entries(value).some(([k, v]) => subtreeVisible(k, v, query, imagesOnly));
+  return false;
+}
+
+// Insert markdown around the current selection of a textarea and push the new
+// value back through onChange. Used by the small format toolbar.
+function applyMarkdown(fieldId: string, current: string, before: string, after: string, fallback: string, onChange: (v: string) => void) {
+  const el = document.getElementById(fieldId) as HTMLTextAreaElement | null;
+  const start = el?.selectionStart ?? current.length;
+  const end = el?.selectionEnd ?? current.length;
+  const sel = current.slice(start, end) || fallback;
+  const next = current.slice(0, start) + before + sel + after + current.slice(end);
+  onChange(next);
+}
+
+/* ============================================================
+ * Small markdown format toolbar (bold / italic / link)
+ * ============================================================ */
+function FormatBar({ fieldId, value, onChange }: { fieldId: string; value: string; onChange: (v: string) => void }) {
+  const btn = "inline-flex items-center justify-center h-6 w-6 rounded border border-border bg-background hover:bg-muted transition-colors";
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" className={btn} title="Bold" onMouseDown={(e) => e.preventDefault()}
+        onClick={() => applyMarkdown(fieldId, value, "**", "**", "bold text", onChange)}>
+        <Bold className="h-3 w-3" />
+      </button>
+      <button type="button" className={btn} title="Italic" onMouseDown={(e) => e.preventDefault()}
+        onClick={() => applyMarkdown(fieldId, value, "*", "*", "italic text", onChange)}>
+        <Italic className="h-3 w-3" />
+      </button>
+      <button type="button" className={btn} title="Insert link — [text](https://…)" onMouseDown={(e) => e.preventDefault()}
+        onClick={() => applyMarkdown(fieldId, value, "[", "](https://)", "link text", onChange)}>
+        <Link2 className="h-3 w-3" />
+      </button>
+      <span className="text-[10px] text-muted-foreground ml-1">formatting &amp; links</span>
+    </div>
+  );
+}
+
 /* ============================================================
  * Bilingual field renderer
  *
@@ -85,6 +148,8 @@ function BilingualFields({
   onEnChange,
   onEsChange,
   labels,
+  query = "",
+  imagesOnly = false,
 }: {
   enValue: any;
   esValue: any;
@@ -92,6 +157,8 @@ function BilingualFields({
   onEnChange: (path: string[], value: any) => void;
   onEsChange: (path: string[], value: any) => void;
   labels?: Record<string, string>;
+  query?: string;
+  imagesOnly?: boolean;
 }) {
   if (enValue == null) return null;
 
@@ -104,6 +171,7 @@ function BilingualFields({
         const esVal = esValue?.[key];
 
         if (value == null) return null;
+        if (!subtreeVisible(key, value, query, imagesOnly)) return null;
 
         /* ---------- strings ---------- */
         if (typeof value === "string") {
@@ -140,7 +208,12 @@ function BilingualFields({
 
           return (
             <div key={fieldId} className="space-y-1.5">
-              <Label htmlFor={fieldId} className="text-sm font-medium">{label}</Label>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Label htmlFor={fieldId} className="text-sm font-medium">{label}</Label>
+                {isRichTextField(key) && (
+                  <FormatBar fieldId={`${fieldId}.en`} value={value} onChange={(v) => onEnChange(currentPath, v)} />
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">EN</span>
@@ -258,6 +331,8 @@ function BilingualFields({
                         path={[...currentPath, String(i)]}
                         onEnChange={onEnChange}
                         onEsChange={onEsChange}
+                        query={query}
+                        imagesOnly={imagesOnly}
                       />
                     </CardContent>
                   </Card>
@@ -280,6 +355,8 @@ function BilingualFields({
                 path={currentPath}
                 onEnChange={onEnChange}
                 onEsChange={onEsChange}
+                query={query}
+                imagesOnly={imagesOnly}
               />
             </div>
           );
@@ -306,6 +383,11 @@ export function AdminContentEditor() {
   const [editEsContent, setEditEsContent] = useState<any>({});
   const [editEnSeo, setEditEnSeo] = useState<any>({ ...seoDefaults });
   const [editEsSeo, setEditEsSeo] = useState<any>({});
+
+  // ----- Find / filter / collapse state (Page Content tab) -----
+  const [query, setQuery] = useState("");
+  const [imagesOnly, setImagesOnly] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // ----- Live preview state -----
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -515,23 +597,82 @@ export function AdminContentEditor() {
             <TabsTrigger value="seo">SEO Metadata</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="content" className="space-y-6 mt-4">
-            {Object.entries(editEnContent).map(([section, value]) => (
-              <Card key={section}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{sectionLabels[section] || section}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <BilingualFields
-                    enValue={value}
-                    esValue={editEsContent?.[section] ?? {}}
-                    path={[section]}
-                    onEnChange={(p, v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))}
-                    onEsChange={(p, v) => setEditEsContent((prev: any) => setNestedValue(prev, p, v))}
-                  />
-                </CardContent>
-              </Card>
-            ))}
+          <TabsContent value="content" className="space-y-4 mt-4">
+            {/* Find & filter toolbar */}
+            <div className="flex flex-wrap items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 -mx-1 px-1 rounded-lg">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search any text, label or link…"
+                  className="pl-8"
+                />
+              </div>
+              <Button type="button" variant={imagesOnly ? "default" : "outline"} size="sm" onClick={() => setImagesOnly((v) => !v)}>
+                <ImageIcon className="h-4 w-4 mr-1" /> Images only
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const all: Record<string, boolean> = {};
+                  Object.keys(editEnContent).forEach((k) => (all[k] = true));
+                  setExpanded(all);
+                }}
+              >
+                Expand all
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setExpanded({})}>
+                Collapse all
+              </Button>
+            </div>
+
+            {(() => {
+              const isFiltering = !!query.trim() || imagesOnly;
+              const q = query.trim().toLowerCase();
+              const entries = Object.entries(editEnContent).filter(([section, value]) => {
+                const label = (sectionLabels[section] || section).toLowerCase();
+                const nameMatch = !!q && (section.toLowerCase().includes(q) || label.includes(q));
+                return nameMatch || subtreeVisible(section, value, query, imagesOnly);
+              });
+              if (entries.length === 0) {
+                return <p className="text-sm text-muted-foreground py-10 text-center">No fields match your search.</p>;
+              }
+              return entries.map(([section, value]) => {
+                const label = sectionLabels[section] || section;
+                const nameMatch = !!q && (section.toLowerCase().includes(q) || label.toLowerCase().includes(q));
+                const childQuery = nameMatch ? "" : query;
+                const isOpen = isFiltering ? true : !!expanded[section];
+                return (
+                  <Card key={section}>
+                    <CardHeader
+                      className={isFiltering ? "" : "cursor-pointer select-none"}
+                      onClick={() => { if (!isFiltering) setExpanded((e) => ({ ...e, [section]: !e[section] })); }}
+                    >
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {!isFiltering && (isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />)}
+                        {label}
+                      </CardTitle>
+                    </CardHeader>
+                    {isOpen && (
+                      <CardContent className="space-y-4">
+                        <BilingualFields
+                          enValue={value}
+                          esValue={editEsContent?.[section] ?? {}}
+                          path={[section]}
+                          onEnChange={(p, v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))}
+                          onEsChange={(p, v) => setEditEsContent((prev: any) => setNestedValue(prev, p, v))}
+                          query={childQuery}
+                          imagesOnly={imagesOnly}
+                        />
+                      </CardContent>
+                    )}
+                  </Card>
+                );
+              });
+            })()}
           </TabsContent>
 
           <TabsContent value="seo" className="space-y-6 mt-4">
