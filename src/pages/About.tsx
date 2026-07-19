@@ -96,7 +96,7 @@ const AboutPage = () => {
           </h2>
           {about.brandParagraphs.map((p: string, i: number) => (
             <p key={i} className="font-body text-base text-muted-foreground leading-relaxed max-w-3xl mx-auto">
-              <RichText value={p} />
+              <RichText value={p} path={`about.brandParagraphs.${i}`} />
             </p>
           ))}
         </motion.div>

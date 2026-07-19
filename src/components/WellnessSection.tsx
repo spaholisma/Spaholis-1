@@ -122,7 +122,7 @@ export function WellnessSection() {
             {wellness.title}
           </h2>
           <p className="spa-body text-muted-foreground max-w-xl mx-auto">
-            <RichText value={wellness.subtitle} />
+            <RichText value={wellness.subtitle} path="wellness.subtitle" />
           </p>
         </motion.div>
 

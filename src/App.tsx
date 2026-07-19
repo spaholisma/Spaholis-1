@@ -37,6 +37,7 @@ import PractitionerProfile from "./pages/PractitionerProfile";
 import TestPayment from "./pages/TestPayment";
 import TestPaymentReturn from "./pages/TestPaymentReturn";
 import { WhatsAppButton } from "./components/WhatsAppButton";
+import { PreviewEditBridge } from "./components/PreviewEditBridge";
 const queryClient = new QueryClient();
 
 // Redirect that preserves search params and hash so links like /booking?service=...
@@ -104,6 +105,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <LanguageProvider>
+          <PreviewEditBridge />
           <WhatsAppButton />
           <Routes>
             {routeDefs.map((r) => (

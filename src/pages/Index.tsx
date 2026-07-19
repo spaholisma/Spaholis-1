@@ -66,7 +66,7 @@ const Index = () => {
               {hero.title}
             </h1>
             <p className="font-body text-spa-cream/75 text-lg mb-10 leading-relaxed max-w-xl mx-auto">
-              <RichText value={hero.subtitle} />
+              <RichText value={hero.subtitle} path="hero.subtitle" />
             </p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 justify-center">
               <Button variant="spa" size="xl" asChild>
@@ -94,7 +94,7 @@ const Index = () => {
           <motion.div {...fadeIn} className="text-center mb-12">
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{signatureExperiences.eyebrow}</p>
             <h2 className="spa-heading-lg text-foreground">{signatureExperiences.title}</h2>
-            <p className="spa-body mt-3 max-w-lg mx-auto"><RichText value={signatureExperiences.subtitle} /></p>
+            <p className="spa-body mt-3 max-w-lg mx-auto"><RichText value={signatureExperiences.subtitle} path="signatureExperiences.subtitle" /></p>
           </motion.div>
           <motion.div {...fadeIn} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {signatureExperiences.items.map((exp) => (
@@ -135,7 +135,7 @@ const Index = () => {
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{movement.eyebrow}</p>
             <h2 className="spa-heading-lg text-foreground mb-6">{movement.title}</h2>
             {movement.description.map((para, i) => (
-              <p key={i} className="spa-body mb-4"><RichText value={para} /></p>
+              <p key={i} className="spa-body mb-4"><RichText value={para} path={`movement.description.${i}`} /></p>
             ))}
             <div className="mt-4">
               <Button variant="outline" size="lg" asChild>
@@ -202,7 +202,7 @@ const Index = () => {
           <motion.div {...fadeIn}>
             <h2 className="spa-heading-lg text-spa-cream mb-4">{cta.title}</h2>
             <p className="font-body text-spa-cream/70 mb-8 max-w-lg mx-auto leading-relaxed">
-              <RichText value={cta.subtitle} />
+              <RichText value={cta.subtitle} path="cta.subtitle" />
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button variant="spa" size="xl" asChild>
@@ -212,7 +212,7 @@ const Index = () => {
                 <Link to={cta.secondaryCta.link}>{cta.secondaryCta.text} <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
-            <p className="font-body text-xs text-spa-cream/50 mt-4 tracking-wide"><RichText value={cta.note} /></p>
+            <p className="font-body text-xs text-spa-cream/50 mt-4 tracking-wide"><RichText value={cta.note} path="cta.note" /></p>
           </motion.div>
         </div>
       </section>

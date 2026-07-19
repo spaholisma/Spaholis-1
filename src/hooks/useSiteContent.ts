@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
@@ -77,11 +78,23 @@ export function setPreviewOverrides(overrides: PreviewOverrides | null) {
   window.dispatchEvent(new CustomEvent(PREVIEW_EVENT));
 }
 
-function usePreviewOverrides(): PreviewOverrides | null {
-  // Lightweight subscription so consuming queries refetch when overrides change.
-  // We reuse react-query's invalidation in the event listener below; the
-  // hook itself just returns the current snapshot.
-  return readPreviewOverrides();
+// Subscribe to preview-override changes so the consuming component actually
+// re-renders (and recomputes its query key) when overrides are staged. The
+// version counter bumps on every change so react-query refetches even when the
+// overrides object is replaced with new content (used by the live "edit on
+// page" flow, which pushes edits into this same window via postMessage).
+function usePreviewOverrides(): { ov: PreviewOverrides | null; v: number } {
+  const [state, setState] = useState<{ ov: PreviewOverrides | null; v: number }>(() => ({
+    ov: readPreviewOverrides(),
+    v: 0,
+  }));
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => setState((s) => ({ ov: readPreviewOverrides(), v: s.v + 1 }));
+    window.addEventListener(PREVIEW_EVENT, handler);
+    return () => window.removeEventListener(PREVIEW_EVENT, handler);
+  }, []);
+  return state;
 }
 
 // Wire a single global listener that invalidates content/seo queries when the
@@ -101,9 +114,9 @@ export function useSiteContent() {
   const { language } = useLanguage();
   const queryClient = useQueryClient();
   ensurePreviewListener(queryClient);
-  const overrides = usePreviewOverrides();
+  const { ov: overrides, v: previewVersion } = usePreviewOverrides();
   return useQuery({
-    queryKey: ["site-content", language, overrides ? "preview" : "live"],
+    queryKey: ["site-content", language, overrides ? `preview:${previewVersion}` : "live"],
     queryFn: async (): Promise<ContentType> => {
       const en = overrides?.content ?? (await fetchSection("content"));
       let merged: Record<string, any> = en
@@ -123,9 +136,9 @@ export function useSiteSeo() {
   const { language } = useLanguage();
   const queryClient = useQueryClient();
   ensurePreviewListener(queryClient);
-  const overrides = usePreviewOverrides();
+  const { ov: overrides, v: previewVersion } = usePreviewOverrides();
   return useQuery({
-    queryKey: ["site-seo", language, overrides ? "preview" : "live"],
+    queryKey: ["site-seo", language, overrides ? `preview:${previewVersion}` : "live"],
     queryFn: async (): Promise<SeoType> => {
       const en = overrides?.seo ?? (await fetchSection("seo"));
       let merged: Record<string, any> = en

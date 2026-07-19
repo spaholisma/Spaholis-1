@@ -1,4 +1,5 @@
 import { createElement, Fragment, type ReactNode } from "react";
+import { isCmsEditMode } from "@/lib/cmsEdit";
 
 /**
  * RichText — renders a small, safe subset of Markdown for editable site copy:
@@ -110,10 +111,23 @@ interface RichTextProps {
   /** Wrapper element. Defaults to a <span> so it can live inline in a <p>. */
   as?: keyof JSX.IntrinsicElements;
   className?: string;
+  /**
+   * Dot-path into the site content (e.g. "footer.description"). When set and the
+   * page is in preview edit mode, the element becomes click-to-edit.
+   */
+  path?: string;
 }
 
-export function RichText({ value, as = "span", className }: RichTextProps) {
-  if (value == null || value === "") return null;
+export function RichText({ value, as = "span", className, path }: RichTextProps) {
+  const editable = !!path && isCmsEditMode();
+  const editAttrs = editable ? { "data-cms-path": path, "data-cms-kind": "text" } : {};
+
+  if (value == null || value === "") {
+    // In edit mode, still render a clickable placeholder so empty copy can be
+    // filled in from the page.
+    if (editable) return createElement(as, { className, ...editAttrs }, "(empty — click to edit)");
+    return null;
+  }
   const nodes = parseRichText(String(value));
-  return createElement(as, { className }, createElement(Fragment, null, ...nodes));
+  return createElement(as, { className, ...editAttrs }, createElement(Fragment, null, ...nodes));
 }

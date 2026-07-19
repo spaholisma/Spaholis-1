@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, RotateCcw, Languages, Copy, Eraser, Eye, RefreshCw, ExternalLink, Bold, Italic, Link2, Search, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, RotateCcw, Languages, Copy, Eraser, Eye, RefreshCw, ExternalLink, Bold, Italic, Link2, Search, Image as ImageIcon, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { useSaveContent, setPreviewOverrides } from "@/hooks/useSiteContent";
 import { supabase } from "@/integrations/supabase/client";
@@ -396,6 +396,12 @@ export function AdminContentEditor() {
   const [previewNonce, setPreviewNonce] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
+  // ----- "Edit on page" state -----
+  // When on, the preview iframe loads with ?__edit=1 and clicking editable text
+  // in it opens the inline editor for that content path.
+  const [editOnPage, setEditOnPage] = useState(false);
+  const [inlinePath, setInlinePath] = useState<string | null>(null);
+
   // Hydrate from DB once loaded
   useEffect(() => {
     if (enContentQ.data) {
@@ -470,9 +476,53 @@ export function AdminContentEditor() {
   };
 
   const handleOpenPreview = () => {
+    setEditOnPage(false);
     writePreview();
     setPreviewOpen(true);
   };
+
+  const handleEditOnPage = () => {
+    setEditOnPage(true);
+    writePreview();
+    setPreviewOpen(true);
+  };
+
+  // Push the current staged overrides into the edit-mode iframe so it re-renders
+  // live (postMessage — the iframe applies them without a reload).
+  const postOverridesToIframe = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: "cms",
+        type: "set-overrides",
+        overrides: {
+          content: editEnContent,
+          content_es: pruneEmpty(editEsContent),
+          seo: editEnSeo,
+          seo_es: pruneEmpty(editEsSeo),
+        },
+      },
+      "*",
+    );
+  };
+
+  // Listen for clicks relayed from the edit-mode iframe.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data;
+      if (!d || d.source !== "cms") return;
+      if (d.type === "ready") postOverridesToIframe();
+      if (d.type === "edit" && typeof d.path === "string") setInlinePath(d.path);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editEnContent, editEsContent, editEnSeo, editEsSeo]);
+
+  // Keep the edit-mode iframe in sync as fields change.
+  useEffect(() => {
+    if (editOnPage && previewOpen) postOverridesToIframe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editEnContent, editEsContent, editEnSeo, editEsSeo, editOnPage, previewOpen]);
 
   const handleRefreshPreview = () => {
     writePreview();
@@ -494,7 +544,11 @@ export function AdminContentEditor() {
 
   const handleClosePreview = (open: boolean) => {
     setPreviewOpen(open);
-    if (!open) setPreviewOverrides(null);
+    if (!open) {
+      setPreviewOverrides(null);
+      setInlinePath(null);
+      setEditOnPage(false);
+    }
   };
 
   const previewSrc = (() => {
@@ -505,7 +559,7 @@ export function AdminContentEditor() {
           : `/es${previewPath}`
         : previewPath;
     const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}__preview=${previewNonce}`;
+    return `${base}${sep}__preview=${previewNonce}${editOnPage ? "&__edit=1" : ""}`;
   })();
 
   const previewablePages: { label: string; path: string }[] = [
@@ -570,6 +624,9 @@ export function AdminContentEditor() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="default" size="sm" onClick={handleEditOnPage} title="Open the site and click text right on the page to edit it">
+            <Pencil className="h-4 w-4 mr-1" /> Edit on Page
+          </Button>
           <Button variant="outline" size="sm" onClick={handleOpenPreview} title="Open a live preview using your unsaved EN/ES edits">
             <Eye className="h-4 w-4 mr-1" /> Live Preview
           </Button>
@@ -768,6 +825,60 @@ export function AdminContentEditor() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Inline editor — opened by clicking text in the "Edit on Page" preview */}
+      {inlinePath && (() => {
+        const p = inlinePath.split(".");
+        const enVal = getNestedValue(editEnContent, p);
+        const esVal = getNestedValue(editEsContent, p);
+        const enStr = typeof enVal === "string" ? enVal : enVal == null ? "" : String(enVal);
+        const esStr = typeof esVal === "string" ? esVal : "";
+        const label = p[p.length - 1].replace(/([A-Z])/g, " $1").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+        return (
+          <div
+            key={inlinePath}
+            className="fixed bottom-4 left-4 z-[70] w-[380px] max-w-[92vw] rounded-xl border border-border bg-card shadow-2xl p-4 space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">Editing: {label}</p>
+                <p className="text-[11px] text-muted-foreground font-mono truncate">{inlinePath}</p>
+              </div>
+              <button type="button" onClick={() => setInlinePath(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">English</span>
+                <FormatBar fieldId="inline-en" value={enStr} onChange={(v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))} />
+              </div>
+              <Textarea
+                id="inline-en"
+                value={enStr}
+                autoFocus
+                onChange={(e) => setEditEnContent((prev: any) => setNestedValue(prev, p, e.target.value))}
+                className="text-sm min-h-[84px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary flex items-center gap-1">
+                <Languages className="h-3 w-3" /> Spanish
+                <span className="text-muted-foreground font-normal normal-case ml-1">(blank = English)</span>
+              </span>
+              <Textarea
+                value={esStr}
+                placeholder={enStr}
+                onChange={(e) => setEditEsContent((prev: any) => setNestedValue(prev, p, e.target.value))}
+                className="text-sm min-h-[60px]"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Updates the preview live. Click <strong>Save Changes</strong> (top) to publish.
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
