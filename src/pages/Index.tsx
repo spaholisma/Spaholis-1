@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/ui/rich-text";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, Quote, ArrowRight } from "lucide-react";
@@ -63,7 +64,7 @@ const Index = () => {
             className="max-w-2xl text-center"
           >
             <h1 className="spa-heading-xl text-spa-cream mb-6 max-w-xl mx-auto">
-              {hero.title}
+              <RichText value={hero.title} path="hero.title" />
             </h1>
             <p className="font-body text-spa-cream/75 text-lg mb-10 leading-relaxed max-w-xl mx-auto">
               <RichText value={hero.subtitle} path="hero.subtitle" />
@@ -93,7 +94,7 @@ const Index = () => {
         <div className="spa-section">
           <motion.div {...fadeIn} className="text-center mb-12">
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{signatureExperiences.eyebrow}</p>
-            <h2 className="spa-heading-lg text-foreground">{signatureExperiences.title}</h2>
+            <h2 className="spa-heading-lg text-foreground"><RichText value={signatureExperiences.title} path="signatureExperiences.title" /></h2>
             <p className="spa-body mt-3 max-w-lg mx-auto"><RichText value={signatureExperiences.subtitle} path="signatureExperiences.subtitle" /></p>
           </motion.div>
           <motion.div {...fadeIn} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -126,6 +127,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <motion.div {...fadeIn}>
             <img
+              {...cmsEditProps("movement.image", "image")}
               src={movement.image}
               alt={movement.imageAlt}
               className="rounded-3xl w-full aspect-[4/3] object-cover"
@@ -133,7 +135,7 @@ const Index = () => {
           </motion.div>
           <motion.div {...fadeIn}>
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{movement.eyebrow}</p>
-            <h2 className="spa-heading-lg text-foreground mb-6">{movement.title}</h2>
+            <h2 className="spa-heading-lg text-foreground mb-6"><RichText value={movement.title} path="movement.title" /></h2>
             {movement.description.map((para, i) => (
               <p key={i} className="spa-body mb-4"><RichText value={para} path={`movement.description.${i}`} /></p>
             ))}
@@ -200,7 +202,7 @@ const Index = () => {
       <section className="bg-spa-charcoal">
         <div className="spa-section text-center">
           <motion.div {...fadeIn}>
-            <h2 className="spa-heading-lg text-spa-cream mb-4">{cta.title}</h2>
+            <h2 className="spa-heading-lg text-spa-cream mb-4"><RichText value={cta.title} path="cta.title" /></h2>
             <p className="font-body text-spa-cream/70 mb-8 max-w-lg mx-auto leading-relaxed">
               <RichText value={cta.subtitle} path="cta.subtitle" />
             </p>

@@ -37,3 +37,9 @@ export function isCmsEditMode(): boolean {
   }
   return cached;
 }
+
+// Spread onto any element (e.g. an <img>) to make it click-to-edit in preview
+// edit mode. Returns nothing outside edit mode, so the public site is untouched.
+export function cmsEditProps(path: string, kind: "text" | "image" = "text"): Record<string, string> {
+  return isCmsEditMode() ? { "data-cms-path": path, "data-cms-kind": kind } : {};
+}

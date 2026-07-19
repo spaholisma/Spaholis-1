@@ -15,6 +15,7 @@ import { useSaveContent, setPreviewOverrides } from "@/hooks/useSiteContent";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUploadField } from "./ImageUploadField";
 import { toast } from "sonner";
+// (ImageUploadField is reused by the inline "Edit on Page" image editor.)
 
 const IMAGE_KEY_PATTERNS = /^(.*image.*|.*img.*|.*logo.*|.*avatar.*|.*photo.*|.*thumbnail.*|.*banner.*|.*icon.*|.*background.*)$/i;
 
@@ -400,7 +401,7 @@ export function AdminContentEditor() {
   // When on, the preview iframe loads with ?__edit=1 and clicking editable text
   // in it opens the inline editor for that content path.
   const [editOnPage, setEditOnPage] = useState(false);
-  const [inlinePath, setInlinePath] = useState<string | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{ path: string; kind: string } | null>(null);
 
   // Hydrate from DB once loaded
   useEffect(() => {
@@ -511,7 +512,9 @@ export function AdminContentEditor() {
       const d = e.data;
       if (!d || d.source !== "cms") return;
       if (d.type === "ready") postOverridesToIframe();
-      if (d.type === "edit" && typeof d.path === "string") setInlinePath(d.path);
+      if (d.type === "edit" && typeof d.path === "string") {
+        setInlineEdit({ path: d.path, kind: typeof d.kind === "string" ? d.kind : "text" });
+      }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -546,7 +549,7 @@ export function AdminContentEditor() {
     setPreviewOpen(open);
     if (!open) {
       setPreviewOverrides(null);
-      setInlinePath(null);
+      setInlineEdit(null);
       setEditOnPage(false);
     }
   };
@@ -826,53 +829,69 @@ export function AdminContentEditor() {
         </SheetContent>
       </Sheet>
 
-      {/* Inline editor — opened by clicking text in the "Edit on Page" preview */}
-      {inlinePath && (() => {
-        const p = inlinePath.split(".");
+      {/* Inline editor — opened by clicking text or an image in "Edit on Page" */}
+      {inlineEdit && (() => {
+        const p = inlineEdit.path.split(".");
         const enVal = getNestedValue(editEnContent, p);
         const esVal = getNestedValue(editEsContent, p);
         const enStr = typeof enVal === "string" ? enVal : enVal == null ? "" : String(enVal);
         const esStr = typeof esVal === "string" ? esVal : "";
         const label = p[p.length - 1].replace(/([A-Z])/g, " $1").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+        const isImage = inlineEdit.kind === "image";
         return (
           <div
-            key={inlinePath}
+            key={inlineEdit.path}
             className="fixed bottom-4 left-4 z-[70] w-[380px] max-w-[92vw] rounded-xl border border-border bg-card shadow-2xl p-4 space-y-3"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">Editing: {label}</p>
-                <p className="text-[11px] text-muted-foreground font-mono truncate">{inlinePath}</p>
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {isImage ? "Replace image" : `Editing: ${label}`}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-mono truncate">{inlineEdit.path}</p>
               </div>
-              <button type="button" onClick={() => setInlinePath(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+              <button type="button" onClick={() => setInlineEdit(null)} className="text-muted-foreground hover:text-foreground shrink-0">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">English</span>
-                <FormatBar fieldId="inline-en" value={enStr} onChange={(v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))} />
-              </div>
-              <Textarea
-                id="inline-en"
+
+            {isImage ? (
+              <ImageUploadField
+                fieldId={`inline-img-${inlineEdit.path}`}
+                label={label}
                 value={enStr}
-                autoFocus
-                onChange={(e) => setEditEnContent((prev: any) => setNestedValue(prev, p, e.target.value))}
-                className="text-sm min-h-[84px]"
+                onChange={(v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))}
               />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary flex items-center gap-1">
-                <Languages className="h-3 w-3" /> Spanish
-                <span className="text-muted-foreground font-normal normal-case ml-1">(blank = English)</span>
-              </span>
-              <Textarea
-                value={esStr}
-                placeholder={enStr}
-                onChange={(e) => setEditEsContent((prev: any) => setNestedValue(prev, p, e.target.value))}
-                className="text-sm min-h-[60px]"
-              />
-            </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">English</span>
+                    <FormatBar fieldId="inline-en" value={enStr} onChange={(v) => setEditEnContent((prev: any) => setNestedValue(prev, p, v))} />
+                  </div>
+                  <Textarea
+                    id="inline-en"
+                    value={enStr}
+                    autoFocus
+                    onChange={(e) => setEditEnContent((prev: any) => setNestedValue(prev, p, e.target.value))}
+                    className="text-sm min-h-[84px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-primary flex items-center gap-1">
+                    <Languages className="h-3 w-3" /> Spanish
+                    <span className="text-muted-foreground font-normal normal-case ml-1">(blank = English)</span>
+                  </span>
+                  <Textarea
+                    value={esStr}
+                    placeholder={enStr}
+                    onChange={(e) => setEditEsContent((prev: any) => setNestedValue(prev, p, e.target.value))}
+                    className="text-sm min-h-[60px]"
+                  />
+                </div>
+              </>
+            )}
+
             <p className="text-[11px] text-muted-foreground">
               Updates the preview live. Click <strong>Save Changes</strong> (top) to publish.
             </p>

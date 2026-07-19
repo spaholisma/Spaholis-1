@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { RichText } from "@/components/ui/rich-text";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 
@@ -109,6 +110,7 @@ const AboutPage = () => {
             <div className="aspect-[3/4] rounded-2xl overflow-hidden">
               {(about as any).founderImage && (
                 <img
+                  {...cmsEditProps("about.founderImage", "image")}
                   src={(about as any).founderImage}
                   alt={(about as any).founderImageAlt || about.founderName}
                   className="w-full h-full object-cover"
