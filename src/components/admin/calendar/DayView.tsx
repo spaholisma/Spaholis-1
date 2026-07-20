@@ -10,8 +10,8 @@ interface DayViewProps {
   onSlotClick: (date: string, time: string) => void;
 }
 
-const HOUR_START = 7;
-const HOUR_END = 21;
+const HOUR_START = 8;
+const HOUR_END = 20;
 const PX_PER_MIN = 1.2;
 
 export function DayView({ date, bookings, onBookingClick, onSlotClick }: DayViewProps) {

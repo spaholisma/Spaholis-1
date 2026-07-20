@@ -88,8 +88,8 @@ const BOOKING_HIDDEN_STATUSES = new Set(["cancelled", "payment_failed"]);
  * the window fits in one view, between these bounds — below MIN a row can't
  * hold its two lines of text, above MAX it just wastes space.
  */
-const DEFAULT_DAY_START_H = 9;
-const DEFAULT_DAY_END_H = 19;
+const DEFAULT_DAY_START_H = 8;
+const DEFAULT_DAY_END_H = 20;
 const MIN_HOUR_PX = 46;
 const MAX_HOUR_PX = 72;
 /** Header + toolbar + dialog padding sitting above the timeline. */
@@ -889,8 +889,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
 
             return (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-xs text-muted-foreground min-w-0 truncate">
                     {dayEntries.length === 0
                       ? "Nothing scheduled"
                       : `${dayEntries.length} ${dayEntries.length === 1 ? "entry" : "entries"}`}
@@ -898,6 +898,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
                   <Button
                     size="sm"
                     variant="outline"
+                    className="shrink-0"
                     onClick={() => { const d = dayViewDate; setReturnToDay(d); setDayViewDate(null); openNew(d); }}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
@@ -913,16 +914,17 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
                         <div
                           key={entry.id}
                           onClick={() => openItem(entry, dayViewDate)}
-                          className="flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                          className="flex items-start md:items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer hover:opacity-80 transition-opacity"
                           style={{ backgroundColor: `${color}20`, borderColor: `${color}55`, color }}
                           title={`All day · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                         >
-                          <span className="text-[11px] font-semibold uppercase tracking-wide opacity-70 shrink-0">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide opacity-70 shrink-0 mt-0.5 md:mt-0">
                             {entry.end_date && entry.end_date > entry.entry_date
                               ? `${format(parseISO(entry.entry_date), "MMM d")} – ${format(parseISO(entry.end_date), "MMM d")}`
                               : "All day"}
                           </span>
-                          <span className="text-[13px] font-medium truncate">{entry.title}</span>
+                          {/* Wrap fully on mobile (see everything); truncate on desktop to keep the band a single line. */}
+                          <span className="text-[13px] font-medium min-w-0 break-words md:truncate">{entry.title}</span>
                           {loc && <span className="ml-auto shrink-0 text-[11px] opacity-70">{loc}</span>}
                         </div>
                       );
