@@ -930,9 +930,40 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
                   </div>
                 )}
 
+                {/* Mobile: a plain vertical list of the timed entries. The
+                    desktop timeline below packs overlapping bookings into side
+                    columns, which get clipped on a phone — coordinators need to
+                    read the whole day, so on <md we list them top-to-bottom. */}
+                <div className="md:hidden space-y-2 overflow-y-auto max-h-[calc(100vh-11rem)] pr-0.5">
+                  {laid.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">Nothing scheduled at a set time.</p>
+                  ) : (
+                    [...laid]
+                      .sort((a, b) => a.startMin - b.startMin)
+                      .map(({ entry, startMin, endMin }) => {
+                        const color = entryColor(entry);
+                        const loc = locationLabel(entry);
+                        return (
+                          <div
+                            key={entry.id}
+                            onClick={() => openItem(entry, dayViewDate)}
+                            className="rounded-lg border px-3 py-2.5 cursor-pointer active:opacity-80 transition-opacity"
+                            style={{ backgroundColor: `${color}18`, borderColor: `${color}44`, borderLeftColor: color, borderLeftWidth: 4 }}
+                          >
+                            <p className="text-xs font-semibold" style={{ color }}>{rangeLabel(startMin, endMin)}</p>
+                            <p className="text-sm font-medium text-foreground leading-snug mt-0.5">
+                              {entry.booking ? "🌐 " : ""}{entry.title}
+                            </p>
+                            {loc && <p className="text-xs text-muted-foreground mt-0.5">{loc}</p>}
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+
                 {/* pt-2 gives the first hour label room — it sits half a line
                     above its own gridline and would otherwise clip at the top. */}
-                <div className="overflow-auto max-h-[calc(100vh-11rem)] pr-1 pt-2">
+                <div className="hidden md:block overflow-auto max-h-[calc(100vh-11rem)] pr-1 pt-2">
                   <div className="relative" style={{ height: (endH - startH) * hourPx + 8, width: canvasW, minWidth: "100%" }}>
                     {hours.map((h, i) => (
                       <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * hourPx }}>
