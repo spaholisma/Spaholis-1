@@ -1,5 +1,7 @@
 export interface CalendarBooking {
   id: string;
+  /** Optional custom calendar label; null falls back to "guest — service". */
+  title: string | null;
   guest_name: string | null;
   guest_email: string | null;
   guest_phone: string | null;

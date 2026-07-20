@@ -423,6 +423,7 @@ export type Database = {
           staff_id: string | null
           start_time: string | null
           status: string
+          title: string | null
           total_price: number | null
           updated_at: string
           user_id: string | null
@@ -449,6 +450,7 @@ export type Database = {
           staff_id?: string | null
           start_time?: string | null
           status?: string
+          title?: string | null
           total_price?: number | null
           updated_at?: string
           user_id?: string | null
@@ -475,6 +477,7 @@ export type Database = {
           staff_id?: string | null
           start_time?: string | null
           status?: string
+          title?: string | null
           total_price?: number | null
           updated_at?: string
           user_id?: string | null

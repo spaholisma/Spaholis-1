@@ -29,6 +29,7 @@ export function AdminCalendarView() {
     setBookings(
       data.map((b: any) => ({
         id: b.id,
+        title: b.title ?? null,
         guest_name: b.guest_name,
         guest_email: b.guest_email,
         guest_phone: b.guest_phone,
@@ -120,7 +121,7 @@ export function AdminCalendarView() {
           if (!data) return;
           const b: any = data;
           setSelectedBooking({
-            id: b.id, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
+            id: b.id, title: b.title ?? null, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
             booking_date: b.booking_date, booking_time: b.booking_time, status: b.status, total_price: b.total_price,
             notes: b.notes, service_id: b.service_id, service_title: b.services?.title ?? null,
             service_category: b.services?.category ?? null, service_type: b.services?.type ?? null,

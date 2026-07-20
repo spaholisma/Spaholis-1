@@ -403,7 +403,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
     const end = format(endOfWeek(endOfMonth(currentDate)), "yyyy-MM-dd");
     const { data } = await supabase
       .from("bookings")
-      .select("id, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, total_price, services(title, duration_minutes, type)")
+      .select("id, title, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, total_price, services(title, duration_minutes, type)")
       .gte("booking_date", start)
       .lte("booking_date", end);
     const mapped: CalendarEntry[] = ((data as any[]) ?? [])
@@ -412,7 +412,11 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
       .map((b) => ({
         id: `booking:${b.id}`,
         calendar_type: "treatment",
-        title: `${b.guest_name ?? "Guest"} — ${b.services?.title ?? "Treatment"}`,
+        // A custom title (set in the booking edit modal) wins; otherwise fall
+        // back to the auto "Guest — Service" label.
+        title: (b.title && String(b.title).trim())
+          ? String(b.title).trim()
+          : `${b.guest_name ?? "Guest"} — ${b.services?.title ?? "Treatment"}`,
         entry_date: b.booking_date,
         end_date: null,
         start_time: String(b.booking_time ?? "09:00").slice(0, 5),
@@ -497,7 +501,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
     if (!data) { toast.error("Booking not found"); return; }
     const b: any = data;
     setEditBooking({
-      id: b.id, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
+      id: b.id, title: b.title ?? null, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
       booking_date: b.booking_date, booking_time: b.booking_time, status: b.status,
       total_price: b.total_price, notes: b.notes, service_id: b.service_id,
       service_title: b.services?.title ?? null, service_category: b.services?.category ?? null,

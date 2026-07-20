@@ -105,6 +105,7 @@ interface BookingEditModalProps {
 
 export function BookingEditModal({ booking, open, onOpenChange, onSaved, services, onDuplicated }: BookingEditModalProps) {
   const [form, setForm] = useState({
+    title: "",
     guest_name: "",
     guest_email: "",
     guest_phone: "",
@@ -160,6 +161,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   useEffect(() => {
     if (booking) {
       setForm({
+        title: booking.title || "",
         guest_name: booking.guest_name || "",
         guest_email: booking.guest_email || "",
         guest_phone: booking.guest_phone || "",
@@ -196,6 +198,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     const { error } = await supabase
       .from("bookings")
       .update({
+        title: form.title.trim() || null,
         guest_name: form.guest_name || null,
         guest_email: form.guest_email || null,
         guest_phone: form.guest_phone || null,
@@ -268,6 +271,15 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
             </TabsList>
 
             <TabsContent value="details" className="space-y-3 mt-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Title <span className="text-muted-foreground">(optional — shown on the calendar)</span></Label>
+                <Input
+                  value={form.title}
+                  onChange={(e) => update("title", e.target.value)}
+                  placeholder={booking?.guest_name && booking?.service_title ? `${booking.guest_name} — ${booking.service_title}` : "Custom calendar label"}
+                  className="h-9 text-sm"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Client Name</Label>
