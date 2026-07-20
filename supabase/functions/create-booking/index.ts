@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
   try {
     const { data: service, error: serviceErr } = await admin
       .from("services")
-      .select("id, title, category, type, duration_minutes, price, is_active, capacity")
+      .select("id, title, category, type, duration_minutes, price, is_active")
       .eq("id", body.service_id)
       .maybeSingle();
 
@@ -241,76 +241,42 @@ Deno.serve(async (req) => {
     const depositRequired = isDepositRequired(service);
     const status = depositRequired ? "pending_payment" : "pending";
     const bookingId = body.id && UUID_RE.test(body.id) ? body.id : crypto.randomUUID();
-    const isCouples = service.capacity === 2;
+    // A couples treatment is detected by its title (matches the frontend's
+    // src/pages/Booking.tsx isCouplesBooking check) — the couples services are
+    // not tagged with capacity in the DB, so title is the reliable signal.
+    const isCouples = String(service.title || "").toLowerCase().includes("couple")
+      || String(body.notes || "").toLowerCase().includes("couple");
 
     // For couples bookings, create TWO reservations so each person can be
     // assigned a separate therapist. Both use the same intake_form (person1+person2 data).
+    const commonFields = {
+      service_id: service.id,
+      user_id: userId,
+      booking_date: body.booking_date,
+      booking_time: body.booking_time.length === 5 ? `${body.booking_time}:00` : body.booking_time,
+      guest_name: body.guest_name,
+      guest_email: body.guest_email,
+      guest_phone: body.guest_phone || null,
+      notes: body.notes || null,
+      total_price: totalPrice,
+      coupon_code: coupon.code,
+      discount_amount: coupon.discount,
+      status,
+      payment_id: null,
+      start_time: body.start_time || null,
+      end_time: body.end_time || null,
+      intake_form: body.intake_form ?? null,
+    };
+
     const bookingsToInsert = isCouples
       ? [
           // First booking: primary room (Room 2 or 3A)
-          {
-            id: bookingId,
-            service_id: service.id,
-            user_id: userId,
-            booking_date: body.booking_date,
-            booking_time: body.booking_time.length === 5 ? `${body.booking_time}:00` : body.booking_time,
-            guest_name: body.guest_name,
-            guest_email: body.guest_email,
-            guest_phone: body.guest_phone || null,
-            notes: body.notes || null,
-            total_price: totalPrice,
-            coupon_code: coupon.code,
-            discount_amount: coupon.discount,
-            status,
-            payment_id: null,
-            room_id: body.room_id || null,
-            start_time: body.start_time || null,
-            end_time: body.end_time || null,
-            intake_form: body.intake_form ?? null,
-          },
+          { id: bookingId, ...commonFields, room_id: body.room_id || null },
           // Second booking: secondary room (3B) or same room (Room 2)
-          {
-            id: crypto.randomUUID(),
-            service_id: service.id,
-            user_id: userId,
-            booking_date: body.booking_date,
-            booking_time: body.booking_time.length === 5 ? `${body.booking_time}:00` : body.booking_time,
-            guest_name: body.guest_name,
-            guest_email: body.guest_email,
-            guest_phone: body.guest_phone || null,
-            notes: body.notes || null,
-            total_price: totalPrice,
-            coupon_code: coupon.code,
-            discount_amount: coupon.discount,
-            status,
-            payment_id: null,
-            room_id: body.secondary_room_id || body.room_id || null,
-            start_time: body.start_time || null,
-            end_time: body.end_time || null,
-            intake_form: body.intake_form ?? null,
-          },
+          { id: crypto.randomUUID(), ...commonFields, room_id: body.secondary_room_id || body.room_id || null },
         ]
       : [
-          {
-            id: bookingId,
-            service_id: service.id,
-            user_id: userId,
-            booking_date: body.booking_date,
-            booking_time: body.booking_time.length === 5 ? `${body.booking_time}:00` : body.booking_time,
-            guest_name: body.guest_name,
-            guest_email: body.guest_email,
-            guest_phone: body.guest_phone || null,
-            notes: body.notes || null,
-            total_price: totalPrice,
-            coupon_code: coupon.code,
-            discount_amount: coupon.discount,
-            status,
-            payment_id: null,
-            room_id: body.room_id || null,
-            start_time: body.start_time || null,
-            end_time: body.end_time || null,
-            intake_form: body.intake_form ?? null,
-          },
+          { id: bookingId, ...commonFields, room_id: body.room_id || null },
         ];
 
     const { error: insertErr } = await admin.from("bookings").insert(bookingsToInsert);
