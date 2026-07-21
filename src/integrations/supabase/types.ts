@@ -2440,6 +2440,21 @@ export type Database = {
           block_start: string
         }[]
       }
+      get_treatment_bookings: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          id: string
+          title: string
+          guest_name: string
+          service_title: string
+          service_type: string
+          duration_minutes: number
+          booking_date: string
+          booking_time: string
+          status: string
+          room_id: string
+        }[]
+      }
       get_internal_busy_intervals: {
         Args: { _from: string; _to: string }
         Returns: {
@@ -2498,7 +2513,7 @@ export type Database = {
       search_known_contacts: { Args: { _q: string }; Returns: Json }
     }
     Enums: {
-      app_role: "super_admin" | "manager" | "client" | "coordinator"
+      app_role: "super_admin" | "manager" | "client" | "coordinator" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2626,7 +2641,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "manager", "client", "coordinator"],
+      app_role: ["super_admin", "manager", "client", "coordinator", "viewer"],
     },
   },
 } as const

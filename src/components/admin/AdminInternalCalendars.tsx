@@ -264,7 +264,7 @@ const emptyForm = {
   recurrence_until: "",
 };
 
-export function AdminInternalCalendars({ restrictToTreatment = false }: { restrictToTreatment?: boolean } = {}) {
+export function AdminInternalCalendars({ restrictToTreatment = false, readOnly = false }: { restrictToTreatment?: boolean; readOnly?: boolean } = {}) {
   const [calendarType, setCalendarType] = useState<CalendarType>("treatment");
   // A coordinator only ever sees the treatments calendar.
   const visibleTypes = (Object.keys(TYPE_LABELS) as CalendarType[]).filter(
@@ -404,12 +404,35 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
     if (calendarType !== "treatment") { setBookingEntries([]); return; }
     const start = format(startOfWeek(startOfMonth(currentDate)), "yyyy-MM-dd");
     const end = format(endOfWeek(endOfMonth(currentDate)), "yyyy-MM-dd");
-    const { data } = await supabase
-      .from("bookings")
-      .select("id, title, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, total_price, services(title, duration_minutes, type)")
-      .gte("booking_date", start)
-      .lte("booking_date", end);
-    const mapped: CalendarEntry[] = ((data as any[]) ?? [])
+
+    let rows: any[];
+    if (readOnly) {
+      // Viewer: pull only operational fields via the safe RPC. Never touches
+      // email/phone/price/card/intake — those columns aren't even returned.
+      const { data } = await supabase.rpc("get_treatment_bookings", { _from: start, _to: end });
+      rows = ((data as any[]) ?? []).map((b) => ({
+        id: b.id,
+        title: b.title,
+        guest_name: b.guest_name,
+        booking_date: b.booking_date,
+        booking_time: b.booking_time,
+        status: b.status,
+        room_id: b.room_id,
+        guest_email: null,
+        guest_phone: null,
+        total_price: null,
+        services: { title: b.service_title, duration_minutes: b.duration_minutes, type: b.service_type },
+      }));
+    } else {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, title, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, total_price, services(title, duration_minutes, type)")
+        .gte("booking_date", start)
+        .lte("booking_date", end);
+      rows = (data as any[]) ?? [];
+    }
+
+    const mapped: CalendarEntry[] = rows
       // Treatment-type services only (packages included); skip dead bookings.
       .filter((b) => b.services?.type === "treatment" && !BOOKING_HIDDEN_STATUSES.has(b.status))
       .map((b) => ({
@@ -447,7 +470,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
         },
       }));
     setBookingEntries(mapped);
-  }, [calendarType, currentDate]);
+  }, [calendarType, currentDate, readOnly]);
   useEffect(() => { loadBookings(); }, [loadBookings]);
 
   const days = eachDayOfInterval({
@@ -497,6 +520,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
   }, []);
 
   const openBookingForEdit = async (bookingId: string) => {
+    if (readOnly) return; // Viewers never load the full (sensitive) booking.
     const { data } = await supabase
       .from("bookings")
       .select("*, services(title, duration_minutes, category, type)")
@@ -517,6 +541,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
   };
 
   const openItem = (entry: CalendarEntry, fromDay?: Date | null) => {
+    if (readOnly) return; // Viewers can't open the edit modals.
     if (entry.booking) { setDayViewDate(null); openBookingForEdit(entry.booking.id); return; }
     if (fromDay !== undefined) setReturnToDay(fromDay);
     setDayViewDate(null);
@@ -533,6 +558,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
   };
 
   const openNew = (date?: Date) => {
+    if (readOnly) return;
     setEditingEntry(null);
     const day = format(date || new Date(), "yyyy-MM-dd");
     setForm({
@@ -545,6 +571,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
   };
 
   const openEdit = (entry: CalendarEntry) => {
+    if (readOnly) return;
     setEditingEntry(entry);
     setForm({
       title: entry.title,
@@ -571,12 +598,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
    * written until Create, so the original is never touched.
    */
   const duplicateEntry = () => {
+    if (readOnly) return;
     setEditingEntry(null);
     setForm((f) => ({ ...f, title: `${f.title} (copy)` }));
     toast.info("Duplicated — change the title, then press Create");
   };
 
   const handleSave = async () => {
+    if (readOnly) return;
     if (!form.title.trim()) { toast.error("Title is required"); return; }
     if (form.end_date && form.end_date < form.entry_date) {
       toast.error("The end date can't be before the start date");
@@ -666,6 +695,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
   };
 
   const handleDelete = async (entry: CalendarEntry) => {
+    if (readOnly) return;
     let query = supabase.from("admin_calendar_entries").delete();
     let message = "Entry deleted";
 
@@ -693,12 +723,23 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">Internal Calendars</h2>
-          <p className="text-sm text-muted-foreground">Private scheduling for management only</p>
+          <h2 className="text-2xl font-heading font-bold text-foreground">
+            {readOnly ? "Treatments Calendar" : "Internal Calendars"}
+            {readOnly && (
+              <span className="ml-2 align-middle text-xs font-body font-medium uppercase tracking-wide text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                View only
+              </span>
+            )}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {readOnly ? "Schedule overview — read only" : "Private scheduling for management only"}
+          </p>
         </div>
-        <Button size="sm" onClick={() => openNew()}>
-          <Plus className="h-4 w-4 mr-1" /> Add Entry
-        </Button>
+        {!readOnly && (
+          <Button size="sm" onClick={() => openNew()}>
+            <Plus className="h-4 w-4 mr-1" /> Add Entry
+          </Button>
+        )}
       </div>
 
       <Tabs value={calendarType} onValueChange={(v) => setCalendarType(v as CalendarType)}>
@@ -729,12 +770,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
               </Button>
             </div>
 
-            <CalendarGroupsBar
-              groups={groups}
-              hidden={hiddenGroups}
-              onToggle={toggleGroup}
-              onChanged={loadGroups}
-            />
+            {!readOnly && (
+              <CalendarGroupsBar
+                groups={groups}
+                hidden={hiddenGroups}
+                onToggle={toggleGroup}
+                onChanged={loadGroups}
+              />
+            )}
 
             {/* Calendar Grid */}
             <div className="border border-border rounded-xl overflow-hidden">
@@ -905,14 +948,16 @@ export function AdminInternalCalendars({ restrictToTreatment = false }: { restri
                       ? "Nothing scheduled"
                       : `${dayEntries.length} ${dayEntries.length === 1 ? "entry" : "entries"}`}
                   </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => { const d = dayViewDate; setReturnToDay(d); setDayViewDate(null); openNew(d); }}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => { const d = dayViewDate; setReturnToDay(d); setDayViewDate(null); openNew(d); }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
+                    </Button>
+                  )}
                 </div>
 
                 {allDayEntries.length > 0 && (

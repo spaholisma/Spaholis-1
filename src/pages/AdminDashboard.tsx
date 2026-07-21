@@ -85,6 +85,9 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   // True for a coordinator who is NOT also a full admin.
   const [isCoordinator, setIsCoordinator] = useState(false);
+  // True for a read-only viewer (treatments calendar only, no edits, no
+  // sensitive data). Cannot also be a coordinator/admin.
+  const [isViewer, setIsViewer] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
@@ -102,20 +105,26 @@ const AdminDashboard = () => {
           const roles = (data ?? []).map((r) => r.role);
           const fullAdmin = roles.includes("super_admin") || roles.includes("manager");
           const coordinatorOnly = !fullAdmin && roles.includes("coordinator");
-          setIsAdmin(fullAdmin || coordinatorOnly);
+          const viewerOnly = !fullAdmin && !coordinatorOnly && roles.includes("viewer");
+          setIsAdmin(fullAdmin || coordinatorOnly || viewerOnly);
           setIsCoordinator(coordinatorOnly);
-          // Land a coordinator on the treatments calendar, not the overview
-          // (which they can't see anyway).
-          if (coordinatorOnly) setActiveTab("calendars");
+          setIsViewer(viewerOnly);
+          // Land a coordinator/viewer on the treatments calendar, not the
+          // overview (which they can't see anyway).
+          if (coordinatorOnly || viewerOnly) setActiveTab("calendars");
         });
     }
   }, [user, loading, navigate]);
 
-  const visibleLinks = isCoordinator
+  const visibleLinks = isViewer
+    ? sidebarLinks.filter((l) => l.id === "calendars")
+    : isCoordinator
     ? sidebarLinks.filter((l) => COORDINATOR_TABS.includes(l.id))
     : sidebarLinks;
-  // Belt and suspenders: a coordinator can never render a restricted section.
-  const canRender = (id: string) => !isCoordinator || COORDINATOR_TABS.includes(id);
+  // Belt and suspenders: a coordinator/viewer can never render a restricted
+  // section (a viewer only ever gets the treatments calendar).
+  const canRender = (id: string) =>
+    isViewer ? id === "calendars" : (!isCoordinator || COORDINATOR_TABS.includes(id));
 
   if (loading || isAdmin === null) {
     return (
@@ -195,7 +204,7 @@ const AdminDashboard = () => {
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
           {activeTab === "coupons" && <AdminCouponsManager />}
           {activeTab === "rooms" && <AdminRoomsManager />}
-          {activeTab === "calendars" && <AdminInternalCalendars restrictToTreatment={isCoordinator} />}
+          {activeTab === "calendars" && canRender("calendars") && <AdminInternalCalendars restrictToTreatment={isCoordinator || isViewer} readOnly={isViewer} />}
           {activeTab === "wellness" && <AdminWellnessOrganizer />}
           {activeTab === "spa-packages" && <AdminSpaPackagesManager />}
           {activeTab === "custom-retreats" && <AdminCustomRetreats />}
