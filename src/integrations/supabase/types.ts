@@ -407,6 +407,7 @@ export type Database = {
         Row: {
           booking_date: string
           booking_time: string
+          blocks_availability: boolean
           card_authorization: Json | null
           coupon_code: string | null
           created_at: string
@@ -419,6 +420,7 @@ export type Database = {
           intake_form: Json | null
           notes: string | null
           notification_sent_at: string | null
+          offsite_location: string | null
           payment_id: string | null
           room_id: string | null
           secondary_room_id: string | null
@@ -434,6 +436,7 @@ export type Database = {
         Insert: {
           booking_date: string
           booking_time: string
+          blocks_availability?: boolean
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string
@@ -446,6 +449,7 @@ export type Database = {
           intake_form?: Json | null
           notes?: string | null
           notification_sent_at?: string | null
+          offsite_location?: string | null
           payment_id?: string | null
           room_id?: string | null
           secondary_room_id?: string | null
@@ -461,6 +465,7 @@ export type Database = {
         Update: {
           booking_date?: string
           booking_time?: string
+          blocks_availability?: boolean
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string
@@ -473,6 +478,7 @@ export type Database = {
           intake_form?: Json | null
           notes?: string | null
           notification_sent_at?: string | null
+          offsite_location?: string | null
           payment_id?: string | null
           room_id?: string | null
           secondary_room_id?: string | null

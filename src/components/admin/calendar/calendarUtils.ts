@@ -20,6 +20,10 @@ export interface CalendarBooking {
   staff_id: string | null;
   room_id: string | null;
   payment_id: string | null;
+  /** Free-text off-site place (hotel, villa, address); shown when no room. */
+  offsite_location: string | null;
+  /** When true, this booking hides ALL website availability during its time. */
+  blocks_availability: boolean;
 }
 
 export function getStatusColor(status: string): string {

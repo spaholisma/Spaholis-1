@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy } from "lucide-react";
@@ -117,6 +118,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     total_price: "",
     room_id: "",
     duration: "",
+    offsite_location: "",
+    blocks_availability: false,
   });
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<{ id: string; name: string; forbidden_categories: string[] }[]>([]);
@@ -179,6 +182,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         total_price: booking.total_price?.toString() || "",
         room_id: booking.room_id || "",
         duration: String(booking.duration_minutes || 60),
+        offsite_location: booking.offsite_location || "",
+        blocks_availability: booking.blocks_availability ?? false,
       });
     }
   }, [booking]);
@@ -222,6 +227,10 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         notes: form.notes || null,
         total_price: form.total_price ? parseFloat(form.total_price) : selectedService?.price || null,
         room_id: form.room_id || null,
+        // Off-site place only applies when there's no room; block flag lets a
+        // booking hide all website availability during its time.
+        offsite_location: form.room_id ? null : (form.offsite_location.trim() || null),
+        blocks_availability: form.blocks_availability,
         start_time,
         end_time,
       })
@@ -371,6 +380,28 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   <Input type="number" min={15} step={15} value={form.duration} onChange={(e) => update("duration", e.target.value)} className="h-9 text-sm" />
                 </div>
               </div>
+
+              {/* Off-site place only makes sense with no room (at-your-location visits). */}
+              {!form.room_id && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Off-site location <span className="text-muted-foreground">(where — hotel, villa, address)</span></Label>
+                  <Input value={form.offsite_location} onChange={(e) => update("offsite_location", e.target.value)} placeholder="e.g. Tree House · Villa Grace, La Reserva…" className="h-9 text-sm" />
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 cursor-pointer rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={form.blocks_availability}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, blocks_availability: v === true }))}
+                />
+                <span className="text-xs">
+                  Block website availability during this booking
+                  <span className="block text-[11px] text-muted-foreground">
+                    No online slots offered while this runs (e.g. an off-site event tying up the team). WhatsApp &amp; at-your-location requests stay open.
+                  </span>
+                </span>
+              </label>
 
               {card && (
                 <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">

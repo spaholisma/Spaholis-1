@@ -48,6 +48,8 @@ export function AdminCalendarView() {
         staff_id: b.staff_id,
         room_id: b.room_id,
         payment_id: b.payment_id,
+        offsite_location: b.offsite_location ?? null,
+        blocks_availability: b.blocks_availability ?? false,
       }))
     );
   }, []);
@@ -127,6 +129,7 @@ export function AdminCalendarView() {
             service_category: b.services?.category ?? null, service_type: b.services?.type ?? null,
             duration_minutes: b.services?.duration_minutes ?? 60, intake_form: b.intake_form,
             card_authorization: b.card_authorization, staff_id: b.staff_id, room_id: b.room_id, payment_id: b.payment_id,
+            offsite_location: b.offsite_location ?? null, blocks_availability: b.blocks_availability ?? false,
           });
           setEditOpen(true);
         }}
