@@ -1011,14 +1011,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                           <div
                             key={entry.id}
                             onClick={() => openItem(entry, dayViewDate)}
-                            className="rounded-lg border px-3 py-2.5 cursor-pointer active:opacity-80 transition-opacity"
-                            style={{ backgroundColor: `${color}18`, borderColor: `${color}44`, borderLeftColor: color, borderLeftWidth: 4 }}
+                            className="rounded-lg border shadow-sm px-3 py-2.5 cursor-pointer active:brightness-95 transition-all"
+                            style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}
                           >
-                            <p className="text-xs font-semibold" style={{ color }}>{rangeLabel(startMin, endMin)}</p>
-                            <p className="text-sm font-medium text-foreground leading-snug mt-0.5">
+                            <p className="text-xs font-bold opacity-90">{rangeLabel(startMin, endMin)}</p>
+                            <p className="text-sm font-bold leading-snug mt-0.5 break-words">
                               {entry.booking ? "🌐 " : ""}{entry.title}
                             </p>
-                            {loc && <p className="text-xs text-muted-foreground mt-0.5">{loc}</p>}
+                            {loc && <p className="text-xs font-semibold opacity-90 mt-0.5 break-words">{loc}</p>}
                           </div>
                         );
                       })
