@@ -13,6 +13,8 @@ import { AdminServicesManager } from "@/components/admin/AdminServicesManager";
 import { AdminEventsManager } from "@/components/admin/AdminEventsManager";
 import { AdminWeeklySchedule } from "@/components/admin/AdminWeeklySchedule";
 import { AdminCalendarView } from "@/components/admin/AdminCalendarView";
+import { BookingEditModal } from "@/components/admin/calendar/BookingEditModal";
+import type { CalendarBooking } from "@/components/admin/calendar/calendarUtils";
 import { AdminStaffManager } from "@/components/admin/AdminStaffManager";
 import { AdminGiftCardsManager } from "@/components/admin/AdminGiftCardsManager";
 import { ClientBookingHistory } from "@/components/admin/ClientBookingHistory";
@@ -303,12 +305,40 @@ function OverviewView() {
 function AppointmentsView() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  // Full edit modal (incl. audited card-on-file reveal), so location-visit
+  // bookings — which never land on the room calendar — are still reachable here.
+  const [services, setServices] = useState<{ id: string; title: string; category: string; type: string | null; duration_minutes: number; price: number }[]>([]);
+  const [editBooking, setEditBooking] = useState<CalendarBooking | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const load = () => {
     supabase.from("bookings").select("*, services(title)").order("booking_date", { ascending: false }).limit(100).then(({ data }) => setBookings(data ?? []));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    supabase.from("services").select("id, title, category, type, duration_minutes, price").eq("is_active", true).order("sort_order").then(({ data }) => setServices(data ?? []));
+  }, []);
+
+  const openBooking = async (id: string) => {
+    const { data } = await supabase
+      .from("bookings")
+      .select("*, services(title, duration_minutes, category, type)")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) { toast.error("Booking not found"); return; }
+    const b: any = data;
+    setEditBooking({
+      id: b.id, title: b.title ?? null, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
+      booking_date: b.booking_date, booking_time: b.booking_time, status: b.status,
+      total_price: b.total_price, notes: b.notes, service_id: b.service_id,
+      service_title: b.services?.title ?? null, service_category: b.services?.category ?? null,
+      service_type: b.services?.type ?? null, duration_minutes: b.services?.duration_minutes ?? 60,
+      intake_form: b.intake_form, card_authorization: b.card_authorization,
+      staff_id: b.staff_id, room_id: b.room_id, payment_id: b.payment_id,
+    });
+    setEditOpen(true);
+  };
 
   const filtered = statusFilter === "all" ? bookings : bookings.filter((b) => b.status === statusFilter);
 
@@ -369,6 +399,9 @@ function AppointmentsView() {
                 <td className="px-5 py-4 font-body text-sm text-foreground">{apt.total_price ? formatCRC(apt.total_price) : "—"}</td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => openBooking(apt.id)} title="Open booking (view details / card on file)">
+                      <CreditCard className="h-3.5 w-3.5" /> View
+                    </Button>
                     {apt.status === "pending" && (
                       <>
                         <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => updateStatus(apt.id, "confirmed")}>Confirm</Button>
@@ -394,6 +427,14 @@ function AppointmentsView() {
           </tbody>
         </table>
       </div>
+
+      <BookingEditModal
+        booking={editBooking}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={load}
+        services={services}
+      />
     </div>
   );
 }
