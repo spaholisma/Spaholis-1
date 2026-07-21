@@ -20,9 +20,9 @@ const ClientDashboard = () => {
   const [rewards, setRewards] = useState<any[]>([]);
   const [loyaltySettings, setLoyaltySettings] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
-  // Staff role, so a coordinator/admin sees the calendar shortcut here in My
-  // Account instead of having to type the /admin URL by hand.
-  const [staffRole, setStaffRole] = useState<"admin" | "coordinator" | null>(null);
+  // Staff role, so a coordinator/viewer/admin sees the calendar shortcut here in
+  // My Account instead of having to type the /admin URL by hand.
+  const [staffRole, setStaffRole] = useState<"admin" | "coordinator" | "viewer" | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +53,8 @@ const ClientDashboard = () => {
           ? "admin"
           : roles.includes("coordinator")
           ? "coordinator"
+          : roles.includes("viewer")
+          ? "viewer"
           : null,
       );
       setLoading(false);
@@ -95,24 +97,26 @@ const ClientDashboard = () => {
             have to type the /admin URL by hand. The /admin route still enforces
             the real role check server-side; this is only the entry point. */}
         {(isAdminEmail(user?.email) || staffRole) && (() => {
-          const coordinatorOnly = staffRole === "coordinator" && !isAdminEmail(user?.email);
+          // Coordinators and viewers land on the treatments calendar; only full
+          // admins get the whole panel.
+          const calendarOnly = (staffRole === "coordinator" || staffRole === "viewer") && !isAdminEmail(user?.email);
           return (
             <Link
               to="/admin"
               className="mb-8 flex items-center gap-4 bg-spa-sage/10 border border-spa-sage/30 rounded-2xl p-5 hover:bg-spa-sage/15 transition-colors"
             >
               <div className="h-11 w-11 rounded-xl bg-spa-sage/20 flex items-center justify-center shrink-0">
-                {coordinatorOnly
+                {calendarOnly
                   ? <Calendar className="h-5 w-5 text-spa-sage" />
                   : <ShieldCheck className="h-5 w-5 text-spa-sage" />}
               </div>
               <div className="flex-1">
                 <h3 className="font-heading text-base font-medium text-foreground">
-                  {coordinatorOnly ? "Treatments Calendar" : "Admin Panel"}
+                  {calendarOnly ? "Treatments Calendar" : "Admin Panel"}
                 </h3>
                 <p className="font-body text-xs text-muted-foreground mt-0.5">
-                  {coordinatorOnly
-                    ? "View and manage the treatments schedule"
+                  {calendarOnly
+                    ? (staffRole === "viewer" ? "View the treatments schedule" : "View and manage the treatments schedule")
                     : "Manage bookings, services, and business settings"}
                 </p>
               </div>
