@@ -975,18 +975,18 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                         <div
                           key={entry.id}
                           onClick={() => openItem(entry, dayViewDate)}
-                          className="flex items-start md:items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"
-                          style={{ backgroundColor: `${color}20`, borderColor: `${color}55`, color }}
+                          className="flex items-start md:items-center gap-2 rounded-lg border shadow-sm px-3 py-2 cursor-pointer hover:opacity-90 transition-opacity"
+                          style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}
                           title={`All day · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                         >
-                          <span className="text-xs font-bold uppercase tracking-wide opacity-70 shrink-0 mt-0.5 md:mt-0">
+                          <span className="text-xs font-bold uppercase tracking-wide opacity-80 shrink-0 mt-0.5 md:mt-0">
                             {entry.end_date && entry.end_date > entry.entry_date
                               ? `${format(parseISO(entry.entry_date), "MMM d")} – ${format(parseISO(entry.end_date), "MMM d")}`
                               : "All day"}
                           </span>
-                          {/* Wrap fully on mobile (see everything); truncate on desktop to keep the band a single line. */}
-                          <span className="text-sm font-semibold min-w-0 break-words md:truncate">{entry.title}</span>
-                          {loc && <span className="ml-auto shrink-0 text-xs font-medium opacity-70">{loc}</span>}
+                          {/* Wrap fully so the whole title reads, on mobile and desktop. */}
+                          <span className="text-sm font-semibold min-w-0 break-words">{entry.title}</span>
+                          {loc && <span className="ml-auto shrink-0 text-xs font-semibold opacity-90">{loc}</span>}
                         </div>
                       );
                     })}
@@ -1046,24 +1046,24 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                             key={entry.id}
                             onClick={() => openItem(entry, dayViewDate)}
                             className={cn(
-                              "absolute rounded-lg border px-2.5 py-1.5 overflow-hidden cursor-pointer hover:opacity-80 hover:shadow-sm transition-all",
-                              entry.booking && "ring-1 ring-inset",
+                              "absolute rounded-lg border shadow-sm px-2.5 py-1.5 overflow-hidden cursor-pointer hover:brightness-95 hover:shadow-md transition-all",
+                              entry.booking && "ring-2 ring-inset ring-white/40",
                             )}
                             style={{
                               top: ((startMin - dayStartMin) / 60) * hourPx,
                               height: Math.max(((endMin - startMin) / 60) * hourPx - 2, 30),
                               left: lane * laneW + 2,
                               width: laneW - DAY_LANE_GAP_PX,
-                              backgroundColor: `${color}20`,
-                              borderColor: `${color}55`,
-                              color,
+                              backgroundColor: color,
+                              borderColor: color,
+                              color: readableOn(color),
                             }}
                             title={`${entry.booking ? "Website booking · " : ""}${rangeLabel(startMin, endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                           >
-                            <p className="text-sm font-bold leading-snug truncate">
+                            <p className="text-[13px] font-bold leading-tight break-words">
                               {entry.booking ? "🌐 " : ""}{rangeLabel(startMin, endMin)} · {entry.title}
                             </p>
-                            {loc && <p className="text-xs font-medium leading-snug truncate opacity-80">{loc}</p>}
+                            {loc && <p className="text-[11px] font-semibold leading-tight break-words opacity-90">{loc}</p>}
                           </div>
                         );
                       })}
