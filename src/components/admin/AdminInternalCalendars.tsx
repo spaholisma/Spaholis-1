@@ -418,6 +418,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         booking_time: b.booking_time,
         status: b.status,
         room_id: b.room_id,
+        group_id: b.group_id ?? null,
         guest_email: null,
         guest_phone: null,
         total_price: null,
@@ -426,7 +427,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     } else {
       const { data } = await supabase
         .from("bookings")
-        .select("id, title, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, total_price, services(title, duration_minutes, type)")
+        .select("id, title, guest_name, guest_email, guest_phone, booking_date, booking_time, status, room_id, group_id, total_price, services(title, duration_minutes, type)")
         .gte("booking_date", start)
         .lte("booking_date", end);
       rows = (data as any[]) ?? [];

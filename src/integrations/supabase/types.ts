@@ -2462,6 +2462,7 @@ export type Database = {
           booking_time: string
           status: string
           room_id: string
+          group_id: string
         }[]
       }
       get_internal_busy_intervals: {
