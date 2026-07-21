@@ -119,11 +119,17 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     duration: "",
   });
   const [saving, setSaving] = useState(false);
-  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; name: string; forbidden_categories: string[] }[]>([]);
   useEffect(() => {
-    supabase.from("rooms").select("id, name").eq("is_active", true).order("name")
-      .then(({ data }) => setRooms(data ?? []));
+    supabase.from("rooms").select("id, name, forbidden_categories").eq("is_active", true).order("name")
+      .then(({ data }) => setRooms((data as any[])?.map((r) => ({ ...r, forbidden_categories: r.forbidden_categories ?? [] })) ?? []));
   }, []);
+  // A room can't host some service categories (e.g. Room 1 has no shower, so no
+  // body wraps/facials). Match the availability + create-booking rule: compare
+  // the selected service's category (lowercased) against the room's list.
+  const selectedCategory = (services.find((s) => s.id === form.service_id)?.category ?? "").toLowerCase();
+  const roomForbidden = (r: { forbidden_categories: string[] }) =>
+    !!selectedCategory && r.forbidden_categories.map((c) => c.toLowerCase()).includes(selectedCategory);
   // Card on file — masked by default; the full number is fetched on demand
   // through an admin-only, audited RPC.
   const [card, setCard] = useState<CardOnFile | null>(null);
@@ -181,6 +187,13 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
 
   async function handleSave() {
     if (!booking) return;
+    // Guard: never save a booking into a room that can't host its service
+    // category (e.g. a body wrap in a room with no shower).
+    const chosenRoom = rooms.find((r) => r.id === form.room_id);
+    if (chosenRoom && roomForbidden(chosenRoom)) {
+      toast.error(`${chosenRoom.name} can't host this service. Please pick another room.`);
+      return;
+    }
     setSaving(true);
     const selectedService = services.find((s) => s.id === form.service_id);
     // Keep the timestamptz slot in sync with the edited date/time/duration, so
@@ -339,11 +352,19 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="No room" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No room / off-site</SelectItem>
-                      {rooms.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                      ))}
+                      {rooms.map((r) => {
+                        const forbidden = roomForbidden(r);
+                        return (
+                          <SelectItem key={r.id} value={r.id} disabled={forbidden}>
+                            {r.name}{forbidden ? " — not suitable for this service" : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
+                  {form.room_id && roomForbidden(rooms.find((r) => r.id === form.room_id) ?? { forbidden_categories: [] }) && (
+                    <p className="text-[11px] text-destructive">This room can't host this service (e.g. no shower). Pick another room.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Duration (min)</Label>
