@@ -92,16 +92,16 @@ const BOOKING_HIDDEN_STATUSES = new Set(["cancelled", "payment_failed"]);
  */
 const DEFAULT_DAY_START_H = 8;
 const DEFAULT_DAY_END_H = 20;
-const MIN_HOUR_PX = 46;
-const MAX_HOUR_PX = 72;
+const MIN_HOUR_PX = 54;
+const MAX_HOUR_PX = 76;
 /** Header + toolbar + dialog padding sitting above the timeline. */
 const DAY_VIEW_CHROME_PX = 200;
 /** Day-view horizontal layout: the time-label gutter, the smallest a column
  *  may shrink to before the timeline scrolls sideways, and the gap between
  *  columns. Keeps busy days (many overlapping bookings) readable on a phone —
  *  columns stay legible and you pan across them instead of them being clipped. */
-const DAY_TIME_GUTTER_PX = 56;
-const DAY_LANE_MIN_PX = 116;
+const DAY_TIME_GUTTER_PX = 60;
+const DAY_LANE_MIN_PX = 140;
 const DAY_LANE_GAP_PX = 4;
 
 export type Recurrence = "none" | "daily" | "weekly" | "biweekly" | "monthly";
@@ -912,7 +912,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
 
       {/* Day view — a single day laid out on a timeline */}
       <Dialog open={!!dayViewDate} onOpenChange={(o) => { if (!o) setDayViewDate(null); }}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh]">
+        <DialogContent className="max-w-[1320px] w-[96vw] max-h-[95vh]">
           <DialogHeader>
             <DialogTitle>{dayViewDate ? format(dayViewDate, "EEEE, MMMM d, yyyy") : ""}</DialogTitle>
           </DialogHeader>
@@ -941,15 +941,15 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             // When they'd get too narrow to read (busy day), the timeline scrolls
             // sideways instead of squishing/clipping the columns.
             const maxLanes = Math.max(1, ...laid.map((l) => l.lanes));
-            const availW = (typeof window !== "undefined" ? Math.min(window.innerWidth * 0.95, 1152) : 900)
+            const availW = (typeof window !== "undefined" ? Math.min(window.innerWidth * 0.96, 1320) : 900)
               - DAY_TIME_GUTTER_PX - 48; // dialog padding + scrollbar allowance
             const laneW = Math.max(DAY_LANE_MIN_PX, Math.floor(availW / maxLanes));
             const canvasW = DAY_TIME_GUTTER_PX + maxLanes * laneW;
 
             return (
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-xs text-muted-foreground min-w-0 truncate">
+                  <p className="text-sm text-muted-foreground min-w-0 truncate">
                     {dayEntries.length === 0
                       ? "Nothing scheduled"
                       : `${dayEntries.length} ${dayEntries.length === 1 ? "entry" : "entries"}`}
@@ -975,18 +975,18 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                         <div
                           key={entry.id}
                           onClick={() => openItem(entry, dayViewDate)}
-                          className="flex items-start md:items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                          className="flex items-start md:items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"
                           style={{ backgroundColor: `${color}20`, borderColor: `${color}55`, color }}
                           title={`All day · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                         >
-                          <span className="text-[11px] font-semibold uppercase tracking-wide opacity-70 shrink-0 mt-0.5 md:mt-0">
+                          <span className="text-xs font-bold uppercase tracking-wide opacity-70 shrink-0 mt-0.5 md:mt-0">
                             {entry.end_date && entry.end_date > entry.entry_date
                               ? `${format(parseISO(entry.entry_date), "MMM d")} – ${format(parseISO(entry.end_date), "MMM d")}`
                               : "All day"}
                           </span>
                           {/* Wrap fully on mobile (see everything); truncate on desktop to keep the band a single line. */}
-                          <span className="text-[13px] font-medium min-w-0 break-words md:truncate">{entry.title}</span>
-                          {loc && <span className="ml-auto shrink-0 text-[11px] opacity-70">{loc}</span>}
+                          <span className="text-sm font-semibold min-w-0 break-words md:truncate">{entry.title}</span>
+                          {loc && <span className="ml-auto shrink-0 text-xs font-medium opacity-70">{loc}</span>}
                         </div>
                       );
                     })}
@@ -1030,7 +1030,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   <div className="relative" style={{ height: (endH - startH) * hourPx + 8, width: canvasW, minWidth: "100%" }}>
                     {hours.map((h, i) => (
                       <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * hourPx }}>
-                        <span className="w-14 shrink-0 -translate-y-2 pr-2 text-right text-xs font-medium text-muted-foreground">
+                        <span className="w-[60px] shrink-0 -translate-y-2 pr-2 text-right text-sm font-semibold text-muted-foreground">
                           {minutesLabel(h * 60)}
                         </span>
                         <div className="flex-1 border-t border-border" />
@@ -1046,12 +1046,12 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                             key={entry.id}
                             onClick={() => openItem(entry, dayViewDate)}
                             className={cn(
-                              "absolute rounded-md border px-2 py-1 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity",
+                              "absolute rounded-lg border px-2.5 py-1.5 overflow-hidden cursor-pointer hover:opacity-80 hover:shadow-sm transition-all",
                               entry.booking && "ring-1 ring-inset",
                             )}
                             style={{
                               top: ((startMin - dayStartMin) / 60) * hourPx,
-                              height: Math.max(((endMin - startMin) / 60) * hourPx - 2, 22),
+                              height: Math.max(((endMin - startMin) / 60) * hourPx - 2, 30),
                               left: lane * laneW + 2,
                               width: laneW - DAY_LANE_GAP_PX,
                               backgroundColor: `${color}20`,
@@ -1060,10 +1060,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                             }}
                             title={`${entry.booking ? "Website booking · " : ""}${rangeLabel(startMin, endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
                           >
-                            <p className="text-[13px] font-semibold leading-snug truncate">
+                            <p className="text-sm font-bold leading-snug truncate">
                               {entry.booking ? "🌐 " : ""}{rangeLabel(startMin, endMin)} · {entry.title}
                             </p>
-                            {loc && <p className="text-[11px] leading-snug truncate opacity-80">{loc}</p>}
+                            {loc && <p className="text-xs font-medium leading-snug truncate opacity-80">{loc}</p>}
                           </div>
                         );
                       })}
