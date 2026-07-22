@@ -611,7 +611,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   const duplicateEntry = () => {
     if (readOnly) return;
     setEditingEntry(null);
-    setForm((f) => ({ ...f, title: `${f.title} (copy)` }));
+    // Don't carry the availability block into copies — it's an explicit,
+    // per-entry choice (otherwise duplicating a blocked entry silently hides
+    // more of the website's availability).
+    setForm((f) => ({ ...f, title: `${f.title} (copy)`, blocks_availability: false }));
     toast.info("Duplicated — change the title, then press Create");
   };
 
