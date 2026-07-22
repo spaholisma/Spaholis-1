@@ -522,6 +522,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   // opens the calendar-entry form.
   const [editBooking, setEditBooking] = useState<CalendarBooking | null>(null);
   const [bookingEditOpen, setBookingEditOpen] = useState(false);
+  // Read-only detail card for the viewer role (safe operational fields only).
+  const [viewerDetail, setViewerDetail] = useState<CalendarEntry | null>(null);
   const [servicesForEdit, setServicesForEdit] = useState<any[]>([]);
   useEffect(() => {
     supabase.from("services").select("id, title, category, type, duration_minutes, price")
@@ -552,7 +554,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   };
 
   const openItem = (entry: CalendarEntry, fromDay?: Date | null) => {
-    if (readOnly) return; // Viewers can't open the edit modals.
+    // Viewers get a read-only detail card (safe fields only) instead of the
+    // edit modals — their data never included contact/card/health anyway.
+    if (readOnly) { setViewerDetail(entry); return; }
     if (entry.booking) { setDayViewDate(null); openBookingForEdit(entry.booking.id); return; }
     if (fromDay !== undefined) setReturnToDay(fromDay);
     setDayViewDate(null);
@@ -1093,6 +1097,42 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         services={servicesForEdit}
         onDuplicated={(newId) => openBookingForEdit(newId)}
       />
+
+      {/* Viewer role: read-only detail card — safe operational fields only
+          (never contact, card or health data; the viewer's feed excludes them). */}
+      <Dialog open={!!viewerDetail} onOpenChange={(o) => { if (!o) setViewerDetail(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-base">{viewerDetail?.title}</DialogTitle>
+          </DialogHeader>
+          {viewerDetail && (() => {
+            const [h, m] = String(viewerDetail.start_time).split(":").map(Number);
+            const startMin = (h || 0) * 60 + (m || 0);
+            const endMin = startMin + (viewerDetail.duration_minutes || 60);
+            const loc = locationLabel(viewerDetail);
+            return (
+              <div className="space-y-2.5 text-sm font-body">
+                <p><span className="text-muted-foreground">Date:</span> <span className="font-medium">{format(parseISO(viewerDetail.entry_date), "EEEE, MMM d, yyyy")}</span></p>
+                {!viewerDetail.is_all_day && (
+                  <p><span className="text-muted-foreground">Time:</span> <span className="font-medium">{rangeLabel(startMin, endMin)}</span> <span className="text-muted-foreground">({viewerDetail.duration_minutes} min)</span></p>
+                )}
+                {loc && <p><span className="text-muted-foreground">Location:</span> <span className="font-medium">{loc}</span></p>}
+                {viewerDetail.booking && (
+                  <>
+                    <p><span className="text-muted-foreground">Guest:</span> <span className="font-medium">{viewerDetail.booking.guest_name ?? "—"}</span></p>
+                    <p><span className="text-muted-foreground">Service:</span> <span className="font-medium">{viewerDetail.booking.service_title ?? "—"}</span></p>
+                    <p><span className="text-muted-foreground">Status:</span> <span className="font-medium capitalize">{viewerDetail.booking.status}</span></p>
+                  </>
+                )}
+                {!viewerDetail.booking && viewerDetail.notes && (
+                  <p><span className="text-muted-foreground">Notes:</span> {viewerDetail.notes}</p>
+                )}
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground pt-1">View only</p>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={(o) => { if (o) setModalOpen(true); else closeEntryModal(); }}>
