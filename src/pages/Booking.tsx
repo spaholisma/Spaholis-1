@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { validateCoupon } from "@/lib/coupons";
 import { useTranslation } from "react-i18next";
 import { useRoomAvailability, type TimeSlot } from "@/hooks/useRoomAvailability";
+import { AddOnTreatments, type AddonItem } from "@/components/booking/AddOnTreatments";
 import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BodyZoneSelector } from "@/components/booking/BodyZoneSelector";
@@ -132,6 +133,9 @@ const BookingPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [locationVisit, setLocationVisit] = useState(false);
+  // Phase 1 add-on treatments: extra treatments booked on the SAME day, for the
+  // same person (back-to-back) or someone else. Each becomes its own booking.
+  const [addons, setAddons] = useState<AddonItem[]>([]);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
@@ -180,6 +184,10 @@ const BookingPage = () => {
       }
     }
   }, [preselected, services]);
+
+  // Add-ons are tied to the chosen day/service — clear them if either changes so
+  // we never carry slots from a different day into the order.
+  useEffect(() => { setAddons([]); }, [selectedDate, selectedService]);
 
   const currentService = services?.find((s) => s.id === selectedService);
   const { data: availableSlots, isLoading: slotsLoading } = useRoomAvailability(
@@ -241,6 +249,12 @@ const BookingPage = () => {
     s.duration_minutes >= 60
       ? `${Math.floor(s.duration_minutes / 60)}h${s.duration_minutes % 60 ? ` ${s.duration_minutes % 60}min` : ""}`
       : `${s.duration_minutes} min`;
+
+  // Add-ons only apply to the treatment (card-on-file) flow.
+  const allowAddons = currentService?.type === "treatment" && !isRetreat;
+  const primaryTotal = currentService ? Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)) : 0;
+  const addonsTotal = addons.reduce((sum, a) => sum + Number(services?.find((s) => s.id === a.serviceId)?.price ?? 0), 0);
+  const grandTotal = primaryTotal + addonsTotal;
 
   const intakeStepIdx = steps.indexOf("booking.steps.intakeForm");
   const cardAuthStepIdx = steps.indexOf("booking.steps.cardAuth");
@@ -380,6 +394,50 @@ const BookingPage = () => {
     return result.data.bookingId as string;
   };
 
+  /** Create ONE add-on booking on the same day (its own slot/room). Same person
+   *  reuses the primary intake; another person gets a name-only intake. */
+  const createAddonBooking = async (addon: AddonItem): Promise<string> => {
+    const svc = services?.find((s) => s.id === addon.serviceId);
+    const dur = svc?.duration_minutes ?? 60;
+    const slotTime = addon.slot?.time ?? null;
+    const bookingDate = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+    const newId = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : (undefined as unknown as string);
+    const recipient = addon.recipientName || formData.name;
+    const bookingData: Record<string, any> = {
+      id: newId,
+      service_id: addon.serviceId,
+      booking_date: bookingDate,
+      booking_time: slotTime
+        ? (() => { const p = spaLocalParts(slotTime); return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}:00`; })()
+        : "00:00:00",
+      guest_name: recipient,
+      guest_email: formData.email,
+      guest_phone: formData.phone,
+      notes: [addon.forSamePerson ? "[Add-on · same guest, back-to-back]" : `[Add-on · for ${recipient}]`, addon.notes]
+        .filter(Boolean).join(" ").trim() || null,
+      total_price: svc?.price ?? null,
+      status: "pending_payment",
+      room_id: addon.slot?.room.id || null,
+      secondary_room_id: addon.slot?.secondaryRoomId || null,
+      start_time: slotTime ? slotTime.toISOString() : null,
+      end_time: slotTime ? new Date(slotTime.getTime() + dur * 60000).toISOString() : null,
+      intake_form: addon.forSamePerson
+        ? { ...intakeForm, guest_name: recipient }
+        : { guest_name: recipient },
+    };
+    const result = await invokeEdgeFunction<{ ok?: boolean; reason?: string; message?: string; bookingId?: string }>(
+      "create-booking", { body: bookingData },
+    );
+    if (!result.ok || !result.data || result.data.ok === false) {
+      const state = toBookingErrorState(result);
+      const err: any = new Error(state.message);
+      err.code = state.kind === "slot_taken" ? "SLOT_TAKEN" : state.kind.toUpperCase();
+      err.kind = state.kind;
+      throw err;
+    }
+    return result.data.bookingId as string;
+  };
+
 
   const handleNext = async () => {
     // Inquiry-only retreats submit straight from the details step. Programs are
@@ -448,18 +506,27 @@ const BookingPage = () => {
     if (!cardAuthValid) { toast.error(t("booking.cardAuth.fixFields", { defaultValue: "Please complete the card details and authorization." })); return; }
     setSubmitting(true);
     try {
+      // Store the same card on file for a booking and confirm it (idempotent email).
+      const authorizeCard = async (bookingId: string) => {
+        const { error } = await supabase.rpc("save_card_authorization" as any, {
+          _booking_id: bookingId,
+          _cardholder: cardAuth.cardholder_name.trim(),
+          _card_number: cardDigitsValue,
+          _expiry: cardAuth.card_expiry,
+          _authorized: true,
+          _auth_text: CANCELLATION_POLICY,
+        });
+        if (error) throw error;
+        supabase.functions.invoke("send-booking-notification", { body: { bookingId } }).catch((e) => console.error("[booking] notify failed", e));
+      };
+
       const bookingId = await createBooking();
-      const { error } = await supabase.rpc("save_card_authorization" as any, {
-        _booking_id: bookingId,
-        _cardholder: cardAuth.cardholder_name.trim(),
-        _card_number: cardDigitsValue,
-        _expiry: cardAuth.card_expiry,
-        _authorized: true,
-        _auth_text: CANCELLATION_POLICY,
-      });
-      if (error) throw error;
-      // Confirmation email to customer + admin (idempotent).
-      supabase.functions.invoke("send-booking-notification", { body: { bookingId } }).catch((e) => console.error("[booking] notify failed", e));
+      await authorizeCard(bookingId);
+      // Same-day add-on treatments — one booking each, same card on file.
+      for (const addon of addons) {
+        const addonId = await createAddonBooking(addon);
+        await authorizeCard(addonId);
+      }
       setConfirmationCode((bookingId || "").slice(0, 8).toUpperCase());
       setBookingComplete(true);
       setStep(confirmationStepIdx);
@@ -1095,10 +1162,19 @@ const BookingPage = () => {
                           <button type="button" className="font-body text-xs text-spa-sage underline hover:text-foreground shrink-0" onClick={() => setStep(intakeStepIdx)}>{t("booking.summary.edit")}</button>
                         </div>
                       )}
+                      {allowAddons && selectedDate && (
+                        <AddOnTreatments
+                          date={selectedDate}
+                          services={services ?? []}
+                          primaryName={formData.name}
+                          addons={addons}
+                          setAddons={setAddons}
+                        />
+                      )}
                       {currentService && (
                         <div className="border-t border-border pt-4 flex items-center justify-between">
                           <span className="font-body text-sm font-semibold text-foreground">{t("booking.summary.total")}</span>
-                          <span className="font-heading text-lg font-semibold text-foreground">{formatCRC(Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)))}</span>
+                          <span className="font-heading text-lg font-semibold text-foreground">{formatCRC(grandTotal)}</span>
                         </div>
                       )}
                     </div>
