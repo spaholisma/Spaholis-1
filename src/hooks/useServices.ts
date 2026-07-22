@@ -22,6 +22,8 @@ export interface ServiceRow {
   certificate: boolean;
   max_participants: number | null;
   requires_payment: boolean;
+  /** Add-on extra (attaches to a treatment); excluded from the normal list. */
+  is_addon: boolean;
 }
 
 const SERVICE_I18N_FIELDS = ["title", "description", "description_rich", "gallery_images"];
@@ -35,6 +37,26 @@ export function useServices() {
         .from("services")
         .select("*")
         .eq("is_active", true)
+        .eq("is_addon", false)
+        .order("sort_order");
+      if (error) throw error;
+      return localizeRows(data as any[], language, SERVICE_I18N_FIELDS) as ServiceRow[];
+    },
+  });
+}
+
+/** Add-on extras (attach to a treatment) — kept out of useServices so they
+ *  never show as standalone bookable services. */
+export function useAddonServices() {
+  const { language } = useLanguage();
+  return useQuery({
+    queryKey: ["addon-services", language],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("is_active", true)
+        .eq("is_addon", true)
         .order("sort_order");
       if (error) throw error;
       return localizeRows(data as any[], language, SERVICE_I18N_FIELDS) as ServiceRow[];

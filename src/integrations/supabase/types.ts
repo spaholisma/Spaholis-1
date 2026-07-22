@@ -1945,6 +1945,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          is_addon: boolean
           is_online: boolean | null
           level: number | null
           max_participants: number | null
@@ -1973,6 +1974,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_addon?: boolean
           is_online?: boolean | null
           level?: number | null
           max_participants?: number | null
@@ -2001,6 +2003,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_addon?: boolean
           is_online?: boolean | null
           level?: number | null
           max_participants?: number | null

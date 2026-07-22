@@ -12,7 +12,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { seo } from "@/data/content";
 
-import { useServices, type ServiceRow } from "@/hooks/useServices";
+import { useServices, useAddonServices, type ServiceRow } from "@/hooks/useServices";
 import { useSpaPackages } from "@/hooks/useSpaPackages";
 import { PackageDetailView } from "@/components/booking/PackageDetailView";
 import { useAuth } from "@/hooks/useAuth";
@@ -136,6 +136,9 @@ const BookingPage = () => {
   // Phase 1 add-on treatments: extra treatments booked on the SAME day, for the
   // same person (back-to-back) or someone else. Each becomes its own booking.
   const [addons, setAddons] = useState<AddonItem[]>([]);
+  // Phase 2 in-session extras (is_addon services): extend THIS treatment's
+  // duration + price, same person, same slot. Stored as service ids.
+  const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
@@ -187,13 +190,21 @@ const BookingPage = () => {
 
   // Add-ons are tied to the chosen day/service — clear them if either changes so
   // we never carry slots from a different day into the order.
-  useEffect(() => { setAddons([]); }, [selectedDate, selectedService]);
+  useEffect(() => { setAddons([]); setSelectedExtras([]); }, [selectedDate, selectedService]);
+  // Changing extras changes the appointment length, so any picked slot is stale.
+  useEffect(() => { setSelectedSlot(null); }, [selectedExtras]);
 
   const currentService = services?.find((s) => s.id === selectedService);
+  const { data: addonServices } = useAddonServices();
+  // In-session extras add their minutes to the treatment, so slot availability
+  // must reflect the FULL length (treatment + extras).
+  const extrasMinutes = selectedExtras.reduce((m, id) => m + Number(addonServices?.find((a) => a.id === id)?.duration_minutes ?? 0), 0);
+  const extrasPrice = selectedExtras.reduce((p, id) => p + Number(addonServices?.find((a) => a.id === id)?.price ?? 0), 0);
+  const effectiveDuration = (currentService?.duration_minutes ?? 0) + extrasMinutes;
   const { data: availableSlots, isLoading: slotsLoading } = useRoomAvailability(
     selectedDate,
     currentService?.category,
-    currentService?.duration_minutes,
+    effectiveDuration || currentService?.duration_minutes,
     currentService?.title
   );
 
@@ -254,7 +265,8 @@ const BookingPage = () => {
   const allowAddons = currentService?.type === "treatment" && !isRetreat;
   const primaryTotal = currentService ? Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)) : 0;
   const addonsTotal = addons.reduce((sum, a) => sum + Number(services?.find((s) => s.id === a.serviceId)?.price ?? 0), 0);
-  const grandTotal = primaryTotal + addonsTotal;
+  // extrasPrice (in-session add-ons) is computed above from selectedExtras.
+  const grandTotal = primaryTotal + extrasPrice + addonsTotal;
 
   const intakeStepIdx = steps.indexOf("booking.steps.intakeForm");
   const cardAuthStepIdx = steps.indexOf("booking.steps.cardAuth");
@@ -308,13 +320,21 @@ const BookingPage = () => {
 
   const createBooking = async (paymentId?: string) => {
     const startTime = selectedSlot ? selectedSlot.time.toISOString() : null;
+    // The slot covers the treatment PLUS any in-session extras.
     const endTime = selectedSlot && currentService
-      ? new Date(selectedSlot.time.getTime() + currentService.duration_minutes * 60000).toISOString()
+      ? new Date(selectedSlot.time.getTime() + effectiveDuration * 60000).toISOString()
       : null;
 
-    const notesWithAddress = locationVisit
+    // Extras summary appended so staff see them; the server re-derives price/mins.
+    const extrasLabel = selectedExtras
+      .map((id) => addonServices?.find((a) => a.id === id))
+      .filter(Boolean)
+      .map((a) => `${a!.title} (+${a!.duration_minutes}min, ${formatCRC(Number(a!.price ?? 0))})`)
+      .join(", ");
+    const notesBase = locationVisit
       ? `[AT CLIENT LOCATION: ${formData.address}] ${formData.notes}`.trim()
       : formData.notes;
+    const notesWithAddress = [notesBase, extrasLabel ? `Add-ons: ${extrasLabel}` : ""].filter(Boolean).join(" · ").trim();
 
     // Generate id client-side so we don't need INSERT ... RETURNING, which
     // would be blocked by the SELECT RLS policy for anonymous guest bookings
@@ -344,6 +364,8 @@ const BookingPage = () => {
       room_id: locationVisit ? null : (selectedSlot?.room.id || null),
       // A couples booking on the 3A+3B pair also holds the second room.
       secondary_room_id: locationVisit ? null : (selectedSlot?.secondaryRoomId || null),
+      // In-session extras — the server re-derives their minutes/price.
+      addon_service_ids: selectedExtras.length ? selectedExtras : undefined,
       start_time: locationVisit ? null : startTime,
       end_time: locationVisit ? null : endTime,
       // guest_name is reused from the contact step so the customer never has
@@ -937,6 +959,41 @@ const BookingPage = () => {
                 {step === dateStepIdx && dateStepIdx > 0 && !isRetreat && (
                   <div>
                     <h2 className="spa-heading-md text-foreground mb-6">{t("booking.dateTime.title")}</h2>
+
+                    {allowAddons && (addonServices?.length ?? 0) > 0 && (
+                      <div className="mb-6 rounded-2xl border border-border p-4">
+                        <p className="font-heading text-base font-medium text-foreground">Enhance your treatment (optional)</p>
+                        <p className="font-body text-xs text-muted-foreground mb-3">Added to this same appointment — extends the time and price.</p>
+                        <div className="space-y-2">
+                          {addonServices!.map((a) => {
+                            const on = selectedExtras.includes(a.id);
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => setSelectedExtras((prev) => on ? prev.filter((x) => x !== a.id) : [...prev, a.id])}
+                                className={cn("w-full text-left rounded-xl border p-3 transition-colors", on ? "border-spa-sage bg-spa-sage/10" : "border-border hover:bg-muted/50")}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-body text-sm font-medium text-foreground">{a.title}</p>
+                                    <p className="font-body text-xs text-muted-foreground">+{a.duration_minutes} min · {formatCRC(Number(a.price ?? 0))} per person</p>
+                                  </div>
+                                  <span className={cn("h-5 w-5 rounded-md border flex items-center justify-center shrink-0", on ? "bg-spa-sage border-spa-sage text-white" : "border-border")}>
+                                    {on && <Check className="h-3.5 w-3.5" />}
+                                  </span>
+                                </div>
+                                {a.description && <p className="font-body text-xs text-muted-foreground mt-1.5 line-clamp-2">{a.description}</p>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {extrasMinutes > 0 && (
+                          <p className="font-body text-xs text-spa-sage mt-3">+{extrasMinutes} min · +{formatCRC(extrasPrice)} — pick a time that fits below.</p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="bg-card rounded-2xl p-4 border border-border">
                         <Calendar
@@ -1129,6 +1186,19 @@ const BookingPage = () => {
                             <p className="font-body text-sm text-muted-foreground">{durationLabel(currentService)} · {formatCRC(Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)))}</p>
                           </div>
                           <button type="button" className="font-body text-xs text-spa-sage underline hover:text-foreground shrink-0" onClick={() => setStep(0)}>{t("booking.summary.edit")}</button>
+                        </div>
+                      )}
+                      {selectedExtras.length > 0 && (
+                        <div className="bg-card rounded-2xl border border-border p-5 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-body text-xs uppercase tracking-wider text-muted-foreground mb-1">Add-ons</p>
+                            {selectedExtras.map((id) => {
+                              const a = addonServices?.find((x) => x.id === id);
+                              if (!a) return null;
+                              return <p key={id} className="font-body text-sm text-foreground">{a.title} <span className="text-muted-foreground">(+{a.duration_minutes} min · {formatCRC(Number(a.price ?? 0))})</span></p>;
+                            })}
+                          </div>
+                          <button type="button" className="font-body text-xs text-spa-sage underline hover:text-foreground shrink-0" onClick={() => setStep(dateStepIdx)}>{t("booking.summary.edit")}</button>
                         </div>
                       )}
                       {dateStepIdx > 0 && (selectedDate || selectedSlot || locationVisit) && (

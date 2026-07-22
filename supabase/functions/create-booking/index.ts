@@ -40,6 +40,9 @@ const BodySchema = z.object({
   coupon_code: z.string().trim().max(64).optional().nullable(),
   room_id: z.string().uuid().optional().nullable(),
   secondary_room_id: z.string().uuid().optional().nullable(),
+  // In-session add-on extras (is_addon services) that extend this treatment's
+  // duration and price. The server re-derives their minutes/price for security.
+  addon_service_ids: z.array(z.string().uuid()).max(10).optional().nullable(),
   start_time: z.string().datetime().optional().nullable(),
   end_time: z.string().datetime().optional().nullable(),
   intake_form: z.unknown().optional().nullable(),
@@ -245,12 +248,32 @@ Deno.serve(async (req) => {
     if (serviceErr) throw serviceErr;
     if (!service || !service.is_active) return json({ ok: false, reason: "service_unavailable" }, 404);
 
+    // In-session add-on extras: re-derive their extra minutes + price server-side
+    // (never trust the client). They extend the treatment's duration and price.
+    let extrasMinutes = 0;
+    let extrasPrice = 0;
+    if (Array.isArray(body.addon_service_ids) && body.addon_service_ids.length > 0) {
+      const { data: extras, error: extrasErr } = await admin
+        .from("services")
+        .select("id, duration_minutes, price, is_addon, is_active")
+        .in("id", body.addon_service_ids)
+        .eq("is_addon", true)
+        .eq("is_active", true);
+      if (extrasErr) throw extrasErr;
+      for (const e of (extras ?? [])) {
+        extrasMinutes += Number(e.duration_minutes ?? 0);
+        extrasPrice += Number(e.price ?? 0);
+      }
+    }
+    // The slot must cover the treatment PLUS its add-ons.
+    const effectiveService = { ...service, duration_minutes: Number(service.duration_minutes ?? 0) + extrasMinutes };
+
     const weeklyHours = await fetchWeeklyHours(admin);
-    await ensureSlotAvailable(admin, body, service, weeklyHours);
+    await ensureSlotAvailable(admin, body, effectiveService, weeklyHours);
 
     const basePrice = Number(service.price ?? 0);
     const coupon = await validateCoupon(admin, body.coupon_code, basePrice, service.id);
-    const totalPrice = Math.max(0, basePrice - coupon.discount);
+    const totalPrice = Math.max(0, basePrice - coupon.discount) + extrasPrice;
     const userId = await getAuthenticatedUserId(req, admin);
     const depositRequired = isDepositRequired(service);
     const status = depositRequired ? "pending_payment" : "pending";
