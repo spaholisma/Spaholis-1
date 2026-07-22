@@ -271,12 +271,14 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   }
 
   async function handleDelete() {
-    if (!booking || !confirm("Delete this booking permanently?")) return;
-    const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
+    if (!booking || !confirm("Move this booking to the trash? You can restore it within 30 days.")) return;
+    // Soft delete: snapshots the booking (and its card) into the 30-day trash,
+    // then removes it — so it can be restored from the Trash tab.
+    const { error } = await supabase.rpc("soft_delete_booking" as any, { _booking_id: booking.id });
     if (error) {
-      toast.error("Failed to delete");
+      toast.error(error.message || "Failed to delete");
     } else {
-      toast.success("Booking deleted");
+      toast.success("Moved to trash — restorable for 30 days");
       onOpenChange(false);
       onSaved();
     }

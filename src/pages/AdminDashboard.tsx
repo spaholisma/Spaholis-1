@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, Users, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Link2, Clock, ArrowLeft, Mail,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Link2, Clock, ArrowLeft, Mail, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +14,7 @@ import { AdminEventsManager } from "@/components/admin/AdminEventsManager";
 import { AdminWeeklySchedule } from "@/components/admin/AdminWeeklySchedule";
 import { AdminCalendarView } from "@/components/admin/AdminCalendarView";
 import { BookingEditModal } from "@/components/admin/calendar/BookingEditModal";
+import { BookingsTrash } from "@/components/admin/BookingsTrash";
 import type { CalendarBooking } from "@/components/admin/calendar/calendarUtils";
 import { AdminStaffManager } from "@/components/admin/AdminStaffManager";
 import { AdminGiftCardsManager } from "@/components/admin/AdminGiftCardsManager";
@@ -46,6 +47,7 @@ import { format } from "date-fns";
 const sidebarLinks = [
   { label: "Dashboard", icon: LayoutDashboard, id: "overview" },
   { label: "Appointments", icon: Calendar, id: "appointments" },
+  { label: "Trash", icon: Trash2, id: "trash" },
   { label: "Payment Issues", icon: ShieldAlert, id: "payment-issues" },
   { label: "BAC Verifications", icon: ShieldAlert, id: "bac-verifications" },
   { label: "BAC Links", icon: Link2, id: "bac-links" },
@@ -79,7 +81,7 @@ const sidebarLinks = [
 // Sections a coordinator (limited staff role) may open. Everything else in the
 // sidebar is hidden for them, and the render below refuses to mount it even if
 // the tab is forced — the database RLS is the real gate, this is just tidy UI.
-const COORDINATOR_TABS = ["calendars", "appointments"];
+const COORDINATOR_TABS = ["calendars", "appointments", "trash"];
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -192,6 +194,7 @@ const AdminDashboard = () => {
         <div className="p-4 sm:p-6 lg:p-8">
           {activeTab === "overview" && canRender("overview") && <OverviewView />}
           {activeTab === "appointments" && canRender("appointments") && <><AdminCalendarView /><div className="mt-6"><AppointmentsView /></div></>}
+          {activeTab === "trash" && canRender("trash") && <BookingsTrash />}
           {activeTab === "payment-issues" && <AdminPaymentIssues />}
           {activeTab === "bac-verifications" && <AdminBacVerifications />}
           {activeTab === "bac-links" && <AdminBacLinks />}
