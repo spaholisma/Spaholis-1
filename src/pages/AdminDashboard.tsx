@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, Users, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Link2, Clock, ArrowLeft, Mail, Trash2,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,9 +35,6 @@ import { AdminTagsManager } from "@/components/admin/AdminTagsManager";
 import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager";
 import { AdminFaqsManager } from "@/components/admin/AdminFaqsManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
-import { AdminPaymentIssues } from "@/components/admin/AdminPaymentIssues";
-import { AdminBacVerifications } from "@/components/admin/AdminBacVerifications";
-import { AdminBacLinks } from "@/components/admin/AdminBacLinks";
 import { AdminBusinessHours } from "@/components/admin/AdminBusinessHours";
 import { AdminEmailTemplates } from "@/components/admin/AdminEmailTemplates";
 import holisLogo from "@/assets/holis-logo-clean.png";
@@ -48,9 +45,6 @@ const sidebarLinks = [
   { label: "Dashboard", icon: LayoutDashboard, id: "overview" },
   { label: "Appointments", icon: Calendar, id: "appointments" },
   { label: "Trash", icon: Trash2, id: "trash" },
-  { label: "Payment Issues", icon: ShieldAlert, id: "payment-issues" },
-  { label: "BAC Verifications", icon: ShieldAlert, id: "bac-verifications" },
-  { label: "BAC Links", icon: Link2, id: "bac-links" },
   { label: "Services", icon: Briefcase, id: "services" },
   { label: "Classes", icon: CalendarDays, id: "events" },
   { label: "Weekly Schedule", icon: CalendarDays, id: "weekly-schedule" },
@@ -195,9 +189,6 @@ const AdminDashboard = () => {
           {activeTab === "overview" && canRender("overview") && <OverviewView />}
           {activeTab === "appointments" && canRender("appointments") && <><AdminCalendarView /><div className="mt-6"><AppointmentsView /></div></>}
           {activeTab === "trash" && canRender("trash") && <BookingsTrash />}
-          {activeTab === "payment-issues" && <AdminPaymentIssues />}
-          {activeTab === "bac-verifications" && <AdminBacVerifications />}
-          {activeTab === "bac-links" && <AdminBacLinks />}
           {activeTab === "services" && <AdminServicesManager />}
           {activeTab === "events" && <AdminEventsManager />}
           {activeTab === "weekly-schedule" && <AdminWeeklySchedule />}
