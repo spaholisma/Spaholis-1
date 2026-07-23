@@ -294,6 +294,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CalendarEntry | null>(null);
   const [form, setForm] = useState(emptyForm);
+  // Forces the Reminder select to stay on "Custom…" even when the typed
+  // amount happens to equal a preset (e.g. 60 min).
+  const [reminderCustom, setReminderCustom] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
@@ -601,6 +604,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       end_date: day,
     });
     setCreatingGroup(false);
+    setReminderCustom(false);
     setModalOpen(true);
   };
 
@@ -625,6 +629,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     });
     setEditScope("one");
     setCreatingGroup(false);
+    setReminderCustom(false);
     setModalOpen(true);
   };
 
@@ -1469,8 +1474,20 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               <div className="space-y-1.5">
                 <Label>Reminder</Label>
                 <select
-                  value={form.reminder_minutes}
-                  onChange={(e) => setForm({ ...form, reminder_minutes: e.target.value })}
+                  value={
+                    reminderCustom || !["", "0", "15", "30", "60", "120", "1440"].includes(form.reminder_minutes)
+                      ? "custom"
+                      : form.reminder_minutes
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === "custom") {
+                      setReminderCustom(true);
+                      if (form.reminder_minutes === "") setForm({ ...form, reminder_minutes: "180" });
+                    } else {
+                      setReminderCustom(false);
+                      setForm({ ...form, reminder_minutes: e.target.value });
+                    }
+                  }}
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 >
                   <option value="">No reminder</option>
@@ -1480,7 +1497,39 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   <option value="60">1 hour before</option>
                   <option value="120">2 hours before</option>
                   <option value="1440">1 day before</option>
+                  <option value="custom">Custom…</option>
                 </select>
+                {(reminderCustom || !["", "0", "15", "30", "60", "120", "1440"].includes(form.reminder_minutes)) && (() => {
+                  const mins = parseInt(form.reminder_minutes) || 0;
+                  // Show the friendliest unit that divides evenly.
+                  const unit = mins > 0 && mins % 1440 === 0 ? 1440 : mins > 0 && mins % 60 === 0 ? 60 : 1;
+                  return (
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="number"
+                        min={0}
+                        className="w-24"
+                        value={mins / unit}
+                        onChange={(e) => {
+                          const n = Math.max(0, parseInt(e.target.value) || 0);
+                          setForm({ ...form, reminder_minutes: String(n * unit) });
+                        }}
+                      />
+                      <select
+                        value={unit}
+                        onChange={(e) => {
+                          const newUnit = parseInt(e.target.value);
+                          setForm({ ...form, reminder_minutes: String((mins / unit) * newUnit) });
+                        }}
+                        className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        <option value={1}>minutes before</option>
+                        <option value={60}>hours before</option>
+                        <option value={1440}>days before</option>
+                      </select>
+                    </div>
+                  );
+                })()}
                 <p className="text-xs text-muted-foreground">Push a todos los dispositivos con la campanita activada.</p>
               </div>
             )}
