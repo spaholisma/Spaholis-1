@@ -53,6 +53,11 @@ export interface CalendarEntry {
   therapist_count?: number | null;
   /** Per-therapist shifts [{name,start,end}] — capacity varies through the day. */
   therapist_shifts?: TherapistShift[] | null;
+  /** Client contact + notification prefs (reminder before / review after). */
+  client_name?: string | null;
+  client_email?: string | null;
+  client_reminder_hours?: number | null;
+  client_review?: boolean | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -279,6 +284,10 @@ const emptyForm = {
   reminder_minutes: "",
   therapist_count: "",
   therapist_shifts: [] as TherapistShift[],
+  client_name: "",
+  client_email: "",
+  client_reminder_hours: "",
+  client_review: false,
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
@@ -637,6 +646,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       reminder_minutes: entry.reminder_minutes != null ? String(entry.reminder_minutes) : "",
       therapist_count: entry.therapist_count != null ? String(entry.therapist_count) : "",
       therapist_shifts: Array.isArray(entry.therapist_shifts) ? entry.therapist_shifts : [],
+      client_name: entry.client_name ?? "",
+      client_email: entry.client_email ?? "",
+      client_reminder_hours: entry.client_reminder_hours != null ? String(entry.client_reminder_hours) : "",
+      client_review: entry.client_review ?? false,
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -694,6 +707,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       // Re-arm the reminder on every save so a rescheduled entry fires again.
       reminder_minutes: form.reminder_minutes === "" ? null : parseInt(form.reminder_minutes),
       reminder_sent_at: null,
+      // Client contact + notification prefs. Re-arm both sends on every save so a
+      // rescheduled appointment re-notifies the client.
+      client_name: form.client_name.trim() || null,
+      client_email: form.client_email.trim() || null,
+      client_reminder_hours: form.client_reminder_hours === "" ? null : parseInt(form.client_reminder_hours),
+      client_reminder_sent_at: null,
+      client_review: !!form.client_review,
+      client_review_sent_at: null,
       // Only meaningful on "Horario terapeutas" blocks — capacity cap for the
       // website. Shifts (per-therapist hours) replace the flat count.
       ...(() => {
@@ -1753,6 +1774,60 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 <p className="text-xs text-muted-foreground">Push a todos los dispositivos con la campanita activada.</p>
               </div>
             )}
+
+            {!form.is_all_day && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                <p className="text-sm font-medium">Client notifications</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Client name</Label>
+                    <Input
+                      value={form.client_name}
+                      onChange={(e) => setForm({ ...form, client_name: e.target.value })}
+                      placeholder="e.g. Emma"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Client email</Label>
+                    <Input
+                      type="email"
+                      value={form.client_email}
+                      onChange={(e) => setForm({ ...form, client_email: e.target.value })}
+                      placeholder="cliente@correo.com"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Reminder before the appointment</Label>
+                  <select
+                    value={form.client_reminder_hours}
+                    onChange={(e) => setForm({ ...form, client_reminder_hours: e.target.value })}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">No email reminder</option>
+                    <option value="1">1 hour before</option>
+                    <option value="2">2 hours before</option>
+                    <option value="4">4 hours before</option>
+                    <option value="24">1 day before</option>
+                    <option value="48">2 days before</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={form.client_review}
+                    onCheckedChange={(v) => setForm({ ...form, client_review: !!v })}
+                  />
+                  <span className="text-sm">Ask for a review after the appointment</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Emails go to the client's address (needs a valid email). Edit the wording in{" "}
+                  <strong>Client Emails → Appointment reminders &amp; reviews</strong>. The review sends ~5&nbsp;min after the appointment ends.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label>Location</Label>
               <select

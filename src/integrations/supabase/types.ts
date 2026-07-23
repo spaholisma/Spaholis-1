@@ -36,6 +36,12 @@ export type Database = {
           reminder_sent_at: string | null
           therapist_count: number | null
           therapist_shifts: Json | null
+          client_name: string | null
+          client_email: string | null
+          client_reminder_hours: number | null
+          client_reminder_sent_at: string | null
+          client_review: boolean | null
+          client_review_sent_at: string | null
           room_id: string | null
           series_id: string | null
           start_time: string
@@ -63,6 +69,12 @@ export type Database = {
           reminder_sent_at?: string | null
           therapist_count?: number | null
           therapist_shifts?: Json | null
+          client_name?: string | null
+          client_email?: string | null
+          client_reminder_hours?: number | null
+          client_reminder_sent_at?: string | null
+          client_review?: boolean | null
+          client_review_sent_at?: string | null
           room_id?: string | null
           series_id?: string | null
           start_time: string
@@ -90,6 +102,12 @@ export type Database = {
           reminder_sent_at?: string | null
           therapist_count?: number | null
           therapist_shifts?: Json | null
+          client_name?: string | null
+          client_email?: string | null
+          client_reminder_hours?: number | null
+          client_reminder_sent_at?: string | null
+          client_review?: boolean | null
+          client_review_sent_at?: string | null
           room_id?: string | null
           series_id?: string | null
           start_time?: string

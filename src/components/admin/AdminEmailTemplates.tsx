@@ -32,9 +32,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   class: "Yoga classes",
   offering_purchase: "Membership purchases (online)",
   offering_order: "Membership orders (schedule link)",
+  client_notify: "Appointment reminders & reviews",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -43,6 +44,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "payment_status", "details", "button"],
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
+  client_notify: ["guest_name", "date", "time", "location", "button"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -94,6 +96,13 @@ function sampleVars(category: string): Record<string, string> {
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", class_title: "Vinyasa Flow", instructor: "Luis",
       when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", payment_status: "Paid", details, button, whatsapp_url: "#",
+    };
+  }
+  if (category === "client_notify") {
+    const button = `<p style="text-align:center;margin:24px 0;"><a href="#" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:14px 28px;border-radius:9999px;font-size:15px;display:inline-block;">Leave a review</a></p>`;
+    return {
+      guest_name: "Ana", date: "Monday, July 20", time: "10:00", location: "Holis Wellness Center",
+      button, review_link: "#",
     };
   }
   // offering_purchase / offering_order

@@ -1,0 +1,8 @@
+-- Client-facing notifications on calendar entries: client_name, client_email,
+-- client_reminder_hours (+sent_at) for a reminder before the appointment, and
+-- client_review (+sent_at) for a review request ~5 min after it ends. Two
+-- editable Client Emails templates (appointment_reminder, appointment_review,
+-- category client_notify). send-due-reminders v3 renders them via the
+-- {{variable}} template system and sends through Resend. Applied live
+-- 2026-07-23 (calendar_entry_client_notifications + client_name_and_notify_templates);
+-- full SQL in Supabase migration history.
