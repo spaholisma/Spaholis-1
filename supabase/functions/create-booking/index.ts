@@ -320,6 +320,19 @@ Deno.serve(async (req) => {
 
     if (insertErr) throw insertErr;
 
+    // Staff push notification — best effort, never blocks the checkout result.
+    try {
+      await admin.functions.invoke("notify-staff-push", {
+        body: {
+          title: "Nueva reserva",
+          body: `${body.guest_name} — ${service.title} · ${body.booking_date} ${body.booking_time.slice(0, 5)}${isCouples ? " (couples ×2)" : ""}`,
+          url: "/admin",
+        },
+      });
+    } catch (e) {
+      console.error("[create-booking] staff push failed", e);
+    }
+
     if (!depositRequired) {
       try {
         await admin.functions.invoke("send-booking-notification", { body: { bookingId } });

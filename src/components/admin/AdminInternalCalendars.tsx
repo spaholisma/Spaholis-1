@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { BookingsTrash } from "./BookingsTrash";
+import { PushNotificationsButton } from "./PushNotificationsButton";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
 import { BookingEditModal } from "./calendar/BookingEditModal";
@@ -758,16 +759,19 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             {readOnly ? "Schedule overview — read only" : "Private scheduling for management only"}
           </p>
         </div>
-        {!readOnly && (
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setTrashOpen(true)} title="Deleted bookings & entries (30-day trash)">
-              <Trash2 className="h-4 w-4 mr-1" /> Trash
-            </Button>
-            <Button size="sm" onClick={() => openNew()}>
-              <Plus className="h-4 w-4 mr-1" /> Add Entry
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <PushNotificationsButton />
+          {!readOnly && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setTrashOpen(true)} title="Deleted bookings & entries (30-day trash)">
+                <Trash2 className="h-4 w-4 mr-1" /> Trash
+              </Button>
+              <Button size="sm" onClick={() => openNew()}>
+                <Plus className="h-4 w-4 mr-1" /> Add Entry
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 30-day trash, right inside the calendar (also lives in the sidebar tab). */}

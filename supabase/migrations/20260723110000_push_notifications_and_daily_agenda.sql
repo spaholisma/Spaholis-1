@@ -1,0 +1,11 @@
+-- Notifications infra (applied live 2026-07-23; full SQL in Supabase history):
+-- 1. push_notifications_infra: app_secrets (server-only KV: VAPID keypair,
+--    cron secret; RLS on, no policies) + push_subscriptions (per-device,
+--    users manage own rows).
+-- 2. grants_for_mcp_created_tables: base GRANTs for service_role/authenticated
+--    on app_secrets, deleted_bookings, deleted_entries, push_subscriptions
+--    (tables created via the MCP connector missed the default grants).
+-- 3. pg_cron job 'daily-agenda-email' @ 23:00 UTC (5 PM Costa Rica) →
+--    net.http_post to the daily-agenda-email edge function (x-cron-secret).
+-- Edge functions: notify-staff-push v1 (web-push via VAPID, service-role only),
+-- daily-agenda-email v2 (Resend), create-booking v15 (fires staff push).
