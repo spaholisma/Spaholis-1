@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
 import { formatCRC } from "@/lib/currency";
-import { formatSpaDate } from "@/lib/businessHours";
+import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
 
 // Branded default shown whenever a class has no image (or a broken one).
 const fallbackImg = "/class-placeholder.jpg";
@@ -48,7 +48,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
 
         {/* Date & Location */}
         <p className="font-body text-sm text-muted-foreground">
-          {formatSpaDate(event.start_time)}
+          {formatSpaDate(event.start_time)} · {formatSpaTime(event.start_time)}
           {cls.location && <> &nbsp;|&nbsp; {cls.location}</>}
         </p>
 
