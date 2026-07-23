@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { formatCRC } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Calendar, Clock, User, Settings, RotateCcw, X, Gift, Bell, ShieldCheck, ChevronRight } from "lucide-react";
+import { Calendar, Clock, User, Gift, ShieldCheck, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { isAdminEmail } from "@/lib/adminEmails";
@@ -19,7 +21,6 @@ const ClientDashboard = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [rewards, setRewards] = useState<any[]>([]);
   const [loyaltySettings, setLoyaltySettings] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
   // Staff role, so a coordinator/viewer/admin sees the calendar shortcut here in
   // My Account instead of having to type the /admin URL by hand.
   const [staffRole, setStaffRole] = useState<"admin" | "coordinator" | "viewer" | null>(null);
@@ -34,19 +35,17 @@ const ClientDashboard = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [profileRes, bookingsRes, rewardsRes, loyaltyRes, notifRes, rolesRes] = await Promise.all([
+      const [profileRes, bookingsRes, rewardsRes, loyaltyRes, rolesRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).single(),
         supabase.from("bookings").select("*, services(title, category)").eq("user_id", user.id).order("booking_date", { ascending: false }),
         supabase.from("loyalty_rewards").select("*").eq("user_id", user.id).order("earned_at", { ascending: false }),
         supabase.from("loyalty_settings").select("*").eq("is_active", true).single(),
-        supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
       ]);
       setProfile(profileRes.data);
       setBookings(bookingsRes.data ?? []);
       setRewards(rewardsRes.data ?? []);
       setLoyaltySettings(loyaltyRes.data);
-      setNotifications(notifRes.data ?? []);
       const roles = (rolesRes.data ?? []).map((r: any) => r.role);
       setStaffRole(
         roles.includes("super_admin") || roles.includes("manager")
@@ -125,25 +124,33 @@ const ClientDashboard = () => {
           );
         })()}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-10">
+        {/* Quick Actions. Book Treatment navigates; the rest jump to a section
+            on this page. Notifications was removed — there is no such feature. */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+          <Link to="/book" className="bg-card rounded-2xl border border-border p-5 text-left hover:shadow-md transition-shadow">
+            <Calendar className="h-5 w-5 text-muted-foreground mb-3" />
+            <h3 className="font-heading text-base font-medium text-foreground">Book Treatment</h3>
+            <p className="font-body text-xs text-muted-foreground mt-1">Schedule a visit</p>
+          </Link>
           {[
-            { icon: Calendar, label: "Book Treatment", desc: "Schedule a visit", to: "/booking" },
-            { icon: Gift, label: "My Rewards", desc: `${availableRewards.length} available`, to: "#rewards" },
-            { icon: Bell, label: "Notifications", desc: `${notifications.filter((n) => !n.is_read).length} unread`, to: "#notifications" },
-            { icon: User, label: "Profile", desc: "Edit your info", to: "#profile" },
+            { icon: Gift, label: "My Rewards", desc: `${availableRewards.length} available`, target: "rewards" },
+            { icon: User, label: "Profile", desc: "Edit your info", target: "profile" },
           ].map((action) => (
-            <Link key={action.label} to={action.to} className="bg-card rounded-2xl border border-border p-5 text-left hover:shadow-md transition-shadow">
+            <button
+              key={action.label}
+              onClick={() => document.getElementById(action.target)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="bg-card rounded-2xl border border-border p-5 text-left hover:shadow-md transition-shadow"
+            >
               <action.icon className="h-5 w-5 text-muted-foreground mb-3" />
               <h3 className="font-heading text-base font-medium text-foreground">{action.label}</h3>
               <p className="font-body text-xs text-muted-foreground mt-1">{action.desc}</p>
-            </Link>
+            </button>
           ))}
         </div>
 
         {/* Loyalty Progress */}
         {loyaltySettings && (
-          <div className="bg-card rounded-2xl border border-border p-6 mb-10">
+          <div id="rewards" className="bg-card rounded-2xl border border-border p-6 mb-10 scroll-mt-24">
             <h2 className="font-heading text-lg font-medium text-foreground mb-4">Loyalty Rewards</h2>
             <div className="flex items-center gap-4 mb-3">
               <div className="flex-1 bg-muted rounded-full h-3">
@@ -206,6 +213,9 @@ const ClientDashboard = () => {
           )}
         </div>
 
+        {/* Profile editor */}
+        <ProfileSection profile={profile} email={user?.email} onSaved={(p) => setProfile(p)} />
+
         {/* History */}
         {past.length > 0 && (
           <div>
@@ -245,5 +255,54 @@ const ClientDashboard = () => {
     </div>
   );
 };
+
+/** Lets a signed-in customer edit their own name & phone (email is read-only —
+ *  it's their login). Saves to their own profiles row (RLS-guarded). */
+function ProfileSection({ profile, email, onSaved }: { profile: any; email?: string | null; onSaved: (p: any) => void }) {
+  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [phone, setPhone] = useState(profile?.phone ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const dirty = fullName !== (profile?.full_name ?? "") || phone !== (profile?.phone ?? "");
+
+  const save = async () => {
+    if (!profile?.user_id) return;
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName.trim() || null, phone: phone.trim() || null })
+      .eq("user_id", profile.user_id)
+      .select()
+      .single();
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Profile updated");
+    onSaved(data);
+  };
+
+  return (
+    <div id="profile" className="bg-card rounded-2xl border border-border p-6 mb-10 scroll-mt-24">
+      <h2 className="font-heading text-lg font-medium text-foreground mb-4">Profile</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Full name</label>
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" />
+        </div>
+        <div>
+          <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Phone</label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+506 ..." />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Email</label>
+          <Input value={email ?? ""} disabled className="opacity-70" />
+          <p className="font-body text-xs text-muted-foreground mt-1">Your email is your login and can't be changed here.</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <Button onClick={save} disabled={!dirty || saving}>{saving ? "Saving..." : "Save changes"}</Button>
+      </div>
+    </div>
+  );
+}
 
 export default ClientDashboard;
