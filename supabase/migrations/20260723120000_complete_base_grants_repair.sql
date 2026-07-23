@@ -1,0 +1,7 @@
+-- Connector-created tables missed the standard Supabase role grants (root
+-- cause of "permission denied for table email_templates" in Client Emails,
+-- and invisible service-role failures on paypal_orders, calendar_groups,
+-- attendee_labels, booking_card_authorizations). Granted the standard base
+-- privileges (RLS remains the real gate) and set ALTER DEFAULT PRIVILEGES so
+-- future connector-created tables are granted automatically.
+-- Applied live 2026-07-23; full SQL in Supabase history (complete_base_grants_repair).
