@@ -1,0 +1,9 @@
+-- Perf: RLS on the hot tables re-evaluated auth.uid()/has_role() PER ROW
+-- (auth_rls_initplan warning). Wrapping auth.uid() in a scalar subquery makes
+-- Postgres evaluate it once per statement (InitPlan). Identical semantics.
+-- Applied live 2026-07-23; full statement list in the applied migration
+-- (16 policies across bookings, admin_calendar_entries, calendar_groups,
+-- user_roles, booking_card_authorizations, deleted_bookings), e.g.:
+--   USING (has_role((select auth.uid()), 'coordinator'::app_role))
+-- instead of
+--   USING (has_role(auth.uid(), 'coordinator'::app_role))
