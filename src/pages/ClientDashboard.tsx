@@ -75,8 +75,14 @@ const ClientDashboard = () => {
     );
   }
 
-  const upcoming = bookings.filter((b) => ["pending", "confirmed"].includes(b.status));
-  const past = bookings.filter((b) => ["completed", "cancelled"].includes(b.status));
+  // "Upcoming" = still-open AND dated today or later (spa timezone). Without the
+  // date test, a never-completed pending booking from months ago sticks here
+  // forever. Anything else — done, cancelled, or a past-dated open booking —
+  // drops into history so it's not lost.
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Costa_Rica" }).format(new Date());
+  const isUpcoming = (b: any) => ["pending", "confirmed"].includes(b.status) && b.booking_date >= todayStr;
+  const upcoming = bookings.filter(isUpcoming);
+  const past = bookings.filter((b) => !isUpcoming(b));
   const visitsToReward = loyaltySettings ? loyaltySettings.visits_required - ((profile?.total_visits ?? 0) % loyaltySettings.visits_required) : 0;
   const availableRewards = rewards.filter((r) => !r.is_used && (!r.expires_at || new Date(r.expires_at) > new Date()));
 
