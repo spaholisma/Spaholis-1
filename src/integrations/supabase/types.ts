@@ -32,6 +32,8 @@ export type Database = {
           offsite_location: string | null
           recurrence: string
           recurrence_until: string | null
+          reminder_minutes: number | null
+          reminder_sent_at: string | null
           room_id: string | null
           series_id: string | null
           start_time: string
@@ -55,6 +57,8 @@ export type Database = {
           offsite_location?: string | null
           recurrence?: string
           recurrence_until?: string | null
+          reminder_minutes?: number | null
+          reminder_sent_at?: string | null
           room_id?: string | null
           series_id?: string | null
           start_time: string
@@ -78,6 +82,8 @@ export type Database = {
           offsite_location?: string | null
           recurrence?: string
           recurrence_until?: string | null
+          reminder_minutes?: number | null
+          reminder_sent_at?: string | null
           room_id?: string | null
           series_id?: string | null
           start_time?: string

@@ -1,0 +1,6 @@
+-- Reminders on calendar entries: reminder_minutes (0=at start, null=none) +
+-- reminder_sent_at (dedupe; cleared on edit to re-arm). A pg_cron job
+-- 'send-due-reminders' (*/5 min) calls the send-due-reminders edge function
+-- (x-cron-secret gated) which pushes via notify-staff-push when
+-- start - reminder_minutes <= now <= start+30min. Applied live 2026-07-23;
+-- full SQL in Supabase history (entry_reminders).

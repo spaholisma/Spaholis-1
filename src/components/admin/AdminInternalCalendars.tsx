@@ -47,6 +47,8 @@ export interface CalendarEntry {
   is_all_day: boolean;
   /** When true, hides ALL website availability during this window (lunch, off-site with no coverage). */
   blocks_availability: boolean;
+  /** Minutes before start to push a staff reminder (0 = at start; null = none). */
+  reminder_minutes?: number | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -268,6 +270,7 @@ const emptyForm = {
   group_id: "",
   is_all_day: false,
   blocks_availability: false,
+  reminder_minutes: "",
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
@@ -616,6 +619,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       group_id: entry.group_id ?? "",
       is_all_day: entry.is_all_day,
       blocks_availability: entry.blocks_availability ?? false,
+      reminder_minutes: entry.reminder_minutes != null ? String(entry.reminder_minutes) : "",
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -669,6 +673,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       duration_minutes: allDay ? 1440 : form.duration_minutes,
       is_all_day: allDay,
       blocks_availability: form.blocks_availability,
+      // Re-arm the reminder on every save so a rescheduled entry fires again.
+      reminder_minutes: form.reminder_minutes === "" ? null : parseInt(form.reminder_minutes),
+      reminder_sent_at: null,
       group_id: form.group_id || null,
       notes: form.notes || null,
       color: TYPE_COLORS[calendarType],
@@ -1456,6 +1463,25 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   }}
                 />
                 <p className="text-xs text-muted-foreground">{form.duration_minutes} min</p>
+              </div>
+            )}
+            {!form.is_all_day && (
+              <div className="space-y-1.5">
+                <Label>Reminder</Label>
+                <select
+                  value={form.reminder_minutes}
+                  onChange={(e) => setForm({ ...form, reminder_minutes: e.target.value })}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">No reminder</option>
+                  <option value="0">At start time</option>
+                  <option value="15">15 minutes before</option>
+                  <option value="30">30 minutes before</option>
+                  <option value="60">1 hour before</option>
+                  <option value="120">2 hours before</option>
+                  <option value="1440">1 day before</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Push a todos los dispositivos con la campanita activada.</p>
               </div>
             )}
             <div className="space-y-1.5">
