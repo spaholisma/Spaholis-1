@@ -1,0 +1,10 @@
+-- Membership & pass management for the admin Memberships tab.
+-- user_offerings.frozen_at records when a freeze began so unfreezing pushes the
+-- expiry forward by exactly the paused duration. Status 'frozen' added to the
+-- check constraint; redeem_offering already refuses any non-'active' status.
+-- Admin-only RPCs (super_admin/manager via _assert_offering_admin, SECURITY
+-- DEFINER): admin_freeze_offering, admin_unfreeze_offering,
+-- admin_extend_offering(_days), admin_set_offering_status. Applied live
+-- 2026-07-23 (user_offering_admin_management + user_offering_status_allow_frozen);
+-- full SQL in Supabase migration history. Verified: freeze→unfreeze→extend and
+-- non-admin rejection.

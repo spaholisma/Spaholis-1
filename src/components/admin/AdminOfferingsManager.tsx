@@ -7,7 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Gift, Users, Info } from "lucide-react";
+import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -227,6 +228,8 @@ export function AdminOfferingsManager() {
 
       <UserOfferingsTable />
 
+      <OrdersTable />
+
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(v) => { if (!v) { setEditing(null); setEligibleClassIds([]); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -414,53 +417,198 @@ function GrantDialog({ offering, onClose }: { offering: Offering | null; onClose
   );
 }
 
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+  active: "default", frozen: "outline", depleted: "secondary", expired: "secondary", cancelled: "destructive",
+};
+
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+/** Days left until expiry (null = no expiry). Negative shown as expired. */
+function daysLeft(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+}
+
 function UserOfferingsTable() {
-  const { data: rows = [], isLoading } = useUserOfferingsAdmin();
+  const { data: rows = [], isLoading, refetch } = useOfferingsAdminQuery();
+  const [search, setSearch] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [extendRow, setExtendRow] = useState<any | null>(null);
+
+  const call = async (fn: string, args: Record<string, any>, ok: string) => {
+    setBusyId(args._id);
+    try {
+      const { error } = await supabase.rpc(fn as any, args);
+      if (error) throw error;
+      toast.success(ok);
+      await refetch();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const q = search.trim().toLowerCase();
+  const filtered = !q ? rows : rows.filter((r: any) =>
+    [r.customerName, r.customerEmail, r.name_snapshot, r.code]
+      .filter(Boolean).some((s: string) => s.toLowerCase().includes(q)));
 
   return (
     <div className="bg-card rounded-2xl border border-border">
-      <div className="p-5 border-b border-border flex items-center gap-2">
+      <div className="p-5 border-b border-border flex flex-wrap items-center gap-3">
         <Users className="h-4 w-4 text-muted-foreground" />
-        <h3 className="font-heading text-lg font-medium text-foreground">Customer Offerings</h3>
+        <h3 className="font-heading text-lg font-medium text-foreground">Memberships &amp; Passes — Customers</h3>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, email, pass…"
+          className="ml-auto w-full sm:w-64 h-9"
+        />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {["Customer", "Offering", "Credits", "Expires", "Source", "Status"].map((h) => (
-                <th key={h} className="text-left px-5 py-3 font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+              {["Customer", "Offering", "Remaining", "Activated", "Expires", "Status", "Manage"].map((h) => (
+                <th key={h} className="text-left px-4 py-3 font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {isLoading && <tr><td colSpan={6} className="px-5 py-6 text-center text-sm text-muted-foreground">Loading...</td></tr>}
-            {!isLoading && rows.length === 0 && <tr><td colSpan={6} className="px-5 py-6 text-center text-sm text-muted-foreground">No customer offerings yet.</td></tr>}
-            {rows.map((r: any) => (
-              <tr key={r.id} className="hover:bg-muted/30">
-                <td className="px-5 py-3 font-body text-sm">
-                  <div className="font-medium text-foreground">{r.profiles?.full_name || "—"}</div>
-                  <div className="text-xs text-muted-foreground">{r.profiles?.email}</div>
-                </td>
-                <td className="px-5 py-3 font-body text-sm text-foreground">{r.name_snapshot}</td>
-                <td className="px-5 py-3 font-body text-sm text-muted-foreground">
-                  {r.is_unlimited ? "Unlimited" : `${r.credits_remaining ?? 0} / ${r.credits_total ?? 0}`}
-                </td>
-                <td className="px-5 py-3 font-body text-sm text-muted-foreground">
-                  {r.expires_at ? new Date(r.expires_at).toLocaleDateString() : "—"}
-                </td>
-                <td className="px-5 py-3"><Badge variant="outline">{r.source}</Badge></td>
-                <td className="px-5 py-3"><Badge variant={r.status === "active" ? "default" : "secondary"}>{r.status}</Badge></td>
-              </tr>
-            ))}
+            {isLoading && <tr><td colSpan={7} className="px-5 py-6 text-center text-sm text-muted-foreground">Loading...</td></tr>}
+            {!isLoading && filtered.length === 0 && <tr><td colSpan={7} className="px-5 py-6 text-center text-sm text-muted-foreground">No memberships or passes found.</td></tr>}
+            {filtered.map((r: any) => {
+              const dl = daysLeft(r.expires_at);
+              const isPass = !r.is_unlimited && r.credits_total != null;
+              const busy = busyId === r.id;
+              return (
+                <tr key={r.id} className="hover:bg-muted/30 align-top">
+                  <td className="px-4 py-3 font-body text-sm">
+                    <div className="font-medium text-foreground">{r.customerName || "—"}</div>
+                    <div className="text-xs text-muted-foreground">{r.customerEmail}</div>
+                    {r.source === "admin_grant" && <Badge variant="outline" className="mt-1 text-[10px]">granted</Badge>}
+                  </td>
+                  <td className="px-4 py-3 font-body text-sm text-foreground">
+                    {r.name_snapshot}
+                    <div className="text-xs text-muted-foreground">{TYPE_LABEL[r.type as OfferingType] ?? r.type}</div>
+                  </td>
+                  <td className="px-4 py-3 font-body text-sm">
+                    {r.is_unlimited ? (
+                      <span className="text-muted-foreground">Unlimited</span>
+                    ) : isPass ? (
+                      <span className={cn("font-semibold", (r.credits_remaining ?? 0) <= 0 ? "text-destructive" : "text-foreground")}>
+                        {r.credits_remaining ?? 0}<span className="text-muted-foreground font-normal"> / {r.credits_total}</span>
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-4 py-3 font-body text-sm text-muted-foreground whitespace-nowrap">{fmtDate(r.starts_at)}</td>
+                  <td className="px-4 py-3 font-body text-sm whitespace-nowrap">
+                    {r.status === "frozen" ? (
+                      <span className="text-sky-600 font-medium">Paused</span>
+                    ) : r.expires_at ? (
+                      <div>
+                        <div className="text-foreground">{fmtDate(r.expires_at)}</div>
+                        {dl != null && (
+                          <div className={cn("text-xs", dl < 0 ? "text-destructive" : dl <= 7 ? "text-amber-600" : "text-muted-foreground")}>
+                            {dl < 0 ? `${-dl}d ago` : `${dl}d left`}
+                          </div>
+                        )}
+                      </div>
+                    ) : <span className="text-muted-foreground">No expiry</span>}
+                  </td>
+                  <td className="px-4 py-3"><Badge variant={STATUS_VARIANT[r.status] ?? "secondary"}>{r.status}</Badge></td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {r.status === "active" && (
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                          onClick={() => call("admin_freeze_offering", { _id: r.id }, "Frozen")} title="Pause: stops the expiry clock and blocks use">
+                          <Snowflake className="h-3.5 w-3.5 mr-1" /> Freeze
+                        </Button>
+                      )}
+                      {r.status === "frozen" && (
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                          onClick={() => call("admin_unfreeze_offering", { _id: r.id }, "Resumed — expiry pushed forward")} title="Resume and extend expiry by the paused time">
+                          <Play className="h-3.5 w-3.5 mr-1" /> Unfreeze
+                        </Button>
+                      )}
+                      {(r.status === "active" || r.status === "expired" || r.status === "frozen") && (
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                          onClick={() => setExtendRow(r)} title="Add or remove days">
+                          <CalendarClock className="h-3.5 w-3.5 mr-1" /> Extend
+                        </Button>
+                      )}
+                      {r.status === "cancelled" ? (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                          onClick={() => call("admin_set_offering_status", { _id: r.id, _status: "active" }, "Reactivated")}>
+                          Reactivate
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive" disabled={busy}
+                          onClick={() => { if (confirm(`Cancel "${r.name_snapshot}" for ${r.customerName || r.customerEmail || "this customer"}?`)) call("admin_set_offering_status", { _id: r.id, _status: "cancelled" }, "Cancelled"); }}>
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      <ExtendDialog row={extendRow} onClose={() => setExtendRow(null)} onDone={refetch} />
     </div>
   );
 }
 
-function useUserOfferingsAdmin() {
-  return useOfferingsAdminQuery();
+function ExtendDialog({ row, onClose, onDone }: { row: any | null; onClose: () => void; onDone: () => void }) {
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState(false);
+  if (!row) return null;
+
+  const apply = async (d: number) => {
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("admin_extend_offering" as any, { _id: row.id, _days: d });
+      if (error) throw error;
+      toast.success(d >= 0 ? `Extended ${d} days` : `Shortened ${-d} days`);
+      onDone();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Extend “{row.name_snapshot}”</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Current expiry: <strong>{fmtDate(row.expires_at)}</strong>{row.expires_at ? "" : " (none — counts from today)"}.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[7, 15, 30, 90].map((d) => (
+              <Button key={d} variant="outline" size="sm" disabled={busy} onClick={() => apply(d)}>+{d} days</Button>
+            ))}
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="font-body text-sm font-medium mb-1.5 block">Custom (± days)</label>
+              <Input type="number" value={days} onChange={(e) => setDays(parseInt(e.target.value) || 0)} />
+            </div>
+            <Button disabled={busy} onClick={() => apply(days)}>Apply</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 import { useQuery } from "@tanstack/react-query";
@@ -472,19 +620,87 @@ function useOfferingsAdminQuery() {
         .from("user_offerings")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(400);
       if (error) throw error;
       const rows = data ?? [];
-      const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-      if (userIds.length === 0) return rows;
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email")
-        .in("user_id", userIds);
-      const map = new Map((profiles ?? []).map((p) => [p.user_id, p]));
-      return rows.map((r) => ({ ...r, profiles: map.get(r.user_id) }));
+      const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)));
+      const map = new Map<string, any>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+        for (const p of profiles ?? []) map.set(p.user_id, p);
+      }
+      // Registered buyer's profile, else the guest details captured at checkout.
+      return rows.map((r: any) => {
+        const p = r.user_id ? map.get(r.user_id) : null;
+        return {
+          ...r,
+          customerName: p?.full_name || r.guest_name || null,
+          customerEmail: p?.email || r.guest_email || null,
+        };
+      });
     },
   });
+}
+
+/** Payment records (PayPal) — read-only ledger of what customers paid for. */
+function OrdersTable() {
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["admin-paypal-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("paypal_orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  return (
+    <div className="bg-card rounded-2xl border border-border">
+      <div className="p-5 border-b border-border flex items-center gap-2">
+        <Receipt className="h-4 w-4 text-muted-foreground" />
+        <h3 className="font-heading text-lg font-medium text-foreground">Orders (payments)</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              {["Date", "Customer", "For", "Amount", "Status", "Order ID"].map((h) => (
+                <th key={h} className="text-left px-4 py-3 font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {isLoading && <tr><td colSpan={6} className="px-5 py-6 text-center text-sm text-muted-foreground">Loading...</td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan={6} className="px-5 py-6 text-center text-sm text-muted-foreground">No orders yet.</td></tr>}
+            {rows.map((o: any) => {
+              const t = o.target || {};
+              return (
+                <tr key={o.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-body text-sm text-muted-foreground whitespace-nowrap">{fmtDate(o.created_at)}</td>
+                  <td className="px-4 py-3 font-body text-sm">
+                    <div className="text-foreground">{t.guest_name || "—"}</div>
+                    <div className="text-xs text-muted-foreground">{t.guest_email}</div>
+                  </td>
+                  <td className="px-4 py-3"><Badge variant="secondary">{o.kind}</Badge></td>
+                  <td className="px-4 py-3 font-body text-sm text-foreground whitespace-nowrap">{o.amount} {o.currency}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={o.status === "captured" ? "default" : o.status === "created" ? "outline" : "secondary"}>{o.status}</Badge>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{o.order_id}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function EligibleClassesPicker({

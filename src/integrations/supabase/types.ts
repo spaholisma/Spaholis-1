@@ -2464,6 +2464,22 @@ export type Database = {
           block_start: string
         }[]
       }
+      admin_freeze_offering: {
+        Args: { _id: string }
+        Returns: undefined
+      }
+      admin_unfreeze_offering: {
+        Args: { _id: string }
+        Returns: undefined
+      }
+      admin_extend_offering: {
+        Args: { _id: string; _days: number }
+        Returns: undefined
+      }
+      admin_set_offering_status: {
+        Args: { _id: string; _status: string }
+        Returns: undefined
+      }
       get_therapist_capacity: {
         Args: { _from: string; _to: string }
         Returns: {
