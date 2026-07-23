@@ -293,7 +293,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   // Google-Calendar-style view switch: the month grid, or a chronological
   // agenda list of the month's entries. Phones default to Agenda (the grid is
   // cramped there), desktops to Month.
-  const [viewMode, setViewMode] = useState<"month" | "agenda">(() =>
+  const [viewMode, setViewMode] = useState<"month" | "agenda" | "day">(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "agenda" : "month",
   );
   // In-calendar access to the 30-day trash (bookings + entries).
@@ -840,16 +840,16 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             ) : (
               <>
 
-            {/* Calendar Navigation — Month steps by month; Agenda steps by DAY. */}
+            {/* Calendar Navigation — Month steps by month; Agenda/Day step by DAY. */}
             <div className="flex items-center justify-between mb-4 gap-2">
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode === "agenda" ? addDays(currentDate, -1) : subMonths(currentDate, 1))}>
+              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode !== "month" ? addDays(currentDate, -1) : subMonths(currentDate, 1))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="text-center min-w-0">
                 <h3 className="font-heading text-lg font-semibold truncate">
-                  {viewMode === "agenda" ? format(currentDate, "EEEE, MMM d") : format(currentDate, "MMMM yyyy")}
+                  {viewMode !== "month" ? format(currentDate, "EEEE, MMM d") : format(currentDate, "MMMM yyyy")}
                 </h3>
-                {viewMode === "agenda" && !isSameDay(currentDate, new Date()) && (
+                {viewMode !== "month" && !isSameDay(currentDate, new Date()) && (
                   <button
                     type="button"
                     onClick={() => setCurrentDate(new Date())}
@@ -859,7 +859,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   </button>
                 )}
               </div>
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode === "agenda" ? addDays(currentDate, 1) : addMonths(currentDate, 1))}>
+              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode !== "month" ? addDays(currentDate, 1) : addMonths(currentDate, 1))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -873,9 +873,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               />
             )}
 
-            {/* View switch: month grid vs Google-style agenda list */}
+            {/* View switch: month grid, Google-style agenda list, or hourly day timeline */}
             <div className="flex items-center justify-center gap-1 mb-4">
-              {(["month", "agenda"] as const).map((v) => (
+              {(["month", "agenda", "day"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -885,7 +885,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                     viewMode === v ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
                   )}
                 >
-                  {v === "month" ? "Month" : "Agenda"}
+                  {v === "month" ? "Month" : v === "agenda" ? "Agenda" : "Day"}
                 </button>
               ))}
             </div>
@@ -939,6 +939,102 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 })()}
               </div>
             )}
+
+            {/* Day view: Google-style hourly timeline for ONE day, inline (works
+                on phones too — busy days pan sideways instead of clipping). */}
+            {viewMode === "day" && (() => {
+              const key = format(currentDate, "yyyy-MM-dd");
+              const dayEntries = calendarItems.filter((e) => coversDay(e, key));
+              const allDayEntries = dayEntries.filter(isBanner);
+              const laid = layoutDay(dayEntries.filter((e) => !isBanner(e)));
+              const startH = Math.min(DEFAULT_DAY_START_H, ...laid.map((l) => Math.floor(l.startMin / 60)));
+              const endH = Math.max(DEFAULT_DAY_END_H, ...laid.map((l) => Math.ceil(l.endMin / 60)));
+              const dayStartMin = startH * 60;
+              const hours = Array.from({ length: endH - startH + 1 }, (_, i) => startH + i);
+              const hourPx = 64;
+              const maxLanes = Math.max(1, ...laid.map((l) => l.lanes));
+              // Columns keep a readable width; the timeline scrolls sideways when
+              // the day is too busy to fit them all on screen at once.
+              const availW = (typeof window !== "undefined" ? window.innerWidth : 900) - DAY_TIME_GUTTER_PX - 64;
+              const laneW = Math.max(110, Math.floor(availW / maxLanes));
+              const canvasW = DAY_TIME_GUTTER_PX + maxLanes * laneW;
+              return (
+                <div className="mb-4">
+                  {allDayEntries.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      {allDayEntries.map((entry) => {
+                        const color = entryColor(entry);
+                        const loc = locationLabel(entry);
+                        return (
+                          <div
+                            key={entry.id}
+                            onClick={() => openItem(entry, currentDate)}
+                            className="flex items-start gap-2 rounded-lg border shadow-sm px-3 py-2 cursor-pointer hover:brightness-95 transition-all"
+                            style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-wide opacity-80 shrink-0 mt-0.5">
+                              {entry.end_date && entry.end_date > entry.entry_date
+                                ? `${format(parseISO(entry.entry_date), "MMM d")} – ${format(parseISO(entry.end_date), "MMM d")}`
+                                : "All day"}
+                            </span>
+                            <span className="text-sm font-semibold min-w-0 break-words">{entry.title}</span>
+                            {loc && <span className="ml-auto shrink-0 text-xs font-semibold opacity-90">{loc}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="border border-border rounded-xl overflow-auto max-h-[70vh] pt-3 pb-2">
+                    {laid.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-8 text-center font-body">Nothing scheduled at a set time.</p>
+                    ) : (
+                      <div className="relative" style={{ height: (endH - startH) * hourPx + 8, width: canvasW, minWidth: "100%" }}>
+                        {hours.map((h, i) => (
+                          <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: i * hourPx }}>
+                            <span className="w-[60px] shrink-0 -translate-y-2 pr-2 text-right text-xs font-semibold text-muted-foreground">
+                              {minutesLabel(h * 60)}
+                            </span>
+                            <div className="flex-1 border-t border-border" />
+                          </div>
+                        ))}
+                        <div className="absolute inset-y-0 right-0" style={{ left: DAY_TIME_GUTTER_PX }}>
+                          {laid.map(({ entry, startMin, endMin, lane }) => {
+                            const color = entryColor(entry);
+                            const loc = locationLabel(entry);
+                            return (
+                              <div
+                                key={entry.id}
+                                onClick={() => openItem(entry, currentDate)}
+                                className={cn(
+                                  "absolute rounded-lg border shadow-sm px-2 py-1 overflow-hidden cursor-pointer hover:brightness-95 hover:shadow-md transition-all",
+                                  entry.booking && "ring-2 ring-inset ring-white/40",
+                                )}
+                                style={{
+                                  top: ((startMin - dayStartMin) / 60) * hourPx,
+                                  height: Math.max(((endMin - startMin) / 60) * hourPx - 2, 28),
+                                  left: lane * laneW + 2,
+                                  width: laneW - DAY_LANE_GAP_PX,
+                                  backgroundColor: color,
+                                  borderColor: color,
+                                  color: readableOn(color),
+                                }}
+                                title={`${entry.booking ? "Website booking · " : ""}${rangeLabel(startMin, endMin)} · ${entry.title}${loc ? ` · ${loc}` : ""}`}
+                              >
+                                <p className="text-xs font-bold leading-tight break-words">
+                                  {entry.booking ? "🌐 " : ""}{entry.title}
+                                </p>
+                                <p className="text-[10px] font-semibold leading-tight opacity-90">{rangeLabel(startMin, endMin)}</p>
+                                {loc && <p className="text-[10px] font-semibold leading-tight break-words opacity-90">{loc}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Calendar Grid */}
             <div className={cn("border border-border rounded-xl overflow-hidden", viewMode !== "month" && "hidden")}>
