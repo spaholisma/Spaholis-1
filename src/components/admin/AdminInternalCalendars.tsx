@@ -801,13 +801,26 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             ) : (
               <>
 
-            {/* Calendar Navigation */}
-            <div className="flex items-center justify-between mb-4">
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+            {/* Calendar Navigation — Month steps by month; Agenda steps by DAY. */}
+            <div className="flex items-center justify-between mb-4 gap-2">
+              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode === "agenda" ? addDays(currentDate, -1) : subMonths(currentDate, 1))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h3 className="font-heading text-lg font-semibold">{format(currentDate, "MMMM yyyy")}</h3>
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+              <div className="text-center min-w-0">
+                <h3 className="font-heading text-lg font-semibold truncate">
+                  {viewMode === "agenda" ? format(currentDate, "EEEE, MMM d") : format(currentDate, "MMMM yyyy")}
+                </h3>
+                {viewMode === "agenda" && !isSameDay(currentDate, new Date()) && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate(new Date())}
+                    className="text-xs font-body font-semibold text-spa-sage underline underline-offset-2"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+              <Button variant="outline" size="icon" onClick={() => setCurrentDate(viewMode === "agenda" ? addDays(currentDate, 1) : addMonths(currentDate, 1))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -841,27 +854,20 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             {viewMode === "agenda" && (
               <div className="space-y-5 mb-4">
                 {(() => {
-                  const daysInMonth = eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) });
-                  const groups = daysInMonth
+                  // Day-by-day agenda: exactly ONE day (the arrows step by day).
+                  const groups = [currentDate]
                     .map((d) => {
                       const key = format(d, "yyyy-MM-dd");
                       const items = calendarItems.filter((e) => coversDay(e, key));
                       const banners = items.filter(isBanner);
                       const timed = items.filter((e) => !isBanner(e)).sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
                       return { d, key, banners, timed };
-                    })
-                    .filter((g) => g.banners.length + g.timed.length > 0);
-                  if (groups.length === 0) {
-                    return <p className="text-sm text-muted-foreground py-8 text-center font-body">Nothing scheduled this month.</p>;
+                    });
+                  if (groups.every((g) => g.banners.length + g.timed.length === 0)) {
+                    return <p className="text-sm text-muted-foreground py-8 text-center font-body">Nothing scheduled this day.</p>;
                   }
                   return groups.map(({ d, key, banners, timed }) => (
                     <div key={key}>
-                      <div className="flex items-baseline gap-2 mb-1.5">
-                        <span className={cn("font-heading text-sm font-bold", isSameDay(d, new Date()) ? "text-spa-sage" : "text-foreground")}>
-                          {format(d, "EEE d")}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-body">{format(d, "MMMM")}</span>
-                      </div>
                       <div className="space-y-1.5">
                         {banners.map((e) => {
                           const color = entryColor(e); const loc = locationLabel(e);
