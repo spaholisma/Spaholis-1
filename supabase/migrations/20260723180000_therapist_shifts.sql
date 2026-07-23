@@ -1,0 +1,8 @@
+-- Per-therapist shifts on "Horario terapeutas" blocks:
+-- admin_calendar_entries.therapist_shifts jsonb [{name,start,end}]. Each valid
+-- shift (HH:MM, end > start) adds 1 to online capacity during its hours;
+-- shifts replace the entry's flat therapist_count. get_therapist_capacity
+-- expands them per day of the entry's range in America/Costa_Rica (date-cast
+-- before adding the time — generate_series yields timestamptz). Names never
+-- leave the DB. Applied live 2026-07-23 (therapist_shifts +
+-- therapist_shifts_tz_fix); full SQL in Supabase migration history.

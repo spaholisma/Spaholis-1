@@ -51,6 +51,8 @@ export interface CalendarEntry {
   reminder_minutes?: number | null;
   /** On "Horario terapeutas" blocks: therapists on-site (caps online capacity). */
   therapist_count?: number | null;
+  /** Per-therapist shifts [{name,start,end}] — capacity varies through the day. */
+  therapist_shifts?: TherapistShift[] | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -260,6 +262,8 @@ const TYPE_LABELS: Record<CalendarType, string> = {
   class: "Classes",
 };
 
+type TherapistShift = { name: string; start: string; end: string };
+
 const emptyForm = {
   title: "",
   entry_date: format(new Date(), "yyyy-MM-dd"),
@@ -274,6 +278,7 @@ const emptyForm = {
   blocks_availability: false,
   reminder_minutes: "",
   therapist_count: "",
+  therapist_shifts: [] as TherapistShift[],
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
@@ -631,6 +636,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       blocks_availability: entry.blocks_availability ?? false,
       reminder_minutes: entry.reminder_minutes != null ? String(entry.reminder_minutes) : "",
       therapist_count: entry.therapist_count != null ? String(entry.therapist_count) : "",
+      therapist_shifts: Array.isArray(entry.therapist_shifts) ? entry.therapist_shifts : [],
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -688,11 +694,20 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       // Re-arm the reminder on every save so a rescheduled entry fires again.
       reminder_minutes: form.reminder_minutes === "" ? null : parseInt(form.reminder_minutes),
       reminder_sent_at: null,
-      // Only meaningful on "Horario terapeutas" blocks — capacity cap for the website.
-      therapist_count:
-        isTherapistGroup(form.group_id) && form.therapist_count !== ""
-          ? Math.max(0, parseInt(form.therapist_count) || 0)
-          : null,
+      // Only meaningful on "Horario terapeutas" blocks — capacity cap for the
+      // website. Shifts (per-therapist hours) replace the flat count.
+      ...(() => {
+        const shifts = isTherapistGroup(form.group_id)
+          ? form.therapist_shifts.filter((sh) => /^\d{2}:\d{2}$/.test(sh.start) && /^\d{2}:\d{2}$/.test(sh.end) && sh.end > sh.start)
+          : [];
+        return {
+          therapist_shifts: shifts.length > 0 ? shifts : null,
+          therapist_count:
+            shifts.length === 0 && isTherapistGroup(form.group_id) && form.therapist_count !== ""
+              ? Math.max(0, parseInt(form.therapist_count) || 0)
+              : null,
+        };
+      })(),
       group_id: form.group_id || null,
       notes: form.notes || null,
       color: TYPE_COLORS[calendarType],
@@ -1298,20 +1313,93 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               </div>
 
               {isTherapistGroup(form.group_id) && (
-                <div className="rounded-md border border-border bg-muted/40 p-2 space-y-1">
-                  <Label>Terapeutas disponibles (on-site)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    className="w-24"
-                    placeholder="—"
-                    value={form.therapist_count}
-                    onChange={(e) => setForm({ ...form, therapist_count: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Limita las reservas online simultáneas durante este horario: capacidad = MIN(cuartos libres, terapeutas).
-                    0 = sin terapeutas (solo "request at your location"). Vacío = no limita.
-                  </p>
+                <div className="rounded-md border border-border bg-muted/40 p-2 space-y-2">
+                  <Label>Terapeutas on-site</Label>
+                  {form.therapist_shifts.map((sh, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <Input
+                        value={sh.name}
+                        placeholder="Nombre"
+                        className="flex-1 min-w-0 h-8 text-sm"
+                        onChange={(e) => {
+                          const next = [...form.therapist_shifts];
+                          next[i] = { ...next[i], name: e.target.value };
+                          setForm({ ...form, therapist_shifts: next });
+                        }}
+                      />
+                      <Input
+                        type="time"
+                        value={sh.start}
+                        className="w-[6.5rem] h-8 text-sm"
+                        onChange={(e) => {
+                          const next = [...form.therapist_shifts];
+                          next[i] = { ...next[i], start: e.target.value };
+                          setForm({ ...form, therapist_shifts: next });
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">–</span>
+                      <Input
+                        type="time"
+                        value={sh.end}
+                        className="w-[6.5rem] h-8 text-sm"
+                        onChange={(e) => {
+                          const next = [...form.therapist_shifts];
+                          next[i] = { ...next[i], end: e.target.value };
+                          setForm({ ...form, therapist_shifts: next });
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
+                        onClick={() => setForm({ ...form, therapist_shifts: form.therapist_shifts.filter((_, j) => j !== i) })}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        therapist_shifts: [
+                          ...form.therapist_shifts,
+                          // Default the new shift to the block's own hours.
+                          { name: "", start: form.start_time, end: toHHMM(toMinutes(form.start_time) + form.duration_minutes) },
+                        ],
+                      })
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Agregar terapeuta
+                  </Button>
+                  {form.therapist_shifts.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cada turno suma 1 a la capacidad online durante sus horas: capacidad = MIN(cuartos libres, terapeutas en ese momento).
+                      Los nombres son internos, los clientes nunca los ven.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Label className="text-xs">O solo un número:</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="w-20 h-8"
+                          placeholder="—"
+                          value={form.therapist_count}
+                          onChange={(e) => setForm({ ...form, therapist_count: e.target.value })}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Capacidad = MIN(cuartos libres, terapeutas). 0 = sin terapeutas (solo "request at your location"). Vacío = no limita.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 
