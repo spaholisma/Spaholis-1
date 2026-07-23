@@ -82,7 +82,9 @@ const ClientDashboard = () => {
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Costa_Rica" }).format(new Date());
   const isUpcoming = (b: any) => ["pending", "confirmed"].includes(b.status) && b.booking_date >= todayStr;
   const upcoming = bookings.filter(isUpcoming);
-  const past = bookings.filter((b) => !isUpcoming(b));
+  // History shows only visits that actually happened — completed/paid. Cancelled
+  // bookings (and stale never-completed ones) are hidden from the customer.
+  const past = bookings.filter((b) => ["completed", "paid"].includes(b.status));
   const visitsToReward = loyaltySettings ? loyaltySettings.visits_required - ((profile?.total_visits ?? 0) % loyaltySettings.visits_required) : 0;
   const availableRewards = rewards.filter((r) => !r.is_used && (!r.expires_at || new Date(r.expires_at) > new Date()));
 
@@ -242,10 +244,7 @@ const ClientDashboard = () => {
                         <td className="px-5 py-4 font-body text-sm font-medium text-foreground">{apt.services?.title || "—"}</td>
                         <td className="px-5 py-4 font-body text-sm text-muted-foreground">{apt.booking_date}</td>
                         <td className="px-5 py-4">
-                          <span className={cn(
-                            "text-xs font-body font-semibold px-3 py-1 rounded-full",
-                            apt.status === "completed" ? "bg-spa-sage/15 text-spa-sage" : "bg-destructive/10 text-destructive"
-                          )}>{apt.status}</span>
+                          <span className="text-xs font-body font-semibold px-3 py-1 rounded-full bg-spa-sage/15 text-spa-sage">{apt.status}</span>
                         </td>
                         <td className="px-5 py-4 font-body text-sm text-foreground">{apt.total_price ? formatCRC(apt.total_price) : "—"}</td>
                       </tr>
