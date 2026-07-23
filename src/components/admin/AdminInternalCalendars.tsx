@@ -1474,6 +1474,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               <div className="flex items-center gap-2">
                 <Input
                   type="date"
+                  className="min-w-0"
                   value={form.entry_date}
                   onChange={(e) => {
                     const start = e.target.value;
@@ -1484,6 +1485,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 <span className="text-sm text-muted-foreground shrink-0">to</span>
                 <Input
                   type="date"
+                  className="min-w-0"
                   min={form.entry_date}
                   value={form.end_date}
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}

@@ -39,7 +39,10 @@ const DialogContent = React.forwardRef<
         // max-h + scroll so tall forms stay reachable on small screens (the
         // dialog is vertically centered; without this the top/bottom — incl. the
         // Save button — get clipped off-screen with no way to scroll).
-        "fixed left-[50%] top-[50%] z-50 grid max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overflow-x-hidden border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        // grid-cols-[minmax(0,1fr)]: without it the single grid track sizes to
+        // the widest child's intrinsic min width (e.g. Android date inputs),
+        // pushing every row past the phone viewport and clipping the right edge.
+        "fixed left-[50%] top-[50%] z-50 grid grid-cols-[minmax(0,1fr)] max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overflow-x-hidden border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
         className,
       )}
       {...props}
