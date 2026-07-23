@@ -34,6 +34,7 @@ export type Database = {
           recurrence_until: string | null
           reminder_minutes: number | null
           reminder_sent_at: string | null
+          therapist_count: number | null
           room_id: string | null
           series_id: string | null
           start_time: string
@@ -59,6 +60,7 @@ export type Database = {
           recurrence_until?: string | null
           reminder_minutes?: number | null
           reminder_sent_at?: string | null
+          therapist_count?: number | null
           room_id?: string | null
           series_id?: string | null
           start_time: string
@@ -84,6 +86,7 @@ export type Database = {
           recurrence_until?: string | null
           reminder_minutes?: number | null
           reminder_sent_at?: string | null
+          therapist_count?: number | null
           room_id?: string | null
           series_id?: string | null
           start_time?: string
@@ -2456,6 +2459,14 @@ export type Database = {
         Returns: {
           block_end: string
           block_start: string
+        }[]
+      }
+      get_therapist_capacity: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          cap_end: string
+          cap_start: string
+          therapist_count: number
         }[]
       }
       get_treatment_bookings: {

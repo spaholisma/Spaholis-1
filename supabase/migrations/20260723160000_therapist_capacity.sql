@@ -1,0 +1,7 @@
+-- Therapist capacity: admin_calendar_entries.therapist_count on "Horario
+-- terapeutas" blocks caps simultaneous online bookings. RPC
+-- get_therapist_capacity(_from,_to) (SECURITY DEFINER, anon-exec) exposes only
+-- interval + count. Online capacity = MIN(free rooms, sum of active counts);
+-- uncovered moments stay rooms-only. Applied live 2026-07-23
+-- (therapist_count_capacity + get_therapist_capacity_rpc); full SQL in
+-- Supabase migration history.

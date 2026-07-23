@@ -216,6 +216,55 @@ async function ensureSlotAvailable(
       code: "SLOT_TAKEN",
     });
   }
+
+  // Therapist capacity: "Horario terapeutas" blocks with a therapist_count cap
+  // simultaneous online bookings — real capacity = MIN(free rooms, therapists).
+  // Mirrors useRoomAvailability so a stale slot can't slip through.
+  const { data: caps, error: capsErr } = await admin.rpc("get_therapist_capacity", {
+    _from: start.toISOString(),
+    _to: end.toISOString(),
+  });
+  if (capsErr) throw capsErr;
+  const capWindows = (caps ?? [])
+    .map((c: any) => ({
+      start: new Date(c.cap_start).getTime(),
+      end: new Date(c.cap_end).getTime(),
+      count: Number(c.therapist_count) || 0,
+    }))
+    .filter((c: any) => !isNaN(c.start) && !isNaN(c.end));
+  if (capWindows.length > 0) {
+    const { data: overlapping, error: ovErr } = await admin
+      .from("bookings")
+      .select("start_time, end_time")
+      .not("status", "in", "(cancelled,payment_failed)")
+      .lt("start_time", end.toISOString())
+      .gt("end_time", start.toISOString());
+    if (ovErr) throw ovErr;
+    const bookingIntervals = (overlapping ?? [])
+      .map((b: any) => ({ start: new Date(b.start_time).getTime(), end: new Date(b.end_time).getTime() }))
+      .filter((b: any) => !isNaN(b.start) && !isNaN(b.end));
+    const isCouples = String(service.title || "").toLowerCase().includes("couple");
+    const needed = isCouples ? 2 : 1;
+    const s = start.getTime();
+    const e = end.getTime();
+    // Occupancy changes only at window/booking edges — sample those instants.
+    const samples = [
+      s,
+      ...capWindows.flatMap((w: any) => [w.start, w.end]),
+      ...bookingIntervals.map((b: any) => b.start),
+    ].filter((t) => t >= s && t < e);
+    for (const t of samples) {
+      const active = capWindows.filter((w: any) => w.start <= t && t < w.end);
+      if (active.length === 0) continue; // uncapped moment
+      const cap = active.reduce((sum: number, w: any) => sum + w.count, 0);
+      const busyClients = bookingIntervals.filter((b: any) => b.start <= t && t < b.end).length;
+      if (busyClients + needed > cap) {
+        throw Object.assign(new Error("No therapists available at this time. Please choose another time."), {
+          code: "SLOT_TAKEN",
+        });
+      }
+    }
+  }
 }
 
 Deno.serve(async (req) => {

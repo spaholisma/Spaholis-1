@@ -103,6 +103,47 @@ export function useRoomAvailability(
       const slotIsBlocked = (start: Date, end: Date) =>
         blockIntervals.some((b) => start < b.end && end > b.start);
 
+      // Therapist capacity windows ("Horario terapeutas" blocks with a count).
+      // Real capacity = MIN(free rooms, on-site therapists): each booked client
+      // ties up one therapist, so a slot only shows if enough therapists remain.
+      // Moments not covered by any window are uncapped (rooms-only, as before).
+      const { data: caps, error: capsErr } = await supabase.rpc(
+        "get_therapist_capacity",
+        { _from: dayStart.toISOString(), _to: dayEnd.toISOString() },
+      );
+      if (capsErr) throw capsErr;
+      const capWindows = (caps ?? [])
+        .map((c: any) => ({
+          start: new Date(c.cap_start),
+          end: new Date(c.cap_end),
+          count: Number(c.therapist_count) || 0,
+        }))
+        .filter((c) => !isNaN(c.start.getTime()) && !isNaN(c.end.getTime()));
+      const bookingIntervals = (bookings ?? [])
+        .map((b: any) => ({ start: new Date(b.start_time), end: new Date(b.end_time) }))
+        .filter((b) => !isNaN(b.start.getTime()) && !isNaN(b.end.getTime()));
+      const hasTherapistCapacity = (start: Date, end: Date, needed: number) => {
+        if (!capWindows.some((w) => start < w.end && end > w.start)) return true;
+        // Occupancy changes only at window/booking edges — sample those instants.
+        const s = start.getTime();
+        const e = end.getTime();
+        const samples = [
+          s,
+          ...capWindows.flatMap((w) => [w.start.getTime(), w.end.getTime()]),
+          ...bookingIntervals.map((b) => b.start.getTime()),
+        ].filter((t) => t >= s && t < e);
+        for (const t of samples) {
+          const active = capWindows.filter((w) => w.start.getTime() <= t && t < w.end.getTime());
+          if (active.length === 0) continue; // uncapped moment
+          const cap = active.reduce((sum, w) => sum + w.count, 0);
+          const busyClients = bookingIntervals.filter(
+            (b) => b.start.getTime() <= t && t < b.end.getTime(),
+          ).length;
+          if (busyClients + needed > cap) return false;
+        }
+        return true;
+      };
+
       const busy: BusyInterval[] = [
         ...(bookings ?? []).map((b: any) => ({
           room_id: b.room_id,
@@ -130,6 +171,8 @@ export function useRoomAvailability(
         const slotEnd = new Date(slot.getTime() + durationMinutes * 60000);
         // A full-spa block (lunch / no coverage) removes the slot entirely.
         if (slotIsBlocked(slot, slotEnd)) continue;
+        // Not enough on-site therapists left → no online slot (couples need 2).
+        if (!hasTherapistCapacity(slot, slotEnd, couples ? 2 : 1)) continue;
         if (couples) {
           // Couples need Room 2, or the 3A+3B pair — one slot per time, room
           // chosen by placeCouplesSlot (prefers the solo couples room).

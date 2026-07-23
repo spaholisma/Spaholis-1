@@ -49,6 +49,8 @@ export interface CalendarEntry {
   blocks_availability: boolean;
   /** Minutes before start to push a staff reminder (0 = at start; null = none). */
   reminder_minutes?: number | null;
+  /** On "Horario terapeutas" blocks: therapists on-site (caps online capacity). */
+  therapist_count?: number | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -271,6 +273,7 @@ const emptyForm = {
   is_all_day: false,
   blocks_availability: false,
   reminder_minutes: "",
+  therapist_count: "",
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
@@ -338,6 +341,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     setLinkDialogOpen(false);
   };
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
+  // The "Horario terapeutas" sub-calendar carries the on-site therapist count.
+  const isTherapistGroup = (groupId: string) =>
+    groups.find((g) => g.id === groupId)?.name.trim().toLowerCase() === "horario terapeutas";
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
 
   const loadGroups = useCallback(async () => {
@@ -624,6 +630,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       is_all_day: entry.is_all_day,
       blocks_availability: entry.blocks_availability ?? false,
       reminder_minutes: entry.reminder_minutes != null ? String(entry.reminder_minutes) : "",
+      therapist_count: entry.therapist_count != null ? String(entry.therapist_count) : "",
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -681,6 +688,11 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       // Re-arm the reminder on every save so a rescheduled entry fires again.
       reminder_minutes: form.reminder_minutes === "" ? null : parseInt(form.reminder_minutes),
       reminder_sent_at: null,
+      // Only meaningful on "Horario terapeutas" blocks — capacity cap for the website.
+      therapist_count:
+        isTherapistGroup(form.group_id) && form.therapist_count !== ""
+          ? Math.max(0, parseInt(form.therapist_count) || 0)
+          : null,
       group_id: form.group_id || null,
       notes: form.notes || null,
       color: TYPE_COLORS[calendarType],
@@ -1284,6 +1296,24 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   </Button>
                 )}
               </div>
+
+              {isTherapistGroup(form.group_id) && (
+                <div className="rounded-md border border-border bg-muted/40 p-2 space-y-1">
+                  <Label>Terapeutas disponibles (on-site)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="w-24"
+                    placeholder="—"
+                    value={form.therapist_count}
+                    onChange={(e) => setForm({ ...form, therapist_count: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Limita las reservas online simultáneas durante este horario: capacidad = MIN(cuartos libres, terapeutas).
+                    0 = sin terapeutas (solo "request at your location"). Vacío = no limita.
+                  </p>
+                </div>
+              )}
 
               {creatingGroup && (
                 <div className="rounded-md border border-border p-2 space-y-2">
