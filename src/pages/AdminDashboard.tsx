@@ -3,7 +3,7 @@ import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, Calendar, Briefcase, Users, UserCircle, Settings, Menu, X,
+  LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
   TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,6 @@ import { AdminCalendarView } from "@/components/admin/AdminCalendarView";
 import { BookingEditModal } from "@/components/admin/calendar/BookingEditModal";
 import { BookingsTrash } from "@/components/admin/BookingsTrash";
 import type { CalendarBooking } from "@/components/admin/calendar/calendarUtils";
-import { AdminStaffManager } from "@/components/admin/AdminStaffManager";
 import { AdminGiftCardsManager } from "@/components/admin/AdminGiftCardsManager";
 import { ClientBookingHistory } from "@/components/admin/ClientBookingHistory";
 import { AdminCouponsManager } from "@/components/admin/AdminCouponsManager";
@@ -30,8 +29,6 @@ import { AdminSpaPackagesManager } from "@/components/admin/AdminSpaPackagesMana
 import { AdminCustomRetreats } from "@/components/admin/AdminCustomRetreats";
 import AdminExperiencesManager from "@/components/admin/AdminExperiencesManager";
 import { AdminBlogManager } from "@/components/admin/AdminBlogManager";
-import { AdminProductsManager } from "@/components/admin/AdminProductsManager";
-import { AdminTagsManager } from "@/components/admin/AdminTagsManager";
 import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager";
 import { AdminFaqsManager } from "@/components/admin/AdminFaqsManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
@@ -50,7 +47,6 @@ const sidebarLinks = [
   { label: "Weekly Schedule", icon: CalendarDays, id: "weekly-schedule" },
   { label: "Business Hours", icon: Clock, id: "business-hours" },
   { label: "Educational", icon: GraduationCap, id: "educational" },
-  { label: "Staff", icon: Users, id: "staff" },
   { label: "Clients", icon: UserCircle, id: "clients" },
   { label: "Gift Cards", icon: CreditCard, id: "giftcards" },
   { label: "Loyalty", icon: Gift, id: "loyalty" },
@@ -63,9 +59,7 @@ const sidebarLinks = [
   { label: "Experiences", icon: CalendarDays, id: "experiences" },
   { label: "Blog", icon: BookOpen, id: "blog" },
   { label: "FAQs", icon: HelpCircle, id: "faqs" },
-  { label: "Products", icon: Package, id: "products" },
   { label: "Memberships", icon: CreditCard, id: "offerings" },
-  { label: "Tags", icon: Tag, id: "tags" },
   { label: "Media Library", icon: Image, id: "media" },
   { label: "Content", icon: FileEdit, id: "content" },
   { label: "Client Emails", icon: Mail, id: "client-emails" },
@@ -194,7 +188,6 @@ const AdminDashboard = () => {
           {activeTab === "weekly-schedule" && <AdminWeeklySchedule />}
           {activeTab === "business-hours" && <AdminBusinessHours />}
           {activeTab === "educational" && <EducationalAdminView />}
-          {activeTab === "staff" && <AdminStaffManager />}
           {activeTab === "clients" && <ClientsView />}
           {activeTab === "giftcards" && <AdminGiftCardsManager />}
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
@@ -207,9 +200,7 @@ const AdminDashboard = () => {
           {activeTab === "experiences" && <AdminExperiencesManager />}
           {activeTab === "blog" && <AdminBlogManager />}
           {activeTab === "faqs" && <AdminFaqsManager />}
-          {activeTab === "products" && <AdminProductsManager />}
           {activeTab === "offerings" && <AdminOfferingsManager />}
-          {activeTab === "tags" && <AdminTagsManager />}
           {activeTab === "media" && <MediaLibrary />}
           {activeTab === "content" && <AdminContentEditor />}
           {activeTab === "client-emails" && <AdminEmailTemplates />}
