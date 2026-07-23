@@ -160,6 +160,12 @@ const toMinutes = (hhmm: string): number => {
   return (h || 0) * 60 + (m || 0);
 };
 
+/** Minutes-of-day → "HH:MM" (wraps past midnight). */
+const toHHMM = (mins: number): string => {
+  const t = ((mins % 1440) + 1440) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
+
 export const minutesLabel = (mins: number): string => {
   // Wrap past midnight: an entry can end at or beyond 24:00, and 25:00 must
   // read as 1 AM rather than "13 PM".
@@ -271,6 +277,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     (t) => !restrictToTreatment || t === "treatment",
   );
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Google-Calendar-style view switch: the month grid, or a chronological
+  // agenda list of the month's entries.
+  const [viewMode, setViewMode] = useState<"month" | "agenda">("month");
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CalendarEntry | null>(null);
@@ -797,8 +806,82 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               />
             )}
 
+            {/* View switch: month grid vs Google-style agenda list */}
+            <div className="flex items-center justify-center gap-1 mb-4">
+              {(["month", "agenda"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setViewMode(v)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-xs font-body font-semibold transition-colors",
+                    viewMode === v ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                >
+                  {v === "month" ? "Month" : "Agenda"}
+                </button>
+              ))}
+            </div>
+
+            {viewMode === "agenda" && (
+              <div className="space-y-5 mb-4">
+                {(() => {
+                  const daysInMonth = eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) });
+                  const groups = daysInMonth
+                    .map((d) => {
+                      const key = format(d, "yyyy-MM-dd");
+                      const items = calendarItems.filter((e) => coversDay(e, key));
+                      const banners = items.filter(isBanner);
+                      const timed = items.filter((e) => !isBanner(e)).sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
+                      return { d, key, banners, timed };
+                    })
+                    .filter((g) => g.banners.length + g.timed.length > 0);
+                  if (groups.length === 0) {
+                    return <p className="text-sm text-muted-foreground py-8 text-center font-body">Nothing scheduled this month.</p>;
+                  }
+                  return groups.map(({ d, key, banners, timed }) => (
+                    <div key={key}>
+                      <div className="flex items-baseline gap-2 mb-1.5">
+                        <span className={cn("font-heading text-sm font-bold", isSameDay(d, new Date()) ? "text-spa-sage" : "text-foreground")}>
+                          {format(d, "EEE d")}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-body">{format(d, "MMMM")}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {banners.map((e) => {
+                          const color = entryColor(e); const loc = locationLabel(e);
+                          return (
+                            <div key={e.id} onClick={() => openItem(e, d)} className="rounded-lg border shadow-sm px-3 py-2 cursor-pointer hover:brightness-95 transition-all" style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}>
+                              <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">All day</p>
+                              <p className="text-sm font-semibold break-words">{e.title}</p>
+                              {loc && <p className="text-xs font-medium opacity-90">{loc}</p>}
+                            </div>
+                          );
+                        })}
+                        {timed.map((e) => {
+                          const color = entryColor(e); const loc = locationLabel(e); const s = toMinutes(e.start_time);
+                          return (
+                            <div key={e.id} onClick={() => openItem(e, d)} className="flex items-stretch gap-2 cursor-pointer group">
+                              <div className="w-16 shrink-0 text-right pt-1">
+                                <p className="text-xs font-semibold text-foreground">{minutesLabel(s)}</p>
+                                <p className="text-[10px] text-muted-foreground">{minutesLabel(s + e.duration_minutes)}</p>
+                              </div>
+                              <div className="flex-1 rounded-lg border shadow-sm px-3 py-1.5 group-hover:brightness-95 transition-all" style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}>
+                                <p className="text-sm font-bold break-words">{e.booking ? "🌐 " : ""}{e.title}</p>
+                                {loc && <p className="text-xs font-medium opacity-90">{loc}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+
             {/* Calendar Grid */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            <div className={cn("border border-border rounded-xl overflow-hidden", viewMode !== "month" && "hidden")}>
               {/* Weekday headers */}
               <div className="grid grid-cols-7 bg-muted">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -1340,8 +1423,18 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             )}
             {!form.is_all_day && (
               <div className="space-y-1.5">
-                <Label>Duration (minutes)</Label>
-                <Input type="number" min={15} step={15} value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: parseInt(e.target.value) || 60 })} />
+                <Label>End Time</Label>
+                <Input
+                  type="time"
+                  value={toHHMM(toMinutes(form.start_time) + form.duration_minutes)}
+                  onChange={(e) => {
+                    // Duration stays the stored field; derive it from the picked
+                    // end (an end "before" the start means it crosses midnight).
+                    const raw = toMinutes(e.target.value) - toMinutes(form.start_time);
+                    setForm({ ...form, duration_minutes: raw > 0 ? raw : raw + 1440 });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">{form.duration_minutes} min</p>
               </div>
             )}
             <div className="space-y-1.5">
