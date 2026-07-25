@@ -43,7 +43,7 @@ const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatme
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
 const CATEGORY_VARS: Record<string, string[]> = {
-  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "payment_status", "details"],
+  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "total", "payment_status", "details"],
   class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "payment_status", "details", "button"],
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
@@ -87,7 +87,7 @@ function sampleVars(category: string): Record<string, string> {
     ]);
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", service_name: "Relaxing Massage", therapist: "Maria",
-      date: "Monday, July 20, 2026", time: "10:00", payment_status: "Confirmed", details, button: "",
+      date: "Monday, July 20, 2026", time: "10:00", total: "$80.00", payment_status: "Confirmed", details, button: "",
     };
   }
   if (category === "class") {
