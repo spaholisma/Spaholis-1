@@ -102,6 +102,17 @@ const ClassesPage = () => {
           </a>
         </motion.div>
 
+        {/* Always-visible link to the Education page (courses, workshops, SAS
+            training) — independent of whether workshop events are scheduled. */}
+        <motion.div {...fadeIn} className="mt-3 text-center">
+          <Link
+            to="/education"
+            className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
+          >
+            Courses, workshops &amp; professional training →
+          </Link>
+        </motion.div>
+
         {isLoading ? (
           <div className="space-y-8 mt-10">
             {Array.from({ length: 3 }).map((_, i) => (

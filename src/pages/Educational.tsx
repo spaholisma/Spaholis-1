@@ -315,6 +315,13 @@ const EducationalPage = () => {
                 {courses.map((c) => (
                   <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
                     <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
+                    {Number(c.duration_minutes) > 0 && (
+                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
+                        {Number(c.duration_minutes) % 60 === 0
+                          ? `${Number(c.duration_minutes) / 60} hours`
+                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
+                      </p>
+                    )}
                     <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
                     <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
                       {Number(c.price) > 0 ? (
