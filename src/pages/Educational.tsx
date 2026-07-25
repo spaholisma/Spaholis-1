@@ -70,11 +70,12 @@ const EducationalPage = () => {
   const [enrollDialog, setEnrollDialog] = useState<ServiceRow | null>(null);
   const [formData, setFormData] = useState({ name: "", email: "" });
 
-  const courses = (services ?? []).filter((s) => s.type === "course");
+  const allCourses = (services ?? []).filter((s) => s.type === "course");
+  // The SAS training has its own section above ($600 per module). Every other
+  // course appears in the Professional Modules list below it.
+  const sasCourse = allCourses.find((s) => s.title.toLowerCase().includes("somato")) ?? null;
+  const courses = allCourses.filter((s) => s.id !== sasCourse?.id);
   const workshops = (services ?? []).filter((s) => s.type === "workshop");
-  const somatoLevels = courses
-    .filter((s) => s.title.toLowerCase().includes("somato"))
-    .sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
 
   const handleEnroll = async () => {
     if (!enrollDialog) return;
@@ -187,7 +188,6 @@ const EducationalPage = () => {
             {/* ── Accordion Levels ── */}
             <Accordion type="single" collapsible className="space-y-4">
               {sasLevelKeys.map((key, idx) => {
-                const dbLevel = somatoLevels[idx];
                 const learnItems = [1, 2, 3, 4, 5].map((i) => t(`education.sasLevels.${key}.learn${i}`));
                 const practiceItems = [1, 2, 3, 4].map((i) => t(`education.sasLevels.${key}.practice${i}`));
                 return (
@@ -231,21 +231,67 @@ const EducationalPage = () => {
                           <p className="font-body text-sm text-foreground/80">{t(`education.sasLevels.${key}.result`)}</p>
                         </div>
 
-                        {dbLevel && (
-                          <div className="flex items-center justify-between pt-2 border-t border-border">
-                            <span className="font-heading text-xl font-semibold text-foreground">{formatCRCWithUsd(dbLevel.price)}</span>
-                            <Button variant="default" size="default" onClick={() => setEnrollDialog(dbLevel)}>
-                              {t("education.enrollNow")} <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
                 );
               })}
             </Accordion>
+
+            {sasCourse && (
+              <motion.div {...fadeIn} className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6">
+                <div>
+                  <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-1">Investment</p>
+                  <p className="font-heading text-2xl font-semibold text-foreground">{formatCRCWithUsd(sasCourse.price)} <span className="font-body text-sm font-normal text-muted-foreground">per module</span></p>
+                </div>
+                <Button variant="default" size="lg" onClick={() => setEnrollDialog(sasCourse)}>
+                  {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </motion.div>
+            )}
           </section>
+
+          {/* ── Professional Modules (request format) ── */}
+          {courses.length > 0 && (
+            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-20">
+              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
+                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                  Continuing Education
+                </p>
+                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
+                  Professional Modules
+                </h2>
+                <p className="spa-body">
+                  Specialized trainings for therapists. Request information to join the next module.
+                </p>
+              </motion.div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {courses.map((c) => (
+                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
+                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
+                    {Number(c.duration_minutes) > 0 && (
+                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
+                        {Number(c.duration_minutes) % 60 === 0
+                          ? `${Number(c.duration_minutes) / 60} hours`
+                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
+                      </p>
+                    )}
+                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
+                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
+                      {Number(c.price) > 0 ? (
+                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
+                      ) : (
+                        <span className="font-body text-sm text-muted-foreground">By request</span>
+                      )}
+                      <Button variant="default" size="default" onClick={() => setEnrollDialog(c)}>
+                        {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ── SAS Certified Practitioners Directory ── */}
           <section className="bg-muted/40 border-y border-border">
@@ -296,48 +342,6 @@ const EducationalPage = () => {
           </section>
 
 
-
-          {/* ── Professional Modules (request format) ── */}
-          {courses.length > 0 && (
-            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
-                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
-                  Continuing Education
-                </p>
-                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
-                  Professional Modules
-                </h2>
-                <p className="spa-body">
-                  Specialized trainings for therapists. Request information to join the next module.
-                </p>
-              </motion.div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {courses.map((c) => (
-                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
-                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
-                    {Number(c.duration_minutes) > 0 && (
-                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
-                        {Number(c.duration_minutes) % 60 === 0
-                          ? `${Number(c.duration_minutes) / 60} hours`
-                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
-                      </p>
-                    )}
-                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
-                      {Number(c.price) > 0 ? (
-                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
-                      ) : (
-                        <span className="font-body text-sm text-muted-foreground">By request</span>
-                      )}
-                      <Button variant="default" size="default" onClick={() => setEnrollDialog(c)}>
-                        {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* ── Couple's & Connection Experience ── */}
           {workshops.length > 0 && (
