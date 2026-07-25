@@ -131,10 +131,18 @@ const ClassesPage = () => {
               <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
                 {cls.workshopsEyebrow}
               </p>
-              <h2 className="spa-heading-lg text-foreground">{cls.workshopsTitle}</h2>
+              <Link to="/education" className="inline-block group">
+                <h2 className="spa-heading-lg text-foreground group-hover:text-spa-sage transition-colors">{cls.workshopsTitle}</h2>
+              </Link>
               <p className="spa-body mt-3 max-w-xl mx-auto">
                 {cls.workshopsSubtitle}
               </p>
+              <Link
+                to="/education"
+                className="inline-flex items-center gap-1 mt-3 font-body text-sm font-semibold text-spa-sage hover:underline"
+              >
+                Explore our courses &amp; workshops on the Education page →
+              </Link>
             </div>
             <div className="space-y-8">
               {workshops.map((event) => (

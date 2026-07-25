@@ -297,6 +297,41 @@ const EducationalPage = () => {
 
 
 
+          {/* ── Professional Modules (request format) ── */}
+          {courses.length > 0 && (
+            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
+                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                  Continuing Education
+                </p>
+                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
+                  Professional Modules
+                </h2>
+                <p className="spa-body">
+                  Specialized trainings for therapists. Request information to join the next module.
+                </p>
+              </motion.div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {courses.map((c) => (
+                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
+                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
+                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
+                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
+                      {Number(c.price) > 0 ? (
+                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
+                      ) : (
+                        <span className="font-body text-sm text-muted-foreground">By request</span>
+                      )}
+                      <Button variant="default" size="default" onClick={() => setEnrollDialog(c)}>
+                        {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* ── Couple's & Connection Experience ── */}
           {workshops.length > 0 && (
             <section className="bg-muted/30">
@@ -353,7 +388,9 @@ const EducationalPage = () => {
               )}
               <div className="flex justify-between text-sm font-body mt-2 pt-2 border-t border-border">
                 <span className="font-semibold text-foreground">{t("education.total")}</span>
-                <span className="font-heading text-lg font-semibold text-foreground">{enrollDialog ? formatCRCWithUsd(enrollDialog.price) : ""}</span>
+                <span className="font-heading text-lg font-semibold text-foreground">
+                  {enrollDialog && Number(enrollDialog.price) > 0 ? formatCRCWithUsd(enrollDialog.price) : "By request"}
+                </span>
               </div>
             </div>
             {!user && (
