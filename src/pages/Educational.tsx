@@ -68,7 +68,7 @@ const EducationalPage = () => {
   const edu = siteContent?.education || defaults.education;
   const seo = seoData || seoDefaults;
   const [enrollDialog, setEnrollDialog] = useState<ServiceRow | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
 
   const allCourses = (services ?? []).filter((s) => s.type === "course");
   // The SAS training has its own section above ($600 per module). Every other
@@ -79,31 +79,39 @@ const EducationalPage = () => {
 
   const handleEnroll = async () => {
     if (!enrollDialog) return;
+    const email = formData.email.trim();
+    const phone = formData.phone.trim();
+    if (!email || !phone) {
+      toast.error("Please enter your email and phone number.");
+      return;
+    }
     try {
       const bookingData: any = {
         service_id: enrollDialog.id,
         booking_date: new Date().toISOString().slice(0, 10),
         booking_time: "00:00:00",
-        guest_name: formData.name || user?.email,
-        guest_email: formData.email || user?.email,
+        guest_name: formData.name.trim() || email,
+        guest_email: email,
+        guest_phone: phone,
+        // Capture what they're requesting so staff can follow up from the notes.
+        notes: `Information request — ${enrollDialog.title}`,
         total_price: enrollDialog.price,
         status: "pending",
         user_id: user?.id || null,
       };
       await supabase.from("bookings").insert(bookingData);
-      if (user) {
-        await supabase.from("user_progress").insert({
-          user_id: user.id,
-          service_id: enrollDialog.id,
-          completed_sessions: 0,
-          completed: false,
-        } as any);
-      }
-      toast.success(t("education.enrollmentSuccess"));
+      toast.success("Request sent! Our team will contact you shortly.");
+      setFormData({ name: "", email: "", phone: "" });
       setEnrollDialog(null);
     } catch (err: any) {
       toast.error(err.message || t("education.enrollmentFailed"));
     }
+  };
+
+  // Open the request form, pre-filling the email for a signed-in visitor.
+  const openRequest = (svc: ServiceRow) => {
+    setFormData({ name: "", email: user?.email ?? "", phone: "" });
+    setEnrollDialog(svc);
   };
 
   return (
@@ -244,7 +252,7 @@ const EducationalPage = () => {
                   <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-1">Investment</p>
                   <p className="font-heading text-2xl font-semibold text-foreground">{formatCRCWithUsd(sasCourse.price)} <span className="font-body text-sm font-normal text-muted-foreground">per module</span></p>
                 </div>
-                <Button variant="default" size="lg" onClick={() => setEnrollDialog(sasCourse)}>
+                <Button variant="default" size="lg" onClick={() => openRequest(sasCourse)}>
                   {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </motion.div>
@@ -283,7 +291,7 @@ const EducationalPage = () => {
                       ) : (
                         <span className="font-body text-sm text-muted-foreground">By request</span>
                       )}
-                      <Button variant="default" size="default" onClick={() => setEnrollDialog(c)}>
+                      <Button variant="default" size="default" onClick={() => openRequest(c)}>
                         {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
                     </div>
@@ -365,8 +373,8 @@ const EducationalPage = () => {
                         <p className="spa-body-sm">{ws.description}</p>
                         <div className="flex items-center justify-between pt-2">
                           <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(ws.price)}</span>
-                          <Button variant="default" size="default" onClick={() => setEnrollDialog(ws)}>
-                            {t("common.bookNow")} <ChevronRight className="h-4 w-4 ml-1" />
+                          <Button variant="default" size="default" onClick={() => openRequest(ws)}>
+                            {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
                           </Button>
                         </div>
                       </div>
@@ -383,7 +391,7 @@ const EducationalPage = () => {
       <Dialog open={!!enrollDialog} onOpenChange={() => setEnrollDialog(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading">{t("education.enrollIn", { title: enrollDialog?.title ?? "" })}</DialogTitle>
+            <DialogTitle className="font-heading">Request information</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-muted rounded-xl p-4">
@@ -404,19 +412,19 @@ const EducationalPage = () => {
                 </span>
               </div>
             </div>
-            {!user && (
-              <>
-                <Input placeholder={t("education.fullName")} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-                <Input placeholder={t("form.email")} type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-              </>
-            )}
+            <p className="font-body text-sm text-muted-foreground">
+              Leave your details and our team will contact you with all the information about this training.
+            </p>
+            <Input placeholder={t("education.fullName", { defaultValue: "Full name" })} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+            <Input placeholder={t("form.email", { defaultValue: "Email" })} type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+            <Input placeholder="Phone / WhatsApp" type="tel" inputMode="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
             {enrollDialog && (
               <Button
                 className="w-full"
-                disabled={!user && (!formData.name || !formData.email)}
+                disabled={!formData.email.trim() || !formData.phone.trim()}
                 onClick={() => handleEnroll()}
               >
-                {t("education.requestEnrollment", { defaultValue: "Request Enrollment" })}
+                {t("education.requestInfo", { defaultValue: "Request Information" })}
               </Button>
             )}
           </div>
