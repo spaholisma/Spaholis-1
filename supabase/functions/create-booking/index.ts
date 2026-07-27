@@ -203,6 +203,24 @@ async function ensureSlotAvailable(
     });
   }
 
+  // Internal calendar entries pinned to this room (manual/admin bookings) also
+  // occupy it — a direct request must not double-book a manually-held room.
+  const { data: internalRooms, error: irErr } = await admin.rpc("get_internal_busy_intervals", {
+    _from: start.toISOString(),
+    _to: end.toISOString(),
+  });
+  if (irErr) throw irErr;
+  const requestedRoomIds = [body.room_id, body.secondary_room_id].filter(Boolean);
+  const internalRoomTaken = (internalRooms ?? []).some((i: any) =>
+    requestedRoomIds.includes(i.room_id)
+    && new Date(i.busy_start).getTime() < end.getTime()
+    && new Date(i.busy_end).getTime() > start.getTime());
+  if (internalRoomTaken) {
+    throw Object.assign(new Error("This time slot was just booked by someone else. Please pick another time."), {
+      code: "SLOT_TAKEN",
+    });
+  }
+
   // Full-spa availability blocks (lunch / off-site with no coverage) make the
   // slot unbookable even if the room is free — mirrors the website's
   // get_availability_blocks check so a stale slot can't slip through.

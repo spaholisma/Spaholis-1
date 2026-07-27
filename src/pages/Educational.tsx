@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { formatCRCWithUsd } from "@/lib/currency";
-import { getActivePractitioners } from "@/data/practitioners";
 
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
@@ -100,6 +98,19 @@ const EducationalPage = () => {
         user_id: user?.id || null,
       };
       await supabase.from("bookings").insert(bookingData);
+      // Email the team so a course/training request isn't missed (info@ + backup).
+      try {
+        await supabase.functions.invoke("send-booking-notification", {
+          body: {
+            request_kind: "info",
+            service_name: enrollDialog.title,
+            guest_name: formData.name.trim() || email,
+            guest_email: email,
+            guest_phone: phone,
+            notes: `Information request — ${enrollDialog.title}`,
+          },
+        });
+      } catch (_e) { /* non-fatal: the lead is already saved */ }
       toast.success("Request sent! Our team will contact you shortly.");
       setFormData({ name: "", email: "", phone: "" });
       setEnrollDialog(null);
@@ -301,53 +312,6 @@ const EducationalPage = () => {
             </section>
           )}
 
-          {/* ── SAS Certified Practitioners Directory ── */}
-          <section className="bg-muted/40 border-y border-border">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
-                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
-                  Official Directory
-                </p>
-                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
-                  SAS Certified Practitioners
-                </h2>
-                <p className="spa-body">
-                  Meet the certified practitioners, therapists and graduates of the
-                  Somato Awareness System™ — trained at Holis Wellness Center and
-                  recognized under FECOPROBE AEL-0964.
-                </p>
-              </motion.div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-                {getActivePractitioners().slice(0, 6).map((p) => (
-                  <Link
-                    key={p.slug}
-                    to={`/practitioner/${p.slug}`}
-                    className="group block text-center"
-                  >
-                    <div className="aspect-square rounded-2xl overflow-hidden mb-3 bg-muted">
-                      <img
-                        src={p.image}
-                        alt={p.name}
-                        loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    </div>
-                    <p className="font-heading text-sm font-medium text-foreground">{p.name}</p>
-                    <p className="font-body text-xs text-muted-foreground">{p.role}</p>
-                  </Link>
-                ))}
-              </div>
-
-              <div className="text-center">
-                <Button variant="default" size="lg" asChild>
-                  <Link to="/sas-practitioners">
-                    View Full Directory <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </section>
 
 
 
