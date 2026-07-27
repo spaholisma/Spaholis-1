@@ -1,0 +1,5 @@
+-- No schema change. Marker for the fix: therapist-capacity availability now
+-- counts room-pinned internal calendar entries (manual/admin bookings) as
+-- occupying a therapist, not just website bookings — so manually-booked couples
+-- correctly reduce capacity and the site can't over-book. Implemented in
+-- src/hooks/useRoomAvailability.ts and the create-booking edge function (v17).

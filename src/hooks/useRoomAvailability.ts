@@ -119,24 +119,29 @@ export function useRoomAvailability(
           count: Number(c.therapist_count) || 0,
         }))
         .filter((c) => !isNaN(c.start.getTime()) && !isNaN(c.end.getTime()));
-      const bookingIntervals = (bookings ?? [])
-        .map((b: any) => ({ start: new Date(b.start_time), end: new Date(b.end_time) }))
-        .filter((b) => !isNaN(b.start.getTime()) && !isNaN(b.end.getTime()));
+      // Each ongoing treatment ties up one therapist — count BOTH website
+      // bookings AND room-pinned internal calendar entries (manual/admin
+      // bookings). Without the internal ones, manually-booked couples wouldn't
+      // reduce therapist capacity and the site would over-book.
+      const treatmentIntervals = [
+        ...(bookings ?? []).map((b: any) => ({ start: new Date(b.start_time), end: new Date(b.end_time) })),
+        ...(internal ?? []).map((i: any) => ({ start: new Date(i.busy_start), end: new Date(i.busy_end) })),
+      ].filter((b) => !isNaN(b.start.getTime()) && !isNaN(b.end.getTime()));
       const hasTherapistCapacity = (start: Date, end: Date, needed: number) => {
         if (!capWindows.some((w) => start < w.end && end > w.start)) return true;
-        // Occupancy changes only at window/booking edges — sample those instants.
+        // Occupancy changes only at window/treatment edges — sample those instants.
         const s = start.getTime();
         const e = end.getTime();
         const samples = [
           s,
           ...capWindows.flatMap((w) => [w.start.getTime(), w.end.getTime()]),
-          ...bookingIntervals.map((b) => b.start.getTime()),
+          ...treatmentIntervals.map((b) => b.start.getTime()),
         ].filter((t) => t >= s && t < e);
         for (const t of samples) {
           const active = capWindows.filter((w) => w.start.getTime() <= t && t < w.end.getTime());
           if (active.length === 0) continue; // uncapped moment
           const cap = active.reduce((sum, w) => sum + w.count, 0);
-          const busyClients = bookingIntervals.filter(
+          const busyClients = treatmentIntervals.filter(
             (b) => b.start.getTime() <= t && t < b.end.getTime(),
           ).length;
           if (busyClients + needed > cap) return false;

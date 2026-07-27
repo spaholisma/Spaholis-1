@@ -240,14 +240,23 @@ async function ensureSlotAvailable(
       .lt("start_time", end.toISOString())
       .gt("end_time", start.toISOString());
     if (ovErr) throw ovErr;
-    const bookingIntervals = (overlapping ?? [])
-      .map((b: any) => ({ start: new Date(b.start_time).getTime(), end: new Date(b.end_time).getTime() }))
-      .filter((b: any) => !isNaN(b.start) && !isNaN(b.end));
+    // Room-pinned internal calendar entries (manual/admin bookings) also tie up
+    // a therapist — count them too, or manually-booked couples wouldn't reduce
+    // capacity and the site would over-book.
+    const { data: internalBusy, error: ibErr } = await admin.rpc("get_internal_busy_intervals", {
+      _from: start.toISOString(),
+      _to: end.toISOString(),
+    });
+    if (ibErr) throw ibErr;
+    const bookingIntervals = [
+      ...(overlapping ?? []).map((b: any) => ({ start: new Date(b.start_time).getTime(), end: new Date(b.end_time).getTime() })),
+      ...(internalBusy ?? []).map((i: any) => ({ start: new Date(i.busy_start).getTime(), end: new Date(i.busy_end).getTime() })),
+    ].filter((b: any) => !isNaN(b.start) && !isNaN(b.end));
     const isCouples = String(service.title || "").toLowerCase().includes("couple");
     const needed = isCouples ? 2 : 1;
     const s = start.getTime();
     const e = end.getTime();
-    // Occupancy changes only at window/booking edges — sample those instants.
+    // Occupancy changes only at window/treatment edges — sample those instants.
     const samples = [
       s,
       ...capWindows.flatMap((w: any) => [w.start, w.end]),
