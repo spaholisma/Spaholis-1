@@ -119,9 +119,10 @@ const EducationalPage = () => {
     }
   };
 
-  // Open the request form, pre-filling the email for a signed-in visitor.
+  // Open the request form with empty fields so the client enters their own
+  // details (never pre-fill the signed-in admin's email).
   const openRequest = (svc: ServiceRow) => {
-    setFormData({ name: "", email: user?.email ?? "", phone: "" });
+    setFormData({ name: "", email: "", phone: "" });
     setEnrollDialog(svc);
   };
 
