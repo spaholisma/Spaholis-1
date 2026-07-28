@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +33,7 @@ import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager"
 import { AdminFaqsManager } from "@/components/admin/AdminFaqsManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import { AdminBusinessHours } from "@/components/admin/AdminBusinessHours";
+import { AdminVacationMode } from "@/components/admin/AdminVacationMode";
 import { AdminEmailTemplates } from "@/components/admin/AdminEmailTemplates";
 import holisLogo from "@/assets/holis-logo-clean.png";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ const sidebarLinks = [
   { label: "Classes", icon: CalendarDays, id: "events" },
   { label: "Weekly Schedule", icon: CalendarDays, id: "weekly-schedule" },
   { label: "Business Hours", icon: Clock, id: "business-hours" },
+  { label: "Vacation Mode", icon: Palmtree, id: "vacation" },
   { label: "Educational", icon: GraduationCap, id: "educational" },
   { label: "Clients", icon: UserCircle, id: "clients" },
   { label: "Gift Cards", icon: CreditCard, id: "giftcards" },
@@ -187,6 +189,7 @@ const AdminDashboard = () => {
           {activeTab === "events" && <AdminEventsManager />}
           {activeTab === "weekly-schedule" && <AdminWeeklySchedule />}
           {activeTab === "business-hours" && <AdminBusinessHours />}
+          {activeTab === "vacation" && <AdminVacationMode />}
           {activeTab === "educational" && <EducationalAdminView />}
           {activeTab === "clients" && <ClientsView />}
           {activeTab === "giftcards" && <AdminGiftCardsManager />}

@@ -22,6 +22,8 @@ import { toBookingErrorState } from "@/lib/bookingErrors";
 import { Check, ChevronLeft, FileText, CalendarDays, CreditCard, MapPin, Loader2, ClipboardList, ShieldCheck } from "lucide-react";
 import { HOLIS_WHATSAPP_URL } from "@/data/contact";
 import holisLogo from "@/assets/holis-logo-clean.png";
+import { useVacationMode } from "@/hooks/useVacationMode";
+import { VacationNotice } from "@/components/VacationNotice";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -122,6 +124,7 @@ const BookingPage = () => {
   const queryClient = useQueryClient();
   const { data: services } = useServices();
   const { data: spaPackages } = useSpaPackages();
+  const { vacation, isActive: vacationActive } = useVacationMode();
   const selectedPackage = spaPackages?.find((p) => p.id === packageParam);
   // Resolve initial category from URL params
   const preselectedService = services?.find((s) => s.id === preselected);
@@ -657,11 +660,31 @@ const BookingPage = () => {
     return acc;
   }, {});
 
+  // Vacation Mode (hide form): show ONLY the notice — no booking form at all.
+  if (vacationActive && vacation?.hide_form) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SEO title={seo.booking.title} description={seo.booking.description} canonical={seo.booking.canonical} />
+        <Navbar />
+        <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+          <VacationNotice vacation={vacation} />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <SEO title={seo.booking.title} description={seo.booking.description} canonical={seo.booking.canonical} />
       <Navbar />
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+        {/* Vacation Mode (form visible): show the notice above the booking form. */}
+        {vacationActive && vacation && (
+          <div className="mb-10">
+            <VacationNotice vacation={vacation} />
+          </div>
+        )}
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <h1 className="spa-heading-lg text-foreground">
             {isRetreat ? t("booking.headingRetreat") : currentService?.type === "experience" ? t("booking.headingExperience") : t("booking.heading")}

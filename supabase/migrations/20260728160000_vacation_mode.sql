@@ -1,0 +1,7 @@
+-- Vacation Mode for the booking page. Single-row public.vacation_mode table
+-- (enabled, start_date, end_date, heading, message, whatsapp_number, hide_form),
+-- RLS: public SELECT + super_admin/manager write, plus table GRANTs to anon/
+-- authenticated (PostgREST needs the grant on top of RLS). Managed from Admin →
+-- Vacation Mode; the booking page shows an elegant notice and (when hide_form)
+-- hides the form; create-booking v20 blocks online bookings while active.
+-- Applied live 2026-07-28 (vacation_mode + vacation_mode_grants).
