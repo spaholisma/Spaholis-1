@@ -19,8 +19,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { toBookingErrorState } from "@/lib/bookingErrors";
-import { Check, ChevronLeft, FileText, CalendarDays, CreditCard, MapPin, Loader2, ClipboardList, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, ChevronLeft, FileText, CalendarDays, CreditCard, MapPin, Loader2, ClipboardList, ShieldCheck } from "lucide-react";
 import { HOLIS_WHATSAPP_URL } from "@/data/contact";
+import holisLogo from "@/assets/holis-logo-clean.png";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -1032,7 +1033,7 @@ const BookingPage = () => {
                               className="block w-full py-3.5 px-4 rounded-xl text-sm font-body font-semibold transition-all bg-spa-sage text-white hover:bg-spa-sage/90 shadow-md ring-2 ring-spa-sage/30 text-center"
                             >
                               <div className="flex items-center justify-center gap-2">
-                                <Sparkles className="h-4 w-4" />
+                                <img src={holisLogo} alt="" className="h-5 w-auto brightness-0 invert" />
                                 <span>{t("booking.dateTime.requestStudio")}</span>
                               </div>
                               <p className="text-xs text-white/85 mt-1 font-normal">{t("booking.dateTime.requestStudioDesc")}</p>
@@ -1089,7 +1090,7 @@ const BookingPage = () => {
                               className="block w-full mt-3 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-spa-sage/40 bg-spa-sage/5 text-spa-sage hover:bg-spa-sage/10 text-center"
                             >
                               <div className="flex items-center justify-center gap-2">
-                                <Sparkles className="h-3.5 w-3.5" />
+                                <img src={holisLogo} alt="" className="h-3.5 w-auto" />
                                 <span>{t("booking.dateTime.orRequestStudio")}</span>
                               </div>
                             </a>
