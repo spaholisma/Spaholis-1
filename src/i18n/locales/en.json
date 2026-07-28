@@ -203,6 +203,7 @@
       "requestStudio": "Request a spot at Holis Wellness Center",
       "requestStudioDesc": "Fully booked online — but we may fit you in with an on-call therapist. Message us!",
       "requestStudioMsg": "Hi Holis! 🌿 I'd love to book {{service}} on {{date}}, but I don't see any times available online. Could you fit me in at the spa with an on-call therapist?",
+      "orRequestStudio": "Don't see your time? Ask us to fit you in →",
       "requestVisit": "Request visit at your location",
       "noExtraCost": "No extra cost — we come to you!",
       "orRequestVisit": "Or request visit at your location",

@@ -1074,15 +1074,35 @@ const BookingPage = () => {
                           </div>
                         )}
                         {selectedDate && !slotsLoading && !locationVisit && availableSlots && availableSlots.length > 0 && (
-                          <button
-                            onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
-                            className="w-full mt-3 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-border text-muted-foreground hover:border-spa-sage hover:text-foreground"
-                          >
-                            <div className="flex items-center justify-center gap-2">
-                              <MapPin className="h-3.5 w-3.5" />
-                              <span>{t("booking.dateTime.orRequestVisit")}</span>
-                            </div>
-                          </button>
+                          <>
+                            {/* Even when some times are open, let a client whose preferred
+                                time is taken ask us to fit them in with an on-call therapist. */}
+                            <a
+                              href={`${HOLIS_WHATSAPP_URL}?text=${encodeURIComponent(
+                                t("booking.dateTime.requestStudioMsg", {
+                                  service: currentService?.title ?? "a treatment",
+                                  date: selectedDate ? format(selectedDate, "EEEE, MMMM d") : "",
+                                }),
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block w-full mt-3 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-spa-sage/40 bg-spa-sage/5 text-spa-sage hover:bg-spa-sage/10 text-center"
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span>{t("booking.dateTime.orRequestStudio")}</span>
+                              </div>
+                            </a>
+                            <button
+                              onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
+                              className="w-full mt-2 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-border text-muted-foreground hover:border-spa-sage hover:text-foreground"
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <MapPin className="h-3.5 w-3.5" />
+                                <span>{t("booking.dateTime.orRequestVisit")}</span>
+                              </div>
+                            </button>
+                          </>
                         )}
                         {locationVisit && (
                           <div className="space-y-3">
