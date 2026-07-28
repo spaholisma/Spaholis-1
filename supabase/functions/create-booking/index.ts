@@ -317,14 +317,15 @@ Deno.serve(async (req) => {
   );
 
   try {
-    // Vacation Mode: while active AND the form is hidden, online bookings are
-    // paused (mirrors the booking page). CR date = UTC-6.
+    // Vacation Mode (form hidden): block a booking whose DATE falls in the
+    // vacation range, and also everything while vacation is currently active.
+    // CR date = UTC-6.
     const { data: vac } = await admin.from("vacation_mode").select("enabled, start_date, end_date, hide_form").eq("id", 1).maybeSingle();
     if (vac?.enabled && vac.hide_form) {
+      const inRange = (d: string) => (!vac.start_date || d >= vac.start_date) && (!vac.end_date || d <= vac.end_date);
       const todayCr = new Date(Date.now() - 6 * 3600_000).toISOString().slice(0, 10);
-      const inRange = (!vac.start_date || todayCr >= vac.start_date) && (!vac.end_date || todayCr <= vac.end_date);
-      if (inRange) {
-        return json({ ok: false, reason: "vacation_mode", message: "Online booking is paused while we're on vacation. Please contact us on WhatsApp." }, 409);
+      if (inRange(body.booking_date) || inRange(todayCr)) {
+        return json({ ok: false, reason: "vacation_mode", message: "Online booking is paused for these dates while we're on vacation. Please contact us on WhatsApp." }, 409);
       }
     }
 

@@ -37,9 +37,21 @@ export function useVacationMode() {
 
   const v = query.data;
   const today = todayCR();
+  // "Active" = today is within the vacation window (whole booking system paused).
   const isActive = !!v?.enabled
     && (!v.start_date || today >= v.start_date)
     && (!v.end_date || today <= v.end_date);
 
-  return { ...query, vacation: v, isActive };
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // Is a specific (future or current) calendar date inside the vacation range?
+  // Used to block those dates in the booking calendar even before vacation starts.
+  const isVacationDate = (d: Date): boolean => {
+    if (!v?.enabled) return false;
+    const s = ymd(d);
+    return (!v.start_date || s >= v.start_date) && (!v.end_date || s <= v.end_date);
+  };
+
+  return { ...query, vacation: v, isActive, isVacationDate };
 }

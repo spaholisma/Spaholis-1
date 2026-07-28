@@ -124,7 +124,7 @@ const BookingPage = () => {
   const queryClient = useQueryClient();
   const { data: services } = useServices();
   const { data: spaPackages } = useSpaPackages();
-  const { vacation, isActive: vacationActive } = useVacationMode();
+  const { vacation, isActive: vacationActive, isVacationDate } = useVacationMode();
   const selectedPackage = spaPackages?.find((p) => p.id === packageParam);
   // Resolve initial category from URL params
   const preselectedService = services?.find((s) => s.id === preselected);
@@ -1019,13 +1019,20 @@ const BookingPage = () => {
                       </div>
                     )}
 
+                    {/* Vacation notice: those dates are greyed out in the calendar. */}
+                    {vacation?.enabled && vacation.start_date && vacation.end_date && (
+                      <div className="mb-6">
+                        <VacationNotice vacation={vacation} />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="bg-card rounded-2xl p-4 border border-border">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
-                          disabled={(date) => { const t = new Date(); t.setHours(0,0,0,0); return date < t; }}
+                          disabled={(date) => { const t = new Date(); t.setHours(0,0,0,0); return date < t || isVacationDate(date); }}
                           className="pointer-events-auto"
                         />
                       </div>
