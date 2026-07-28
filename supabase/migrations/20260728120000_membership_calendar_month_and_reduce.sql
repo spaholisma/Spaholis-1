@@ -1,0 +1,6 @@
+-- admin_extend_offering now also handles REDUCING time (negative _days): a new
+-- expiry in the past marks the offering 'expired'; extending an expired one
+-- back to the future reactivates it. Applied live 2026-07-28.
+-- Separately, membership expiry is now computed as calendar months (same day of
+-- the next month, e.g. Jul 27 -> Aug 27) instead of exactly N days, in
+-- src/lib/membership.ts and the paypal-capture-order edge function (v14).

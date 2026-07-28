@@ -91,8 +91,21 @@ Deno.serve(async (req) => {
     // offering
     const { data: off } = await admin.from("offerings").select("*").eq("id", t.offering_id).maybeSingle();
     if (!off) return json({ ok: false, reason: "offering_gone" }, 404);
-    const expires_at = (off as any).type === "membership" && (off as any).duration_days
-      ? new Date(Date.now() + (off as any).duration_days * 86400000).toISOString() : null;
+    // A monthly membership ends on the same day of the following month
+    // (activated Jul 27 → expires Aug 27), not exactly N days later.
+    let expires_at: string | null = null;
+    const durDays = Number((off as any).duration_days) || 0;
+    if ((off as any).type === "membership" && durDays > 0) {
+      const d = new Date();
+      if (durDays % 30 === 0) {
+        const day = d.getDate();
+        d.setMonth(d.getMonth() + durDays / 30);
+        if (d.getDate() < day) d.setDate(0);
+      } else {
+        d.setDate(d.getDate() + durDays);
+      }
+      expires_at = d.toISOString();
+    }
     const { data: uo, error: uoErr } = await admin.from("user_offerings").insert({
       user_id: t.user_id ?? null,
       offering_id: (off as any).id, type: (off as any).type, name_snapshot: (off as any).name,

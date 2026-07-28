@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { localizeRows } from "@/lib/localizeRow";
+import { membershipExpiryISO } from "@/lib/membership";
 
 const OFFERING_I18N_FIELDS = ["name", "description"];
 
@@ -92,9 +93,7 @@ export async function purchaseOffering(params: {
 }) {
   const { offering, userId, paymentId } = params;
   const expires_at =
-    offering.type === "membership" && offering.duration_days
-      ? new Date(Date.now() + offering.duration_days * 24 * 60 * 60 * 1000).toISOString()
-      : null;
+    offering.type === "membership" ? membershipExpiryISO(offering.duration_days) : null;
   const { data, error } = await supabase
     .from("user_offerings")
     .insert({

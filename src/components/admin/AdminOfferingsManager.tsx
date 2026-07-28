@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { membershipExpiryISO } from "@/lib/membership";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -364,9 +365,7 @@ function GrantDialog({ offering, onClose }: { offering: Offering | null; onClose
       }
       const targetUserId = profiles[0].user_id;
       const expires_at =
-        offering.type === "membership" && offering.duration_days
-          ? new Date(Date.now() + offering.duration_days * 24 * 60 * 60 * 1000).toISOString()
-          : null;
+        offering.type === "membership" ? membershipExpiryISO(offering.duration_days) : null;
       const { error } = await supabase.from("user_offerings").insert({
         user_id: targetUserId,
         offering_id: offering.id,
@@ -587,20 +586,31 @@ function ExtendDialog({ row, onClose, onDone }: { row: any | null; onClose: () =
     <Dialog open={!!row} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Extend “{row.name_snapshot}”</DialogTitle>
+          <DialogTitle>Extend or reduce “{row.name_snapshot}”</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Current expiry: <strong>{fmtDate(row.expires_at)}</strong>{row.expires_at ? "" : " (none — counts from today)"}.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {[7, 15, 30, 90].map((d) => (
-              <Button key={d} variant="outline" size="sm" disabled={busy} onClick={() => apply(d)}>+{d} days</Button>
-            ))}
+          <div>
+            <p className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Add time</p>
+            <div className="flex flex-wrap gap-2">
+              {[7, 15, 30, 90].map((d) => (
+                <Button key={d} variant="outline" size="sm" disabled={busy} onClick={() => apply(d)}>+{d} days</Button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-end gap-2">
+          <div>
+            <p className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Reduce time</p>
+            <div className="flex flex-wrap gap-2">
+              {[7, 15, 30, 90].map((d) => (
+                <Button key={d} variant="outline" size="sm" disabled={busy} className="text-destructive" onClick={() => apply(-d)}>−{d} days</Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end gap-2 pt-1 border-t border-border">
             <div className="flex-1">
-              <label className="font-body text-sm font-medium mb-1.5 block">Custom (± days)</label>
+              <label className="font-body text-sm font-medium mb-1.5 block">Custom (use a negative number to reduce)</label>
               <Input type="number" value={days} onChange={(e) => setDays(parseInt(e.target.value) || 0)} />
             </div>
             <Button disabled={busy} onClick={() => apply(days)}>Apply</Button>
