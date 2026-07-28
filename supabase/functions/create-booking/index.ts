@@ -253,22 +253,24 @@ async function ensureSlotAvailable(
   if (capWindows.length > 0) {
     const { data: overlapping, error: ovErr } = await admin
       .from("bookings")
-      .select("start_time, end_time")
+      .select("start_time, end_time, offsite_location")
       .not("status", "in", "(cancelled,payment_failed)")
       .lt("start_time", end.toISOString())
       .gt("end_time", start.toISOString());
     if (ovErr) throw ovErr;
-    // Room-pinned internal calendar entries (manual/admin bookings) also tie up
-    // a therapist — count them too, or manually-booked couples wouldn't reduce
-    // capacity and the site would over-book.
-    const { data: internalBusy, error: ibErr } = await admin.rpc("get_internal_busy_intervals", {
+    // Room-pinned internal calendar entries (manual/admin bookings) tie up a
+    // therapist too. Off-site periods tie up a therapist for their duration plus
+    // a 30-min travel buffer before and after (padded by the RPC). Off-site
+    // bookings are excluded from the plain list to avoid double-counting.
+    const { data: offsiteBusy, error: obErr } = await admin.rpc("get_offsite_therapist_blocks", {
       _from: start.toISOString(),
       _to: end.toISOString(),
     });
-    if (ibErr) throw ibErr;
+    if (obErr) throw obErr;
     const bookingIntervals = [
-      ...(overlapping ?? []).map((b: any) => ({ start: new Date(b.start_time).getTime(), end: new Date(b.end_time).getTime() })),
-      ...(internalBusy ?? []).map((i: any) => ({ start: new Date(i.busy_start).getTime(), end: new Date(i.busy_end).getTime() })),
+      ...(overlapping ?? []).filter((b: any) => !b.offsite_location).map((b: any) => ({ start: new Date(b.start_time).getTime(), end: new Date(b.end_time).getTime() })),
+      ...(internalRooms ?? []).map((i: any) => ({ start: new Date(i.busy_start).getTime(), end: new Date(i.busy_end).getTime() })),
+      ...(offsiteBusy ?? []).map((o: any) => ({ start: new Date(o.busy_start).getTime(), end: new Date(o.busy_end).getTime() })),
     ].filter((b: any) => !isNaN(b.start) && !isNaN(b.end));
     const isCouples = String(service.title || "").toLowerCase().includes("couple");
     const needed = isCouples ? 2 : 1;

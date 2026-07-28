@@ -1,0 +1,5 @@
+-- get_offsite_therapist_blocks(_from,_to): off-site periods (off-site calendar
+-- entries + off-site bookings) padded ±30 min as a travel buffer. The therapist
+-- is counted busy during that window, so the next in-spa online slot is offered
+-- no sooner than 30 min after an off-site period ends (and 30 before it starts).
+-- Wired into useRoomAvailability.ts and create-booking (v19). Applied live 2026-07-28.

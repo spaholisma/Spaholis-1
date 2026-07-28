@@ -75,7 +75,7 @@ export function useRoomAvailability(
 
       const { data: bookings, error: bookErr } = await supabase
         .from("bookings")
-        .select("room_id, secondary_room_id, start_time, end_time")
+        .select("room_id, secondary_room_id, start_time, end_time, offsite_location")
         .not("status", "eq", "cancelled")
         .gte("start_time", dayStart.toISOString())
         .lte("start_time", dayEnd.toISOString());
@@ -89,6 +89,16 @@ export function useRoomAvailability(
         { _from: dayStart.toISOString(), _to: dayEnd.toISOString() },
       );
       if (internalErr) throw internalErr;
+
+      // Off-site therapist blocks: an off-site treatment ties up a therapist for
+      // its duration PLUS a 30-min travel buffer before and after. These padded
+      // intervals reduce therapist capacity so the next in-spa slot is offered
+      // no sooner than 30 min after an off-site period ends (and 30 before it starts).
+      const { data: offsite, error: offsiteErr } = await supabase.rpc(
+        "get_offsite_therapist_blocks",
+        { _from: dayStart.toISOString(), _to: dayEnd.toISOString() },
+      );
+      if (offsiteErr) throw offsiteErr;
 
       // Full-spa availability blocks (lunch, off-site with no coverage): during
       // these windows the website must offer NO slots, regardless of free rooms.
@@ -119,13 +129,15 @@ export function useRoomAvailability(
           count: Number(c.therapist_count) || 0,
         }))
         .filter((c) => !isNaN(c.start.getTime()) && !isNaN(c.end.getTime()));
-      // Each ongoing treatment ties up one therapist — count BOTH website
-      // bookings AND room-pinned internal calendar entries (manual/admin
-      // bookings). Without the internal ones, manually-booked couples wouldn't
-      // reduce therapist capacity and the site would over-book.
+      // Each ongoing treatment ties up one therapist — count in-spa website
+      // bookings, room-pinned internal entries (manual/admin bookings), and
+      // off-site periods with their 30-min travel buffer. Off-site bookings are
+      // excluded from the plain list (they're covered, padded, by `offsite`) so
+      // they aren't double-counted.
       const treatmentIntervals = [
-        ...(bookings ?? []).map((b: any) => ({ start: new Date(b.start_time), end: new Date(b.end_time) })),
+        ...(bookings ?? []).filter((b: any) => !b.offsite_location).map((b: any) => ({ start: new Date(b.start_time), end: new Date(b.end_time) })),
         ...(internal ?? []).map((i: any) => ({ start: new Date(i.busy_start), end: new Date(i.busy_end) })),
+        ...(offsite ?? []).map((o: any) => ({ start: new Date(o.busy_start), end: new Date(o.busy_end) })),
       ].filter((b) => !isNaN(b.start.getTime()) && !isNaN(b.end.getTime()));
       const hasTherapistCapacity = (start: Date, end: Date, needed: number) => {
         if (!capWindows.some((w) => start < w.end && end > w.start)) return true;
