@@ -19,7 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { toBookingErrorState } from "@/lib/bookingErrors";
-import { Check, ChevronLeft, FileText, CalendarDays, CreditCard, MapPin, Loader2, ClipboardList, ShieldCheck } from "lucide-react";
+import { Check, ChevronLeft, FileText, CalendarDays, CreditCard, MapPin, Loader2, ClipboardList, ShieldCheck, Sparkles } from "lucide-react";
+import { HOLIS_WHATSAPP_URL } from "@/data/contact";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -1017,6 +1018,25 @@ const BookingPage = () => {
                         {selectedDate && !slotsLoading && availableSlots && availableSlots.length === 0 && !locationVisit && (
                           <div className="space-y-3">
                             <p className="font-body text-sm text-muted-foreground">{t("booking.dateTime.noTimes")}</p>
+                            {/* Don't lose the sale: let them request an on-call spot AT the
+                                spa via WhatsApp, in addition to the at-your-location option. */}
+                            <a
+                              href={`${HOLIS_WHATSAPP_URL}?text=${encodeURIComponent(
+                                t("booking.dateTime.requestStudioMsg", {
+                                  service: currentService?.title ?? "a treatment",
+                                  date: selectedDate ? format(selectedDate, "EEEE, MMMM d") : "",
+                                }),
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block w-full py-3.5 px-4 rounded-xl text-sm font-body font-semibold transition-all bg-spa-sage text-white hover:bg-spa-sage/90 shadow-md ring-2 ring-spa-sage/30 text-center"
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <Sparkles className="h-4 w-4" />
+                                <span>{t("booking.dateTime.requestStudio")}</span>
+                              </div>
+                              <p className="text-xs text-white/85 mt-1 font-normal">{t("booking.dateTime.requestStudioDesc")}</p>
+                            </a>
                             <button
                               onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
                               className="w-full py-3 px-4 rounded-xl text-sm font-body font-medium transition-all border-2 border-spa-sage bg-spa-sage/10 text-foreground hover:bg-spa-sage/20"
