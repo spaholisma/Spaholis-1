@@ -322,6 +322,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   const [returnToDay, setReturnToDay] = useState<Date | null>(null);
   /** When editing an occurrence: change just it, or the whole series. */
   const [editScope, setEditScope] = useState<"one" | "following" | "series">("one");
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEntry | null>(null);
   /** Naming a link in the notes, keyed by its href. */
   const [renamingLink, setRenamingLink] = useState<string | null>(null);
   const [linkNameDraft, setLinkNameDraft] = useState("");
@@ -815,16 +816,25 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
 
   const handleDelete = async (entry: CalendarEntry) => {
     if (readOnly) return;
-    // Soft delete into the 30-day trash (restorable from the Trash tab).
-    let wholeSeries = false;
-    if (entry.series_id) {
-      wholeSeries = confirm(
-        `"${entry.title}" repeats.\n\nOK = move EVERY occurrence to the trash.\nCancel = move only this one.`,
-      );
-    }
-    const { error } = await supabase.rpc("soft_delete_entry" as any, { _id: entry.id, _whole_series: wholeSeries });
+    // A recurring entry asks for the scope (this / following / all); a standalone
+    // one goes straight to the 30-day trash.
+    if (entry.series_id) { setDeleteTarget(entry); return; }
+    await doDelete(entry, "one");
+  };
+
+  const doDelete = async (entry: CalendarEntry, scope: "one" | "following" | "series") => {
+    const { error } = await supabase.rpc("soft_delete_entry" as any, {
+      _id: entry.id,
+      _whole_series: scope === "series",
+      _from_date: scope === "following" ? entry.entry_date : null,
+    });
     if (error) { toast.error(error.message); return; }
-    toast.success(wholeSeries ? "Series moved to trash — restorable for 30 days" : "Moved to trash — restorable for 30 days");
+    toast.success(
+      scope === "series" ? "Series moved to trash — restorable for 30 days"
+        : scope === "following" ? "This and following entries moved to trash — restorable for 30 days"
+        : "Moved to trash — restorable for 30 days",
+    );
+    setDeleteTarget(null);
     loadEntries();
   };
 
@@ -1386,6 +1396,30 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         services={servicesForEdit}
         onDuplicated={(newId) => openBookingForEdit(newId)}
       />
+
+      {/* Delete scope for a recurring entry (Google-Calendar style). */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete recurring entry</DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">“{deleteTarget.title}” repeats. What would you like to move to the trash?</p>
+              <Button variant="outline" className="w-full justify-start" onClick={() => doDelete(deleteTarget, "one")}>
+                This entry only
+              </Button>
+              <Button variant="outline" className="w-full justify-start" onClick={() => doDelete(deleteTarget, "following")}>
+                This and following entries
+              </Button>
+              <Button variant="outline" className="w-full justify-start text-destructive" onClick={() => doDelete(deleteTarget, "series")}>
+                All entries in the series
+              </Button>
+              <Button variant="ghost" className="w-full" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Viewer role: read-only detail card — safe operational fields only
           (never contact, card or health data; the viewer's feed excludes them). */}

@@ -1,0 +1,4 @@
+-- soft_delete_entry gained a _from_date param: when given, soft-deletes the
+-- series occurrences dated on/after it ("this and following"). _whole_series
+-- kept for backward compat. Delete scope dialog (this / following / all) in
+-- AdminInternalCalendars. Applied live 2026-07-29.
