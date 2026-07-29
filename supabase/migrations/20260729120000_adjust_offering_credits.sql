@@ -1,0 +1,5 @@
+-- admin_adjust_offering_credits(_id, _delta): add/remove class credits on a
+-- customer's pass (admin only). Growing remaining beyond the pack size raises
+-- the total; reaching 0 marks it depleted; adding to a depleted pass
+-- reactivates it. Wired to the "Classes" button in AdminOfferingsManager.
+-- Applied live 2026-07-29.

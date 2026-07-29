@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt } from "lucide-react";
+import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { membershipExpiryISO } from "@/lib/membership";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -434,6 +434,7 @@ function UserOfferingsTable() {
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendRow, setExtendRow] = useState<any | null>(null);
+  const [creditsRow, setCreditsRow] = useState<any | null>(null);
 
   const call = async (fn: string, args: Record<string, any>, ok: string) => {
     setBusyId(args._id);
@@ -538,6 +539,12 @@ function UserOfferingsTable() {
                           <CalendarClock className="h-3.5 w-3.5 mr-1" /> Extend
                         </Button>
                       )}
+                      {isPass && r.status !== "cancelled" && (
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                          onClick={() => setCreditsRow(r)} title="Add or remove class credits">
+                          <Ticket className="h-3.5 w-3.5 mr-1" /> Classes
+                        </Button>
+                      )}
                       {r.status === "cancelled" ? (
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={busy}
                           onClick={() => call("admin_set_offering_status", { _id: r.id, _status: "active" }, "Reactivated")}>
@@ -558,7 +565,71 @@ function UserOfferingsTable() {
         </table>
       </div>
       <ExtendDialog row={extendRow} onClose={() => setExtendRow(null)} onDone={refetch} />
+      <AdjustCreditsDialog row={creditsRow} onClose={() => setCreditsRow(null)} onDone={refetch} />
     </div>
+  );
+}
+
+function AdjustCreditsDialog({ row, onClose, onDone }: { row: any | null; onClose: () => void; onDone: () => void }) {
+  const [amount, setAmount] = useState(1);
+  const [busy, setBusy] = useState(false);
+  if (!row) return null;
+
+  const apply = async (delta: number) => {
+    if (!delta) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("admin_adjust_offering_credits" as any, { _id: row.id, _delta: delta });
+      if (error) throw error;
+      toast.success(delta > 0 ? `Added ${delta} class${delta === 1 ? "" : "es"}` : `Removed ${-delta} class${-delta === 1 ? "" : "es"}`);
+      onDone();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Adjust classes — “{row.name_snapshot}”</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Remaining now: <strong className="text-foreground">{row.credits_remaining ?? 0}</strong> / {row.credits_total}.
+          </p>
+          <div>
+            <p className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Add classes</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 5, 10].map((d) => (
+                <Button key={d} variant="outline" size="sm" disabled={busy} onClick={() => apply(d)}>+{d}</Button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Remove classes</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 5, 10].map((d) => (
+                <Button key={d} variant="outline" size="sm" disabled={busy} className="text-destructive" onClick={() => apply(-d)}>−{d}</Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end gap-2 pt-1 border-t border-border">
+            <div className="flex-1">
+              <label className="font-body text-sm font-medium mb-1.5 block">Custom (negative to remove)</label>
+              <Input type="number" value={amount} onChange={(e) => setAmount(parseInt(e.target.value) || 0)} />
+            </div>
+            <Button disabled={busy} onClick={() => apply(amount)}>Apply</Button>
+          </div>
+          <p className="font-body text-xs text-muted-foreground">
+            Adding beyond the pack size raises the total. Reaching 0 marks the pass depleted.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
