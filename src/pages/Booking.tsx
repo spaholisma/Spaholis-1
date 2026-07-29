@@ -1019,20 +1019,13 @@ const BookingPage = () => {
                       </div>
                     )}
 
-                    {/* Vacation notice: those dates are greyed out in the calendar. */}
-                    {vacation?.enabled && vacation.start_date && vacation.end_date && (
-                      <div className="mb-6">
-                        <VacationNotice vacation={vacation} />
-                      </div>
-                    )}
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="bg-card rounded-2xl p-4 border border-border">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
-                          disabled={(date) => { const t = new Date(); t.setHours(0,0,0,0); return date < t || isVacationDate(date); }}
+                          disabled={(date) => { const t = new Date(); t.setHours(0,0,0,0); return date < t; }}
                           className="pointer-events-auto"
                         />
                       </div>
@@ -1040,13 +1033,17 @@ const BookingPage = () => {
                         <p className="font-body text-sm font-medium text-foreground mb-4">
                           {selectedDate ? format(selectedDate, "EEEE, MMMM d") : t("booking.dateTime.selectDateFirst")}
                         </p>
-                        {selectedDate && slotsLoading && (
+                        {/* Selected a vacation date → show the notice instead of times. */}
+                        {selectedDate && vacation && isVacationDate(selectedDate) && (
+                          <VacationNotice vacation={vacation} />
+                        )}
+                        {selectedDate && !(vacation && isVacationDate(selectedDate)) && slotsLoading && (
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span className="font-body text-sm">{t("booking.dateTime.checking")}</span>
                           </div>
                         )}
-                        {selectedDate && !slotsLoading && availableSlots && availableSlots.length === 0 && !locationVisit && (
+                        {selectedDate && !isVacationDate(selectedDate) && !slotsLoading && availableSlots && availableSlots.length === 0 && !locationVisit && (
                           <div className="space-y-3">
                             <p className="font-body text-sm text-muted-foreground">{t("booking.dateTime.noTimes")}</p>
                             {/* Don't lose the sale: let them request an on-call spot AT the
@@ -1080,7 +1077,7 @@ const BookingPage = () => {
                             </button>
                           </div>
                         )}
-                        {selectedDate && !slotsLoading && availableSlots && availableSlots.length > 0 && !locationVisit && (
+                        {selectedDate && !isVacationDate(selectedDate) && !slotsLoading && availableSlots && availableSlots.length > 0 && !locationVisit && (
                           <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                             {Object.entries(slotsByTime).map(([timeLabel, slots]) => {
                               const firstSlot = slots[0];
@@ -1104,7 +1101,7 @@ const BookingPage = () => {
                             })}
                           </div>
                         )}
-                        {selectedDate && !slotsLoading && !locationVisit && availableSlots && availableSlots.length > 0 && (
+                        {selectedDate && !isVacationDate(selectedDate) && !slotsLoading && !locationVisit && availableSlots && availableSlots.length > 0 && (
                           <>
                             {/* Even when some times are open, let a client whose preferred
                                 time is taken ask us to fit them in with an on-call therapist. */}
