@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Star, Trash2, Plus, Youtube, Pencil } from "lucide-react";
+import { Star, Trash2, Plus, Youtube, Pencil, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import { youtubeId } from "@/hooks/useCourseReviews";
+import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 
 interface Course { id: string; title: string; }
 interface Review {
@@ -21,7 +22,7 @@ interface Review {
   is_published: boolean;
 }
 
-const emptyDraft = () => ({ author_name: "", review_text: "", youtube_url: "", is_published: true, sort_order: 0 });
+const emptyDraft = () => ({ author_name: "", review_text: "", youtube_url: "", photo_url: "", is_published: true, sort_order: 0 });
 
 export function AdminCourseReviews() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -31,6 +32,7 @@ export function AdminCourseReviews() {
   const [draft, setDraft] = useState<any>(emptyDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     supabase.from("services").select("id, title").eq("type", "course").eq("is_active", true).order("sort_order")
@@ -65,6 +67,7 @@ export function AdminCourseReviews() {
       author_name: draft.author_name?.trim() || null,
       review_text: draft.review_text?.trim() || null,
       youtube_url: draft.youtube_url?.trim() || null,
+      photo_url: draft.photo_url?.trim() || null,
       is_published: draft.is_published,
       sort_order: Number(draft.sort_order) || 0,
       updated_at: new Date().toISOString(),
@@ -81,7 +84,7 @@ export function AdminCourseReviews() {
 
   const edit = (r: Review) => {
     setEditingId(r.id);
-    setDraft({ author_name: r.author_name ?? "", review_text: r.review_text ?? "", youtube_url: r.youtube_url ?? "", is_published: r.is_published, sort_order: r.sort_order });
+    setDraft({ author_name: r.author_name ?? "", review_text: r.review_text ?? "", youtube_url: r.youtube_url ?? "", photo_url: (r as any).photo_url ?? "", is_published: r.is_published, sort_order: r.sort_order });
   };
 
   const remove = async (id: string) => {
@@ -159,6 +162,30 @@ export function AdminCourseReviews() {
           <Label className="font-body text-xs">YouTube link (optional)</Label>
           <Input value={draft.youtube_url} onChange={(e) => setDraft({ ...draft, youtube_url: e.target.value })} placeholder="https://youtu.be/… or https://www.youtube.com/watch?v=…" />
         </div>
+        <div>
+          <Label className="font-body text-xs">Photo of the person (optional)</Label>
+          <div className="flex items-center gap-3 mt-1">
+            {draft.photo_url ? (
+              <div className="relative shrink-0">
+                <img src={draft.photo_url} alt="" className="h-14 w-14 rounded-full object-cover border border-border" />
+                <button type="button" onClick={() => setDraft({ ...draft, photo_url: "" })}
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" title="Remove photo">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
+            <div className="flex-1 space-y-1.5">
+              <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+                <ImageIcon className="h-3.5 w-3.5 mr-1" /> Choose / upload photo
+              </Button>
+              <Input value={draft.photo_url} onChange={(e) => setDraft({ ...draft, photo_url: e.target.value })} placeholder="…or paste an image URL" className="h-8 text-xs" />
+            </div>
+          </div>
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Switch checked={draft.is_published} onCheckedChange={(v) => setDraft({ ...draft, is_published: v })} />
@@ -172,6 +199,12 @@ export function AdminCourseReviews() {
           </div>
         </div>
       </div>
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={(url) => setDraft((d: any) => ({ ...d, photo_url: url }))}
+      />
     </div>
   );
 }

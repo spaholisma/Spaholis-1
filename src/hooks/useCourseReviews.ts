@@ -7,6 +7,7 @@ export interface CourseReview {
   author_name: string | null;
   review_text: string | null;
   youtube_url: string | null;
+  photo_url: string | null;
   sort_order: number;
   is_published: boolean;
 }

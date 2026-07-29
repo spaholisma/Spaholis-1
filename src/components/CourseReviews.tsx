@@ -56,7 +56,15 @@ function ReviewCard({ r }: { r: CourseReview }) {
               {expanded ? "Read less" : "Read more"}
             </button>
           )}
-          {r.author_name && <p className="font-body text-xs text-muted-foreground mt-2">— {r.author_name}</p>}
+          {(r.author_name || r.photo_url) && (
+            <div className="flex items-center gap-2 mt-3">
+              {r.photo_url && (
+                <img src={r.photo_url} alt={r.author_name ?? ""} loading="lazy"
+                  className="h-8 w-8 rounded-full object-cover border border-border shrink-0" />
+              )}
+              {r.author_name && <span className="font-body text-xs text-muted-foreground">— {r.author_name}</span>}
+            </div>
+          )}
         </div>
       )}
 
