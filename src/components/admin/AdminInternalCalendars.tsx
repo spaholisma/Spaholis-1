@@ -756,6 +756,29 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         .from("admin_calendar_entries")
         .update(seriesFields)
         .eq("series_id", editingEntry.series_id));
+    } else if (editingEntry && !editingEntry.series_id && repeats) {
+      // Turn a standalone entry into a recurring series: this entry becomes the
+      // first occurrence, and the remaining future dates are created.
+      const seriesId = crypto.randomUUID();
+      ({ error } = await supabase
+        .from("admin_calendar_entries")
+        .update({ ...payload, series_id: seriesId, recurrence: form.recurrence, recurrence_until: form.recurrence_until || null })
+        .eq("id", editingEntry.id));
+      if (!error) {
+        const dates = expandRecurrence(form.entry_date, form.recurrence_until, form.recurrence).slice(1);
+        if (dates.length > 0) {
+          const rows = dates.map((d) => ({
+            ...payload,
+            entry_date: d,
+            end_date: spanDays > 0 ? format(addDays(parseISO(d), spanDays), "yyyy-MM-dd") : null,
+            series_id: seriesId,
+            recurrence: form.recurrence,
+            recurrence_until: form.recurrence_until || null,
+          }));
+          ({ error } = await supabase.from("admin_calendar_entries").insert(rows));
+        }
+        created = dates.length + 1;
+      }
     } else if (editingEntry) {
       // Editing one occurrence detaches it from nothing — it keeps its
       // series_id so the series can still be managed as a whole.
@@ -781,7 +804,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     if (error) { toast.error(error.message); return; }
     toast.success(
       editingEntry
-        ? (editScope === "series" && editingEntry.series_id ? "Series updated" : "Entry updated")
+        ? (editScope === "series" && editingEntry.series_id ? "Series updated"
+           : created > 1 ? `Now repeats — ${created} entries created`
+           : "Entry updated")
         : created > 1 ? `Created ${created} entries` : "Entry created",
     );
     closeEntryModal();
@@ -1625,9 +1650,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               </div>
             )}
 
-            {/* Repeat rules only apply when creating — an existing series is
-                changed through the scope control below instead. */}
-            {!editingEntry && (
+            {/* Repeat rules when creating OR when turning a standalone entry into
+                a recurring series. An entry already in a series is changed via
+                the scope control instead. */}
+            {!editingEntry?.series_id && (
               <div className="space-y-1.5">
                 <Label>Repeats</Label>
                 <div className="flex items-center gap-2">
