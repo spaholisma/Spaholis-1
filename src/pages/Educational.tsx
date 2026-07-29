@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
+import { CourseReviews } from "@/components/CourseReviews";
 
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
@@ -307,6 +308,7 @@ const EducationalPage = () => {
                         {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
                     </div>
+                    <CourseReviews serviceId={c.id} />
                   </motion.div>
                 ))}
               </div>

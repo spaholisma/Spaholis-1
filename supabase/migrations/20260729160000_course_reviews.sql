@@ -1,0 +1,4 @@
+-- course_reviews: admin-editable written testimonials + YouTube video reviews
+-- per course/module, shown on the Education page under the module card. RLS:
+-- public read (published) + super_admin/manager write; grants to anon/auth.
+-- Managed in Admin -> Course Reviews. Applied live 2026-07-29.

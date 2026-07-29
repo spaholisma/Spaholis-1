@@ -34,6 +34,7 @@ import { AdminFaqsManager } from "@/components/admin/AdminFaqsManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import { AdminBusinessHours } from "@/components/admin/AdminBusinessHours";
 import { AdminVacationMode } from "@/components/admin/AdminVacationMode";
+import { AdminCourseReviews } from "@/components/admin/AdminCourseReviews";
 import { AdminEmailTemplates } from "@/components/admin/AdminEmailTemplates";
 import holisLogo from "@/assets/holis-logo-clean.png";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ const sidebarLinks = [
   { label: "Business Hours", icon: Clock, id: "business-hours" },
   { label: "Vacation Mode", icon: Palmtree, id: "vacation" },
   { label: "Educational", icon: GraduationCap, id: "educational" },
+  { label: "Course Reviews", icon: GraduationCap, id: "course-reviews" },
   { label: "Clients", icon: UserCircle, id: "clients" },
   { label: "Gift Cards", icon: CreditCard, id: "giftcards" },
   { label: "Loyalty", icon: Gift, id: "loyalty" },
@@ -191,6 +193,7 @@ const AdminDashboard = () => {
           {activeTab === "business-hours" && <AdminBusinessHours />}
           {activeTab === "vacation" && <AdminVacationMode />}
           {activeTab === "educational" && <EducationalAdminView />}
+          {activeTab === "course-reviews" && <AdminCourseReviews />}
           {activeTab === "clients" && <ClientsView />}
           {activeTab === "giftcards" && <AdminGiftCardsManager />}
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
