@@ -321,7 +321,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
    *  the day view doesn't kick you back out to the month. */
   const [returnToDay, setReturnToDay] = useState<Date | null>(null);
   /** When editing an occurrence: change just it, or the whole series. */
-  const [editScope, setEditScope] = useState<"one" | "series">("one");
+  const [editScope, setEditScope] = useState<"one" | "following" | "series">("one");
   /** Naming a link in the notes, keyed by its href. */
   const [renamingLink, setRenamingLink] = useState<string | null>(null);
   const [linkNameDraft, setLinkNameDraft] = useState("");
@@ -748,14 +748,13 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     let error;
     let created = 1;
 
-    if (editingEntry && editScope === "series" && editingEntry.series_id) {
-      // Change the whole series but leave each occurrence on its own date —
-      // rescheduling the series' dates is what deleting and recreating is for.
+    if (editingEntry && (editScope === "series" || editScope === "following") && editingEntry.series_id) {
+      // Change the series (or this + every later occurrence) but leave each on
+      // its own date — rescheduling dates is what delete + recreate is for.
       const { entry_date: _d, end_date: _e, ...seriesFields } = payload;
-      ({ error } = await supabase
-        .from("admin_calendar_entries")
-        .update(seriesFields)
-        .eq("series_id", editingEntry.series_id));
+      let q = supabase.from("admin_calendar_entries").update(seriesFields).eq("series_id", editingEntry.series_id);
+      if (editScope === "following") q = q.gte("entry_date", editingEntry.entry_date);
+      ({ error } = await q);
     } else if (editingEntry && !editingEntry.series_id && repeats) {
       // Turn a standalone entry into a recurring series: this entry becomes the
       // first occurrence, and the remaining future dates are created.
@@ -804,7 +803,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     if (error) { toast.error(error.message); return; }
     toast.success(
       editingEntry
-        ? (editScope === "series" && editingEntry.series_id ? "Series updated"
+        ? (editingEntry.series_id && editScope === "series" ? "All entries updated"
+           : editingEntry.series_id && editScope === "following" ? "This and following entries updated"
            : created > 1 ? `Now repeats — ${created} entries created`
            : "Entry updated")
         : created > 1 ? `Created ${created} entries` : "Entry created",
@@ -1708,15 +1708,16 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 <Label>This entry repeats — apply changes to</Label>
                 <select
                   value={editScope}
-                  onChange={(e) => setEditScope(e.target.value as "one" | "series")}
+                  onChange={(e) => setEditScope(e.target.value as "one" | "following" | "series")}
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 >
                   <option value="one">This entry only</option>
-                  <option value="series">Every entry in the series</option>
+                  <option value="following">This and following entries</option>
+                  <option value="series">All entries in the series</option>
                 </select>
-                {editScope === "series" && (
+                {editScope !== "one" && (
                   <p className="text-xs text-muted-foreground">
-                    Dates stay as they are — everything else (title, time, room, calendar, notes) is applied to the whole series.
+                    Dates stay as they are — everything else (title, time, room, calendar, notes) is applied to {editScope === "following" ? "this and every later entry" : "the whole series"}.
                   </p>
                 )}
               </div>
