@@ -69,30 +69,20 @@ function ReviewCard({ r }: { r: CourseReview }) {
       )}
 
       {yt && (
-        <a
-          href={r.youtube_url!}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group relative block rounded-lg overflow-hidden border border-border mt-auto"
-          title="Watch on YouTube"
-        >
-          <img
-            src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`}
-            alt={r.author_name ? `Video review — ${r.author_name}` : "Video review"}
-            loading="lazy"
-            className="w-full aspect-video object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <span className="absolute inset-0 flex items-center justify-center bg-foreground/20 group-hover:bg-foreground/10 transition-colors">
-            <span className="h-11 w-11 rounded-full bg-white/90 flex items-center justify-center">
-              <Play className="h-5 w-5 text-spa-sage translate-x-0.5" />
-            </span>
-          </span>
+        <div className="mt-auto">
           {!text && r.author_name && (
-            <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-foreground/70 to-transparent text-white text-xs font-body px-2 py-1.5">
-              {r.author_name}
-            </span>
+            <p className="font-body text-xs text-muted-foreground mb-2">— {r.author_name}</p>
           )}
-        </a>
+          <a
+            href={r.youtube_url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-spa-sage/40 bg-spa-sage/5 px-4 py-2 font-body text-sm font-semibold text-spa-sage hover:bg-spa-sage/10 transition-colors"
+          >
+            <Play className="h-4 w-4" />
+            View testimonial here
+          </a>
+        </div>
       )}
     </div>
   );
