@@ -286,7 +286,7 @@ const EducationalPage = () => {
                   Specialized trainings for therapists. Request information to join the next module.
                 </p>
               </motion.div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 {courses.map((c) => (
                   <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
                     <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
