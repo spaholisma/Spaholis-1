@@ -10,11 +10,17 @@ import { Check, Phone, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const ConsultationForm = () => {
   const { t } = useTranslation();
+  // A `topic` param means this is a specific request (e.g. a private class), not
+  // the generic free holistic consultation — the form adapts its copy + notes.
+  const [searchParams] = useSearchParams();
+  const topic = searchParams.get("topic")?.trim() || "";
+  const isRequest = topic.length > 0;
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
   const [submitting, setSubmitting] = useState(false);
@@ -40,20 +46,23 @@ export const ConsultationForm = () => {
         booking_date: new Date().toISOString().split("T")[0],
         booking_time: "00:00",
         status: "pending",
-        notes: `Free Holistic Consultation — Format: ${format}`,
+        notes: isRequest
+          ? `${topic} — Format: ${format}`
+          : `Free Holistic Consultation — Format: ${format}`,
       });
       if (error) throw error;
 
-      // Send notification
+      // Send notification (admin email to info@ + backup) via the legacy path.
       try {
         await supabase.functions.invoke("send-booking-notification", {
           body: {
-            guestName: form.name.trim(),
-            guestEmail: form.email.trim(),
-            guestPhone: form.phone.trim(),
-            serviceName: t("consultation.serviceName"),
-            bookingDate: new Date().toLocaleDateString(),
-            bookingTime: `${t("consultation.preferredFormat")}: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
+            request_kind: isRequest ? "info" : undefined,
+            guest_name: form.name.trim(),
+            guest_email: form.email.trim(),
+            guest_phone: form.phone.trim(),
+            service_name: isRequest ? topic : t("consultation.serviceName"),
+            notes: `Preferred format: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
+            booking_date: new Date().toLocaleDateString(),
           },
         });
       } catch {
@@ -106,10 +115,15 @@ export const ConsultationForm = () => {
             transition={{ duration: 0.5 }}
           >
             <h1 className="spa-heading-lg text-foreground mb-2 text-center">
-              {t("consultation.title")}
+              {isRequest ? t("consultation.requestTitle", { defaultValue: "Request Your Private Class" }) : t("consultation.title")}
             </h1>
+            {isRequest ? (
+              <p className="font-body text-sm text-foreground text-center mb-2 max-w-sm mx-auto">
+                <span className="font-medium">{topic}</span>
+              </p>
+            ) : null}
             <p className="font-body text-sm text-muted-foreground text-center mb-10 leading-relaxed max-w-sm mx-auto">
-              {t("consultation.subtitle")}
+              {isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your private class." }) : t("consultation.subtitle")}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
