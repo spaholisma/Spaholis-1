@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Receipt, Send, Eye } from "lucide-react";
 import { toast } from "sonner";
 
-type Kind = "purchase" | "refund";
+type Kind = "purchase" | "refund" | "commission";
 type Currency = "CRC" | "USD";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,9 +26,15 @@ function formatAmount(amount: string, currency: Currency): string {
 
 // Mirrors the receipt box + shell built by the send-receipt edge function so
 // the preview is faithful to what the customer receives.
+function amountRowLabelFor(kind: Kind): string {
+  if (kind === "refund") return "Amount refunded";
+  if (kind === "commission") return "Commission paid";
+  return "Amount paid";
+}
+
 function receiptBox(kind: Kind, amountLabel: string, concept: string, date: string, reference: string): string {
-  const amountColor = kind === "refund" ? "#1d5b6a" : "#2F2F2F";
-  const amountRowLabel = kind === "refund" ? "Amount refunded" : "Amount paid";
+  const amountColor = kind === "purchase" ? "#2F2F2F" : "#1d5b6a";
+  const amountRowLabel = amountRowLabelFor(kind);
   const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const row = (label: string, value: string) =>
     `<tr><td style="padding:8px 0;color:#666;font-size:14px;">${esc(label)}</td>` +
@@ -83,7 +89,16 @@ export function AdminSendReceipt() {
   const previewHtml = useMemo(() => {
     const amountLabel = formatAmount(amount || "0", currency);
     const firstName = guestName.trim().split(/\s+/)[0] || "there";
+    const fullName = guestName.trim() || firstName;
     const box = receiptBox(kind, amountLabel, concept, prettyDate, reference);
+    if (kind === "commission") {
+      const inner = `<p>Dear ${fullName},</p>
+<p>This message confirms that Holis Wellness Center has issued the following commission payment for a direct sale referral.</p>
+${box}
+<p>Thank you for your continued partnership. If you have any questions regarding this payment, please reply to this email and we will be glad to assist.</p>
+<p>Kind regards,<br>Holis Wellness Center</p>`;
+      return renderShell("Commission Payment Confirmation", inner);
+    }
     const heading = kind === "refund" ? "Your refund has been processed 🌿" : "Thank you for your purchase 🌿";
     const intro = kind === "refund"
       ? `Hi ${firstName}, we have processed a refund to you from Holis Wellness Center. Here are the details:`
@@ -136,17 +151,17 @@ export function AdminSendReceipt() {
         <div className="space-y-5">
           <div>
             <Label className="font-body text-sm">Receipt type</Label>
-            <div className="mt-2 inline-flex rounded-xl border border-border p-1 bg-muted/40">
-              {(["purchase", "refund"] as Kind[]).map((k) => (
+            <div className="mt-2 flex flex-wrap gap-1 rounded-xl border border-border p-1 bg-muted/40">
+              {(["purchase", "refund", "commission"] as Kind[]).map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setKind(k)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-body font-medium capitalize transition-colors ${
+                  className={`px-4 py-1.5 rounded-lg text-sm font-body font-medium transition-colors ${
                     kind === k ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
                   }`}
                 >
-                  {k === "purchase" ? "Purchase" : "Refund (money handed out)"}
+                  {k === "purchase" ? "Purchase" : k === "refund" ? "Refund (money handed out)" : "Commission"}
                 </button>
               ))}
             </div>
@@ -154,12 +169,12 @@ export function AdminSendReceipt() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="r-email" className="font-body text-sm">Customer email *</Label>
-              <Input id="r-email" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@email.com" maxLength={255} />
+              <Label htmlFor="r-email" className="font-body text-sm">Recipient email *</Label>
+              <Input id="r-email" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder={kind === "commission" ? "hotel@example.com" : "client@email.com"} maxLength={255} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="r-name" className="font-body text-sm">Customer name</Label>
-              <Input id="r-name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Ana López" maxLength={120} />
+              <Label htmlFor="r-name" className="font-body text-sm">Recipient name</Label>
+              <Input id="r-name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : "Ana López"} maxLength={120} />
             </div>
           </div>
 
@@ -189,7 +204,7 @@ export function AdminSendReceipt() {
 
           <div className="space-y-2">
             <Label htmlFor="r-concept" className="font-body text-sm">Concept / reason</Label>
-            <Input id="r-concept" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder={kind === "refund" ? "Refund for cancelled class" : "Monthly membership"} maxLength={160} />
+            <Input id="r-concept" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder={kind === "refund" ? "Refund for cancelled class" : kind === "commission" ? "Direct sale commission" : "Monthly membership"} maxLength={160} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
