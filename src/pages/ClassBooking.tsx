@@ -341,6 +341,21 @@ const ClassBookingPage = () => {
     );
   }
 
+  // This class already started — online booking is closed (the DB also blocks it).
+  if (new Date(event.start_time) < new Date()) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
+          <h1 className="spa-heading-lg text-foreground mb-4">This class has already started</h1>
+          <p className="spa-body mb-8">Online booking for this class is closed. Browse our upcoming classes instead.</p>
+          <Button asChild><Link to="/classes">See upcoming classes</Link></Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   const start = new Date(event.start_time);
   const end = new Date(event.end_time);
   const confirmationIdx = steps.length - 1;

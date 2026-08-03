@@ -1,0 +1,5 @@
+-- Trigger reject_past_class_booking on class_bookings BEFORE INSERT: blocks
+-- booking a class whose start_time has passed, across every path (client insert,
+-- create-class-booking edge, PayPal capture). Staff (super_admin/manager/
+-- coordinator) are exempt so they can still record walk-in attendance after the
+-- class. Applied live 2026-08-03.
