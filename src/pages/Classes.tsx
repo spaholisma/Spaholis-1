@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -30,6 +31,15 @@ const ClassesPage = () => {
   const { data: tokenOffering } = useTokenOffering();
   const cls = siteContent?.classes || defaults.classes;
   const seo = seoData || seoDefaults;
+
+  // When arriving with #buy (e.g. the "Renew now" email button), scroll to the
+  // memberships & passes section once the page content has rendered.
+  useEffect(() => {
+    if (isLoading) return;
+    if (window.location.hash !== "#buy") return;
+    const el = document.getElementById("buy");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  }, [isLoading]);
 
   // Separate workshops from regular events
   const workshops = events?.filter((e) => e.classes.category === "Workshop") ?? [];
