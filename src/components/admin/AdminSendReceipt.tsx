@@ -32,7 +32,7 @@ function amountRowLabelFor(kind: Kind): string {
   return "Amount paid";
 }
 
-function receiptBox(kind: Kind, amountLabel: string, concept: string, date: string, reference: string): string {
+function receiptBox(kind: Kind, amountLabel: string, paidTo: string, concept: string, date: string, reference: string): string {
   const amountColor = kind === "purchase" ? "#2F2F2F" : "#1d5b6a";
   const amountRowLabel = amountRowLabelFor(kind);
   const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -40,6 +40,7 @@ function receiptBox(kind: Kind, amountLabel: string, concept: string, date: stri
     `<tr><td style="padding:8px 0;color:#666;font-size:14px;">${esc(label)}</td>` +
     `<td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">${esc(value)}</td></tr>`;
   const rows: string[] = [];
+  if (paidTo) rows.push(row("Paid to", paidTo));
   if (concept) rows.push(row("Concept", concept));
   if (date) rows.push(row("Date", date));
   if (reference) rows.push(row("Reference", reference));
@@ -76,6 +77,7 @@ export function AdminSendReceipt() {
   const [concept, setConcept] = useState("");
   const [date, setDate] = useState(todayISO());
   const [reference, setReference] = useState("");
+  const [paidTo, setPaidTo] = useState("");
   const [ccAdmin, setCcAdmin] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -90,7 +92,7 @@ export function AdminSendReceipt() {
     const amountLabel = formatAmount(amount || "0", currency);
     const firstName = guestName.trim().split(/\s+/)[0] || "there";
     const fullName = guestName.trim() || firstName;
-    const box = receiptBox(kind, amountLabel, concept, prettyDate, reference);
+    const box = receiptBox(kind, amountLabel, paidTo, concept, prettyDate, reference);
     if (kind === "commission") {
       const inner = `<p>Dear ${fullName},</p>
 <p>This message confirms that Holis Wellness Center has issued the following commission payment for a direct sale referral.</p>
@@ -107,7 +109,7 @@ ${box}
       ? `If you have any questions about this refund, just reply to this email and we'll be happy to help. 🌺`
       : `We appreciate your trust and look forward to seeing you soon. 🌺`;
     return renderShell(heading, `<p>${intro}</p>${box}<p>${outro}</p>`);
-  }, [kind, guestName, amount, currency, concept, prettyDate, reference]);
+  }, [kind, guestName, amount, currency, paidTo, concept, prettyDate, reference]);
 
   const canSend = EMAIL_RE.test(to.trim()) && amount.trim() !== "" && !sending;
 
@@ -122,7 +124,7 @@ ${box}
         body: {
           kind, to: to.trim(), guest_name: guestName.trim(), amount: amount.trim(),
           currency, concept: concept.trim(), date: prettyDate, reference: reference.trim(),
-          cc_admin: ccAdmin,
+          paid_to: paidTo.trim(), cc_admin: ccAdmin,
         },
       });
       if (error) throw error;
@@ -205,6 +207,11 @@ ${box}
           <div className="space-y-2">
             <Label htmlFor="r-concept" className="font-body text-sm">Concept / reason</Label>
             <Input id="r-concept" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder={kind === "refund" ? "Refund for cancelled class" : kind === "commission" ? "Direct sale commission" : "Monthly membership"} maxLength={160} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="r-paidto" className="font-body text-sm">Paid to <span className="text-muted-foreground">(who receives the money)</span></Label>
+            <Input id="r-paidto" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : "Ana López"} maxLength={120} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

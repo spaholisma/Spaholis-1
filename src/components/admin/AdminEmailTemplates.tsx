@@ -51,7 +51,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
-  receipts: ["guest_name", "amount", "concept", "date", "reference", "receipt_box"],
+  receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -121,13 +121,14 @@ function sampleVars(category: string): Record<string, string> {
       <p style="margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount paid</p>
       <p style="margin:0 0 12px;font-size:28px;font-weight:bold;color:#2F2F2F;">₡25,000 CRC</p>
       <table style="width:100%;border-collapse:collapse;border-top:1px solid #e2e8e8;">
+        <tr><td style="padding:8px 0;color:#666;font-size:14px;">Paid to</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">Ana López</td></tr>
         <tr><td style="padding:8px 0;color:#666;font-size:14px;">Concept</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">Monthly membership</td></tr>
         <tr><td style="padding:8px 0;color:#666;font-size:14px;">Date</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">August 3, 2026</td></tr>
         <tr><td style="padding:8px 0;color:#666;font-size:14px;">Reference</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">HOLIS-0042</td></tr>
       </table>
     </div>`;
     return {
-      guest_name: "Ana", amount: "₡25,000 CRC", concept: "Monthly membership",
+      guest_name: "Ana", amount: "₡25,000 CRC", paid_to: "Ana López", concept: "Monthly membership",
       date: "August 3, 2026", reference: "HOLIS-0042", receipt_box,
     };
   }
