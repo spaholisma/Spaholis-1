@@ -23,12 +23,14 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
 
   const weekDays = DAYS.map((_, i) => addDays(weekStart, i));
 
-  // Group events by day of week
+  // Group events by day of week. Past classes (booking closes 15 min before
+  // start) are hidden so the schedule only shows what can still be booked.
+  const bookableCutoff = Date.now() + 15 * 60 * 1000;
   const eventsByDay: Record<number, ScheduleRow[]> = {};
   weekDays.forEach((day, i) => {
     eventsByDay[i] = events.filter((e) => {
       const eventDate = new Date(e.start_time);
-      return isSameDay(eventDate, day);
+      return isSameDay(eventDate, day) && eventDate.getTime() >= bookableCutoff;
     }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   });
 

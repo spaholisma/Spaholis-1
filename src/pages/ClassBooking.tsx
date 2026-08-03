@@ -341,14 +341,14 @@ const ClassBookingPage = () => {
     );
   }
 
-  // This class already started — online booking is closed (the DB also blocks it).
-  if (new Date(event.start_time) < new Date()) {
+  // Online booking closes 15 min before the class starts (the DB also blocks it).
+  if (new Date(event.start_time).getTime() < Date.now() + 15 * 60 * 1000) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
-          <h1 className="spa-heading-lg text-foreground mb-4">This class has already started</h1>
-          <p className="spa-body mb-8">Online booking for this class is closed. Browse our upcoming classes instead.</p>
+          <h1 className="spa-heading-lg text-foreground mb-4">Booking is closed for this class</h1>
+          <p className="spa-body mb-8">Online booking closes 15 minutes before a class starts. Browse our upcoming classes instead.</p>
           <Button asChild><Link to="/classes">See upcoming classes</Link></Button>
         </div>
         <Footer />

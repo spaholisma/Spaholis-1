@@ -1,0 +1,3 @@
+-- reject_past_class_booking now blocks online booking 15 minutes before the
+-- class starts (was: after it started), matching the treatment 15-min lead.
+-- Staff still exempt. Applied live 2026-08-03.
