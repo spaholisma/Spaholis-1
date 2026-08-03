@@ -37,9 +37,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   offering_order: "Membership orders (schedule link)",
   client_notify: "Appointment reminders & reviews",
   offering_expired: "Membership & pass expiry",
+  receipts: "Receipts (purchase & refund)",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired", "receipts"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -50,6 +51,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
+  receipts: ["guest_name", "amount", "concept", "date", "reference", "receipt_box"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -114,6 +116,21 @@ function sampleVars(category: string): Record<string, string> {
       button, review_link: "#",
     };
   }
+  if (category === "receipts") {
+    const receipt_box = `<div style="background:#f3f6f6;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount paid</p>
+      <p style="margin:0 0 12px;font-size:28px;font-weight:bold;color:#2F2F2F;">₡25,000 CRC</p>
+      <table style="width:100%;border-collapse:collapse;border-top:1px solid #e2e8e8;">
+        <tr><td style="padding:8px 0;color:#666;font-size:14px;">Concept</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">Monthly membership</td></tr>
+        <tr><td style="padding:8px 0;color:#666;font-size:14px;">Date</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">August 3, 2026</td></tr>
+        <tr><td style="padding:8px 0;color:#666;font-size:14px;">Reference</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">HOLIS-0042</td></tr>
+      </table>
+    </div>`;
+    return {
+      guest_name: "Ana", amount: "₡25,000 CRC", concept: "Monthly membership",
+      date: "August 3, 2026", reference: "HOLIS-0042", receipt_box,
+    };
+  }
   // offering_purchase / offering_order
   const isOrder = category === "offering_order";
   const details = `<div style="background:#f3f6f6;border-radius:12px;padding:16px;margin:16px 0;">
@@ -133,7 +150,7 @@ function buildPreview(tpl: { heading: string; body_html: string }, category: str
   const raw = sampleVars(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button"].includes(k) ? v : escHtml(v);
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box"].includes(k) ? v : escHtml(v);
   return renderShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars));
 }
 
