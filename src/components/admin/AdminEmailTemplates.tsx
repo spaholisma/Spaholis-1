@@ -36,9 +36,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   offering_purchase: "Membership purchases (online)",
   offering_order: "Membership orders (schedule link)",
   client_notify: "Appointment reminders & reviews",
+  offering_expired: "Membership & pass expiry",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -48,6 +49,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
+  offering_expired: ["guest_name", "first_name", "offering_name", "button"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -100,6 +102,10 @@ function sampleVars(category: string): Record<string, string> {
       guest_name: "Ana", reservation_id: "A1B2C3D4", class_title: "Vinyasa Flow", instructor: "Luis",
       when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", payment_status: "Paid", details, button, whatsapp_url: "#",
     };
+  }
+  if (category === "offering_expired") {
+    const button = `<p style="text-align:center;margin:24px 0;"><a href="#" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Renew now</a></p>`;
+    return { guest_name: "Ana", first_name: "Ana", offering_name: "Monthly Unlimited", button };
   }
   if (category === "client_notify") {
     const button = `<p style="text-align:center;margin:24px 0;"><a href="#" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:14px 28px;border-radius:9999px;font-size:15px;display:inline-block;">Leave a review</a></p>`;
