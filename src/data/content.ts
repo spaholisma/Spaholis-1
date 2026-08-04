@@ -243,6 +243,85 @@ export const content = {
     subtitle: "Our massage therapy treatments are designed to relieve muscle tension, reduce stress, and support overall wellness. Using techniques such as deep tissue, Swedish, and therapeutic massage, each session is tailored to your body’s needs to improve circulation, ease pain, and promote deep relaxation.",
     selectPlaceholder: "Select a category",
     bookButtonText: "Book",
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg?format=2500w",
+    selectCategory: "Please select a category to view treatments",
+    taxNote: "All prices are tax-inclusive",
+    // Category display names (left key = internal name, right = shown label)
+    categories: {
+      "Massage Therapy": "Massage Therapy",
+      "Organic Facials": "Organic Facials",
+      "Body Treatments": "Body Treatments",
+      "Holistic Therapy": "Holistic Therapy",
+      "Wellness Programs": "Wellness Programs",
+      "Manuel Antonio Experiences": "Manuel Antonio Experiences",
+      "Spa Packages": "Spa Packages",
+    },
+    // Category header images
+    categoryImages: {
+      "Massage Therapy": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg?format=1500w",
+      "Organic Facials": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/13188b0e-e90f-482b-b100-8e6df443a342/IMG_3394-e1402951220128.jpg?format=1500w",
+      "Body Treatments": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/582db92a-49bb-45fd-bf95-c433ebc08e8e/Copy+of+Copy+of+IMG_7020.jpg?format=1500w",
+      "Holistic Therapy": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1c00f13e-5e03-4d0b-b9ee-99a32d61eaca/045A5420.jpg?format=1500w",
+      "Wellness Programs": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/d89fc404-0b7a-42f9-bd05-21136e5dafd6/045A5408.jpg?format=1500w",
+      "Manuel Antonio Experiences": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/6327cb9b-8f05-4e8c-9685-59fbc0fc0544/IMG_9427.jpg?format=1500w",
+      "Spa Packages": "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/ec8f6825-a81e-491f-bb40-3a2f33d47455/spa_packages.jpg?format=1500w",
+    },
+    // SEO content section (below the treatment list)
+    seo: {
+      intro: {
+        title: "Treatments & Therapies",
+        body: "At Holis Wellness Center, our treatments and therapies are designed to support your physical, emotional, and energetic well-being. We offer a wide range of holistic services including massage therapy, organic facials, body treatments, and personalized wellness programs. Whether you're seeking stress relief, pain reduction, or skin rejuvenation, our expert therapists tailor each experience to your needs.",
+      },
+      blocks: {
+        massage: {
+          title: "Massage Therapy",
+          body: "Our massage therapy services combine traditional and modern techniques to relieve muscle tension, improve circulation, and promote deep relaxation. Choose from deep tissue, Swedish, and therapeutic massage options designed to reduce stress, support recovery, and enhance overall wellness.",
+        },
+        facials: {
+          title: "Organic Facials",
+          body: "Our organic facials use natural, toxin-free products to nourish and restore your skin. These treatments improve hydration, reduce signs of aging, and promote a radiant complexion using gentle yet effective botanical ingredients suitable for all skin types.",
+        },
+        body: {
+          title: "Body Treatments",
+          body: "Our body treatments are designed to detoxify, exfoliate, and rejuvenate the skin. From body scrubs to wraps and lymphatic therapies, each session enhances circulation, improves skin texture, and supports full-body wellness.",
+        },
+        holistic: {
+          title: "Holistic Therapy",
+          body: "Our holistic therapies focus on balancing the mind and body through integrative techniques that support emotional well-being, energy alignment, and deep relaxation. These treatments are ideal for those seeking a more mindful approach to wellness.",
+        },
+      },
+      benefits: {
+        title: "Benefits of Our Treatments",
+        items: [
+          "Reduce stress and anxiety",
+          "Relieve muscle tension and chronic pain",
+          "Improve circulation and lymphatic flow",
+          "Enhance skin health and hydration",
+          "Support overall wellness and balance",
+        ],
+      },
+      faq: {
+        title: "Frequently Asked Questions",
+        items: [
+          {
+            q: "What is the best massage for stress relief?",
+            a: "Pure Bliss massage and Somato Awareness System are ideal options to reduce stress and create an experience that nourishes our capacity to maintain ease.",
+          },
+          {
+            q: "How often should I get a facial?",
+            a: "For optimal skin health, we recommend a facial every 2 to 4 weeks depending on your skin type and goals.",
+          },
+          {
+            q: "What are the main benefits of Holistic therapy?",
+            a: "Holistic therapy can help improve overall wellbeing. The main discomforts that can be addressed are sleeping disorders, joint pain, migraines, emotional distress, low energy and more.",
+          },
+        ],
+      },
+      local: {
+        title: "Wellness Center in Manuel Antonio, Costa Rica",
+        body: "Located in Manuel Antonio, Costa Rica, Holis Wellness Center is a trusted destination for massage therapy, organic facials, and holistic wellness treatments. We proudly serve clients seeking relaxation, rejuvenation, and personalized care in a calm and welcoming environment.",
+      },
+    },
   },
 
   // ── Signature Treatments Page ──

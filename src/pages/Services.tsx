@@ -92,8 +92,11 @@ const ServicesPage = () => {
   const { data: seoData } = useSiteSeo();
   const svc = siteContent?.services || defaults.services;
   const seo = seoData || seoDefaults;
+  // Category label + header image now come from the Content editor (svc.*),
+  // falling back to the built-in constants.
+  const catImages: Record<string, string> = { ...categoryImages, ...((svc as any).categoryImages || {}) };
   const localizeCategory = (cat: string) =>
-    t(`services.categories.${cat}`, { defaultValue: cat });
+    ((svc as any).categories?.[cat] as string) || cat;
 
   const isLoading = servicesLoading || packagesLoading;
 
@@ -146,7 +149,7 @@ const ServicesPage = () => {
       <div className="relative pt-16">
         <div className="aspect-[21/9] max-h-[420px] w-full overflow-hidden">
           <img
-            src={heroSpaHolis}
+            src={svc.heroImage || heroSpaHolis}
             alt="Traditional massage therapy at Holis Wellness Center"
             className="w-full h-full object-cover"
           />
@@ -155,10 +158,10 @@ const ServicesPage = () => {
         <div className="absolute bottom-8 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           <motion.div {...fadeIn}>
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
-              {language === "es" ? t("services.eyebrow") : svc.eyebrow}
+              {svc.eyebrow}
             </p>
             <h1 className="spa-heading-xl text-spa-cream drop-shadow-lg">
-              {language === "es" ? t("services.title") : svc.title}
+              {svc.title}
             </h1>
           </motion.div>
         </div>
@@ -167,7 +170,7 @@ const ServicesPage = () => {
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto py-12">
         <motion.div {...fadeIn} className="mb-10 max-w-3xl">
           <p className="spa-body text-lg leading-relaxed">
-            {language === "es" ? t("services.subtitle") : svc.subtitle}
+            {svc.subtitle}
           </p>
         </motion.div>
 
@@ -203,7 +206,7 @@ const ServicesPage = () => {
             {/* Unified List */}
             {!selected ? (
               <motion.p {...fadeIn} className="font-body text-sm text-muted-foreground text-center py-12">
-                {t("services.selectCategory")}
+                {svc.selectCategory}
               </motion.p>
             ) : (
               <motion.div
@@ -220,7 +223,7 @@ const ServicesPage = () => {
                   selected === "Body Treatments") ? (
                   <MassageTherapyAccordion
                     services={grouped[selected] ?? []}
-                    image={categoryImages[selected] || imgMassage}
+                    image={catImages[selected] || imgMassage}
                   />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -229,14 +232,14 @@ const ServicesPage = () => {
                         <ServiceCardItem
                           key={item.data.id}
                           service={item.data}
-                          image={categoryImages[selected] || imgMassage}
+                          image={catImages[selected] || imgMassage}
                           onDetail={() => setDetailService(item.data)}
                         />
                       ) : (
                         <PackageCardItem
                           key={item.data.id}
                           pkg={item.data}
-                          image={categoryImages[selected] || imgPackages}
+                          image={catImages[selected] || imgPackages}
                           onDetail={() => setDetailPackage(item.data)}
                         />
                       )
@@ -254,7 +257,7 @@ const ServicesPage = () => {
 
 
       <motion.p {...fadeIn} className="text-center font-body text-xs text-muted-foreground mb-16 italic px-4">
-        {t("services.taxNote")}
+        {svc.taxNote}
       </motion.p>
 
       {/* Service detail modal */}
@@ -502,9 +505,10 @@ function PackageCardItem({ pkg, image, onDetail }: { pkg: SpaPackage; image: str
 }
 
 function SeoContentSection() {
-  const { t } = useTranslation();
-  const benefits = t("services.seo.benefits.items", { returnObjects: true }) as string[];
-  const faqItems = t("services.seo.faq.items", { returnObjects: true }) as Array<{ q: string; a: string }>;
+  const { data: siteContent } = useSiteContent();
+  const seo = ((siteContent?.services || defaults.services) as any).seo || (defaults.services as any).seo;
+  const benefits: string[] = Array.isArray(seo?.benefits?.items) ? seo.benefits.items : [];
+  const faqItems: Array<{ q: string; a: string }> = Array.isArray(seo?.faq?.items) ? seo.faq.items : [];
 
   return (
     <section
@@ -518,10 +522,10 @@ function SeoContentSection() {
             id="treatments-seo-heading"
             className="font-heading text-3xl md:text-4xl font-medium text-foreground mb-4"
           >
-            {t("services.seo.intro.title")}
+            {seo?.intro?.title}
           </h2>
           <p className="spa-body text-muted-foreground leading-relaxed">
-            {t("services.seo.intro.body")}
+            {seo?.intro?.body}
           </p>
         </motion.div>
 
@@ -534,10 +538,10 @@ function SeoContentSection() {
               className="bg-card rounded-2xl border border-border p-6"
             >
               <h3 className="font-heading text-xl font-medium text-foreground mb-3">
-                {t(`services.seo.blocks.${key}.title`)}
+                {seo?.blocks?.[key]?.title}
               </h3>
               <p className="spa-body-sm text-muted-foreground leading-relaxed">
-                {t(`services.seo.blocks.${key}.body`)}
+                {seo?.blocks?.[key]?.body}
               </p>
             </motion.div>
           ))}
@@ -546,7 +550,7 @@ function SeoContentSection() {
         {/* Benefits */}
         <motion.div {...fadeIn} className="max-w-3xl">
           <h3 className="font-heading text-2xl font-medium text-foreground mb-4">
-            {t("services.seo.benefits.title")}
+            {seo?.benefits?.title}
           </h3>
           <ul className="space-y-2">
             {benefits.map((b, i) => (
@@ -561,7 +565,7 @@ function SeoContentSection() {
         {/* FAQ */}
         <motion.div {...fadeIn} className="max-w-3xl">
           <h3 className="font-heading text-2xl font-medium text-foreground mb-4">
-            {t("services.seo.faq.title")}
+            {seo?.faq?.title}
           </h3>
           <div className="space-y-5">
             {faqItems.map((item, i) => (
@@ -580,10 +584,10 @@ function SeoContentSection() {
         {/* Local SEO */}
         <motion.div {...fadeIn} className="max-w-3xl">
           <h3 className="font-heading text-2xl font-medium text-foreground mb-3">
-            {t("services.seo.local.title")}
+            {seo?.local?.title}
           </h3>
           <p className="spa-body-sm text-muted-foreground leading-relaxed">
-            {t("services.seo.local.body")}
+            {seo?.local?.body}
           </p>
         </motion.div>
       </div>
