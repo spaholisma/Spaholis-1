@@ -10,10 +10,14 @@ import { cn } from "@/lib/utils";
 import { useFaqCategories, useFaqs, type Faq } from "@/hooks/useFaqs";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { pickLocalized } from "@/lib/i18n-field";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { content as defaults } from "@/data/content";
 
 export default function Faqs() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { data: siteContent } = useSiteContent();
+  const fq = (siteContent as any)?.faqs || (defaults as any).faqs;
   const lp = (p: string) => withLangPrefix(p, language);
   // Localized field picker for FAQ rows.
   const localizedQuestion = (f: Faq) =>
@@ -187,15 +191,13 @@ export default function Faqs() {
           {/* Header */}
           <div className="text-center mb-12">
             <p className="text-sm font-body uppercase tracking-widest text-muted-foreground mb-3">
-              {language === "es" ? "¿En qué podemos ayudarte?" : "How can we help?"}
+              {fq.eyebrow}
             </p>
             <h1 className="font-heading text-4xl md:text-5xl text-foreground mb-4">
               {t("faqs.title")}
             </h1>
             <p className="font-body text-muted-foreground max-w-2xl mx-auto">
-              {language === "es"
-                ? "Todo lo que necesitas saber sobre nuestros tratamientos, clases, retiros y nuestra visita en Manuel Antonio."
-                : "Everything you need to know about our treatments, classes, retreats and visiting us in Manuel Antonio."}
+              {fq.intro}
             </p>
           </div>
 

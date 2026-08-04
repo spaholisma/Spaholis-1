@@ -466,6 +466,14 @@ export const content = {
     } as Record<string, string>,
   },
 
+  // ── FAQs Page ──
+  // The questions/answers themselves are managed in Admin → FAQs. These are
+  // just the page header texts.
+  faqs: {
+    eyebrow: "How can we help?",
+    intro: "Everything you need to know about our treatments, classes, retreats and visiting us in Manuel Antonio.",
+  },
+
   // ── Retreats Page ──
   retreats: {
     heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/9482f2a2-2685-4fe6-a63d-c9a189520bd1/retreat-cover.jpg",
