@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Users, Minus, Plus } from "lucide-react";
@@ -76,11 +77,11 @@ const PrivateClassesPage = () => {
       {/* Hero */}
       <section className="pt-28 pb-16 px-4 sm:px-6 lg:px-8 bg-spa-sage/10 border-b border-spa-sage/20">
         <motion.div {...fadeIn} className="max-w-3xl mx-auto text-center">
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+          <p {...cmsEditProps("privateSessions.eyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
             {ps.eyebrow}
           </p>
-          <h1 className="spa-heading-xl text-foreground mb-4">{ps.title}</h1>
-          <p className="spa-body text-muted-foreground max-w-xl mx-auto">
+          <h1 {...cmsEditProps("privateSessions.title")} className="spa-heading-xl text-foreground mb-4">{ps.title}</h1>
+          <p {...cmsEditProps("privateSessions.subtitle")} className="spa-body text-muted-foreground max-w-xl mx-auto">
             {ps.subtitle}
           </p>
         </motion.div>
@@ -90,7 +91,7 @@ const PrivateClassesPage = () => {
       <section className="py-10 px-4 sm:px-6 lg:px-8 border-b border-border">
         <div className="max-w-2xl mx-auto">
           <motion.div {...fadeIn} className="text-center mb-6">
-            <h2 className="font-heading text-lg font-medium text-foreground">{ps.pricingTitle}</h2>
+            <h2 {...cmsEditProps("privateSessions.pricingTitle")} className="font-heading text-lg font-medium text-foreground">{ps.pricingTitle}</h2>
           </motion.div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             {[
@@ -112,7 +113,7 @@ const PrivateClassesPage = () => {
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <motion.div {...fadeIn} className="text-center mb-10">
-            <h2 className="spa-heading-lg text-foreground">{ps.offeringsTitle}</h2>
+            <h2 {...cmsEditProps("privateSessions.offeringsTitle")} className="spa-heading-lg text-foreground">{ps.offeringsTitle}</h2>
           </motion.div>
 
           <div className="grid gap-6 sm:grid-cols-2">
@@ -149,10 +150,10 @@ const PrivateClassesPage = () => {
                       );
                     })()}
                     <CardContent className="p-6 flex flex-col flex-1 gap-4">
-                      <h3 className="font-heading text-xl font-medium text-foreground">
+                      <h3 {...cmsEditProps(`privateSessions.classes.${cls.i18nKey}.title`)} className="font-heading text-xl font-medium text-foreground">
                         {((ps as any).classes?.[cls.i18nKey]?.title || cls.id)}
                       </h3>
-                      <p className="spa-body-sm text-muted-foreground flex-1">
+                      <p {...cmsEditProps(`privateSessions.classes.${cls.i18nKey}.description`)} className="spa-body-sm text-muted-foreground flex-1">
                         {((ps as any).classes?.[cls.i18nKey]?.description || "")}
                       </p>
 
@@ -211,7 +212,7 @@ const PrivateClassesPage = () => {
       {/* Benefits */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-spa-sage/5">
         <motion.div {...fadeIn} className="max-w-2xl mx-auto text-center">
-          <h2 className="spa-heading-lg text-foreground mb-8">{(ps as any).whyChoose}</h2>
+          <h2 {...cmsEditProps("privateSessions.whyChoose")} className="spa-heading-lg text-foreground mb-8">{(ps as any).whyChoose}</h2>
           <ul className="space-y-4 text-left max-w-md mx-auto">
             {((ps as any).benefits ?? []).map((benefit: string, idx: number) => (
               <li key={idx} className="flex items-center gap-3">
@@ -226,7 +227,7 @@ const PrivateClassesPage = () => {
       {/* CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeIn} className="max-w-xl mx-auto text-center">
-          <h2 className="spa-heading-md text-foreground mb-4">
+          <h2 {...cmsEditProps("privateSessions.ctaTitle")} className="spa-heading-md text-foreground mb-4">
             {(ps as any).ctaTitle}
           </h2>
           <Button asChild variant="spa" size="xl">

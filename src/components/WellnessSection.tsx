@@ -8,6 +8,7 @@ import { useCollections, type ResolvedCollection } from "@/hooks/useCollections"
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
 import { RichText } from "@/components/ui/rich-text";
+import { cmsEditProps } from "@/lib/cmsEdit";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -115,10 +116,10 @@ export function WellnessSection() {
       {/* Wellness Intro & Collection Filters */}
       <section id="wellness" className="pt-20 pb-8 px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeIn} className="max-w-3xl mx-auto text-center mb-10">
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+          <p {...cmsEditProps("wellness.eyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
             {wellness.eyebrow}
           </p>
-          <h2 className="spa-heading-lg text-foreground mb-4">
+          <h2 {...cmsEditProps("wellness.title")} className="spa-heading-lg text-foreground mb-4">
             {wellness.title}
           </h2>
           <p className="spa-body text-muted-foreground max-w-xl mx-auto">

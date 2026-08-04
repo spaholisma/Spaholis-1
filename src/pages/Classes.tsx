@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { useUpcomingEvents } from "@/hooks/useClasses";
 import { EventCard } from "@/components/EventCard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,7 +69,7 @@ const ClassesPage = () => {
       {/* Banner */}
       <div className="bg-spa-sage/10 border-b border-spa-sage/20">
         <div className={`${tokenOffering?.valid ? "pt-6" : "pt-24"} pb-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center`}>
-          <p className="font-body text-sm italic text-muted-foreground">
+          <p {...cmsEditProps("classes.banner")} className="font-body text-sm italic text-muted-foreground">
             {cls.banner}
           </p>
         </div>
@@ -77,6 +78,7 @@ const ClassesPage = () => {
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <motion.div {...fadeIn} className="mt-10 rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
           <img
+            {...cmsEditProps("classes.heroImage", "image")}
             src={cls.heroImage || classesHero}
             alt="Aerial yoga class at Holis Wellness Center"
             className="w-full h-full object-cover"
@@ -85,7 +87,7 @@ const ClassesPage = () => {
         </motion.div>
         {/* Upcoming Events Heading */}
         <motion.div {...fadeIn} className="text-center mt-14 mb-4">
-          <h1 className="spa-heading-xl text-foreground">{cls.title}</h1>
+          <h1 {...cmsEditProps("classes.title")} className="spa-heading-xl text-foreground">{cls.title}</h1>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-3">
             <Link
               to="/classes/schedule"
@@ -132,8 +134,8 @@ const ClassesPage = () => {
         ) : !events?.length ? (
           <motion.div {...fadeIn} className="text-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h2 className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
-            <p className="spa-body max-w-md mx-auto">
+            <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
+            <p {...cmsEditProps("classes.emptyDescription")} className="spa-body max-w-md mx-auto">
               {cls.emptyDescription}
             </p>
           </motion.div>
@@ -149,13 +151,13 @@ const ClassesPage = () => {
         {workshops.length > 0 && (
           <motion.div {...fadeIn} className="mt-20">
             <div className="text-center mb-10">
-              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+              <p {...cmsEditProps("classes.workshopsEyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
                 {cls.workshopsEyebrow}
               </p>
               <Link to="/education" className="inline-block group">
-                <h2 className="spa-heading-lg text-foreground group-hover:text-spa-sage transition-colors">{cls.workshopsTitle}</h2>
+                <h2 {...cmsEditProps("classes.workshopsTitle")} className="spa-heading-lg text-foreground group-hover:text-spa-sage transition-colors">{cls.workshopsTitle}</h2>
               </Link>
-              <p className="spa-body mt-3 max-w-xl mx-auto">
+              <p {...cmsEditProps("classes.workshopsSubtitle")} className="spa-body mt-3 max-w-xl mx-auto">
                 {cls.workshopsSubtitle}
               </p>
               <Link
@@ -178,10 +180,10 @@ const ClassesPage = () => {
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 mb-3 text-spa-sage">
               <ShoppingBag className="h-4 w-4" />
-              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{cls.purchaseEyebrow}</p>
+              <p {...cmsEditProps("classes.purchaseEyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{cls.purchaseEyebrow}</p>
             </div>
-            <h2 className="spa-heading-lg text-foreground">{cls.membershipsTitle}</h2>
-            <p className="spa-body mt-3 max-w-xl mx-auto">
+            <h2 {...cmsEditProps("classes.membershipsTitle")} className="spa-heading-lg text-foreground">{cls.membershipsTitle}</h2>
+            <p {...cmsEditProps("classes.membershipsSubtitle")} className="spa-body mt-3 max-w-xl mx-auto">
               {cls.membershipsSubtitle}
             </p>
           </div>

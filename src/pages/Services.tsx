@@ -9,6 +9,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useServicesByCategory, type ServiceRow } from "@/hooks/useServices";
@@ -149,6 +150,7 @@ const ServicesPage = () => {
       <div className="relative pt-16">
         <div className="aspect-[21/9] max-h-[420px] w-full overflow-hidden">
           <img
+            {...cmsEditProps("services.heroImage", "image")}
             src={svc.heroImage || heroSpaHolis}
             alt="Traditional massage therapy at Holis Wellness Center"
             className="w-full h-full object-cover"
@@ -157,10 +159,10 @@ const ServicesPage = () => {
         </div>
         <div className="absolute bottom-8 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           <motion.div {...fadeIn}>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
+            <p {...cmsEditProps("services.eyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
               {svc.eyebrow}
             </p>
-            <h1 className="spa-heading-xl text-spa-cream drop-shadow-lg">
+            <h1 {...cmsEditProps("services.title")} className="spa-heading-xl text-spa-cream drop-shadow-lg">
               {svc.title}
             </h1>
           </motion.div>
@@ -169,7 +171,7 @@ const ServicesPage = () => {
 
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto py-12">
         <motion.div {...fadeIn} className="mb-10 max-w-3xl">
-          <p className="spa-body text-lg leading-relaxed">
+          <p {...cmsEditProps("services.subtitle")} className="spa-body text-lg leading-relaxed">
             {svc.subtitle}
           </p>
         </motion.div>
@@ -519,12 +521,13 @@ function SeoContentSection() {
         {/* Intro */}
         <motion.div {...fadeIn} className="max-w-3xl">
           <h2
+            {...cmsEditProps("services.seo.intro.title")}
             id="treatments-seo-heading"
             className="font-heading text-3xl md:text-4xl font-medium text-foreground mb-4"
           >
             {seo?.intro?.title}
           </h2>
-          <p className="spa-body text-muted-foreground leading-relaxed">
+          <p {...cmsEditProps("services.seo.intro.body")} className="spa-body text-muted-foreground leading-relaxed">
             {seo?.intro?.body}
           </p>
         </motion.div>
@@ -537,10 +540,10 @@ function SeoContentSection() {
               key={key}
               className="bg-card rounded-2xl border border-border p-6"
             >
-              <h3 className="font-heading text-xl font-medium text-foreground mb-3">
+              <h3 {...cmsEditProps(`services.seo.blocks.${key}.title`)} className="font-heading text-xl font-medium text-foreground mb-3">
                 {seo?.blocks?.[key]?.title}
               </h3>
-              <p className="spa-body-sm text-muted-foreground leading-relaxed">
+              <p {...cmsEditProps(`services.seo.blocks.${key}.body`)} className="spa-body-sm text-muted-foreground leading-relaxed">
                 {seo?.blocks?.[key]?.body}
               </p>
             </motion.div>
@@ -549,7 +552,7 @@ function SeoContentSection() {
 
         {/* Benefits */}
         <motion.div {...fadeIn} className="max-w-3xl">
-          <h3 className="font-heading text-2xl font-medium text-foreground mb-4">
+          <h3 {...cmsEditProps("services.seo.benefits.title")} className="font-heading text-2xl font-medium text-foreground mb-4">
             {seo?.benefits?.title}
           </h3>
           <ul className="space-y-2">
@@ -564,7 +567,7 @@ function SeoContentSection() {
 
         {/* FAQ */}
         <motion.div {...fadeIn} className="max-w-3xl">
-          <h3 className="font-heading text-2xl font-medium text-foreground mb-4">
+          <h3 {...cmsEditProps("services.seo.faq.title")} className="font-heading text-2xl font-medium text-foreground mb-4">
             {seo?.faq?.title}
           </h3>
           <div className="space-y-5">
@@ -583,10 +586,10 @@ function SeoContentSection() {
 
         {/* Local SEO */}
         <motion.div {...fadeIn} className="max-w-3xl">
-          <h3 className="font-heading text-2xl font-medium text-foreground mb-3">
+          <h3 {...cmsEditProps("services.seo.local.title")} className="font-heading text-2xl font-medium text-foreground mb-3">
             {seo?.local?.title}
           </h3>
-          <p className="spa-body-sm text-muted-foreground leading-relaxed">
+          <p {...cmsEditProps("services.seo.local.body")} className="spa-body-sm text-muted-foreground leading-relaxed">
             {seo?.local?.body}
           </p>
         </motion.div>

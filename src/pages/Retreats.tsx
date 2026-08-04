@@ -8,6 +8,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { seo, content as defaults } from "@/data/content";
 import { useSiteContent } from "@/hooks/useSiteContent";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRetreats } from "@/hooks/useRetreats";
@@ -73,6 +74,7 @@ export default function RetreatsPage() {
       <div className="relative pt-16">
         <div className="aspect-[21/9] max-h-[420px] w-full overflow-hidden">
           <img
+            {...cmsEditProps("retreats.heroImage", "image")}
             src={rt.heroImage}
             alt="Retreat at Holis Wellness Center"
             className="w-full h-full object-cover"
@@ -81,10 +83,10 @@ export default function RetreatsPage() {
         </div>
         <div className="absolute bottom-8 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           <motion.div {...fadeIn}>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
+            <p {...cmsEditProps("retreats.heroEyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
               {rt.heroEyebrow}
             </p>
-            <h1 className="spa-heading-xl text-spa-cream drop-shadow-lg">
+            <h1 {...cmsEditProps("retreats.heroTitle")} className="spa-heading-xl text-spa-cream drop-shadow-lg">
               {rt.heroTitle}
             </h1>
           </motion.div>
@@ -94,12 +96,12 @@ export default function RetreatsPage() {
       <div className="px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto py-12">
         {/* Intro */}
         <motion.div {...fadeIn} className="mb-10 max-w-3xl">
-          <p className="spa-body text-lg leading-relaxed">
+          <p {...cmsEditProps("retreats.intro")} className="spa-body text-lg leading-relaxed">
             {rt.intro}
           </p>
           <div className="flex items-center gap-2 mt-4 text-sm font-body text-muted-foreground">
             <MapPin className="h-4 w-4" />
-            {rt.location}
+            <span {...cmsEditProps("retreats.location")}>{rt.location}</span>
           </div>
         </motion.div>
 
@@ -203,7 +205,7 @@ export default function RetreatsPage() {
                 transition={{ duration: 0.4 }}
               >
                 <div className="mb-6 max-w-3xl">
-                  <p className="spa-body leading-relaxed">
+                  <p {...cmsEditProps("retreats.packagesIntro")} className="spa-body leading-relaxed">
                     {rt.packagesIntro}
                   </p>
                 </div>
@@ -260,7 +262,7 @@ export default function RetreatsPage() {
                 transition={{ duration: 0.4 }}
               >
                 <div className="mb-6 max-w-3xl">
-                  <p className="spa-body leading-relaxed">
+                  <p {...cmsEditProps("retreats.experiencesIntro")} className="spa-body leading-relaxed">
                     {rt.experiencesIntro}
                   </p>
                 </div>
@@ -318,10 +320,10 @@ export default function RetreatsPage() {
 
         {/* Custom retreat CTA */}
         <motion.div {...fadeIn} className="mt-16 bg-card rounded-2xl border border-border p-8 text-center">
-          <h2 className="font-heading text-2xl font-medium text-foreground mb-3">
+          <h2 {...cmsEditProps("retreats.customTitle")} className="font-heading text-2xl font-medium text-foreground mb-3">
             {rt.customTitle}
           </h2>
-          <p className="spa-body max-w-lg mx-auto mb-6">
+          <p {...cmsEditProps("retreats.customBody")} className="spa-body max-w-lg mx-auto mb-6">
             {rt.customBody}
           </p>
           <Button variant="default" size="lg" asChild>

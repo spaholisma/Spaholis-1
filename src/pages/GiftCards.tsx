@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { ContactToPayNotice } from "@/components/booking/ContactToPayNotice";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -66,9 +67,9 @@ const GiftCardsPage = () => {
       <Navbar />
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{gc.eyebrow}</p>
-          <h1 className="spa-heading-xl text-foreground">{gc.title}</h1>
-          <p className="spa-body mt-4 max-w-xl mx-auto">
+          <p {...cmsEditProps("giftCards.eyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{gc.eyebrow}</p>
+          <h1 {...cmsEditProps("giftCards.title")} className="spa-heading-xl text-foreground">{gc.title}</h1>
+          <p {...cmsEditProps("giftCards.subtitle")} className="spa-body mt-4 max-w-xl mx-auto">
             {gc.subtitle}
           </p>
         </motion.div>
@@ -76,7 +77,7 @@ const GiftCardsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
             <div className="bg-card rounded-2xl border border-border p-8">
-              <h2 className="font-heading text-xl font-medium text-foreground mb-6">{gc.chooseAmountTitle}</h2>
+              <h2 {...cmsEditProps("giftCards.chooseAmountTitle")} className="font-heading text-xl font-medium text-foreground mb-6">{gc.chooseAmountTitle}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {GIFT_AMOUNTS.map((a) => {
                   const selected = amount === a;

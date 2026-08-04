@@ -12,6 +12,7 @@ import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { pickLocalized } from "@/lib/i18n-field";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 
 export default function Faqs() {
   const { t } = useTranslation();
@@ -190,13 +191,13 @@ export default function Faqs() {
 
           {/* Header */}
           <div className="text-center mb-12">
-            <p className="text-sm font-body uppercase tracking-widest text-muted-foreground mb-3">
+            <p {...cmsEditProps("faqs.eyebrow")} className="text-sm font-body uppercase tracking-widest text-muted-foreground mb-3">
               {fq.eyebrow}
             </p>
             <h1 className="font-heading text-4xl md:text-5xl text-foreground mb-4">
               {t("faqs.title")}
             </h1>
-            <p className="font-body text-muted-foreground max-w-2xl mx-auto">
+            <p {...cmsEditProps("faqs.intro")} className="font-body text-muted-foreground max-w-2xl mx-auto">
               {fq.intro}
             </p>
           </div>

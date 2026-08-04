@@ -8,6 +8,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { cmsEditProps } from "@/lib/cmsEdit";
 import { useServices, type ServiceRow } from "@/hooks/useServices";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -130,13 +131,13 @@ const EducationalPage = () => {
         <img src={edu.heroImage} alt="Educational Programs" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-foreground/50" />
         <div className="relative z-10 text-center px-4 max-w-3xl">
-          <motion.h1 {...fadeIn} className="font-heading text-4xl md:text-5xl lg:text-6xl font-semibold text-background mb-4">
+          <motion.h1 {...cmsEditProps("education.heroTitle")} {...fadeIn} className="font-heading text-4xl md:text-5xl lg:text-6xl font-semibold text-background mb-4">
             {edu.heroTitle}
           </motion.h1>
-          <motion.p {...fadeIn} className="font-body text-sm md:text-base text-background/90 mb-2">
+          <motion.p {...cmsEditProps("education.heroByline")} {...fadeIn} className="font-body text-sm md:text-base text-background/90 mb-2">
             {edu.heroByline}
           </motion.p>
-          <motion.p {...fadeIn} className="font-body text-sm md:text-base text-background/80 leading-relaxed max-w-2xl mx-auto">
+          <motion.p {...cmsEditProps("education.heroDescription")} {...fadeIn} className="font-body text-sm md:text-base text-background/80 leading-relaxed max-w-2xl mx-auto">
             {edu.heroDescription}
           </motion.p>
         </div>
@@ -152,20 +153,20 @@ const EducationalPage = () => {
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-20">
               <motion.div {...fadeIn} className="rounded-2xl overflow-hidden">
-                <img src={edu.somatoImage} alt="Somato Awareness System" className="w-full h-full object-cover" />
+                <img {...cmsEditProps("education.somatoImage", "image")} src={edu.somatoImage} alt="Somato Awareness System" className="w-full h-full object-cover" />
               </motion.div>
               <motion.div {...fadeIn} className="space-y-5">
-                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
+                <h2 {...cmsEditProps("education.sasHeading")} className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
                   {edu.sasHeading}
                 </h2>
-                <h3 className="font-heading text-xl md:text-2xl font-medium text-foreground/80">
+                <h3 {...cmsEditProps("education.sasSubheading")} className="font-heading text-xl md:text-2xl font-medium text-foreground/80">
                   {edu.sasSubheading}
                 </h3>
-                <p className="font-body text-sm text-muted-foreground italic">{edu.createdBy}</p>
-                <p className="spa-body">{edu.sasIntro1}</p>
-                <p className="spa-body">{edu.sasIntro2}</p>
-                <p className="spa-body">{edu.sasIntro3}</p>
-                <p className="spa-body">{edu.sasIntro4}</p>
+                <p {...cmsEditProps("education.createdBy")} className="font-body text-sm text-muted-foreground italic">{edu.createdBy}</p>
+                <p {...cmsEditProps("education.sasIntro1")} className="spa-body">{edu.sasIntro1}</p>
+                <p {...cmsEditProps("education.sasIntro2")} className="spa-body">{edu.sasIntro2}</p>
+                <p {...cmsEditProps("education.sasIntro3")} className="spa-body">{edu.sasIntro3}</p>
+                <p {...cmsEditProps("education.sasIntro4")} className="spa-body">{edu.sasIntro4}</p>
                 <div className="bg-muted rounded-xl p-5 space-y-1">
                   <p className="font-body text-sm text-foreground">{edu.eachLevel}</p>
                   <p className="font-body text-sm text-muted-foreground">{edu.hoursDirect}</p>
@@ -185,13 +186,13 @@ const EducationalPage = () => {
                   className="h-28 w-auto flex-shrink-0"
                 />
                 <div className="text-center sm:text-left">
-                  <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-1">
+                  <p {...cmsEditProps("education.fecoprobeEyebrow")} className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-1">
                     {edu.fecoprobeEyebrow}
                   </p>
-                  <h4 className="font-heading text-2xl font-semibold text-foreground">
+                  <h4 {...cmsEditProps("education.fecoprobeTitle")} className="font-heading text-2xl font-semibold text-foreground">
                     {edu.fecoprobeTitle}
                   </h4>
-                  <p className="mt-2 font-body text-sm text-muted-foreground leading-relaxed">
+                  <p {...cmsEditProps("education.fecoprobeDescription")} className="mt-2 font-body text-sm text-muted-foreground leading-relaxed">
                     {edu.fecoprobeDescription}
                   </p>
                 </div>
@@ -206,15 +207,15 @@ const EducationalPage = () => {
                 return (
                   <AccordionItem key={idx} value={`level${idx + 1}`} className="border border-border rounded-2xl overflow-hidden px-0">
                     <AccordionTrigger className="px-6 py-5 hover:no-underline">
-                      <span className="font-heading text-lg md:text-xl font-medium text-foreground text-left">
+                      <span {...cmsEditProps(`education.sasLevels.${idx}.title`)} className="font-heading text-lg md:text-xl font-medium text-foreground text-left">
                         {lvl.title}
                       </span>
                     </AccordionTrigger>
                     <AccordionContent className="px-6 pb-6">
                       <div className="space-y-6">
                         <div>
-                          <h4 className="font-heading text-lg font-medium text-foreground mb-3">{lvl.subtitle}</h4>
-                          <p className="spa-body">{lvl.intro}</p>
+                          <h4 {...cmsEditProps(`education.sasLevels.${idx}.subtitle`)} className="font-heading text-lg font-medium text-foreground mb-3">{lvl.subtitle}</h4>
+                          <p {...cmsEditProps(`education.sasLevels.${idx}.intro`)} className="spa-body">{lvl.intro}</p>
                         </div>
 
                         <div>
@@ -241,7 +242,7 @@ const EducationalPage = () => {
 
                         <div className="bg-muted rounded-xl p-4">
                           <h5 className="font-body text-sm font-semibold text-foreground mb-1">{edu.resultLabel}</h5>
-                          <p className="font-body text-sm text-foreground/80">{lvl.result}</p>
+                          <p {...cmsEditProps(`education.sasLevels.${idx}.result`)} className="font-body text-sm text-foreground/80">{lvl.result}</p>
                         </div>
 
                       </div>
@@ -268,13 +269,13 @@ const EducationalPage = () => {
           {courses.length > 0 && (
             <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-20">
               <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
-                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                <p {...cmsEditProps("education.modulesEyebrow")} className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
                   {edu.modulesEyebrow}
                 </p>
-                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
+                <h2 {...cmsEditProps("education.modulesTitle")} className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
                   {edu.modulesTitle}
                 </h2>
-                <p className="spa-body">
+                <p {...cmsEditProps("education.modulesSubtitle")} className="spa-body">
                   {edu.modulesSubtitle}
                 </p>
               </motion.div>
@@ -313,13 +314,13 @@ const EducationalPage = () => {
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                   <motion.div {...fadeIn} className="rounded-2xl overflow-hidden">
-                    <img src={edu.couplesImage} alt="Couple's & Connection Experience" className="w-full h-full object-cover" />
+                    <img {...cmsEditProps("education.couplesImage", "image")} src={edu.couplesImage} alt="Couple's & Connection Experience" className="w-full h-full object-cover" />
                   </motion.div>
                   <motion.div {...fadeIn} className="space-y-5">
-                    <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
+                    <h2 {...cmsEditProps("education.couplesHeading")} className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
                       {edu.couplesHeading}
                     </h2>
-                    <p className="spa-body">
+                    <p {...cmsEditProps("education.couplesIntro")} className="spa-body">
                       {edu.couplesIntro}
                     </p>
 
