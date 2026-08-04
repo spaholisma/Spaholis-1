@@ -397,15 +397,23 @@ export const content = {
 
   // ── Classes Page ──
   classes: {
+    heroImage: "",
     banner: "Info for all of our upcoming events & classes",
     title: "Upcoming Events",
     calendarLink: "View all events in calendar format",
     privateLink: "Book a Private Class",
+    buyMemberships: "Buy memberships & class passes ↓",
+    coursesLink: "Courses, workshops & professional training →",
     emptyTitle: "No Upcoming Events",
     emptyDescription: "We're planning something wonderful. Check back soon for new classes, workshops, and events.",
     workshopsEyebrow: "Self Care and Wellbeing with Evelina",
     workshopsTitle: "Workshops",
     workshopsSubtitle: "Immersive workshops designed to deepen your self-care practice and holistic wellbeing.",
+    workshopsExploreLink: "Explore our courses & workshops on the Education page →",
+    // Buy memberships / class passes section
+    purchaseEyebrow: "Purchase",
+    membershipsTitle: "Memberships & Class Passes",
+    membershipsSubtitle: "Save with bundled credits or unlimited access. Redeem at booking — no extra steps.",
   },
 
   // ── Private Classes Page ──

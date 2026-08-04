@@ -77,7 +77,7 @@ const ClassesPage = () => {
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <motion.div {...fadeIn} className="mt-10 rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
           <img
-            src={classesHero}
+            src={cls.heroImage || classesHero}
             alt="Aerial yoga class at Holis Wellness Center"
             className="w-full h-full object-cover"
             loading="eager"
@@ -108,7 +108,7 @@ const ClassesPage = () => {
             href="#buy"
             className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
           >
-            {t("classes.buyMemberships")}
+            {cls.buyMemberships}
           </a>
         </motion.div>
 
@@ -119,7 +119,7 @@ const ClassesPage = () => {
             to="/education"
             className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
           >
-            Courses, workshops &amp; professional training →
+            {cls.coursesLink}
           </Link>
         </motion.div>
 
@@ -162,7 +162,7 @@ const ClassesPage = () => {
                 to="/education"
                 className="inline-flex items-center gap-1 mt-3 font-body text-sm font-semibold text-spa-sage hover:underline"
               >
-                Explore our courses &amp; workshops on the Education page →
+                {cls.workshopsExploreLink}
               </Link>
             </div>
             <div className="space-y-8">
@@ -178,11 +178,11 @@ const ClassesPage = () => {
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 mb-3 text-spa-sage">
               <ShoppingBag className="h-4 w-4" />
-              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{t("classes.purchaseEyebrow")}</p>
+              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{cls.purchaseEyebrow}</p>
             </div>
-            <h2 className="spa-heading-lg text-foreground">{t("classes.membershipsTitle")}</h2>
+            <h2 className="spa-heading-lg text-foreground">{cls.membershipsTitle}</h2>
             <p className="spa-body mt-3 max-w-xl mx-auto">
-              {t("classes.membershipsSubtitle")}
+              {cls.membershipsSubtitle}
             </p>
           </div>
           <OfferingsPurchaseSection redirectAfterPurchase="/dashboard" />
