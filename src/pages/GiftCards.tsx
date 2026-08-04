@@ -44,12 +44,12 @@ const GiftCardsPage = () => {
             <h1 className="spa-heading-lg text-foreground mb-4">{gc.successTitle}</h1>
             <div className="bg-card rounded-2xl border border-border p-8 mb-8">
               <Gift className="h-10 w-10 text-primary mx-auto mb-4" />
-              <p className="font-body text-sm text-muted-foreground mb-2">{t("giftCards.code")}</p>
+              <p className="font-body text-sm text-muted-foreground mb-2">{gc.ui?.code}</p>
               <p className="font-heading text-2xl font-semibold text-foreground tracking-widest mb-4">{purchased.code}</p>
               <p className="font-heading text-3xl font-semibold text-foreground">{formatCRCWithUsd(purchased.amount)}</p>
               {recipientEmail && (
                 <p className="font-body text-sm text-muted-foreground mt-4">
-                  {t("giftCards.copySent", { email: recipientEmail })}
+                  {String(gc.ui?.copySent||"").replace("{email}", recipientEmail)}
                 </p>
               )}
             </div>
@@ -101,24 +101,24 @@ const GiftCardsPage = () => {
 
               <div className="space-y-4 mt-6">
                 <div>
-                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{t("giftCards.yourEmail")} *</label>
-                  <Input value={purchaserEmail} onChange={(e) => setPurchaserEmail(e.target.value)} placeholder={t("giftCards.yourEmailPlaceholder")} />
+                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block"><span {...cmsEditProps("giftCards.ui.yourEmail")}>{gc.ui?.yourEmail} *</span></label>
+                  <Input value={purchaserEmail} onChange={(e) => setPurchaserEmail(e.target.value)} placeholder={gc.ui?.yourEmailPlaceholder} />
                 </div>
                 <div>
-                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{t("giftCards.recipientName")}</label>
-                  <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder={t("giftCards.recipientNamePlaceholder")} />
+                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block"><span {...cmsEditProps("giftCards.ui.recipientName")}>{gc.ui?.recipientName}</span></label>
+                  <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder={gc.ui?.recipientNamePlaceholder} />
                 </div>
                 <div>
-                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{t("giftCards.recipientEmail")}</label>
-                  <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder={t("giftCards.recipientEmailPlaceholder")} />
+                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block"><span {...cmsEditProps("giftCards.ui.recipientEmail")}>{gc.ui?.recipientEmail}</span></label>
+                  <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder={gc.ui?.recipientEmailPlaceholder} />
                 </div>
                 <div>
-                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{t("giftCards.personalMessage")}</label>
+                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block"><span {...cmsEditProps("giftCards.ui.personalMessage")}>{gc.ui?.personalMessage}</span></label>
                   <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-body ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px]"
-                    placeholder={t("giftCards.personalMessagePlaceholder")}
+                    placeholder={gc.ui?.personalMessagePlaceholder}
                   />
                 </div>
               </div>
@@ -132,9 +132,9 @@ const GiftCardsPage = () => {
                 <Gift className="h-12 w-12 text-primary mx-auto mb-4" />
                 <p className="font-heading text-sm uppercase tracking-widest text-muted-foreground mb-2">Holis Wellness Center</p>
                 <p className="font-heading text-4xl font-semibold text-foreground mb-2">{formatCRCWithUsd(finalAmount || 0)}</p>
-                <p className="font-body text-sm text-muted-foreground">{t("giftCards.label")}</p>
+                <p className="font-body text-sm text-muted-foreground"><span {...cmsEditProps("giftCards.ui.label")}>{gc.ui?.label}</span></p>
                 {recipientName && (
-                  <p className="font-body text-sm text-foreground mt-4">{t("giftCards.for")}: {recipientName}</p>
+                  <p className="font-body text-sm text-foreground mt-4">{gc.ui?.forLabel}: {recipientName}</p>
                 )}
                 {message && (
                   <p className="font-body text-sm text-muted-foreground mt-2 italic">"{message}"</p>
@@ -144,7 +144,7 @@ const GiftCardsPage = () => {
               {/* Payment */}
               <div className="bg-card rounded-2xl border border-border p-6">
                 <div className="flex justify-between mb-4 text-sm font-body">
-                  <span className="text-muted-foreground">{t("giftCards.amount")}</span>
+                  <span className="text-muted-foreground"><span {...cmsEditProps("giftCards.ui.amount")}>{gc.ui?.amount}</span></span>
                   <span className="font-semibold text-foreground">{formatCRCWithUsd(finalAmount || 0)}</span>
                 </div>
                 {finalAmount > 0 && purchaserEmail && (
@@ -155,7 +155,7 @@ const GiftCardsPage = () => {
                 )}
                 {(!finalAmount || !purchaserEmail) && (
                   <p className="text-xs font-body text-muted-foreground text-center">
-                    {t("giftCards.selectPrompt")}
+                    {gc.ui?.selectPrompt}
                   </p>
                 )}
               </div>

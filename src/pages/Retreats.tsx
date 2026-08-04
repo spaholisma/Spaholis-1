@@ -164,11 +164,11 @@ export default function RetreatsPage() {
                             <div className="flex items-center gap-3 text-xs font-body text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <CalendarDays className="h-3.5 w-3.5" />
-                                {retreat.duration_days} Days
+                                {retreat.duration_days} {rt.ui?.days}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Users className="h-3.5 w-3.5" />
-                                Solo, Couples & Groups
+                                {rt.ui?.audience}
                               </span>
                             </div>
                             <h2 className="font-heading text-xl font-medium text-foreground group-hover:text-primary transition-colors">
@@ -180,12 +180,12 @@ export default function RetreatsPage() {
                             <div className="flex items-center justify-between pt-2">
                               {startPrice && (
                                 <p className="font-heading text-lg font-semibold text-foreground">
-                                  From ${startPrice.toLocaleString()}{" "}
-                                  <span className="text-xs font-body font-normal text-muted-foreground">USD</span>
+                                  {rt.ui?.from} ${startPrice.toLocaleString()}{" "}
+                                  <span className="text-xs font-body font-normal text-muted-foreground">{rt.ui?.usd}</span>
                                 </p>
                               )}
                               <Button variant="default" size="sm">
-                                View Retreat
+                                {rt.ui?.viewRetreat}
                               </Button>
                             </div>
                           </div>
@@ -243,7 +243,7 @@ export default function RetreatsPage() {
                               {formatCRCWithUsd(program.price)}
                             </p>
                             <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                              <Link to={`/book?service=${program.id}`}>Request Program</Link>
+                              <Link to={`/book?service=${program.id}`}>{rt.ui?.requestProgram}</Link>
                             </Button>
                           </div>
                         </div>
@@ -288,11 +288,11 @@ export default function RetreatsPage() {
                           <div className="flex items-center gap-3 text-xs font-body text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <CalendarDays className="h-3.5 w-3.5" />
-                              Full Day
+                              {rt.ui?.fullDay}
                             </span>
                             <span className="flex items-center gap-1">
                               <Users className="h-3.5 w-3.5" />
-                              {exp.capacity ? `Up to ${exp.capacity}` : "Solo & Groups"}
+                              {exp.capacity ? `${rt.ui?.upTo} ${exp.capacity}` : rt.ui?.soloGroups}
                             </span>
                           </div>
                           <h2 className="font-heading text-xl font-medium text-foreground">
@@ -303,10 +303,10 @@ export default function RetreatsPage() {
                           </p>
                           <div className="flex items-center justify-between pt-2">
                             <p className="font-heading text-lg font-semibold text-foreground">
-                              {formatCRCWithUsd(exp.price)} <span className="text-xs font-body font-normal text-muted-foreground">per person</span>
+                              {formatCRCWithUsd(exp.price)} <span className="text-xs font-body font-normal text-muted-foreground">{rt.ui?.perPerson}</span>
                             </p>
                             <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                              <Link to={`/experience-booking?experience=${exp.id}`}>Book Experience</Link>
+                              <Link to={`/experience-booking?experience=${exp.id}`}>{rt.ui?.bookExperience}</Link>
                             </Button>
                           </div>
                         </div>

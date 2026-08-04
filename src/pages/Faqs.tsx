@@ -106,7 +106,7 @@ export default function Faqs() {
       description = `${total} ${language === "es" ? "resultado" + (total === 1 ? "" : "s") : "answer" + (total === 1 ? "" : "s")} ${language === "es" ? "para" : "matching"} "${q}".`;
     } else if (q && total === 0) {
       title = `${language === "es" ? "Sin resultados" : "No results"} — ${t("faqs.title")}`;
-      description = t("faqs.noResults");
+      description = (fq.ui?.noResults);
     } else if (total > 0) {
       const sampleQuestions = visibleFaqs
         .slice(0, 3)
@@ -208,7 +208,7 @@ export default function Faqs() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("faqs.search")}
+              placeholder={fq.ui?.searchPlaceholder}
               className="pl-10 h-12 rounded-full bg-card"
             />
           </div>
@@ -219,7 +219,7 @@ export default function Faqs() {
               <aside className="hidden lg:block">
                 <nav className="sticky top-24 space-y-1">
                   <p className="text-xs uppercase tracking-wider text-muted-foreground font-body mb-3">
-                    {language === "es" ? "Categorías" : "Categories"}
+                    {fq.ui?.categories}
                   </p>
                   {grouped.map((g) => (
                     <a
@@ -243,7 +243,7 @@ export default function Faqs() {
             <div className="space-y-12">
               {grouped.length === 0 && (
                 <p className="text-center text-muted-foreground font-body py-12">
-                  {t("faqs.noResults")}
+                  {(fq.ui?.noResults)}
                 </p>
               )}
               {grouped.map((g) => (

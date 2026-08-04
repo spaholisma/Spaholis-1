@@ -161,11 +161,11 @@ const PrivateClassesPage = () => {
                       <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3">
                         <div className="flex items-center gap-2 text-sm font-body text-muted-foreground">
                           <Users className="h-4 w-4" />
-                          <span>{t("privateSessions.participants")}</span>
+                          <span {...cmsEditProps("privateSessions.ui.participants")}>{(ps as any).ui?.participants}</span>
                         </div>
                         {isFixed ? (
                           <span className="font-body text-sm text-muted-foreground">
-                            {count === 1 ? t("privateSessions.personOnly", { count }) : t("privateSessions.peopleOnly", { count })}
+                            {String((count === 1 ? (ps as any).ui?.personOnly : (ps as any).ui?.peopleOnly) || "").replace("{count}", String(count))}
                           </span>
                         ) : (
                           <div className="flex items-center gap-3">
@@ -195,8 +195,8 @@ const PrivateClassesPage = () => {
                           {formatCRCWithUsd(price)}
                         </span>
                         <Button asChild variant="spa" size="sm">
-                          <Link to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}`}>
-                            {t("common.bookNow")}
+                          <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}`}>
+                            {(ps as any).ui?.bookNow}
                           </Link>
                         </Button>
                       </div>

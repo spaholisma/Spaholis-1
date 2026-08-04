@@ -302,8 +302,9 @@ function MassageTherapyAccordion({
   services: ServiceRow[];
   image: string;
 }) {
-  const { t } = useTranslation();
   const { language } = useLanguage();
+  const { data: siteContent } = useSiteContent();
+  const ui = ((siteContent?.services || defaults.services) as any).ui || (defaults.services as any).ui;
 
   // Group services by base name, preserving sort order
   const groups = new Map<string, ServiceRow[]>();
@@ -371,9 +372,7 @@ function MassageTherapyAccordion({
                           className="font-body text-sm font-semibold text-primary hover:underline inline-flex items-baseline gap-1.5"
                         >
                           <span>
-                            {t("services.bookCta", {
-                              defaultValue: "Book",
-                            })}{" "}
+                            {ui.book}{" "}
                             {durationLabel(s)} {title}:
                           </span>
                           <span className="text-foreground">{formatCRCWithUsd(s.price)}</span>
@@ -393,8 +392,9 @@ function MassageTherapyAccordion({
 
 
 function ServiceCardItem({ service, image, onDetail }: { service: ServiceRow; image: string; onDetail: () => void }) {
-  const { t } = useTranslation();
   const { language } = useLanguage();
+  const { data: siteContent } = useSiteContent();
+  const ui = ((siteContent?.services || defaults.services) as any).ui || (defaults.services as any).ui;
   const title = pickLocalized(service as unknown as Record<string, unknown>, "title", language) || service.title;
   const description =
     pickLocalized(service as unknown as Record<string, unknown>, "description", language) ||
@@ -402,10 +402,10 @@ function ServiceCardItem({ service, image, onDetail }: { service: ServiceRow; im
     "";
   const ctaLabel =
     service.type === "program"
-      ? t("services.request")
+      ? ui.request
       : service.type === "experience"
-      ? t("services.bookExperience")
-      : t("services.book");
+      ? ui.bookExperience
+      : ui.book;
   return (
     <div
       onClick={onDetail}
@@ -450,8 +450,9 @@ function ServiceCardItem({ service, image, onDetail }: { service: ServiceRow; im
 }
 
 function PackageCardItem({ pkg, image, onDetail }: { pkg: SpaPackage; image: string; onDetail: () => void }) {
-  const { t } = useTranslation();
   const { language } = useLanguage();
+  const { data: siteContent } = useSiteContent();
+  const ui = ((siteContent?.services || defaults.services) as any).ui || (defaults.services as any).ui;
   const name = pickLocalized(pkg as unknown as Record<string, unknown>, "name", language) || pkg.name;
   const durationLabel =
     pickLocalized(pkg as unknown as Record<string, unknown>, "duration_label", language) || pkg.duration_label;
@@ -482,7 +483,7 @@ function PackageCardItem({ pkg, image, onDetail }: { pkg: SpaPackage; image: str
             ))}
             {pkg.items.length > 3 && (
               <p className="font-body text-xs text-muted-foreground/70 italic">
-                {t("services.moreTreatments", { count: pkg.items.length - 3 })}
+                {String(ui.moreTreatments).replace("{count}", String(pkg.items.length - 3))}
               </p>
             )}
           </div>
@@ -498,7 +499,7 @@ function PackageCardItem({ pkg, image, onDetail }: { pkg: SpaPackage; image: str
           </p>
           <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <Link to={withLangPrefix(`/book?package=${pkg.id}`, language)}>
-              {t("services.bookPackage")}
+              {ui.bookPackage}
             </Link>
           </Button>
         </div>

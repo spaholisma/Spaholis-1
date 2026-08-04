@@ -152,7 +152,7 @@ export function WellnessSection() {
                 : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
             }`}
           >
-            <Filter className="h-3.5 w-3.5" /> Filter
+            <Filter className="h-3.5 w-3.5" /> <span {...cmsEditProps("wellness.ui.filter")}>{wellness.ui?.filter}</span>
           </button>
 
           {hasActiveFilters && (
@@ -160,7 +160,7 @@ export function WellnessSection() {
               onClick={() => { setActiveCollection(null); setFilterType("all"); setFilterTag("all"); setFilterDuration("all"); setFilterPrice("all"); }}
               className="px-4 py-2.5 rounded-full font-body text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
-              <X className="h-3.5 w-3.5" /> Clear
+              <X className="h-3.5 w-3.5" /> <span {...cmsEditProps("wellness.ui.clear")}>{wellness.ui?.clear}</span>
             </button>
           )}
         </motion.div>
@@ -180,7 +180,7 @@ export function WellnessSection() {
                   value={filterType}
                   onChange={e => setFilterType(e.target.value)}
                 >
-                  <option value="all">All types</option>
+                  <option value="all">{wellness.ui?.allTypes}</option>
                   {allTypes.map(t => <option key={t} value={t}>{bookingTypeLabels[t] || t}</option>)}
                 </select>
                 <select
@@ -188,7 +188,7 @@ export function WellnessSection() {
                   value={filterTag}
                   onChange={e => setFilterTag(e.target.value)}
                 >
-                  <option value="all">All tags</option>
+                  <option value="all">{wellness.ui?.allTags}</option>
                   {allTags.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <select
@@ -196,22 +196,22 @@ export function WellnessSection() {
                   value={filterDuration}
                   onChange={e => setFilterDuration(e.target.value)}
                 >
-                  <option value="all">Any duration</option>
-                  <option value="30">Up to 30 min</option>
-                  <option value="60">31–60 min</option>
-                  <option value="90">61–90 min</option>
-                  <option value="120">90+ min</option>
+                  <option value="all">{wellness.ui?.anyDuration}</option>
+                  <option value="30">{wellness.ui?.dur30}</option>
+                  <option value="60">{wellness.ui?.dur60}</option>
+                  <option value="90">{wellness.ui?.dur90}</option>
+                  <option value="120">{wellness.ui?.dur120}</option>
                 </select>
                 <select
                   className="rounded-full border border-input bg-background px-4 py-2 text-sm font-body"
                   value={filterPrice}
                   onChange={e => setFilterPrice(e.target.value)}
                 >
-                  <option value="all">Any price</option>
-                  <option value="50">Under $50</option>
-                  <option value="100">$51–$100</option>
-                  <option value="200">$101–$200</option>
-                  <option value="201">$200+</option>
+                  <option value="all">{wellness.ui?.anyPrice}</option>
+                  <option value="50">{wellness.ui?.price50}</option>
+                  <option value="100">{wellness.ui?.price100}</option>
+                  <option value="200">{wellness.ui?.price200}</option>
+                  <option value="201">{wellness.ui?.price201}</option>
                 </select>
               </div>
             </motion.div>
@@ -262,7 +262,7 @@ export function WellnessSection() {
                     )}
                     <div className="flex items-center gap-2 mt-4">
                       <span className="font-body text-xs text-spa-cream/50">
-                        {col.items.length} {col.items.length === 1 ? "item" : "items"}
+                        {col.items.length} {col.items.length === 1 ? wellness.ui?.itemSingular : wellness.ui?.itemPlural}
                       </span>
                       <ArrowRight className={`h-4 w-4 text-spa-cream/50 transition-transform ${expandedCollection === col.id ? "rotate-90" : ""}`} />
                     </div>
@@ -319,7 +319,7 @@ export function WellnessSection() {
                                     ? "/classes"
                                     : `/book?service=${item.source_id}`
                               }>
-                                {item.type === "retreat" ? "View" : "Book"}
+                                {item.type === "retreat" ? wellness.ui?.view : wellness.ui?.book}
                               </Link>
                             </Button>
                           </div>
@@ -327,7 +327,7 @@ export function WellnessSection() {
                       </div>
                       <div className="px-6 pb-6">
                         <Button variant="spa" size="lg" className="w-full" asChild>
-                          <Link to="/book">Build My Experience</Link>
+                          <Link to="/book" {...cmsEditProps("wellness.ui.buildExperience")}>{wellness.ui?.buildExperience}</Link>
                         </Button>
                       </div>
                     </motion.div>

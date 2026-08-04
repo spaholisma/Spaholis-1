@@ -110,6 +110,27 @@ export const content = {
     subtitle: "Choose how you want to feel — and we'll show you the treatments, classes and therapies that match.",
     filterLabel: "I want to feel…",
     clearFilter: "Clear filter",
+    ui: {
+      filter: "Filter",
+      clear: "Clear",
+      allTypes: "All types",
+      allTags: "All tags",
+      anyDuration: "Any duration",
+      dur30: "Up to 30 min",
+      dur60: "31–60 min",
+      dur90: "61–90 min",
+      dur120: "90+ min",
+      anyPrice: "Any price",
+      price50: "Under $50",
+      price100: "$51–$100",
+      price200: "$101–$200",
+      price201: "$200+",
+      view: "View",
+      book: "Book",
+      buildExperience: "Build My Experience",
+      itemSingular: "item",
+      itemPlural: "items",
+    },
   },
 
   // ── Homepage Signature Experiences ──
@@ -246,6 +267,14 @@ export const content = {
     heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg?format=2500w",
     selectCategory: "Please select a category to view treatments",
     taxNote: "All prices are tax-inclusive",
+    // Button / label micro-copy
+    ui: {
+      book: "Book",
+      request: "Request",
+      bookExperience: "Book Experience",
+      bookPackage: "Book Package",
+      moreTreatments: "+{count} more treatments",
+    },
     // Category display names (left key = internal name, right = shown label)
     categories: {
       "Massage Therapy": "Massage Therapy",
@@ -429,6 +458,12 @@ export const content = {
       upToFour: "Up to 4",
       extraPerson: "Extra person",
     },
+    ui: {
+      participants: "Participants",
+      personOnly: "{count} person only",
+      peopleOnly: "{count} people only",
+      bookNow: "Book Now",
+    },
     whyChoose: "Why Choose Private Sessions",
     ctaTitle: "Ready to start your personalized journey?",
     ctaButton: "Book a Private Class",
@@ -472,6 +507,13 @@ export const content = {
   faqs: {
     eyebrow: "How can we help?",
     intro: "Everything you need to know about our treatments, classes, retreats and visiting us in Manuel Antonio.",
+    ui: {
+      searchPlaceholder: "Search questions...",
+      categories: "Categories",
+      home: "Home",
+      general: "General",
+      noResults: "No questions match your search.",
+    },
   },
 
   // ── Retreats Page ──
@@ -489,6 +531,19 @@ export const content = {
     customTitle: "Create Your Custom Retreat",
     customBody: "We provide customized quotes for groups, families, or solo travelers. Contact us to tailor your perfect wellness experience.",
     customButton: "Personalize Your Retreat",
+    ui: {
+      days: "Days",
+      audience: "Solo, Couples & Groups",
+      from: "From",
+      usd: "USD",
+      viewRetreat: "View Retreat",
+      requestProgram: "Request Program",
+      fullDay: "Full Day",
+      upTo: "Up to",
+      soloGroups: "Solo & Groups",
+      perPerson: "per person",
+      bookExperience: "Book Experience",
+    },
   },
 
   // ── Gift Cards Page ──
@@ -499,6 +554,22 @@ export const content = {
     chooseAmountTitle: "Choose an Amount",
     successTitle: "Gift Card Purchased!",
     successButtonText: "Purchase Another",
+    ui: {
+      code: "Gift Card Code",
+      copySent: "A copy will be sent to {email}",
+      yourEmail: "Your Email",
+      yourEmailPlaceholder: "your@email.com",
+      recipientName: "Recipient Name",
+      recipientNamePlaceholder: "Their name",
+      recipientEmail: "Recipient Email",
+      recipientEmailPlaceholder: "their@email.com",
+      personalMessage: "Personal Message",
+      personalMessagePlaceholder: "A thoughtful message for the recipient...",
+      label: "Gift Card",
+      forLabel: "For",
+      amount: "Amount",
+      selectPrompt: "Select an amount and enter your email to proceed",
+    },
   },
 
   // ── Education Page ──
