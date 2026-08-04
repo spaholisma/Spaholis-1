@@ -34,10 +34,10 @@ export default function RetreatsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const { data: siteContent } = useSiteContent();
   const rt = (siteContent as any)?.retreats || (defaults as any).retreats;
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "retreats", label: rt.tabRetreats },
-    { key: "packages", label: rt.tabPackages },
-    { key: "experiences", label: rt.tabExperiences },
+  const tabs: { key: TabKey; label: string; path: string }[] = [
+    { key: "retreats", label: rt.tabRetreats, path: "retreats.tabRetreats" },
+    { key: "packages", label: rt.tabPackages, path: "retreats.tabPackages" },
+    { key: "experiences", label: rt.tabExperiences, path: "retreats.tabExperiences" },
   ];
 
   const { data: retreats, isLoading: retreatsLoading } = useRetreats();
@@ -110,6 +110,7 @@ export default function RetreatsPage() {
           {tabs.map((tab) => (
             <button
               key={tab.key}
+              {...cmsEditProps(tab.path)}
               onClick={() => {
                 setActiveTab(tab.key);
                 window.scrollTo({ top: 400, behavior: "smooth" });

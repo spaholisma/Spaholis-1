@@ -95,14 +95,14 @@ const PrivateClassesPage = () => {
           </motion.div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             {[
-              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(85 * USD_RATE) },
-              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(113 * USD_RATE) },
-              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(170 * USD_RATE) },
-              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(28 * USD_RATE)}` },
+              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(85 * USD_RATE), path: "privateSessions.pricingLabels.onePerson" },
+              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(113 * USD_RATE), path: "privateSessions.pricingLabels.twoPeople" },
+              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(170 * USD_RATE), path: "privateSessions.pricingLabels.upToFour" },
+              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(28 * USD_RATE)}`, path: "privateSessions.pricingLabels.extraPerson" },
             ].map((p) => (
               <div key={p.label} className="bg-card border border-border rounded-xl p-4">
                 <p className="font-heading text-xl font-semibold text-foreground">{p.price}</p>
-                <p className="font-body text-xs text-muted-foreground mt-1">{p.label}</p>
+                <p {...cmsEditProps(p.path)} className="font-body text-xs text-muted-foreground mt-1">{p.label}</p>
               </div>
             ))}
           </div>
@@ -217,7 +217,7 @@ const PrivateClassesPage = () => {
             {((ps as any).benefits ?? []).map((benefit: string, idx: number) => (
               <li key={idx} className="flex items-center gap-3">
                 <CheckCircle2 className="h-5 w-5 text-spa-sage shrink-0" />
-                <span className="font-body text-foreground">{benefit}</span>
+                <span {...cmsEditProps(`privateSessions.benefits.${idx}`)} className="font-body text-foreground">{benefit}</span>
               </li>
             ))}
           </ul>

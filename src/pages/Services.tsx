@@ -189,6 +189,7 @@ const ServicesPage = () => {
               {allCategories.map((cat) => (
                 <button
                   key={cat}
+                  {...cmsEditProps(`services.categories.${cat}`)}
                   onClick={() => {
                     setSelected(cat);
                     window.scrollTo({ top: 320, behavior: "smooth" });
@@ -217,7 +218,7 @@ const ServicesPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
               >
-                <h2 className="font-heading text-xl font-medium text-foreground border-b border-border pb-3 mb-6">
+                <h2 {...cmsEditProps(`services.categories.${selected}`)} className="font-heading text-xl font-medium text-foreground border-b border-border pb-3 mb-6">
                   {localizeCategory(selected)}
                 </h2>
                 {(selected === "Massage Therapy" ||
@@ -559,7 +560,7 @@ function SeoContentSection() {
             {benefits.map((b, i) => (
               <li key={i} className="flex items-start gap-2 spa-body-sm text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-1" />
-                <span>{b}</span>
+                <span {...cmsEditProps(`services.seo.benefits.items.${i}`)}>{b}</span>
               </li>
             ))}
           </ul>
@@ -573,10 +574,10 @@ function SeoContentSection() {
           <div className="space-y-5">
             {faqItems.map((item, i) => (
               <div key={i}>
-                <h4 className="font-heading text-base font-medium text-foreground mb-1.5">
+                <h4 {...cmsEditProps(`services.seo.faq.items.${i}.q`)} className="font-heading text-base font-medium text-foreground mb-1.5">
                   {item.q}
                 </h4>
-                <p className="spa-body-sm text-muted-foreground leading-relaxed">
+                <p {...cmsEditProps(`services.seo.faq.items.${i}.a`)} className="spa-body-sm text-muted-foreground leading-relaxed">
                   {item.a}
                 </p>
               </div>

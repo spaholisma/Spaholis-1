@@ -223,7 +223,7 @@ const EducationalPage = () => {
                           <ul className="space-y-1.5">
                             {learnItems.map((item, i) => (
                               <li key={i} className="font-body text-sm text-foreground/80 flex items-start gap-2">
-                                <span className="text-primary mt-0.5">•</span> {item}
+                                <span className="text-primary mt-0.5">•</span> <span {...cmsEditProps(`education.sasLevels.${idx}.learn.${i}`)}>{item}</span>
                               </li>
                             ))}
                           </ul>
@@ -234,7 +234,7 @@ const EducationalPage = () => {
                           <ol className="space-y-2">
                             {practiceItems.map((item, i) => (
                               <li key={i} className="font-body text-sm text-foreground/80 flex items-start gap-2">
-                                <span className="font-semibold text-primary">{i + 1}.</span> {item}
+                                <span className="font-semibold text-primary">{i + 1}.</span> <span {...cmsEditProps(`education.sasLevels.${idx}.practice.${i}`)}>{item}</span>
                               </li>
                             ))}
                           </ol>
