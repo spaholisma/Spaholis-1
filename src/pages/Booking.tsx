@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { formatCRC } from "@/lib/currency";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -216,6 +216,17 @@ const BookingPage = () => {
   // Intercept consultation flow (after all hooks)
   if (preselected === "consultation") {
     return <ConsultationForm />;
+  }
+
+  // Request-only treatments (limited therapist availability) never use the
+  // online calendar — send any direct link to the request form instead.
+  if (preselectedService?.request_only) {
+    return (
+      <Navigate
+        to={`/book?service=consultation&topic=${encodeURIComponent(preselectedService.title)}`}
+        replace
+      />
+    );
   }
 
   // Intercept spa package detail view

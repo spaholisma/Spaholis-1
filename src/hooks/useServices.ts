@@ -24,6 +24,8 @@ export interface ServiceRow {
   requires_payment: boolean;
   /** Add-on extra (attaches to a treatment); excluded from the normal list. */
   is_addon: boolean;
+  /** Booked by request only (no online calendar) — e.g. limited therapist availability. */
+  request_only: boolean;
 }
 
 const SERVICE_I18N_FIELDS = ["title", "description", "description_rich", "gallery_images"];

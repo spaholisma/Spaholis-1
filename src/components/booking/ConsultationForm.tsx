@@ -115,7 +115,7 @@ export const ConsultationForm = () => {
             transition={{ duration: 0.5 }}
           >
             <h1 className="spa-heading-lg text-foreground mb-2 text-center">
-              {isRequest ? t("consultation.requestTitle", { defaultValue: "Request Your Private Class" }) : t("consultation.title")}
+              {isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
             </h1>
             {isRequest ? (
               <p className="font-body text-sm text-foreground text-center mb-2 max-w-sm mx-auto">
@@ -123,7 +123,7 @@ export const ConsultationForm = () => {
               </p>
             ) : null}
             <p className="font-body text-sm text-muted-foreground text-center mb-10 leading-relaxed max-w-sm mx-auto">
-              {isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your private class." }) : t("consultation.subtitle")}
+              {isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">

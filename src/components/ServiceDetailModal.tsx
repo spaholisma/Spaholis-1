@@ -29,9 +29,20 @@ function extractIncludes(desc: string | null): { main: string; includes: string[
 }
 
 function ctaLabel(service: ServiceRow) {
+  if (service.request_only) return "Request Appointment";
   if (service.type === "program") return "Request Program";
   if (service.type === "experience") return "Book Experience";
   return "Book Now";
+}
+
+// Where the CTA goes. Request-only treatments (limited therapist availability)
+// route to the request form instead of the online calendar.
+function ctaHref(service: ServiceRow): string {
+  if (service.request_only) {
+    return `/book?service=consultation&topic=${encodeURIComponent(service.title)}`;
+  }
+  if (service.type === "experience") return `/experience-booking?experience=${service.id}`;
+  return `/book?service=${service.id}`;
 }
 
 interface Props {
@@ -154,7 +165,7 @@ export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
             </div>
             <Button variant="default" size="lg" asChild>
               <Link
-                to={service.type === "experience" ? `/experience-booking?experience=${service.id}` : `/book?service=${service.id}`}
+                to={ctaHref(service)}
                 onClick={() => onOpenChange(false)}
               >
                 {ctaLabel(service)}

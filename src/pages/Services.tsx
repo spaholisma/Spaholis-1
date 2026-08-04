@@ -366,13 +366,15 @@ function MassageTherapyAccordion({
                       <li key={s.id}>
                         <Link
                           to={withLangPrefix(
-                            `/book?service=${s.id}&category=${encodeURIComponent(s.category)}`,
+                            s.request_only
+                              ? `/book?service=consultation&topic=${encodeURIComponent(title)}`
+                              : `/book?service=${s.id}&category=${encodeURIComponent(s.category)}`,
                             language
                           )}
                           className="font-body text-sm font-semibold text-primary hover:underline inline-flex items-baseline gap-1.5"
                         >
                           <span>
-                            {ui.book}{" "}
+                            {s.request_only ? ui.request : ui.book}{" "}
                             {durationLabel(s)} {title}:
                           </span>
                           <span className="text-foreground">{formatCRCWithUsd(s.price)}</span>
@@ -401,11 +403,14 @@ function ServiceCardItem({ service, image, onDetail }: { service: ServiceRow; im
     service.description ||
     "";
   const ctaLabel =
-    service.type === "program"
+    service.request_only || service.type === "program"
       ? ui.request
       : service.type === "experience"
       ? ui.bookExperience
       : ui.book;
+  const ctaHref = service.request_only
+    ? `/book?service=consultation&topic=${encodeURIComponent(title)}`
+    : `/book?service=${service.id}&category=${encodeURIComponent(service.category)}`;
   return (
     <div
       onClick={onDetail}
@@ -438,7 +443,7 @@ function ServiceCardItem({ service, image, onDetail }: { service: ServiceRow; im
           </p>
           <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <Link
-              to={withLangPrefix(`/book?service=${service.id}&category=${encodeURIComponent(service.category)}`, language)}
+              to={withLangPrefix(ctaHref, language)}
             >
               {ctaLabel}
             </Link>
