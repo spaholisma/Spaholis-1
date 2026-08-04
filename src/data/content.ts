@@ -466,6 +466,23 @@ export const content = {
     } as Record<string, string>,
   },
 
+  // ── Retreats Page ──
+  retreats: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/9482f2a2-2685-4fe6-a63d-c9a189520bd1/retreat-cover.jpg",
+    heroEyebrow: "Retreats & Experiences",
+    heroTitle: "Retreat in Manuel Antonio",
+    intro: "Immerse yourself in serenity and renewal with our exclusive retreat packages, wellness programs, and curated experiences — all thoughtfully designed to help you reconnect, unwind, and recharge.",
+    location: "Manuel Antonio, Costa Rica",
+    tabRetreats: "Wellness Retreats",
+    tabPackages: "Wellness Packages",
+    tabExperiences: "Manuel Antonio Experiences",
+    packagesIntro: "Experience the powerful synergy of active movement and restorative bodywork designed to nourish your health and elevate your overall sense of well-being.",
+    experiencesIntro: "Discover the perfect blend of relaxation and fun. Our wellness experiences offer a perfect combination of spa treatments, yoga, movement classes, delicious food, and the best activities Manuel Antonio has to offer.",
+    customTitle: "Create Your Custom Retreat",
+    customBody: "We provide customized quotes for groups, families, or solo travelers. Contact us to tailor your perfect wellness experience.",
+    customButton: "Personalize Your Retreat",
+  },
+
   // ── Gift Cards Page ──
   giftCards: {
     eyebrow: "The Perfect Gift",

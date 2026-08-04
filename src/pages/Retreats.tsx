@@ -6,7 +6,8 @@ import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
-import { seo } from "@/data/content";
+import { seo, content as defaults } from "@/data/content";
+import { useSiteContent } from "@/hooks/useSiteContent";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRetreats } from "@/hooks/useRetreats";
@@ -22,18 +23,21 @@ const fadeIn = {
   transition: { duration: 0.6 },
 };
 
-const tabs = [
-  { key: "retreats", label: "Wellness Retreats" },
-  { key: "packages", label: "Wellness Packages" },
-  { key: "experiences", label: "Manuel Antonio Experiences" },
-] as const;
+const tabKeys = ["retreats", "packages", "experiences"] as const;
 
-type TabKey = (typeof tabs)[number]["key"];
+type TabKey = (typeof tabKeys)[number];
 
 export default function RetreatsPage() {
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get("tab") as TabKey) || "retreats";
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const { data: siteContent } = useSiteContent();
+  const rt = (siteContent as any)?.retreats || (defaults as any).retreats;
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: "retreats", label: rt.tabRetreats },
+    { key: "packages", label: rt.tabPackages },
+    { key: "experiences", label: rt.tabExperiences },
+  ];
 
   const { data: retreats, isLoading: retreatsLoading } = useRetreats();
   const { data: programs, isLoading: programsLoading } = useServicesByType("program");
@@ -69,7 +73,7 @@ export default function RetreatsPage() {
       <div className="relative pt-16">
         <div className="aspect-[21/9] max-h-[420px] w-full overflow-hidden">
           <img
-            src="https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/9482f2a2-2685-4fe6-a63d-c9a189520bd1/retreat-cover.jpg"
+            src={rt.heroImage}
             alt="Retreat at Holis Wellness Center"
             className="w-full h-full object-cover"
           />
@@ -78,10 +82,10 @@ export default function RetreatsPage() {
         <div className="absolute bottom-8 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           <motion.div {...fadeIn}>
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/80 mb-2">
-              Retreats & Experiences
+              {rt.heroEyebrow}
             </p>
             <h1 className="spa-heading-xl text-spa-cream drop-shadow-lg">
-              Retreat in Manuel Antonio
+              {rt.heroTitle}
             </h1>
           </motion.div>
         </div>
@@ -91,13 +95,11 @@ export default function RetreatsPage() {
         {/* Intro */}
         <motion.div {...fadeIn} className="mb-10 max-w-3xl">
           <p className="spa-body text-lg leading-relaxed">
-            Immerse yourself in serenity and renewal with our exclusive retreat packages,
-            wellness programs, and curated experiences — all thoughtfully designed to help
-            you reconnect, unwind, and recharge.
+            {rt.intro}
           </p>
           <div className="flex items-center gap-2 mt-4 text-sm font-body text-muted-foreground">
             <MapPin className="h-4 w-4" />
-            Manuel Antonio, Costa Rica
+            {rt.location}
           </div>
         </motion.div>
 
@@ -202,8 +204,7 @@ export default function RetreatsPage() {
               >
                 <div className="mb-6 max-w-3xl">
                   <p className="spa-body leading-relaxed">
-                    Experience the powerful synergy of active movement and restorative bodywork
-                    designed to nourish your health and elevate your overall sense of well-being.
+                    {rt.packagesIntro}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -260,9 +261,7 @@ export default function RetreatsPage() {
               >
                 <div className="mb-6 max-w-3xl">
                   <p className="spa-body leading-relaxed">
-                    Discover the perfect blend of relaxation and fun. Our wellness experiences
-                    offer a perfect combination of spa treatments, yoga, movement classes,
-                    delicious food, and the best activities Manuel Antonio has to offer.
+                    {rt.experiencesIntro}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -320,14 +319,13 @@ export default function RetreatsPage() {
         {/* Custom retreat CTA */}
         <motion.div {...fadeIn} className="mt-16 bg-card rounded-2xl border border-border p-8 text-center">
           <h2 className="font-heading text-2xl font-medium text-foreground mb-3">
-            Create Your Custom Retreat
+            {rt.customTitle}
           </h2>
           <p className="spa-body max-w-lg mx-auto mb-6">
-            We provide customized quotes for groups, families, or solo travelers.
-            Contact us to tailor your perfect wellness experience.
+            {rt.customBody}
           </p>
           <Button variant="default" size="lg" asChild>
-            <Link to="/custom-retreat">Personalize Your Retreat</Link>
+            <Link to="/custom-retreat">{rt.customButton}</Link>
           </Button>
         </motion.div>
       </div>

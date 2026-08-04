@@ -595,6 +595,7 @@ export function AdminContentEditor() {
     signatureTreatments: "🌟 Signature Treatments Page",
     classes: "📅 Classes Page",
     privateSessions: "🔒 Private Sessions Page",
+    retreats: "🏝️ Retreats Page",
     giftCards: "🎁 Gift Cards Page",
     education: "📚 Education Page",
     whatsapp: "💬 WhatsApp Button",
