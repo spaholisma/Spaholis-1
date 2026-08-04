@@ -155,49 +155,6 @@ const EducationalPage = () => {
         </div>
       ) : (
         <>
-          {/* ── Professional Modules (request format) ── */}
-          {courses.length > 0 && (
-            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-0">
-              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
-                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
-                  Continuing Education
-                </p>
-                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
-                  Professional Modules
-                </h2>
-                <p className="spa-body">
-                  Open to everyone — therapists, yoga teachers, bodyworkers, and anyone curious about the body's intelligence. No prior background required. Request information to join the next module.
-                </p>
-              </motion.div>
-              <div className="grid grid-cols-1 gap-6">
-                {courses.map((c) => (
-                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
-                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
-                    {Number(c.duration_minutes) > 0 && (
-                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
-                        {Number(c.duration_minutes) % 60 === 0
-                          ? `${Number(c.duration_minutes) / 60} hours`
-                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
-                      </p>
-                    )}
-                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
-                      {Number(c.price) > 0 ? (
-                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
-                      ) : (
-                        <span className="font-body text-sm text-muted-foreground">By request</span>
-                      )}
-                      <Button variant="default" size="default" onClick={() => openRequest(c)}>
-                        {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                    <CourseReviews serviceId={c.id} />
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* ── Somato Awareness System Section ── */}
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-20">
@@ -314,6 +271,49 @@ const EducationalPage = () => {
               </motion.div>
             )}
           </section>
+
+          {/* ── Professional Modules (request format) ── */}
+          {courses.length > 0 && (
+            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-20">
+              <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
+                <p className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                  Continuing Education
+                </p>
+                <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground mb-4">
+                  Professional Modules
+                </h2>
+                <p className="spa-body">
+                  Open to everyone — therapists, yoga teachers, bodyworkers, and anyone curious about the body's intelligence. No prior background required. Request information to join the next module.
+                </p>
+              </motion.div>
+              <div className="grid grid-cols-1 gap-6">
+                {courses.map((c) => (
+                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
+                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
+                    {Number(c.duration_minutes) > 0 && (
+                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
+                        {Number(c.duration_minutes) % 60 === 0
+                          ? `${Number(c.duration_minutes) / 60} hours`
+                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
+                      </p>
+                    )}
+                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
+                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
+                      {Number(c.price) > 0 ? (
+                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
+                      ) : (
+                        <span className="font-body text-sm text-muted-foreground">By request</span>
+                      )}
+                      <Button variant="default" size="default" onClick={() => openRequest(c)}>
+                        {t("education.requestInfo", { defaultValue: "Request Information" })} <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                    <CourseReviews serviceId={c.id} />
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ── Couple's & Connection Experience ── */}
           {workshops.length > 0 && (
