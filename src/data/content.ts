@@ -423,6 +423,33 @@ export const content = {
     subtitle: "Personalized sessions designed to meet your specific goals, pace, and needs.",
     pricingTitle: "Pricing",
     offeringsTitle: "Our Private Offerings",
+    pricingLabels: {
+      onePerson: "1 person",
+      twoPeople: "2 people",
+      upToFour: "Up to 4",
+      extraPerson: "Extra person",
+    },
+    whyChoose: "Why Choose Private Sessions",
+    ctaTitle: "Ready to start your personalized journey?",
+    ctaButton: "Book a Private Class",
+    classes: {
+      oneOnOne: {
+        title: "One-on-One Private Class",
+        description: "A fully personalized session tailored to your body, goals, and rhythm.",
+      },
+      couples: {
+        title: "Couple's Private Class",
+        description: "Share a mindful movement experience with your partner in a private setting.",
+      },
+      group: {
+        title: "Private Group Class",
+        description: "Bring your group for a curated session designed around your collective needs.",
+      },
+      gyrotonic: {
+        title: "GYROTONIC® Expansion System",
+        description: "Fluid, spiraling movements on specialized equipment to increase spinal mobility and strength.",
+      },
+    },
     benefits: [
       "Personalized attention",
       "Faster progress",

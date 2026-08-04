@@ -94,10 +94,10 @@ const PrivateClassesPage = () => {
           </motion.div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             {[
-              { label: t("privateSessions.pricing.1person"), price: formatCRCWithUsd(85 * USD_RATE) },
-              { label: t("privateSessions.pricing.2people"), price: formatCRCWithUsd(113 * USD_RATE) },
-              { label: t("privateSessions.pricing.upTo4"), price: formatCRCWithUsd(170 * USD_RATE) },
-              { label: t("privateSessions.pricing.extraPerson"), price: `+${formatCRCWithUsd(28 * USD_RATE)}` },
+              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(85 * USD_RATE) },
+              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(113 * USD_RATE) },
+              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(170 * USD_RATE) },
+              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(28 * USD_RATE)}` },
             ].map((p) => (
               <div key={p.label} className="bg-card border border-border rounded-xl p-4">
                 <p className="font-heading text-xl font-semibold text-foreground">{p.price}</p>
@@ -141,7 +141,7 @@ const PrivateClassesPage = () => {
                         <div className="aspect-[16/9] overflow-hidden">
                           <img
                             src={img}
-                            alt={t(`privateSessions.classes.${cls.i18nKey}.title`)}
+                            alt={((ps as any).classes?.[cls.i18nKey]?.title || cls.id)}
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
@@ -150,10 +150,10 @@ const PrivateClassesPage = () => {
                     })()}
                     <CardContent className="p-6 flex flex-col flex-1 gap-4">
                       <h3 className="font-heading text-xl font-medium text-foreground">
-                        {t(`privateSessions.classes.${cls.i18nKey}.title`)}
+                        {((ps as any).classes?.[cls.i18nKey]?.title || cls.id)}
                       </h3>
                       <p className="spa-body-sm text-muted-foreground flex-1">
-                        {t(`privateSessions.classes.${cls.i18nKey}.description`)}
+                        {((ps as any).classes?.[cls.i18nKey]?.description || "")}
                       </p>
 
                       {/* Participant selector or fixed note */}
@@ -194,7 +194,7 @@ const PrivateClassesPage = () => {
                           {formatCRCWithUsd(price)}
                         </span>
                         <Button asChild variant="spa" size="sm">
-                          <Link to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${t(`privateSessions.types.${cls.i18nKey}.title`, { defaultValue: cls.id })} – ${count} ${count === 1 ? "person" : "people"}`)}`}>
+                          <Link to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}`}>
                             {t("common.bookNow")}
                           </Link>
                         </Button>
@@ -211,12 +211,12 @@ const PrivateClassesPage = () => {
       {/* Benefits */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-spa-sage/5">
         <motion.div {...fadeIn} className="max-w-2xl mx-auto text-center">
-          <h2 className="spa-heading-lg text-foreground mb-8">{t("privateSessions.whyChoose")}</h2>
+          <h2 className="spa-heading-lg text-foreground mb-8">{(ps as any).whyChoose}</h2>
           <ul className="space-y-4 text-left max-w-md mx-auto">
-            {benefitKeys.map((key) => (
-              <li key={key} className="flex items-center gap-3">
+            {((ps as any).benefits ?? []).map((benefit: string, idx: number) => (
+              <li key={idx} className="flex items-center gap-3">
                 <CheckCircle2 className="h-5 w-5 text-spa-sage shrink-0" />
-                <span className="font-body text-foreground">{t(`privateSessions.benefits.${key}`)}</span>
+                <span className="font-body text-foreground">{benefit}</span>
               </li>
             ))}
           </ul>
@@ -227,10 +227,10 @@ const PrivateClassesPage = () => {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeIn} className="max-w-xl mx-auto text-center">
           <h2 className="spa-heading-md text-foreground mb-4">
-            {t("privateSessions.ctaTitle")}
+            {(ps as any).ctaTitle}
           </h2>
           <Button asChild variant="spa" size="xl">
-            <Link to="/book">{t("privateSessions.ctaButton")}</Link>
+            <Link to="/book">{(ps as any).ctaButton}</Link>
           </Button>
         </motion.div>
       </section>
