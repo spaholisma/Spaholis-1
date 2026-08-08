@@ -23,8 +23,24 @@ export const ConsultationForm = () => {
   const isRequest = topic.length > 0;
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
+  // Preferred date/time the client would like for the appointment (optional).
+  const [pref, setPref] = useState({ date: "", time: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Human-friendly preferred date/time for notes + the staff email.
+  const prettyPref = (() => {
+    if (!isRequest || (!pref.date && !pref.time)) return "";
+    let out = "";
+    if (pref.date) {
+      const d = new Date(`${pref.date}T00:00:00`);
+      out += Number.isNaN(d.getTime())
+        ? pref.date
+        : d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    }
+    if (pref.time) out += `${out ? " · " : ""}${pref.time}`;
+    return out;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +63,7 @@ export const ConsultationForm = () => {
         booking_time: "00:00",
         status: "pending",
         notes: isRequest
-          ? `${topic} — Format: ${format}`
+          ? `${topic} — Format: ${format}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`
           : `Free Holistic Consultation — Format: ${format}`,
       });
       if (error) throw error;
@@ -61,7 +77,8 @@ export const ConsultationForm = () => {
             guest_email: form.email.trim(),
             guest_phone: form.phone.trim(),
             service_name: isRequest ? topic : t("consultation.serviceName"),
-            notes: `Preferred format: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
+            preferred_datetime: prettyPref || undefined,
+            notes: `Formato preferido: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
             booking_date: new Date().toLocaleDateString(),
           },
         });
@@ -197,6 +214,33 @@ export const ConsultationForm = () => {
                   </label>
                 </RadioGroup>
               </div>
+
+              {isRequest && (
+                <div className="space-y-3">
+                  <Label className="font-body text-sm">
+                    {t("consultation.preferredDateTime", { defaultValue: "Preferred date & time" })}{" "}
+                    <span className="text-muted-foreground">{t("consultation.optional", { defaultValue: "(optional)" })}</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Input
+                      type="date"
+                      aria-label={t("consultation.preferredDate", { defaultValue: "Preferred date" })}
+                      value={pref.date}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setPref({ ...pref, date: e.target.value })}
+                    />
+                    <Input
+                      type="time"
+                      aria-label={t("consultation.preferredTime", { defaultValue: "Preferred time" })}
+                      value={pref.time}
+                      onChange={(e) => setPref({ ...pref, time: e.target.value })}
+                    />
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground">
+                    {t("consultation.preferredNote", { defaultValue: "We'll confirm the final time based on therapist availability." })}
+                  </p>
+                </div>
+              )}
 
               <Button
                 type="submit"
