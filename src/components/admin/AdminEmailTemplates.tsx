@@ -38,9 +38,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   client_notify: "Appointment reminders & reviews",
   offering_expired: "Membership & pass expiry",
   receipts: "Receipts (purchase & refund)",
+  appointment_request: "Appointment requests (staff notice)",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired", "receipts"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired", "receipts", "appointment_request"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -52,6 +53,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   client_notify: ["guest_name", "date", "time", "location", "button"],
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
   receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
+  appointment_request: ["therapy", "guest_name", "preferred_datetime", "phone", "email", "notes", "details"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -130,6 +132,22 @@ function sampleVars(category: string): Record<string, string> {
     return {
       guest_name: "Ana", amount: "₡25,000 CRC", paid_to: "Ana López", concept: "Monthly membership",
       date: "August 3, 2026", reference: "HOLIS-0042", receipt_box,
+    };
+  }
+  if (category === "appointment_request") {
+    const row = (l: string, v: string) => `<tr><td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;width:40%;">${l}</td><td style="padding:6px 10px;border:1px solid #ddd;">${v}</td></tr>`;
+    const details = `<table style="width:100%;border-collapse:collapse;font-size:14px;">${[
+      row("Terapia solicitada", "CranioSacral Therapy (90min)"),
+      row("Fecha y hora deseada", "Friday, August 8, 2026 · 14:30"),
+      row("Nombre", "Ana López"),
+      row("Correo", "ana@email.com"),
+      row("Teléfono", "8888-8888"),
+      row("Notas", "Formato preferido: In person"),
+    ].join("")}</table>`;
+    return {
+      therapy: "CranioSacral Therapy (90min)", guest_name: "Ana López",
+      preferred_datetime: "Friday, August 8, 2026 · 14:30", phone: "8888-8888",
+      email: "ana@email.com", notes: "Formato preferido: In person", details,
     };
   }
   // offering_purchase / offering_order
