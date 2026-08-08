@@ -56,7 +56,7 @@ export const ConsultationForm = () => {
       try {
         await supabase.functions.invoke("send-booking-notification", {
           body: {
-            request_kind: isRequest ? "info" : undefined,
+            request_kind: isRequest ? "appointment" : undefined,
             guest_name: form.name.trim(),
             guest_email: form.email.trim(),
             guest_phone: form.phone.trim(),
