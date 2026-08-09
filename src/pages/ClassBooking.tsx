@@ -729,10 +729,12 @@ const ClassBookingPage = () => {
                   <span>{event.spots_remaining} spots remaining</span>
                 </div>
               </div>
-              {cls.price > 0 && (
+              {((cls as any).price_label || cls.price > 0) && (
                 <div className="border-t border-border pt-4 flex justify-between font-body">
                   <span className="text-sm font-semibold text-foreground">Price</span>
-                  <span className="text-sm font-semibold text-foreground">{formatCRC(cls.price)}</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {(cls as any).price_label || formatCRC(cls.price)}
+                  </span>
                 </div>
               )}
               {(cls as any).payment_instructions && (

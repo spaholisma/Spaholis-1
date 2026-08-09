@@ -78,9 +78,9 @@ export function EventCard({ event }: { event: ScheduleRow }) {
         )}
 
         {/* Price */}
-        {Number(cls.price) > 0 && (
+        {((cls as any).price_label || Number(cls.price) > 0) && (
           <p className="font-heading text-base font-semibold text-foreground">
-            {formatCRC(cls.price)}
+            {(cls as any).price_label || formatCRC(cls.price)}
           </p>
         )}
 

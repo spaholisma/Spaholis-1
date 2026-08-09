@@ -18,6 +18,8 @@ export interface ClassRow {
   recurrence_rule: string | null;
   requires_payment: boolean;
   max_capacity: number;
+  /** Custom display price (e.g. a colones amount) shown instead of the USD price. */
+  price_label: string | null;
   /** Direct-to-teacher payment instructions (when not paid through the site). */
   payment_instructions: string | null;
   /** Feature this class prominently on the web until this timestamp. */

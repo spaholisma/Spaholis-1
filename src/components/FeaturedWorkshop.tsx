@@ -35,7 +35,8 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
   const timeLabel = start.toLocaleTimeString(undefined, {
     hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
   });
-  const priceLabel = `₡${Number(cls.price).toLocaleString("en-US")}`;
+  const priceLabel = (cls as any).price_label
+    || (Number(cls.price) > 0 ? `₡${Number(cls.price).toLocaleString("en-US")}` : "");
   const bookHref = `/class-booking?class=${featured.id}`;
 
   return (
@@ -78,7 +79,9 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
             <span className="inline-flex items-center gap-1.5">
               <Clock className="h-4 w-4" /> {timeLabel} · {cls.duration_minutes} min
             </span>
-            <span className="font-heading text-lg font-semibold text-spa-cream">{priceLabel}</span>
+            {priceLabel && (
+              <span className="font-heading text-lg font-semibold text-spa-cream">{priceLabel}</span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
