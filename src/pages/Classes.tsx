@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
+import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
 import { useTranslation } from "react-i18next";
 import { useTokenOffering } from "@/hooks/useMembershipToken";
 import { Check } from "lucide-react";
@@ -76,6 +77,12 @@ const ClassesPage = () => {
       </div>
 
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+        {/* Featured one-off workshop (auto-hides after its date) */}
+        {useFeaturedEvent() && (
+          <div className="mt-10">
+            <FeaturedWorkshop />
+          </div>
+        )}
         <motion.div {...fadeIn} className="mt-10 rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
           <img
             {...cmsEditProps("classes.heroImage", "image")}

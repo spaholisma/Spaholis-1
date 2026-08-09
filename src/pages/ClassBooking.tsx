@@ -735,6 +735,18 @@ const ClassBookingPage = () => {
                   <span className="text-sm font-semibold text-foreground">{formatCRC(cls.price)}</span>
                 </div>
               )}
+              {(cls as any).payment_instructions && (
+                <div className="border-t border-border pt-4">
+                  <div className="rounded-xl bg-spa-sage/10 border border-spa-sage/20 p-4">
+                    <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage mb-1.5">
+                      How to pay
+                    </p>
+                    <p className="font-body text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
+                      {(cls as any).payment_instructions}
+                    </p>
+                  </div>
+                </div>
+              )}
               {user && hasRedeemable && needsPayment && (
                 <p className="text-xs font-body text-spa-sage">
                   ✓ You have a membership or credits available

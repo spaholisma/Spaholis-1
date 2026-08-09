@@ -18,6 +18,10 @@ export interface ClassRow {
   recurrence_rule: string | null;
   requires_payment: boolean;
   max_capacity: number;
+  /** Direct-to-teacher payment instructions (when not paid through the site). */
+  payment_instructions: string | null;
+  /** Feature this class prominently on the web until this timestamp. */
+  featured_until: string | null;
 }
 
 export interface ScheduleRow {
@@ -30,7 +34,7 @@ export interface ScheduleRow {
   classes: ClassRow;
 }
 
-const CLASS_I18N_FIELDS = ["title", "description", "location", "instructor"];
+const CLASS_I18N_FIELDS = ["title", "description", "location", "instructor", "payment_instructions"];
 
 export function useClasses() {
   const { language } = useLanguage();

@@ -8,6 +8,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO, businessJsonLd } from "@/components/SEO";
 import { WellnessSection } from "@/components/WellnessSection";
+import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
 import { testimonials } from "@/data/services";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaultContent } from "@/data/content";
@@ -85,6 +86,15 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* ═══ Featured one-off workshop (auto-hides after its date) ═══ */}
+      {useFeaturedEvent() && (
+        <section className="px-4 sm:px-6 lg:px-8 py-14">
+          <div className="max-w-5xl mx-auto">
+            <FeaturedWorkshop />
+          </div>
+        </section>
+      )}
 
       {/* ═══ Wellness Section ═══ */}
       <WellnessSection />
