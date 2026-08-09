@@ -111,7 +111,9 @@ export const ConsultationForm = () => {
             </div>
             <h2 className="spa-heading-lg text-foreground mb-4">{t("consultation.thankYou")}</h2>
             <p className="font-body text-muted-foreground leading-relaxed">
-              {t("consultation.thankYouMessage")}
+              {isRequest
+                ? t("consultation.appointmentThankYou", { defaultValue: "Holis Wellness Center will reach out to you shortly to confirm your appointment — or suggest another time based on our therapists' availability." })
+                : t("consultation.thankYouMessage")}
             </p>
             <p className="font-body text-xs text-muted-foreground/60 mt-6">
               {t("consultation.confirmSoon")}
