@@ -38,7 +38,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   client_notify: "Appointment reminders & reviews",
   offering_expired: "Membership & pass expiry",
   receipts: "Receipts (purchase & refund)",
-  appointment_request: "Appointment requests (staff notice)",
+  appointment_request: "Appointment requests (staff + client)",
 };
 
 const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired", "receipts", "appointment_request"];
@@ -53,7 +53,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   client_notify: ["guest_name", "date", "time", "location", "button"],
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
   receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
-  appointment_request: ["therapy", "guest_name", "preferred_datetime", "phone", "email", "notes", "details"],
+  appointment_request: ["therapy", "guest_name", "preferred_datetime", "preferred_line", "phone", "email", "notes", "details"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -142,12 +142,12 @@ function sampleVars(category: string): Record<string, string> {
       row("Nombre", "Ana López"),
       row("Correo", "ana@email.com"),
       row("Teléfono", "8888-8888"),
-      row("Notas", "Formato preferido: In person"),
     ].join("")}</table>`;
     return {
-      therapy: "CranioSacral Therapy (90min)", guest_name: "Ana López",
-      preferred_datetime: "Friday, August 8, 2026 · 14:30", phone: "8888-8888",
-      email: "ana@email.com", notes: "Formato preferido: In person", details,
+      therapy: "CranioSacral Therapy (90min)", guest_name: "Ana",
+      preferred_datetime: "Friday, August 8, 2026 · 14:30",
+      preferred_line: " for <strong>Friday, August 8, 2026 · 14:30</strong>",
+      phone: "8888-8888", email: "ana@email.com", notes: "", details,
     };
   }
   // offering_purchase / offering_order
@@ -169,7 +169,7 @@ function buildPreview(tpl: { heading: string; body_html: string }, category: str
   const raw = sampleVars(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box"].includes(k) ? v : escHtml(v);
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line"].includes(k) ? v : escHtml(v);
   return renderShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars));
 }
 
