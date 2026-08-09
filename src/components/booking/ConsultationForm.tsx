@@ -63,7 +63,7 @@ export const ConsultationForm = () => {
         booking_time: "00:00",
         status: "pending",
         notes: isRequest
-          ? `${topic} — Format: ${format}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`
+          ? `${topic}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`
           : `Free Holistic Consultation — Format: ${format}`,
       });
       if (error) throw error;
@@ -78,7 +78,9 @@ export const ConsultationForm = () => {
             guest_phone: form.phone.trim(),
             service_name: isRequest ? topic : t("consultation.serviceName"),
             preferred_datetime: prettyPref || undefined,
-            notes: `Formato preferido: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
+            notes: isRequest
+              ? undefined
+              : `Formato preferido: ${format === "call" ? t("consultation.formatPhoneCall") : t("consultation.formatInPerson")}`,
             booking_date: new Date().toLocaleDateString(),
           },
         });
@@ -183,6 +185,7 @@ export const ConsultationForm = () => {
                 />
               </div>
 
+              {!isRequest && (
               <div className="space-y-3">
                 <Label className="font-body text-sm">{t("consultation.preferredFormat")}</Label>
                 <RadioGroup
@@ -214,6 +217,7 @@ export const ConsultationForm = () => {
                   </label>
                 </RadioGroup>
               </div>
+              )}
 
               {isRequest && (
                 <div className="space-y-3">
