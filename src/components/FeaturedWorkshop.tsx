@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Clock, Sparkles } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 import { useUpcomingEvents, type ScheduleRow } from "@/hooks/useClasses";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatCRC } from "@/lib/currency";
 
 /**
@@ -25,15 +26,18 @@ export function useFeaturedEvent(): ScheduleRow | undefined {
 
 export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "compact" }) {
   const featured = useFeaturedEvent();
+  const { language } = useLanguage();
 
   if (!featured) return null;
 
+  // Format in the site's language (default English), not the browser locale.
+  const locale = language === "es" ? "es-CR" : "en-US";
   const cls = featured.classes;
   const start = new Date(featured.start_time);
-  const dateLabel = start.toLocaleDateString(undefined, {
+  const dateLabel = start.toLocaleDateString(locale, {
     weekday: "long", month: "long", day: "numeric", timeZone: "America/Costa_Rica",
   });
-  const timeLabel = start.toLocaleTimeString(undefined, {
+  const timeLabel = start.toLocaleTimeString(locale, {
     hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
   });
   const priceLabel = (cls as any).price_label
@@ -58,8 +62,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
 
         {/* Content */}
         <div className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center text-spa-cream">
-          <div className="inline-flex items-center gap-2 self-start rounded-full bg-spa-cream/15 px-3 py-1 mb-4">
-            <Sparkles className="h-3.5 w-3.5" />
+          <div className="inline-flex items-center self-start rounded-full bg-spa-cream/15 px-3 py-1 mb-4">
             <span className="font-body text-[11px] font-semibold uppercase tracking-[0.18em]">Special event</span>
           </div>
 
