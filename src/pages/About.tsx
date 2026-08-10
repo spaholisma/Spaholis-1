@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -61,6 +62,22 @@ const AboutPage = () => {
   const founderBio: string[] = (about as any).founderBio || defaults.about.founderBio;
   const founderSections: { title: string; text: string }[] = (about as any).founderSections || defaults.about.founderSections;
 
+  // Scroll to #story / #founder / #team when linked from the menu. Content and
+  // images load async, so retry a few times until the target settles.
+  useEffect(() => {
+    const id = window.location.hash.replace("#", "");
+    if (!id) return;
+    let tries = 0;
+    const timers: number[] = [];
+    const go = () => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      if (tries++ < 6) timers.push(window.setTimeout(go, 250));
+    };
+    timers.push(window.setTimeout(go, 120));
+    return () => timers.forEach(clearTimeout);
+  }, [siteContent]);
+
   return (
     <div className="min-h-screen bg-background">
       <SEO title={seo.about.title} description={seo.about.description} canonical={seo.about.canonical} />
@@ -87,7 +104,7 @@ const AboutPage = () => {
       </section>
 
       {/* Brand Philosophy */}
-      <section className="px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto py-20">
+      <section id="story" className="scroll-mt-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto py-20">
         <motion.div {...fade} className="space-y-6 text-center">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {about.brandEyebrow}
@@ -104,7 +121,7 @@ const AboutPage = () => {
       </section>
 
       {/* Evelina Featured Profile */}
-      <section className="bg-card border-y border-border">
+      <section id="founder" className="scroll-mt-24 bg-card border-y border-border">
         <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-20">
           <motion.div {...fade} className="grid md:grid-cols-[280px_1fr] gap-12 items-start max-w-5xl mx-auto">
             <div className="aspect-[3/4] rounded-2xl overflow-hidden">
@@ -158,7 +175,7 @@ const AboutPage = () => {
       </section>
 
       {/* Massage & Spa Therapists */}
-      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-20">
+      <section id="team" className="scroll-mt-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-20">
         <motion.div {...fade} className="text-center mb-14">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
             {about.therapistsEyebrow}

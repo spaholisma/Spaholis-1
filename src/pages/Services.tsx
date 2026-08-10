@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useServicesByCategory, type ServiceRow } from "@/hooks/useServices";
 import { useSpaPackages, type SpaPackage } from "@/hooks/useSpaPackages";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock } from "lucide-react";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
 import {
@@ -87,6 +87,9 @@ const ServicesPage = () => {
   const { grouped, isLoading: servicesLoading } = useServicesByCategory();
   const { data: packages, isLoading: packagesLoading } = useSpaPackages();
   const [selected, setSelected] = useState("");
+  // Optional deep-link: /treatments-therapies?category=Massage%20Therapy preselects a tab.
+  const [searchParams] = useSearchParams();
+  const categoryParam = searchParams.get("category");
   const [detailService, setDetailService] = useState<ServiceRow | null>(null);
   const [detailPackage, setDetailPackage] = useState<SpaPackage | null>(null);
   const { data: siteContent } = useSiteContent();
@@ -110,9 +113,10 @@ const ServicesPage = () => {
 
   useEffect(() => {
     if (!selected && allCategories.length > 0) {
-      setSelected(allCategories[0]);
+      const fromUrl = categoryParam && allCategories.includes(categoryParam) ? categoryParam : null;
+      setSelected(fromUrl || allCategories[0]);
     }
-  }, [allCategories, selected]);
+  }, [allCategories, selected, categoryParam]);
 
   // Build unified items for the selected category
   const unifiedItems: UnifiedItem[] =
