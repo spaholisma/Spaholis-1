@@ -55,7 +55,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
       <div className="grid md:grid-cols-[38%_1fr] items-stretch">
         {/* Image */}
         {cls.image_url && (
-          <div className="relative h-36 sm:h-44 md:h-auto md:min-h-[200px] overflow-hidden bg-[#16424b]">
+          <div className="relative h-28 sm:h-36 md:h-auto md:min-h-[190px] overflow-hidden bg-[#16424b]">
             <img src={cls.image_url} alt={cls.title} className="w-full h-full object-cover object-center" loading="eager" />
           </div>
         )}
@@ -71,7 +71,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
           </h2>
 
           {variant === "full" && cls.description && (
-            <p className="font-body text-[13px] sm:text-sm text-spa-cream/80 leading-relaxed mb-3 line-clamp-3 md:line-clamp-4">
+            <p className="hidden md:block font-body text-[13px] sm:text-sm text-spa-cream/80 leading-relaxed mb-3 line-clamp-4">
               {cls.description}
             </p>
           )}
