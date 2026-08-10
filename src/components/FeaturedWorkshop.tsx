@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, Clock, Sparkles } from "lucide-react";
 import { useUpcomingEvents, type ScheduleRow } from "@/hooks/useClasses";
+import { formatCRC } from "@/lib/currency";
 
 /**
  * A prominent, self-hiding highlight for a one-off featured class/workshop.
@@ -36,7 +37,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
     hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
   });
   const priceLabel = (cls as any).price_label
-    || (Number(cls.price) > 0 ? `₡${Number(cls.price).toLocaleString("en-US")}` : "");
+    || (Number(cls.price) > 0 ? formatCRC(cls.price) : "");
   const bookHref = `/class-booking?class=${featured.id}`;
 
   return (
