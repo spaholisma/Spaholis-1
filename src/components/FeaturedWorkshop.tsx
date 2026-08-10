@@ -68,7 +68,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
           </h2>
 
           {variant === "full" && cls.description && (
-            <p className="font-body text-sm sm:text-base text-spa-cream/85 leading-relaxed mb-5 line-clamp-4">
+            <p className="font-body text-sm sm:text-base text-spa-cream/85 leading-relaxed mb-5 whitespace-pre-line">
               {cls.description}
             </p>
           )}

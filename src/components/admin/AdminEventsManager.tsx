@@ -28,6 +28,10 @@ interface ClassRow {
   requires_payment: boolean;
   max_capacity: number;
   payment_link: string | null;
+  price_label: string | null;
+  featured_until: string | null;
+  payment_instructions: string | null;
+  payment_instructions_es: string | null;
 }
 
 interface ScheduleRow {
@@ -58,6 +62,10 @@ const emptyClass: Omit<ClassRow, "id"> = {
   requires_payment: false,
   max_capacity: 15,
   payment_link: null,
+  price_label: null,
+  featured_until: null,
+  payment_instructions: null,
+  payment_instructions_es: null,
 };
 
 const eventCategories = ["Studio Classes", "Yoga", "Workshop", "Sound Bath", "Breathwork", "Meditation", "Fitness", "Retreat", "Special Event"];
@@ -69,6 +77,20 @@ export function AdminEventsManager() {
   const [scheduleForm, setScheduleForm] = useState({ date: "", startTime: "09:00", endTime: "10:00" });
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [uploading, setUploading] = useState(false);
+  // Attendees per schedule id (loaded on demand from class_bookings).
+  const [attendees, setAttendees] = useState<Record<string, { guest_name: string | null; guest_email: string | null; status: string }[]>>({});
+  const [openAttendees, setOpenAttendees] = useState<string | null>(null);
+
+  const loadAttendees = async (scheduleId: string) => {
+    if (openAttendees === scheduleId) { setOpenAttendees(null); return; }
+    const { data } = await supabase
+      .from("class_bookings")
+      .select("guest_name, guest_email, status")
+      .eq("schedule_id", scheduleId)
+      .order("created_at");
+    setAttendees((prev) => ({ ...prev, [scheduleId]: (data as any[]) ?? [] }));
+    setOpenAttendees(scheduleId);
+  };
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("classes").select("*").order("title");
@@ -108,6 +130,13 @@ export function AdminEventsManager() {
       requires_payment: editing.requires_payment,
       max_capacity: editing.max_capacity,
       payment_link: (editing.payment_link || "").trim() || null,
+      price_label: (editing.price_label || "").trim() || null,
+      // Store the "featured until" date as end-of-day Costa Rica time.
+      featured_until: (editing.featured_until || "").trim()
+        ? `${(editing.featured_until as string).slice(0, 10)}T23:59:59-06:00`
+        : null,
+      payment_instructions: (editing.payment_instructions || "").trim() || null,
+      payment_instructions_es: (editing.payment_instructions_es || "").trim() || null,
     };
 
     if ("id" in editing && editing.id) {
@@ -193,22 +222,47 @@ export function AdminEventsManager() {
         </div>
 
         <div className="divide-y divide-border">
-          {schedules.map((s) => (
-            <div key={s.id} className="flex items-center justify-between py-3">
-              <div className="font-body text-sm">
-                <span className="font-medium text-foreground">{format(new Date(s.start_time), "EEE, MMM d")}</span>
-                <span className="text-muted-foreground"> · {format(new Date(s.start_time), "h:mm a")} – {format(new Date(s.end_time), "h:mm a")}</span>
-                <span className="text-muted-foreground"> · {s.spots_remaining} spots</span>
+          {schedules.map((s) => {
+            const booked = Math.max(0, (scheduling.max_capacity ?? 0) - s.spots_remaining);
+            return (
+            <div key={s.id} className="py-3">
+              <div className="flex items-center justify-between">
+                <div className="font-body text-sm">
+                  <span className="font-medium text-foreground">{format(new Date(s.start_time), "EEE, MMM d")}</span>
+                  <span className="text-muted-foreground"> · {format(new Date(s.start_time), "h:mm a")} – {format(new Date(s.end_time), "h:mm a")}</span>
+                  <span className="text-muted-foreground"> · {booked} signed up / {scheduling.max_capacity} · {s.spots_remaining} left</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => loadAttendees(s.id)}>
+                    {openAttendees === s.id ? "Hide signups" : `View signups${booked ? ` (${booked})` : ""}`}
+                  </Button>
+                  {s.is_cancelled ? (
+                    <span className="text-xs font-body font-semibold text-destructive">Cancelled</span>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => handleCancelSchedule(s.id)}>Cancel</Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {s.is_cancelled ? (
-                  <span className="text-xs font-body font-semibold text-destructive">Cancelled</span>
-                ) : (
-                  <Button variant="ghost" size="sm" onClick={() => handleCancelSchedule(s.id)}>Cancel</Button>
-                )}
-              </div>
+              {openAttendees === s.id && (
+                <div className="mt-2 ml-1 rounded-lg bg-muted/40 p-3">
+                  {(attendees[s.id] ?? []).length === 0 ? (
+                    <p className="font-body text-xs text-muted-foreground">No signups yet.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {(attendees[s.id] ?? []).map((a, i) => (
+                        <li key={i} className="font-body text-xs text-foreground flex flex-wrap gap-x-2">
+                          <span className="font-medium">{a.guest_name || "Guest"}</span>
+                          <span className="text-muted-foreground">{a.guest_email}</span>
+                          <span className="text-muted-foreground/70">· {a.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
           {schedules.length === 0 && <p className="py-4 spa-body-sm text-center">No upcoming sessions scheduled.</p>}
         </div>
       </div>
@@ -290,7 +344,7 @@ export function AdminEventsManager() {
         {/* Numerics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price (₡)</label>
+            <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price ($ USD)</label>
             <Input type="number" value={editing.price} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} />
           </div>
           <div>
@@ -329,6 +383,53 @@ export function AdminEventsManager() {
               className="min-h-[120px]"
             />
           </div>
+        </div>
+
+        {/* Featured + pay-to-teacher (for one-off special events) */}
+        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
+          <p className="font-heading text-sm font-medium text-foreground">Special event options</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Custom price label</label>
+              <Input
+                placeholder="e.g. ₡12,500 CRC — leave blank to show the $ price"
+                value={editing.price_label || ""}
+                onChange={(e) => setEditing({ ...editing, price_label: e.target.value || null })}
+              />
+              <p className="text-xs text-muted-foreground mt-1 font-body">Shown instead of the USD price (banner, card, booking).</p>
+            </div>
+            <div>
+              <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Feature on the web until</label>
+              <Input
+                type="date"
+                value={(editing.featured_until || "").slice(0, 10)}
+                onChange={(e) => setEditing({ ...editing, featured_until: e.target.value || null })}
+              />
+              <p className="text-xs text-muted-foreground mt-1 font-body">Shows a highlight banner on Home + Classes until this date. Blank = not featured.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Pay-to-teacher instructions (EN)</label>
+              <Textarea
+                placeholder="e.g. Pay directly to the teacher via PayPal / SINPE. Send your receipt to confirm."
+                value={editing.payment_instructions || ""}
+                onChange={(e) => setEditing({ ...editing, payment_instructions: e.target.value || null })}
+                className="min-h-[80px]"
+              />
+            </div>
+            <div>
+              <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Pay-to-teacher instructions (ES)</label>
+              <Textarea
+                value={editing.payment_instructions_es || ""}
+                onChange={(e) => setEditing({ ...editing, payment_instructions_es: e.target.value || null })}
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground font-body">
+            If set, the event books without online payment and this appears on the booking page and in the confirmation email as a “How to pay” note. Leave “Requires Payment” unchecked for these.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-6">
