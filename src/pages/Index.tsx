@@ -101,7 +101,7 @@ const Index = () => {
               style={{ background: "linear-gradient(135deg, #1f5f6b 0%, #16424b 100%)" }}
             >
               <div className="grid md:grid-cols-[1fr_auto] items-center gap-6 p-6 sm:p-8 md:p-10 text-spa-cream">
-                <div>
+                <div className="min-w-0">
                   <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-3 font-body text-[10px] font-semibold uppercase tracking-[0.16em]">
                     <Home className="h-3 w-3" /> {inHouse.eyebrow}
                   </span>
@@ -117,8 +117,8 @@ const Index = () => {
                     </p>
                   )}
                 </div>
-                <div className="shrink-0">
-                  <Button asChild size="xl" className="bg-spa-cream text-[#16424b] hover:bg-white">
+                <div className="shrink-0 w-full md:w-auto">
+                  <Button asChild size="xl" className="w-full md:w-auto whitespace-normal text-center h-auto min-h-12 py-3 leading-tight bg-spa-cream text-[#16424b] hover:bg-white">
                     <Link to={inHouse.ctaLink}>{inHouse.ctaText}</Link>
                   </Button>
                 </div>
