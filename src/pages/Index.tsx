@@ -34,6 +34,10 @@ const Index = () => {
   const { data: seoData } = useSiteSeo();
   const c = content || defaultContent;
   const { hero, signatureExperiences, movement, testimonials: testimonialsContent, cta } = c;
+  const googleReviews = (c as any).googleReviews || (defaultContent as any).googleReviews;
+  const googleReviewsList: { name: string; text: string; rating: number; context: string; date: string }[] =
+    (googleReviews?.reviews || []).filter((r: any) => r?.text?.trim());
+  const showGoogle = googleReviews?.enabled && googleReviewsList.length > 0;
   const seo = seoData || { home: { title: "", description: "", canonical: "/" } };
 
   return (
@@ -207,6 +211,64 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Google Reviews */}
+      {showGoogle && (
+        <section className="bg-background">
+          <div className="spa-section">
+            <motion.div {...fadeIn} className="text-center mb-4">
+              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{googleReviews.eyebrow}</p>
+              <h2 className="spa-heading-lg text-foreground">{googleReviews.title}</h2>
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <div className="flex gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="h-5 w-5 fill-spa-sand text-spa-sand" />
+                  ))}
+                </div>
+                <span className="font-body text-sm font-medium text-foreground">{googleReviews.rating} / 5</span>
+                {googleReviews.totalReviews > 0 && (
+                  <span className="font-body text-sm text-muted-foreground">— {googleReviews.totalReviews} {t("indexPage.reviewsSuffix")}</span>
+                )}
+              </div>
+            </motion.div>
+            <motion.div {...fadeIn} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+              {googleReviewsList.slice(0, 6).map((r, idx) => (
+                <div key={idx} className="bg-card rounded-2xl p-8 shadow-sm relative">
+                  <Quote className="absolute top-6 right-6 h-8 w-8 text-border" />
+                  <div className="flex gap-0.5 mb-4">
+                    {Array.from({ length: r.rating || 5 }).map((_, i) => (
+                      <Star key={i} className="h-3.5 w-3.5 fill-spa-sand text-spa-sand" />
+                    ))}
+                  </div>
+                  <p className="font-body text-sm text-muted-foreground leading-relaxed mb-6 font-light">
+                    "{r.text}"
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-body text-sm font-semibold text-foreground">{r.name}</p>
+                      {(r.context || r.date) && (
+                        <p className="font-body text-xs text-muted-foreground">{[r.context, r.date].filter(Boolean).join(" · ")}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+            {googleReviews.googleUrl && (
+              <motion.div {...fadeIn} className="text-center mt-8">
+                <a
+                  href={googleReviews.googleUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
+                >
+                  {googleReviews.readAllText}
+                </a>
+              </motion.div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* CTA */}
       <section className="bg-spa-charcoal">

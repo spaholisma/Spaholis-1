@@ -185,6 +185,28 @@ export const content = {
     readAllText: "Read all 325 reviews on Tripadvisor →",
   },
 
+  // ── Homepage Google Reviews (curated, editable in Admin → Content) ──
+  // Fill in real reviews below (name / text / rating / context / date). Any
+  // review left with an empty "text" is hidden on the site. `googleUrl` is the
+  // public link to your Google Business profile / Maps reviews.
+  googleReviews: {
+    enabled: true,
+    eyebrow: "Google Reviews",
+    title: "What Our Guests Say on Google",
+    rating: 4.9,
+    totalReviews: 0,
+    googleUrl: "",
+    readAllText: "Read all our reviews on Google →",
+    reviews: [
+      { name: "", text: "", rating: 5, context: "", date: "" },
+      { name: "", text: "", rating: 5, context: "", date: "" },
+      { name: "", text: "", rating: 5, context: "", date: "" },
+      { name: "", text: "", rating: 5, context: "", date: "" },
+      { name: "", text: "", rating: 5, context: "", date: "" },
+      { name: "", text: "", rating: 5, context: "", date: "" },
+    ],
+  },
+
   // ── Homepage CTA ──
   cta: {
     title: "Not Sure Where to Start?",

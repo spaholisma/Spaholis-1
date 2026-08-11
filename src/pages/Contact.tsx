@@ -28,6 +28,8 @@ const ContactPage = () => {
   const c = (siteContent as any)?.contact || (defaults as any).contact;
   const seo = (seoData as any)?.contact || (seoDefaults as any).contact;
   const cd = c.cards;
+  const g = (siteContent as any)?.googleReviews || (defaults as any).googleReviews;
+  const showGoogleBadge = g?.enabled && g?.googleUrl;
 
   const cards = [
     {
@@ -72,9 +74,22 @@ const ContactPage = () => {
           <p className="spa-body text-muted-foreground max-w-xl mx-auto">
             {c.introText}
           </p>
-          <div className="flex items-center justify-center gap-1.5 mt-4 text-sm font-body text-muted-foreground">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-            <span>{c.reviewText}</span>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 mt-4 text-sm font-body text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+              {c.reviewText}
+            </span>
+            {showGoogleBadge && (
+              <a
+                href={g.googleUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+              >
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                {g.rating} · {g.totalReviews > 0 ? `${g.totalReviews}+ ` : ""}Google reviews
+              </a>
+            )}
           </div>
         </motion.div>
       </section>
