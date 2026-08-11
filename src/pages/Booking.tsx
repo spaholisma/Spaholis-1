@@ -137,7 +137,9 @@ const BookingPage = () => {
   const [selectedService, setSelectedService] = useState(preselected && preselected !== "consultation" ? preselected : "");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [locationVisit, setLocationVisit] = useState(false);
+  // `?location=1` (e.g. from the homepage "we come to you" banner) pre-selects
+  // the at-your-location visit option so the guest lands straight on it.
+  const [locationVisit, setLocationVisit] = useState(searchParams.get("location") === "1");
   // Phase 1 add-on treatments: extra treatments booked on the SAME day, for the
   // same person (back-to-back) or someone else. Each becomes its own booking.
   const [addons, setAddons] = useState<AddonItem[]>([]);

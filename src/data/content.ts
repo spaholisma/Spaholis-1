@@ -161,6 +161,17 @@ export const content = {
     ],
   },
 
+  // ── Homepage In-Home / On-Location Services banner ──
+  inHouse: {
+    enabled: true,
+    eyebrow: "In-Home & On-Location",
+    title: "Prefer to stay in? We come to you.",
+    text: "Enjoy our massages and holistic treatments right where you're staying — your villa, hotel or home anywhere in Manuel Antonio. Same expert therapists, same care, at no extra cost.",
+    ctaText: "Request a visit at your location",
+    ctaLink: "/book?location=1",
+    note: "No extra cost — we come to you!",
+  },
+
   // ── Homepage Movement Section ──
   movement: {
     eyebrow: "Movement is Medicine",

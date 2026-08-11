@@ -590,6 +590,7 @@ export function AdminContentEditor() {
     wellness: "🧘 Wellness Section",
     signatureExperiences: "✨ Signature Experiences (Homepage)",
     movement: "🏃 Movement & Classes",
+    inHouse: "🏠 In-Home / On-Location Banner (Homepage)",
     testimonials: "⭐ Testimonials (Tripadvisor)",
     googleReviews: "🌟 Google Reviews",
     cta: "📢 Call to Action",

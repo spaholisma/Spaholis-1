@@ -77,12 +77,6 @@ const ClassesPage = () => {
       </div>
 
       <div className="pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* Featured one-off workshop (auto-hides after its date) */}
-        {useFeaturedEvent() && (
-          <div className="mt-10">
-            <FeaturedWorkshop />
-          </div>
-        )}
         <motion.div {...fadeIn} className="mt-10 rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
           <img
             {...cmsEditProps("classes.heroImage", "image")}
@@ -111,6 +105,13 @@ const ClassesPage = () => {
             </Link>
           </div>
         </motion.div>
+
+        {/* Featured one-off workshop (auto-hides after its date) — shown below the Upcoming Events heading */}
+        {useFeaturedEvent() && (
+          <div className="mt-8">
+            <FeaturedWorkshop />
+          </div>
+        )}
 
         <motion.div {...fadeIn} className="mt-6 text-center">
           <a

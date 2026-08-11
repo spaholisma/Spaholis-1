@@ -3,12 +3,11 @@ import { RichText } from "@/components/ui/rich-text";
 import { cmsEditProps } from "@/lib/cmsEdit";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Star, Quote, ArrowRight } from "lucide-react";
+import { Star, Quote, ArrowRight, Home, MapPin } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO, businessJsonLd } from "@/components/SEO";
 import { WellnessSection } from "@/components/WellnessSection";
-import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
 import { testimonials } from "@/data/services";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaultContent } from "@/data/content";
@@ -34,6 +33,7 @@ const Index = () => {
   const { data: seoData } = useSiteSeo();
   const c = content || defaultContent;
   const { hero, signatureExperiences, movement, testimonials: testimonialsContent, cta } = c;
+  const inHouse = (c as any).inHouse || (defaultContent as any).inHouse;
   const googleReviews = (c as any).googleReviews || (defaultContent as any).googleReviews;
   const googleReviewsList: { name: string; text: string; rating: number; context: string; date: string }[] =
     (googleReviews?.reviews || []).filter((r: any) => r?.text?.trim());
@@ -91,11 +91,39 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ═══ Featured one-off workshop (auto-hides after its date) ═══ */}
-      {useFeaturedEvent() && (
+      {/* ═══ In-Home / On-Location services banner ═══ */}
+      {inHouse?.enabled && (
         <section className="px-4 sm:px-6 lg:px-8 py-14">
           <div className="max-w-5xl mx-auto">
-            <FeaturedWorkshop />
+            <motion.div
+              {...fadeIn}
+              className="relative overflow-hidden rounded-2xl border border-spa-sage/30 shadow-md"
+              style={{ background: "linear-gradient(135deg, #1f5f6b 0%, #16424b 100%)" }}
+            >
+              <div className="grid md:grid-cols-[1fr_auto] items-center gap-6 p-6 sm:p-8 md:p-10 text-spa-cream">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-3 font-body text-[10px] font-semibold uppercase tracking-[0.16em]">
+                    <Home className="h-3 w-3" /> {inHouse.eyebrow}
+                  </span>
+                  <h2 className="font-heading text-2xl sm:text-3xl font-semibold leading-tight mb-2">
+                    {inHouse.title}
+                  </h2>
+                  <p className="font-body text-sm sm:text-base text-spa-cream/85 leading-relaxed max-w-2xl">
+                    {inHouse.text}
+                  </p>
+                  {inHouse.note && (
+                    <p className="mt-3 inline-flex items-center gap-1.5 font-body text-xs sm:text-sm font-medium text-spa-cream/90">
+                      <MapPin className="h-3.5 w-3.5" /> {inHouse.note}
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0">
+                  <Button asChild size="xl" className="bg-spa-cream text-[#16424b] hover:bg-white">
+                    <Link to={inHouse.ctaLink}>{inHouse.ctaText}</Link>
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </section>
       )}
