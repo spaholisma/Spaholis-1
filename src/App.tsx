@@ -29,6 +29,9 @@ import ExperienceBooking from "./pages/ExperienceBooking";
 import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 import Faqs from "./pages/Faqs";
+import Contact from "./pages/Contact";
+import StudioRental from "./pages/StudioRental";
+import DayRetreats from "./pages/DayRetreats";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Refund from "./pages/Refund";
@@ -68,7 +71,10 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/retreats", element: <Retreats /> },
   { path: "/retreats/:slug", element: <RetreatDetail /> },
   { path: "/custom-retreat", element: <CustomRetreat /> },
+  { path: "/day-retreats", element: <DayRetreats /> },
   { path: "/experience-booking", element: <ExperienceBooking /> },
+  { path: "/studio-rental", element: <StudioRental /> },
+  { path: "/contact", element: <Contact /> },
   { path: "/blog", element: <Blog /> },
   { path: "/blog/:slug", element: <BlogPost /> },
   { path: "/faqs", element: <Faqs /> },
