@@ -71,6 +71,21 @@ export const seo = {
     description: "Explore curated wellness experiences at Holis — from relaxation and energy work to recovery and education. Find what your body needs.",
     canonical: "/wellness",
   },
+  studioRental: {
+    title: "Studio Rental",
+    description: "Rent our fully-equipped yoga studio in Manuel Antonio — aerial rig, GYROTONIC® tower, ocean view and more. Hourly, half-day and full-day rates.",
+    canonical: "/studio-rental",
+  },
+  dayRetreats: {
+    title: "Day Retreats",
+    description: "A full day of wellness in Manuel Antonio — movement, holistic treatments, nourishment and rest, thoughtfully woven into one restorative day.",
+    canonical: "/day-retreats",
+  },
+  contact: {
+    title: "Location & Contact",
+    description: "Visit Holis Wellness Center in Manuel Antonio, Quepos, Costa Rica. Get directions, call, WhatsApp or email us to plan your visit.",
+    canonical: "/contact",
+  },
 } as const;
 
 export const content = {
@@ -680,6 +695,100 @@ export const content = {
     dialogTotal: "Total",
     dialogFullName: "Full name",
     dialogIntro: "Leave your details and our team will contact you with all the information about this training.",
+  },
+
+  // ── Studio Rental Page ──
+  studioRental: {
+    heroImage: "https://zhdqjtgtolnksiaepxbd.supabase.co/storage/v1/object/public/content-images/studio-rental-main.jpg",
+    heroTitle: "Rent the Studio",
+    sectionTitle: "Our studio — your event!",
+    intro1: "Are you a teacher looking to offer classes in beautiful Manuel Antonio, or simply seeking a comfortable place to continue your personal practice?",
+    intro2: "We are delighted to offer you our fully equipped yoga studio for rent. Our serene and well-appointed space is perfect for hosting classes or for personal use, ensuring a tranquil and inspiring environment for all your needs.",
+    featuresTitle: "Features:",
+    features: [
+      "Space for up to 15 people",
+      "Air conditioning",
+      "Mats, blocks, and straps",
+      "Aerial equipment (9 swings)",
+      "GYROTONIC® Tower",
+      "GYROKINESIS® stools",
+      "Ocean view",
+      "Sound system",
+      "Fridge with cold towels",
+    ],
+    ratesTitle: "Rates:",
+    rates: [
+      { price: "$45", label: "1 hour" },
+      { price: "$62", label: "1.5 hours" },
+      { price: "$79", label: "2 hours" },
+      { price: "$170", label: "half day (6 hours)" },
+      { price: "$226", label: "the full day (10 hours)" },
+    ],
+    ratesNote: "All rates in USD.",
+    studioImage: "https://zhdqjtgtolnksiaepxbd.supabase.co/storage/v1/object/public/content-images/studio-rental-gyrotonic.jpg",
+    inquiryTitle1: "We can't wait to host you.",
+    inquiryTitle2: "Interested in renting the yoga studio?",
+    inquiryText: "Fill out some info and we'll be in touch shortly. We can't wait to hear from you!",
+    thankYouTitle: "Thank you!",
+    thankYouText: "We've received your request. Our team will reach out very soon to arrange the details of your rental.",
+    form: {
+      firstNameLabel: "First Name",
+      lastNameLabel: "Last Name",
+      emailLabel: "Email",
+      phoneLabel: "Phone",
+      eventTypeLabel: "What type of event / class would you like to host?",
+      propsLabel: "What kind of props will you need?",
+      dayLabel: "What day would you like to book the studio?",
+      timeLabel: "At what time? (Central Time)",
+      hoursLabel: "How many hours would you like to book? (# only)",
+      detailsLabel: "Any other details or questions?",
+      sendLabel: "Send",
+      sendingLabel: "Sending…",
+      requiredMessage: "Please complete all required fields.",
+      emailMessage: "Please enter a valid email.",
+      errorMessage: "Something went wrong. Please try again.",
+    },
+  },
+
+  // ── Day Retreats Page ──
+  dayRetreats: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/9482f2a2-2685-4fe6-a63d-c9a189520bd1/retreat-cover.jpg",
+    heroEyebrow: "Day Retreats",
+    heroTitle: "A full day for yourself",
+    introText: "A day retreat is a complete pause: movement, holistic treatments, nourishment and rest, woven into one restorative experience in the heart of Manuel Antonio. Perfect for reconnecting with yourself — solo or with those you'd love to share it with.",
+    steps: [
+      { title: "Arrival & centering", text: "Begin with a calm welcome, mindful breathing and an intention for the day." },
+      { title: "Movement", text: "Yoga or conscious movement to awaken the body and settle the mind." },
+      { title: "Treatment", text: "A personalized massage or holistic therapy to release and restore." },
+      { title: "Nourish & rest", text: "A moment of mindful nourishment and rest to integrate the experience." },
+    ],
+    ctaTitle: "Design your wellness day",
+    ctaText: "Every day retreat is tailored to you. Tell us what you're looking for and we'll craft an experience just for you.",
+    ctaPrimary: "Plan my day",
+    ctaSecondary: "Explore experiences",
+  },
+
+  // ── Location & Contact Page ──
+  contact: {
+    heroEyebrow: "Location & Contact",
+    heroTitle: "Visit us in Manuel Antonio",
+    introText: "Our sanctuary of wellbeing in the heart of Manuel Antonio. Reach out to plan your visit — we'd love to welcome you.",
+    reviewText: "4.9 · 325+ Tripadvisor reviews",
+    cards: {
+      locationTitle: "Location",
+      locationText1: "Manuel Antonio, Quepos",
+      locationText2: "Puntarenas, Costa Rica",
+      locationCta: "Get directions",
+      whatsappTitle: "WhatsApp",
+      whatsappCta: "Message us",
+      phoneTitle: "Phone",
+      phoneCta: "Call now",
+      emailTitle: "Email",
+      emailCta: "Send email",
+    },
+    hoursTitle: "By appointment",
+    hoursText: "We welcome guests by appointment. Book online or contact us to arrange the perfect time for your visit.",
+    bookLabel: "Book Now",
   },
 
   // ── WhatsApp Button ──

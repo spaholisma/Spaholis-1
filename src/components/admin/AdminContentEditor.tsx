@@ -578,6 +578,9 @@ export function AdminContentEditor() {
     { label: "🏝️ Retreats", path: "/retreats" },
     { label: "🌿 Wellness", path: "/wellness" },
     { label: "❓ FAQs", path: "/faqs" },
+    { label: "🧘 Studio Rental", path: "/studio-rental" },
+    { label: "🌅 Day Retreats", path: "/day-retreats" },
+    { label: "📍 Contact", path: "/contact" },
   ];
 
 
@@ -599,6 +602,9 @@ export function AdminContentEditor() {
     faqs: "❓ FAQs Page (header)",
     giftCards: "🎁 Gift Cards Page",
     education: "📚 Education Page",
+    studioRental: "🧘 Studio Rental Page",
+    dayRetreats: "🌅 Day Retreats Page",
+    contact: "📍 Location & Contact Page",
     whatsapp: "💬 WhatsApp Button",
   };
 
@@ -614,6 +620,9 @@ export function AdminContentEditor() {
     giftCards: "🎁 Gift Cards",
     retreats: "🏝️ Retreats",
     wellness: "🌿 Wellness",
+    studioRental: "🧘 Studio Rental",
+    dayRetreats: "🌅 Day Retreats",
+    contact: "📍 Contact",
   };
 
   const isLoading =
