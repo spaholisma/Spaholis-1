@@ -164,10 +164,10 @@ export const content = {
     title: "Our Signature Experiences",
     subtitle: "Designed to support how you want to feel",
     items: [
-      { title: "Somato Awareness System Massage (90min)", benefit: "\nA gentle reset for your nervous system; Arrive as you are, leave renewed", category: "Massage Therapy", imageKey: "signatureSomato" as const },
-      { title: "Holisynergie (90min)", benefit: "Our signature blend of techniques to dissolve tension and restore flow", category: "Massage Therapy", imageKey: "signatureHolisynergie" as const },
-      { title: "Essenthya Deluxe\nFacial (75min)", benefit: "Nourishing organic care that lets your natural radiance shine through", category: "Organic Facials", imageKey: "signatureFacial" as const },
-      { title: "CranioSacral Therapy (90min)", benefit: "Gentle therapy to restore balance and deep nervous system healing", category: "Holistic Therapy", imageKey: "signatureExpand" as const },
+      { title: "Somato Awareness System Massage (90min)", benefit: "\nA gentle reset for your nervous system; Arrive as you are, leave renewed", category: "Massage Therapy", imageKey: "signatureSomato" as const, image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg" },
+      { title: "Holisynergie (90min)", benefit: "Our signature blend of techniques to dissolve tension and restore flow", category: "Massage Therapy", imageKey: "signatureHolisynergie" as const, image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg" },
+      { title: "Essenthya Deluxe\nFacial (75min)", benefit: "Nourishing organic care that lets your natural radiance shine through", category: "Organic Facials", imageKey: "signatureFacial" as const, image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/13188b0e-e90f-482b-b100-8e6df443a342/IMG_3394-e1402951220128.jpg" },
+      { title: "CranioSacral Therapy (90min)", benefit: "Gentle therapy to restore balance and deep nervous system healing", category: "Holistic Therapy", imageKey: "signatureExpand" as const, image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/fb8bcca7-04cb-4a14-9558-ff7f38846bce/Untitled+design.png" },
     ],
   },
 
@@ -204,6 +204,17 @@ export const content = {
     totalReviews: 325,
     tripadvisorUrl: "https://www.tripadvisor.com/Attraction_Review-g309274-d1818898-Reviews-Holis_Wellness_Center_Spa-Manuel_Antonio_Quepos_Province_of_Puntarenas.html",
     readAllText: "Read all 325 reviews on Tripadvisor →",
+    reviews: [
+      { name: "Chrissy S.", text: "I had a 60 min massage and facial. Both were amazing! Great price for what you get! Super friendly and accommodating — highly recommend.", rating: 5, context: "Spa Guest", date: "Mar 2026" },
+      { name: "Petra H.", text: "Holis Spa is a true healing gem of Manuel Antonio. I visit whenever I'm in town, and it's always the most deeply restorative part of my trip.", rating: 5, context: "Solo Traveler", date: "Mar 2026" },
+      { name: "Bart R.", text: "Warm welcome by the front desk. I had a 90-minute deep tissue with Jenny — one of the best massages I have ever had. Highly recommend.", rating: 5, context: "Friends Trip", date: "Feb 2026" },
+      { name: "Kathy W.", text: "I booked a facial as a special treat. It was top notch from beginning to end. The place is lovely, as is the staff. My skin felt so good. Highly recommend!", rating: 5, context: "Couple", date: "Feb 2026" },
+      { name: "Gena", text: "We did the couples massage, which included a facial and body mask. Husband said Susana gave him the best massage he has ever had. Easy to book and prompt follow-up.", rating: 5, context: "Couples", date: "Jan 2026" },
+      { name: "Kristy R.", text: "Booked a 4-day yoga, hiking, and surfing retreat — what an incredible experience with the most beautiful, kind people. Could not have asked for a better experience!", rating: 5, context: "Friends Trip", date: "Jan 2026" },
+      { name: "Yetunde A.", text: "My experience was transformative. Evelina personalized my treatment plan and the staff truly became like family. I am eternally thankful.", rating: 5, context: "Solo Traveler", date: "Jun 2025" },
+      { name: "Jeff S.", text: "After a fantastic yoga class, my wife and I booked a couples massage. We both agreed it was the best massage ever. The little things make this place special.", rating: 5, context: "Couples", date: "Jan 2026" },
+      { name: "Deneen C.", text: "I have been going here for years on our visits to Costa Rica. They have everything you could want — yoga, massage, facials. Worth the trip for this experience alone!", rating: 5, context: "Solo Traveler", date: "Jan 2026" },
+    ],
   },
 
   // ── Homepage Google Reviews (curated, editable in Admin → Content) ──

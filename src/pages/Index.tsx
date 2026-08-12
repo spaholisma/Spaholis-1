@@ -8,7 +8,6 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO, businessJsonLd } from "@/components/SEO";
 import { WellnessSection } from "@/components/WellnessSection";
-import { testimonials } from "@/data/services";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaultContent } from "@/data/content";
 import { useTranslation } from "react-i18next";
@@ -33,6 +32,7 @@ const Index = () => {
   const { data: seoData } = useSiteSeo();
   const c = content || defaultContent;
   const { hero, signatureExperiences, movement, testimonials: testimonialsContent, cta } = c;
+  const trReviews: any[] = (testimonialsContent as any).reviews || (defaultContent as any).testimonials.reviews || [];
   const inHouse = (c as any).inHouse || (defaultContent as any).inHouse;
   const googleReviews = (c as any).googleReviews || (defaultContent as any).googleReviews;
   const googleReviewsList: { name: string; text: string; rating: number; context: string; date: string }[] =
@@ -144,7 +144,7 @@ const Index = () => {
               <div key={exp.title} className="group">
                 <div className="rounded-2xl overflow-hidden aspect-[4/5] mb-4 relative">
                   <img
-                    src={signatureImages[exp.imageKey]}
+                    src={(exp as any).image || signatureImages[exp.imageKey]}
                     alt={exp.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     loading="lazy"
@@ -207,11 +207,11 @@ const Index = () => {
             </div>
           </motion.div>
           <motion.div {...fadeIn} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-            {testimonials.slice(0, 6).map((t) => (
-              <div key={t.id} className="bg-card rounded-2xl p-8 shadow-sm relative">
+            {trReviews.slice(0, 6).map((t: any, idx: number) => (
+              <div key={idx} className="bg-card rounded-2xl p-8 shadow-sm relative">
                 <Quote className="absolute top-6 right-6 h-8 w-8 text-border" />
                 <div className="flex gap-0.5 mb-4">
-                  {Array.from({ length: t.rating }).map((_, i) => (
+                  {Array.from({ length: t.rating || 5 }).map((_, i) => (
                     <Star key={i} className="h-3.5 w-3.5 fill-spa-sand text-spa-sand" />
                   ))}
                 </div>
