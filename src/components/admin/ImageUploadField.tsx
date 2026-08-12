@@ -14,6 +14,46 @@ interface ImageUploadFieldProps {
   onChange: (value: string) => void;
 }
 
+/**
+ * Downscale a large raster image (max 2000px on the long edge) and re-encode as
+ * JPEG so heavy camera/stock photos upload quickly. Returns a new File; throws
+ * if the browser can't decode the source.
+ */
+async function compressImage(file: File, maxDim = 2000, quality = 0.82): Promise<File> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = () => reject(new Error("read error"));
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("decode error"));
+    i.src = dataUrl;
+  });
+
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * scale);
+  const h = Math.round(img.naturalHeight * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas");
+  // White matte so PNG transparency doesn't turn black when flattened to JPEG.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  if (!blob) throw new Error("encode error");
+  // If compression somehow made it bigger (rare), keep the original.
+  if (blob.size >= file.size) return file;
+  const base = file.name.replace(/\.[^.]+$/, "") || "image";
+  return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+}
+
 export function ImageUploadField({ fieldId, label, value, onChange }: ImageUploadFieldProps) {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -25,19 +65,32 @@ export function ImageUploadField({ fieldId, label, value, onChange }: ImageUploa
       toast.error("Please select an image file");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
+    // Guardrail on the raw input; heavy photos get compressed below.
+    if (file.size > 40 * 1024 * 1024) {
+      toast.error("Image is too large (over 40MB). Please choose a smaller file.");
       return;
     }
 
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
+      // Auto-optimize heavy raster photos (downscale + re-encode) so large
+      // camera/stock images just work. SVG/GIF are uploaded as-is.
+      let upload = file;
+      const raster = /^image\/(jpeg|png|webp)$/.test(file.type);
+      if (raster && file.size > 1_000_000) {
+        try {
+          upload = await compressImage(file);
+        } catch {
+          upload = file; // fall back to the original if the browser can't decode it
+        }
+      }
+
+      const ext = upload.type === "image/jpeg" ? "jpg" : (file.name.split(".").pop() || "jpg");
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
       const { error } = await supabase.storage
         .from("content-images")
-        .upload(path, file, { upsert: true });
+        .upload(path, upload, { upsert: true, contentType: upload.type });
 
       if (error) throw error;
 
@@ -46,7 +99,8 @@ export function ImageUploadField({ fieldId, label, value, onChange }: ImageUploa
         .getPublicUrl(path);
 
       onChange(urlData.publicUrl);
-      toast.success("Image uploaded!");
+      const savedPct = file.size > 0 ? Math.round((1 - upload.size / file.size) * 100) : 0;
+      toast.success(upload !== file && savedPct > 0 ? `Image uploaded — optimized ${savedPct}% smaller` : "Image uploaded!");
     } catch (err: any) {
       toast.error(err.message || "Upload failed");
     } finally {
