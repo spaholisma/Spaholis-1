@@ -581,6 +581,8 @@ export function AdminContentEditor() {
     { label: "🧘 Studio Rental", path: "/studio-rental" },
     { label: "🌅 Day Retreats", path: "/day-retreats" },
     { label: "📍 Contact", path: "/contact" },
+    { label: "🌴 Custom Retreat", path: "/custom-retreat" },
+    { label: "🎓 SAS Practitioners", path: "/sas-practitioners" },
   ];
 
 
@@ -607,6 +609,8 @@ export function AdminContentEditor() {
     studioRental: "🧘 Studio Rental Page",
     dayRetreats: "🌅 Day Retreats Page",
     contact: "📍 Location & Contact Page",
+    customRetreat: "🌴 Custom Retreat Page (form)",
+    sasPractitioners: "🎓 SAS Practitioners Page",
     whatsapp: "💬 WhatsApp Button",
   };
 
@@ -625,6 +629,8 @@ export function AdminContentEditor() {
     studioRental: "🧘 Studio Rental",
     dayRetreats: "🌅 Day Retreats",
     contact: "📍 Contact",
+    customRetreat: "🌴 Custom Retreat",
+    sasPractitioners: "🎓 SAS Practitioners",
   };
 
   const isLoading =

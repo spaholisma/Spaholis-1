@@ -11,33 +11,19 @@ import { ChevronLeft, Check, Sparkles, Heart, CalendarDays, Pen } from "lucide-r
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-const steps = ["About You", "Your Vision", "Dates & Duration", "Personalize"];
-
-const visionOptions = [
-  "Relaxation", "Healing", "Detox", "Adventure",
-  "Mindfulness", "Fitness", "Couples Wellness", "Spiritual Growth",
-];
-
-const activityOptions = [
-  "Yoga", "Massage Therapy", "Meditation", "Surf Lessons",
-  "Waterfall Tours", "Organic Facials", "Breathwork", "Sound Healing",
-  "Jungle Hikes", "Thai Bodywork", "Body Wraps", "Gyrokinesis®",
-];
-
-const groupOptions = [
-  { value: "solo", label: "Solo" },
-  { value: "couple", label: "Couple" },
-  { value: "group", label: "Group (3+)" },
-];
-
-const budgetOptions = [
-  "Under $1,000", "$1,000 – $2,500", "$2,500 – $5,000", "$5,000+", "Flexible",
-];
+import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
+import { content as defaults, seo as seoDefaults } from "@/data/content";
 
 const stepIcons = [Heart, Sparkles, CalendarDays, Pen];
+type Option = { value: string; label: string };
 
 export default function CustomRetreat() {
+  const { data: siteContent } = useSiteContent();
+  const { data: seoData } = useSiteSeo();
+  const c = (siteContent as any)?.customRetreat || (defaults as any).customRetreat;
+  const seo = (seoData as any)?.customRetreat || (seoDefaults as any).customRetreat;
+  const stepNames: string[] = c.stepNames;
+
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -88,7 +74,7 @@ export default function CustomRetreat() {
     } as any);
     setSubmitting(false);
     if (error) {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(c.errorMessage);
       return;
     }
 
@@ -135,13 +121,13 @@ export default function CustomRetreat() {
               <Check className="h-10 w-10 text-primary" />
             </div>
             <h1 className="font-heading text-3xl font-semibold text-foreground">
-              Thank You
+              {c.thankYouTitle}
             </h1>
             <p className="font-body text-lg text-muted-foreground leading-relaxed max-w-md mx-auto">
-              We'll personally design your retreat and contact you shortly.
+              {c.thankYouText}
             </p>
             <Button variant="default" size="lg" asChild className="mt-4">
-              <a href="/retreats">Back to Retreats</a>
+              <a href="/retreats">{c.backToRetreatsLabel}</a>
             </Button>
           </motion.div>
         </div>
@@ -152,10 +138,7 @@ export default function CustomRetreat() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SEO
-        title="Custom Retreat | Holis Wellness"
-        description="Design your personalized wellness retreat in Manuel Antonio, Costa Rica."
-      />
+      <SEO title={seo.title} description={seo.description} canonical={seo.canonical} />
       <Navbar />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-2xl mx-auto overflow-x-clip">
@@ -166,19 +149,19 @@ export default function CustomRetreat() {
           className="text-center mb-10"
         >
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
-            Concierge Experience
+            {c.eyebrow}
           </p>
           <h1 className="font-heading text-3xl sm:text-4xl font-semibold text-foreground">
-            Design Your Retreat
+            {c.title}
           </h1>
           <p className="font-body text-base text-muted-foreground mt-3 max-w-md mx-auto">
-            Tell us what you envision — we'll craft a bespoke wellness journey just for you.
+            {c.subtitle}
           </p>
         </motion.div>
 
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-12">
-          {steps.map((s, i) => {
+          {stepNames.map((s, i) => {
             const Icon = stepIcons[i];
             return (
               <div key={s} className="flex items-center gap-2">
@@ -194,7 +177,7 @@ export default function CustomRetreat() {
                 >
                   {i < step ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                 </div>
-                {i < steps.length - 1 && (
+                {i < stepNames.length - 1 && (
                   <div
                     className={cn(
                       "w-8 sm:w-12 h-px transition-colors duration-300",
@@ -217,10 +200,10 @@ export default function CustomRetreat() {
             transition={{ duration: 0.3 }}
             className="space-y-8"
           >
-            {step === 0 && <StepBasicInfo form={form} update={update} />}
-            {step === 1 && <StepVision form={form} toggleArray={toggleArray} update={update} />}
-            {step === 2 && <StepDates form={form} update={update} />}
-            {step === 3 && <StepPersonalize form={form} update={update} />}
+            {step === 0 && <StepBasicInfo form={form} update={update} c={c} />}
+            {step === 1 && <StepVision form={form} toggleArray={toggleArray} update={update} c={c} />}
+            {step === 2 && <StepDates form={form} update={update} c={c} />}
+            {step === 3 && <StepPersonalize form={form} update={update} c={c} />}
           </motion.div>
         </AnimatePresence>
 
@@ -233,16 +216,16 @@ export default function CustomRetreat() {
             className="gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back
+            {c.backLabel}
           </Button>
-          {step < steps.length - 1 ? (
+          {step < stepNames.length - 1 ? (
             <Button
               variant="default"
               size="lg"
               onClick={() => setStep((s) => s + 1)}
               disabled={!canProceed()}
             >
-              Continue
+              {c.continueLabel}
             </Button>
           ) : (
             <Button
@@ -251,7 +234,7 @@ export default function CustomRetreat() {
               onClick={handleSubmit}
               disabled={submitting}
             >
-              {submitting ? "Submitting…" : "Submit Your Vision"}
+              {submitting ? c.submittingLabel : c.submitLabel}
             </Button>
           )}
         </div>
@@ -264,39 +247,40 @@ export default function CustomRetreat() {
 
 /* ── Step Components ── */
 
-function StepBasicInfo({ form, update }: { form: any; update: (k: string, v: any) => void }) {
+function StepBasicInfo({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
+  const s = c.step0;
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-heading text-xl font-medium text-foreground mb-1">Tell Us About Yourself</h2>
-        <p className="font-body text-sm text-muted-foreground">So we know who we're creating this for.</p>
+        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
+        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
       <div className="space-y-4">
         <div>
-          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.fullNameLabel}</label>
           <Input
             value={form.full_name}
             onChange={(e) => update("full_name", e.target.value)}
-            placeholder="Your full name"
+            placeholder={s.fullNamePlaceholder}
             className="h-12 rounded-xl"
           />
         </div>
         <div>
-          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Email *</label>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.emailLabel}</label>
           <Input
             type="email"
             value={form.email}
             onChange={(e) => update("email", e.target.value)}
-            placeholder="your@email.com"
+            placeholder={s.emailPlaceholder}
             className="h-12 rounded-xl"
           />
         </div>
         <div>
-          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Phone / WhatsApp</label>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.phoneLabel}</label>
           <Input
             value={form.phone}
             onChange={(e) => update("phone", e.target.value)}
-            placeholder="+1 (555) 000-0000"
+            placeholder={s.phonePlaceholder}
             className="h-12 rounded-xl"
           />
         </div>
@@ -309,59 +293,62 @@ function StepVision({
   form,
   toggleArray,
   update,
+  c,
 }: {
   form: any;
   toggleArray: (key: "retreat_vision" | "preferred_activities", val: string) => void;
   update: (k: string, v: any) => void;
+  c: any;
 }) {
+  const s = c.step1;
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-heading text-xl font-medium text-foreground mb-1">Your Retreat Vision</h2>
-        <p className="font-body text-sm text-muted-foreground">What are you looking for? Select all that resonate.</p>
+        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
+        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {visionOptions.map((opt) => (
+        {(c.visionOptions as Option[]).map((opt) => (
           <button
-            key={opt}
-            onClick={() => toggleArray("retreat_vision", opt)}
+            key={opt.value}
+            onClick={() => toggleArray("retreat_vision", opt.value)}
             className={cn(
               "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200",
-              form.retreat_vision.includes(opt)
+              form.retreat_vision.includes(opt.value)
                 ? "bg-primary/10 border-primary text-primary"
                 : "bg-card border-border text-muted-foreground hover:border-primary/50"
             )}
           >
-            {opt}
+            {opt.label}
           </button>
         ))}
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">Preferred Activities</label>
+        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.activitiesLabel}</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {activityOptions.map((opt) => (
+          {(c.activityOptions as Option[]).map((opt) => (
             <button
-              key={opt}
-              onClick={() => toggleArray("preferred_activities", opt)}
+              key={opt.value}
+              onClick={() => toggleArray("preferred_activities", opt.value)}
               className={cn(
                 "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200 text-left",
-                form.preferred_activities.includes(opt)
+                form.preferred_activities.includes(opt.value)
                   ? "bg-primary/10 border-primary text-primary"
                   : "bg-card border-border text-muted-foreground hover:border-primary/50"
               )}
             >
-              {opt}
+              {opt.label}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">Who's Joining?</label>
+        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.whoLabel}</label>
         <div className="flex gap-3">
-          {groupOptions.map((opt) => (
+          {(c.groupOptions as Option[]).map((opt) => (
             <button
               key={opt.value}
               onClick={() => update("group_type", opt.value)}
@@ -381,20 +368,21 @@ function StepVision({
   );
 }
 
-function StepDates({ form, update }: { form: any; update: (k: string, v: any) => void }) {
+function StepDates({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
+  const s = c.step2;
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-heading text-xl font-medium text-foreground mb-1">Dates & Duration</h2>
-        <p className="font-body text-sm text-muted-foreground">Don't worry if you're not sure yet — we'll work it out together.</p>
+        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
+        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Preferred Dates</label>
+        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.datesLabel}</label>
         <Input
           value={form.preferred_dates}
           onChange={(e) => update("preferred_dates", e.target.value)}
-          placeholder="e.g., March 2025, or specific dates"
+          placeholder={s.datesPlaceholder}
           className="h-12 rounded-xl"
         />
       </div>
@@ -406,16 +394,16 @@ function StepDates({ form, update }: { form: any; update: (k: string, v: any) =>
           onCheckedChange={(v) => update("flexible_dates", !!v)}
         />
         <label htmlFor="flexible" className="font-body text-sm text-foreground cursor-pointer">
-          My dates are flexible
+          {s.flexibleLabel}
         </label>
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Length of Stay</label>
+        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.lengthLabel}</label>
         <Input
           value={form.length_of_stay}
           onChange={(e) => update("length_of_stay", e.target.value)}
-          placeholder="e.g., 3 days, 1 week, flexible"
+          placeholder={s.lengthPlaceholder}
           className="h-12 rounded-xl"
         />
       </div>
@@ -423,40 +411,41 @@ function StepDates({ form, update }: { form: any; update: (k: string, v: any) =>
   );
 }
 
-function StepPersonalize({ form, update }: { form: any; update: (k: string, v: any) => void }) {
+function StepPersonalize({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
+  const s = c.step3;
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-heading text-xl font-medium text-foreground mb-1">Final Touches</h2>
-        <p className="font-body text-sm text-muted-foreground">Anything else that would help us design your perfect experience.</p>
+        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
+        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">Budget Range (optional)</label>
+        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.budgetLabel}</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {budgetOptions.map((opt) => (
+          {(c.budgetOptions as Option[]).map((opt) => (
             <button
-              key={opt}
-              onClick={() => update("budget_range", form.budget_range === opt ? "" : opt)}
+              key={opt.value}
+              onClick={() => update("budget_range", form.budget_range === opt.value ? "" : opt.value)}
               className={cn(
                 "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200",
-                form.budget_range === opt
+                form.budget_range === opt.value
                   ? "bg-primary/10 border-primary text-primary"
                   : "bg-card border-border text-muted-foreground hover:border-primary/50"
               )}
             >
-              {opt}
+              {opt.label}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Special Requests or Notes</label>
+        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.requestsLabel}</label>
         <Textarea
           value={form.special_requests}
           onChange={(e) => update("special_requests", e.target.value)}
-          placeholder="Dietary preferences, accessibility needs, anything at all…"
+          placeholder={s.requestsPlaceholder}
           className="min-h-[120px] rounded-xl resize-none"
         />
       </div>

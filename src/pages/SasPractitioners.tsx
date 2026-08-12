@@ -14,6 +14,8 @@ import {
   type Practitioner,
   type PractitionerStatus,
 } from "@/data/practitioners";
+import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
+import { content as defaults, seo as seoDefaults } from "@/data/content";
 
 const STATUS_ORDER: PractitionerStatus[] = [
   "certified",
@@ -23,7 +25,7 @@ const STATUS_ORDER: PractitionerStatus[] = [
   "graduate",
 ];
 
-function PractitionerCard({ p }: { p: Practitioner }) {
+function PractitionerCard({ p, viewProfileLabel, bookLabel }: { p: Practitioner; viewProfileLabel: string; bookLabel: string }) {
   return (
     <motion.article
       initial={{ opacity: 0, y: 16 }}
@@ -85,12 +87,12 @@ function PractitionerCard({ p }: { p: Practitioner }) {
         </div>
         <div className="mt-5 flex gap-2">
           <Button asChild size="sm" variant="outline" className="flex-1">
-            <Link to={`/practitioner/${p.slug}`}>View profile</Link>
+            <Link to={`/practitioner/${p.slug}`}>{viewProfileLabel}</Link>
           </Button>
           {p.bookable && (
             <Button asChild size="sm" className="flex-1">
               <Link to={`/book?practitioner=${p.slug}`}>
-                <Calendar className="h-3.5 w-3.5 mr-1.5" /> Book
+                <Calendar className="h-3.5 w-3.5 mr-1.5" /> {bookLabel}
               </Link>
             </Button>
           )}
@@ -101,6 +103,10 @@ function PractitionerCard({ p }: { p: Practitioner }) {
 }
 
 const SasPractitionersPage = () => {
+  const { data: siteContent } = useSiteContent();
+  const { data: seoData } = useSiteSeo();
+  const c = (siteContent as any)?.sasPractitioners || (defaults as any).sasPractitioners;
+  const seoc = (seoData as any)?.sasPractitioners || (seoDefaults as any).sasPractitioners;
   const all = useMemo(() => getActivePractitioners(), []);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState<string>("all");
@@ -166,9 +172,9 @@ const SasPractitionersPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <SEO
-        title="SAS Certified Practitioners Directory"
-        description="Find certified Somato Awareness System (SAS) practitioners, therapists, instructors, and graduates. Search by name, country, city, or specialty."
-        canonical="/sas-practitioners"
+        title={seoc.title}
+        description={seoc.description}
+        canonical={seoc.canonical}
         jsonLd={jsonLd}
       />
       <Navbar />
@@ -181,14 +187,10 @@ const SasPractitionersPage = () => {
           className="text-center max-w-2xl mx-auto mb-12"
         >
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
-            Official Directory
+            {c.eyebrow}
           </p>
-          <h1 className="spa-heading-xl text-foreground">SAS Certified Practitioners</h1>
-          <p className="spa-body mt-4">
-            Discover certified Somato Awareness System practitioners, senior therapists,
-            instructors, and graduates trained in our methodology. Each profile is
-            verified and actively practicing.
-          </p>
+          <h1 className="spa-heading-xl text-foreground">{c.title}</h1>
+          <p className="spa-body mt-4">{c.subtitle}</p>
         </motion.header>
 
         {/* Filters */}
@@ -198,7 +200,7 @@ const SasPractitionersPage = () => {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, specialty, certification…"
+              placeholder={c.searchPlaceholder}
               className="pl-9"
               aria-label="Search practitioners"
             />
@@ -206,32 +208,32 @@ const SasPractitionersPage = () => {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <FilterSelect
-              label="Country"
+              label={c.countryLabel}
               value={country}
               onChange={(v) => {
                 setCountry(v);
                 setCity("all");
               }}
-              options={[{ value: "all", label: "All countries" }, ...countries.map((c) => ({ value: c, label: c }))]}
+              options={[{ value: "all", label: c.allCountries }, ...countries.map((ct) => ({ value: ct, label: ct }))]}
             />
             <FilterSelect
-              label="City"
+              label={c.cityLabel}
               value={city}
               onChange={setCity}
-              options={[{ value: "all", label: "All cities" }, ...cities.map((c) => ({ value: c, label: c }))]}
+              options={[{ value: "all", label: c.allCities }, ...cities.map((ct) => ({ value: ct, label: ct }))]}
             />
             <FilterSelect
-              label="Specialty"
+              label={c.specialtyLabel}
               value={specialty}
               onChange={setSpecialty}
-              options={[{ value: "all", label: "All specialties" }, ...specialties.map((s) => ({ value: s, label: s }))]}
+              options={[{ value: "all", label: c.allSpecialties }, ...specialties.map((s) => ({ value: s, label: s }))]}
             />
             <FilterSelect
-              label="Status"
+              label={c.statusLabel}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as PractitionerStatus | "all")}
               options={[
-                { value: "all", label: "All statuses" },
+                { value: "all", label: c.allStatuses },
                 ...STATUS_ORDER.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
               ]}
             />
@@ -239,20 +241,18 @@ const SasPractitionersPage = () => {
         </div>
 
         <p className="font-body text-sm text-muted-foreground mb-6">
-          {filtered.length} {filtered.length === 1 ? "practitioner" : "practitioners"}
+          {filtered.length} {filtered.length === 1 ? c.practitionerSingular : c.practitionerPlural}
           {statusFilter !== "all" && ` · ${STATUS_LABELS[statusFilter]}`}
         </p>
 
         {filtered.length === 0 ? (
           <div className="text-center py-16 bg-card border border-border rounded-2xl">
-            <p className="font-body text-muted-foreground">
-              No practitioners match these filters. Try clearing some criteria.
-            </p>
+            <p className="font-body text-muted-foreground">{c.emptyText}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filtered.map((p) => (
-              <PractitionerCard key={p.slug} p={p} />
+              <PractitionerCard key={p.slug} p={p} viewProfileLabel={c.viewProfileLabel} bookLabel={c.bookLabel} />
             ))}
           </div>
         )}
