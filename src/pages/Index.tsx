@@ -97,8 +97,7 @@ const Index = () => {
           <div className="max-w-5xl mx-auto">
             <motion.div
               {...fadeIn}
-              className="relative overflow-hidden rounded-2xl border border-spa-sage/30 shadow-md"
-              style={{ background: "linear-gradient(135deg, #1f5f6b 0%, #16424b 100%)" }}
+              className="relative overflow-hidden rounded-2xl shadow-md bg-spa-sage"
             >
               <div className="grid md:grid-cols-[1fr_auto] items-center gap-6 p-6 sm:p-8 md:p-10 text-spa-cream">
                 <div className="min-w-0">
