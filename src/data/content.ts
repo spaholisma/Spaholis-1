@@ -994,6 +994,18 @@ export const content = {
     practitionerPlural: "practitioners",
   },
 
+  // ── Booking health intake — EXTRA custom questions ──
+  // The core medical questions stay hardcoded in Booking.tsx. These optional
+  // extra questions are admin-managed and render after them. Answers are stored
+  // under `intake_form.custom[key]`. `key` is a stable slug — never rename it in
+  // a way that breaks already-stored bookings. `type`: "text" | "textarea" | "checkbox".
+  intakeExtraQuestions: [] as {
+    key: string;
+    type: "text" | "textarea" | "checkbox";
+    label: string;
+    placeholder: string;
+  }[],
+
   // ── WhatsApp Button ──
   // NOTE: `link` is derived from src/data/contact.ts — never hardcode a wa.me URL here.
   whatsapp: {

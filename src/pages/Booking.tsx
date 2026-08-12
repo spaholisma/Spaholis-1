@@ -10,7 +10,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
-import { seo } from "@/data/content";
+import { seo, content as contentDefaults } from "@/data/content";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 import { useServices, useAddonServices, type ServiceRow } from "@/hooks/useServices";
 import { useSpaPackages } from "@/hooks/useSpaPackages";
@@ -116,6 +117,12 @@ function luhnValid(num: string): boolean {
 
 const BookingPage = () => {
   const { t } = useTranslation();
+  const { data: siteContent } = useSiteContent();
+  // Admin-managed extra health-intake questions (language-resolved). Core
+  // medical questions remain hardcoded below; these render after them.
+  const extraIntakeQuestions = (((siteContent as any)?.intakeExtraQuestions ?? (contentDefaults as any).intakeExtraQuestions) || []) as {
+    key: string; type: "text" | "textarea" | "checkbox"; label: string; placeholder: string;
+  }[];
   const [searchParams, setSearchParams] = useSearchParams();
   const preselected = searchParams.get("service");
   const packageParam = searchParams.get("package");
@@ -168,6 +175,7 @@ const BookingPage = () => {
     emergency_contact_name: "",
     emergency_contact_phone: "",
     additional_notes: "",
+    custom: {} as Record<string, any>,
   };
   const [intakeForm, setIntakeForm] = useState({ ...emptyIntake });
   const [intakeForm2, setIntakeForm2] = useState({ ...emptyIntake });
@@ -862,6 +870,42 @@ const BookingPage = () => {
                           placeholder={t("booking.intake.additionalNotesPlaceholder")}
                         />
                       </div>
+
+                      {extraIntakeQuestions.length > 0 && (
+                        <div className="space-y-4 pt-4 mt-2 border-t border-border/60">
+                          {extraIntakeQuestions.map((q) => {
+                            const val = (form.custom || {})[q.key];
+                            const setVal = (v: any) => setForm({ ...form, custom: { ...(form.custom || {}), [q.key]: v } });
+                            if (q.type === "checkbox") {
+                              return (
+                                <div key={q.key} className="flex items-center space-x-3">
+                                  <Checkbox id={`x-${q.key}-${idSuffix}`} checked={!!val} onCheckedChange={(c) => setVal(!!c)} />
+                                  <label htmlFor={`x-${q.key}-${idSuffix}`} className="font-body text-sm text-foreground">{q.label}</label>
+                                </div>
+                              );
+                            }
+                            if (q.type === "textarea") {
+                              return (
+                                <div key={q.key}>
+                                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{q.label}</label>
+                                  <textarea
+                                    value={val || ""}
+                                    onChange={(e) => setVal(e.target.value)}
+                                    className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-body ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px]"
+                                    placeholder={q.placeholder}
+                                  />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={q.key}>
+                                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{q.label}</label>
+                                <Input value={val || ""} onChange={(e) => setVal(e.target.value)} placeholder={q.placeholder} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
 

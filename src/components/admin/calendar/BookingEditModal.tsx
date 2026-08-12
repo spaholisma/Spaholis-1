@@ -56,11 +56,18 @@ function IntakeRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const prettifyKey = (k: string) => k.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+
 function IntakePerson({ p, title }: { p: any; title?: string }) {
   if (!p || typeof p !== "object") return null;
   const rows = PERSON_FIELDS.filter(([k]) => isMeaningful(p[k]));
   const contact = [p.emergency_contact_name, p.emergency_contact_phone].filter(Boolean).join(" · ");
-  const nothing = rows.length === 0 && !p.pregnancy && !p.blood_pressure_issues && !contact;
+  // Admin-defined extra questions are stored under `custom`.
+  const customRows =
+    p.custom && typeof p.custom === "object"
+      ? Object.entries(p.custom).filter(([, v]) => v === true || isMeaningful(v))
+      : [];
+  const nothing = rows.length === 0 && !p.pregnancy && !p.blood_pressure_issues && !contact && customRows.length === 0;
   return (
     <div className="space-y-1">
       {title && (
@@ -71,6 +78,7 @@ function IntakePerson({ p, title }: { p: any; title?: string }) {
       {p.pregnancy && <IntakeRow label="Pregnancy" value="Yes" />}
       {p.blood_pressure_issues && <IntakeRow label="Blood pressure issues" value="Yes" />}
       {rows.map(([k, l]) => <IntakeRow key={k} label={l} value={String(p[k])} />)}
+      {customRows.map(([k, v]) => <IntakeRow key={k} label={prettifyKey(k)} value={v === true ? "Yes" : String(v)} />)}
       {contact && <IntakeRow label="Emergency contact" value={contact} />}
       {nothing && <p className="text-xs text-muted-foreground">No health notes provided.</p>}
     </div>

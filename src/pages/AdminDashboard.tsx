@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Receipt,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Receipt, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +28,7 @@ import { AdminWellnessOrganizer } from "@/components/admin/AdminWellnessOrganize
 import { AdminSpaPackagesManager } from "@/components/admin/AdminSpaPackagesManager";
 import { AdminCustomRetreats } from "@/components/admin/AdminCustomRetreats";
 import { AdminHomeLists } from "@/components/admin/AdminHomeLists";
+import { AdminIntakeQuestions } from "@/components/admin/AdminIntakeQuestions";
 import AdminExperiencesManager from "@/components/admin/AdminExperiencesManager";
 import { AdminBlogManager } from "@/components/admin/AdminBlogManager";
 import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager";
@@ -68,6 +69,7 @@ const sidebarLinks = [
   { label: "Memberships", icon: CreditCard, id: "offerings" },
   { label: "Media Library", icon: Image, id: "media" },
   { label: "Home Lists", icon: FileEdit, id: "home-lists" },
+  { label: "Intake Questions", icon: ClipboardList, id: "intake-questions" },
   { label: "Content", icon: FileEdit, id: "content" },
   { label: "Client Emails", icon: Mail, id: "client-emails" },
   { label: "Receipts", icon: Receipt, id: "receipts" },
@@ -213,6 +215,7 @@ const AdminDashboard = () => {
           {activeTab === "offerings" && <AdminOfferingsManager />}
           {activeTab === "media" && <MediaLibrary />}
           {activeTab === "home-lists" && <AdminHomeLists />}
+          {activeTab === "intake-questions" && <AdminIntakeQuestions />}
           {activeTab === "content" && <AdminContentEditor />}
           {activeTab === "client-emails" && <AdminEmailTemplates />}
           {activeTab === "receipts" && <AdminSendReceipt />}
