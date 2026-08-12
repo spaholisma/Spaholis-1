@@ -691,7 +691,7 @@ const BookingPage = () => {
     <div className="min-h-screen bg-background">
       <SEO title={seo.booking.title} description={seo.booking.description} canonical={seo.booking.canonical} />
       <Navbar />
-      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto overflow-x-clip">
         {/* Vacation Mode (form visible): show the notice above the booking form. */}
         {vacationActive && vacation && (
           <div className="mb-10">

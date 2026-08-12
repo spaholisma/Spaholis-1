@@ -158,7 +158,7 @@ export default function CustomRetreat() {
       />
       <Navbar />
 
-      <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-2xl mx-auto">
+      <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-2xl mx-auto overflow-x-clip">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

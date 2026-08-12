@@ -65,7 +65,7 @@ const GiftCardsPage = () => {
     <div className="min-h-screen bg-background">
       <SEO title={seo.giftCards.title} description={seo.giftCards.description} canonical={seo.giftCards.canonical} />
       <Navbar />
-      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto overflow-x-clip">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <p {...cmsEditProps("giftCards.eyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{gc.eyebrow}</p>
           <h1 {...cmsEditProps("giftCards.title")} className="spa-heading-xl text-foreground">{gc.title}</h1>
