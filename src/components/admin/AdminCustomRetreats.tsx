@@ -6,6 +6,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Eye, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminRetreatOptions } from "./AdminRetreatOptions";
 
 type Inquiry = {
   id: string;
@@ -62,16 +64,27 @@ export function AdminCustomRetreats() {
     if (selected?.id === id) setSelected((s) => s ? { ...s, status } : null);
   };
 
-  if (loading) return <p className="text-muted-foreground font-body text-sm">Loading…</p>;
-
   return (
+    <Tabs defaultValue="inquiries">
+      <TabsList className="mb-4">
+        <TabsTrigger value="inquiries">Inquiries</TabsTrigger>
+        <TabsTrigger value="options">Form Options</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="options">
+        <AdminRetreatOptions />
+      </TabsContent>
+
+      <TabsContent value="inquiries">
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-heading font-bold text-foreground">Custom Retreat Inquiries</h2>
         <p className="text-sm text-muted-foreground font-body">Personalized retreat requests from guests</p>
       </div>
 
-      {inquiries.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-muted-foreground font-body py-8 text-center">Loading…</p>
+      ) : inquiries.length === 0 ? (
         <p className="text-sm text-muted-foreground font-body py-8 text-center">No custom retreat inquiries yet.</p>
       ) : (
         <div className="space-y-3">
@@ -180,5 +193,7 @@ export function AdminCustomRetreats() {
         </DialogContent>
       </Dialog>
     </div>
+      </TabsContent>
+    </Tabs>
   );
 }
