@@ -26,6 +26,7 @@ interface ServiceRow {
   gallery_images: string[] | any;
   is_active: boolean;
   request_only?: boolean;
+  location_available?: boolean;
   sort_order: number;
   type?: string | null;
 }
@@ -41,6 +42,7 @@ const emptyService: Omit<ServiceRow, "id"> = {
   gallery_images: [],
   is_active: true,
   request_only: false,
+  location_available: true,
   sort_order: 0,
 };
 
@@ -74,6 +76,7 @@ export function AdminServicesManager() {
       gallery_images: editing.gallery_images || [],
       is_active: editing.is_active,
       request_only: (editing as any).request_only ?? false,
+      location_available: (editing as any).location_available ?? true,
       sort_order: editing.sort_order,
     };
 
@@ -193,6 +196,13 @@ export function AdminServicesManager() {
                 <span>
                   Request only
                   <span className="block text-xs text-muted-foreground">No online calendar — sends clients to the request form (for limited therapist availability).</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm font-body">
+                <input type="checkbox" className="mt-1" checked={(editing as any).location_available ?? true} onChange={(e) => setEditing({ ...editing, location_available: e.target.checked } as any)} />
+                <span>
+                  Available at your location
+                  <span className="block text-xs text-muted-foreground">Lets guests request this treatment as an in-home / on-location visit (we come to them). Turn off for treatments that need studio equipment.</span>
                 </span>
               </label>
               <div>
@@ -350,6 +360,11 @@ export function AdminServicesManager() {
               {s.request_only && (
                 <span className="text-xs font-body font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600">
                   Request only
+                </span>
+              )}
+              {(s as any).location_available === false && (
+                <span className="text-xs font-body font-semibold px-2.5 py-0.5 rounded-full bg-stone-500/15 text-stone-600">
+                  Studio only
                 </span>
               )}
               <span className={cn(

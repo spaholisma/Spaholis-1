@@ -265,6 +265,14 @@ const BookingPage = () => {
 
   const steps = getStepKeys(currentService);
   const isRetreat = currentService?.category === "Wellness Retreats" || currentService?.type === "program";
+  // Per-treatment "we come to you" availability (admin-controlled). Defaults to
+  // allowed when the field is missing; retreats never use a location visit.
+  const locationAllowed = ((currentService as any)?.location_available ?? true) && !isRetreat;
+  // If a service that can't be done at your location gets selected while the
+  // location option was on (e.g. from ?location=1), fall back to studio slots.
+  useEffect(() => {
+    if (!locationAllowed && locationVisit) setLocationVisit(false);
+  }, [locationAllowed, locationVisit]);
   const checkoutStepIdx = steps.indexOf("booking.steps.checkout");
   const needsPayment = checkoutStepIdx >= 0;
   const serviceLocked = !!selectedService;
@@ -1078,16 +1086,18 @@ const BookingPage = () => {
                               </div>
                               <p className="text-xs text-white/85 mt-1 font-normal">{t("booking.dateTime.requestStudioDesc")}</p>
                             </a>
-                            <button
-                              onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
-                              className="w-full py-3 px-4 rounded-xl text-sm font-body font-medium transition-all border-2 border-spa-sage bg-spa-sage/10 text-foreground hover:bg-spa-sage/20"
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <MapPin className="h-4 w-4 text-spa-sage" />
-                                <span>{t("booking.dateTime.requestVisit")}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">{t("booking.dateTime.noExtraCost")}</p>
-                            </button>
+                            {locationAllowed && (
+                              <button
+                                onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
+                                className="w-full py-3 px-4 rounded-xl text-sm font-body font-medium transition-all border-2 border-spa-sage bg-spa-sage/10 text-foreground hover:bg-spa-sage/20"
+                              >
+                                <div className="flex items-center justify-center gap-2">
+                                  <MapPin className="h-4 w-4 text-spa-sage" />
+                                  <span>{t("booking.dateTime.requestVisit")}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{t("booking.dateTime.noExtraCost")}</p>
+                              </button>
+                            )}
                           </div>
                         )}
                         {selectedDate && !isVacationDate(selectedDate) && !slotsLoading && availableSlots && availableSlots.length > 0 && !locationVisit && (
@@ -1134,15 +1144,17 @@ const BookingPage = () => {
                                 <span>{t("booking.dateTime.orRequestStudio")}</span>
                               </div>
                             </a>
-                            <button
-                              onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
-                              className="w-full mt-2 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-border text-muted-foreground hover:border-spa-sage hover:text-foreground"
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <MapPin className="h-3.5 w-3.5" />
-                                <span>{t("booking.dateTime.orRequestVisit")}</span>
-                              </div>
-                            </button>
+                            {locationAllowed && (
+                              <button
+                                onClick={() => { setLocationVisit(true); setSelectedSlot(null); }}
+                                className="w-full mt-2 py-2.5 px-4 rounded-xl text-sm font-body font-medium transition-all border border-border text-muted-foreground hover:border-spa-sage hover:text-foreground"
+                              >
+                                <div className="flex items-center justify-center gap-2">
+                                  <MapPin className="h-3.5 w-3.5" />
+                                  <span>{t("booking.dateTime.orRequestVisit")}</span>
+                                </div>
+                              </button>
+                            )}
                           </>
                         )}
                         {locationVisit && (
