@@ -6,7 +6,6 @@ import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, Check, Sparkles, Heart, CalendarDays, Pen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,8 +13,10 @@ import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 
-const stepIcons = [Heart, Sparkles, CalendarDays, Pen];
+const stepIcons = [Heart, CalendarDays, Sparkles, Pen];
 type Option = { value: string; label: string };
+type ServiceCategory = { title: string; subtitle: string; options: Option[] };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function CustomRetreat() {
   const { data: siteContent } = useSiteContent();
@@ -29,22 +30,20 @@ export default function CustomRetreat() {
   const [submitted, setSubmitted] = useState(false);
 
   const [form, setForm] = useState({
-    full_name: "",
+    contact_name: "",
     email: "",
     phone: "",
-    retreat_vision: [] as string[],
-    preferred_activities: [] as string[],
-    group_type: "solo",
-    preferred_dates: "",
-    flexible_dates: true,
-    length_of_stay: "",
-    budget_range: "",
+    arrival_date: "",
+    departure_date: "",
+    num_participants: "",
+    retreat_intention: [] as string[],
+    selected_services: [] as string[],
     special_requests: "",
   });
 
   const update = (key: string, value: any) => setForm((f) => ({ ...f, [key]: value }));
 
-  const toggleArray = (key: "retreat_vision" | "preferred_activities", val: string) => {
+  const toggleArray = (key: "retreat_intention" | "selected_services", val: string) => {
     setForm((f) => ({
       ...f,
       [key]: f[key].includes(val) ? f[key].filter((v) => v !== val) : [...f[key], val],
@@ -52,24 +51,23 @@ export default function CustomRetreat() {
   };
 
   const canProceed = () => {
-    if (step === 0) return form.full_name.trim() && form.email.trim();
-    if (step === 1) return form.retreat_vision.length > 0;
+    if (step === 0) return EMAIL_RE.test(form.email.trim());
+    if (step === 1) return !!form.arrival_date && !!form.departure_date;
+    if (step === 2) return form.retreat_intention.length > 0;
     return true;
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     const { error } = await supabase.from("custom_retreat_inquiries").insert({
-      full_name: form.full_name.trim(),
+      full_name: form.contact_name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim() || null,
-      retreat_vision: form.retreat_vision,
-      preferred_activities: form.preferred_activities,
-      group_type: form.group_type,
-      preferred_dates: form.preferred_dates.trim() || null,
-      flexible_dates: form.flexible_dates,
-      length_of_stay: form.length_of_stay.trim() || null,
-      budget_range: form.budget_range || null,
+      retreat_vision: form.retreat_intention,
+      preferred_activities: form.selected_services,
+      arrival_date: form.arrival_date || null,
+      departure_date: form.departure_date || null,
+      num_participants: form.num_participants.trim() || null,
       special_requests: form.special_requests.trim() || null,
     } as any);
     setSubmitting(false);
@@ -83,18 +81,17 @@ export default function CustomRetreat() {
       await supabase.functions.invoke("send-booking-notification", {
         body: {
           service_name: "Custom Retreat Inquiry",
-          guest_name: form.full_name.trim(),
+          guest_name: form.contact_name.trim() || form.email.trim(),
           guest_email: form.email.trim(),
           guest_phone: form.phone.trim() || "Not provided",
-          booking_date: form.preferred_dates.trim() || "Flexible",
-          booking_time: `Duration: ${form.length_of_stay.trim() || "Not specified"}`,
+          booking_date: [form.arrival_date, form.departure_date].filter(Boolean).join(" → ") || "Flexible",
+          booking_time: `Participants: ${form.num_participants.trim() || "Not specified"}`,
           is_retreat: true,
           notes: [
-            `Vision: ${form.retreat_vision.join(", ") || "Not specified"}`,
-            `Activities: ${form.preferred_activities.join(", ") || "Not specified"}`,
-            `Group: ${form.group_type}`,
-            `Flexible dates: ${form.flexible_dates ? "Yes" : "No"}`,
-            form.budget_range ? `Budget: ${form.budget_range}` : null,
+            `Intention: ${form.retreat_intention.join(", ") || "Not specified"}`,
+            `Services & activities: ${form.selected_services.join(", ") || "Not specified"}`,
+            `Arrival: ${form.arrival_date || "—"}  ·  Departure: ${form.departure_date || "—"}`,
+            `Participants: ${form.num_participants.trim() || "Not specified"}`,
             form.special_requests ? `Special requests: ${form.special_requests.trim()}` : null,
           ].filter(Boolean).join("\n"),
         },
@@ -201,9 +198,9 @@ export default function CustomRetreat() {
             className="space-y-8"
           >
             {step === 0 && <StepBasicInfo form={form} update={update} c={c} />}
-            {step === 1 && <StepVision form={form} toggleArray={toggleArray} update={update} c={c} />}
-            {step === 2 && <StepDates form={form} update={update} c={c} />}
-            {step === 3 && <StepPersonalize form={form} update={update} c={c} />}
+            {step === 1 && <StepDates form={form} update={update} c={c} />}
+            {step === 2 && <StepIntention form={form} toggleArray={toggleArray} c={c} />}
+            {step === 3 && <StepServices form={form} toggleArray={toggleArray} update={update} c={c} />}
           </motion.div>
         </AnimatePresence>
 
@@ -257,11 +254,11 @@ function StepBasicInfo({ form, update, c }: { form: any; update: (k: string, v: 
       </div>
       <div className="space-y-4">
         <div>
-          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.fullNameLabel}</label>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.contactNameLabel}</label>
           <Input
-            value={form.full_name}
-            onChange={(e) => update("full_name", e.target.value)}
-            placeholder={s.fullNamePlaceholder}
+            value={form.contact_name}
+            onChange={(e) => update("contact_name", e.target.value)}
+            placeholder={s.contactNamePlaceholder}
             className="h-12 rounded-xl"
           />
         </div>
@@ -289,18 +286,65 @@ function StepBasicInfo({ form, update, c }: { form: any; update: (k: string, v: 
   );
 }
 
-function StepVision({
+function StepDates({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
+  const s = c.step1;
+  const today = new Date().toISOString().split("T")[0];
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
+        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.arrivalLabel}</label>
+          <Input
+            type="date"
+            value={form.arrival_date}
+            min={today}
+            onChange={(e) => update("arrival_date", e.target.value)}
+            className="h-12 rounded-xl"
+          />
+        </div>
+        <div>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.departureLabel}</label>
+          <Input
+            type="date"
+            value={form.departure_date}
+            min={form.arrival_date || today}
+            onChange={(e) => update("departure_date", e.target.value)}
+            className="h-12 rounded-xl"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.participantsLabel}</label>
+        <Input
+          type="number"
+          min="1"
+          inputMode="numeric"
+          value={form.num_participants}
+          onChange={(e) => update("num_participants", e.target.value)}
+          placeholder={s.participantsPlaceholder}
+          className="h-12 rounded-xl max-w-[160px]"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepIntention({
   form,
   toggleArray,
-  update,
   c,
 }: {
   form: any;
-  toggleArray: (key: "retreat_vision" | "preferred_activities", val: string) => void;
-  update: (k: string, v: any) => void;
+  toggleArray: (key: "retreat_intention" | "selected_services", val: string) => void;
   c: any;
 }) {
-  const s = c.step1;
+  const s = c.step2;
   return (
     <div className="space-y-8">
       <div>
@@ -308,14 +352,14 @@ function StepVision({
         <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {(c.visionOptions as Option[]).map((opt) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {(c.intentionOptions as Option[]).map((opt) => (
           <button
             key={opt.value}
-            onClick={() => toggleArray("retreat_vision", opt.value)}
+            onClick={() => toggleArray("retreat_intention", opt.value)}
             className={cn(
               "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200",
-              form.retreat_vision.includes(opt.value)
+              form.retreat_intention.includes(opt.value)
                 ? "bg-primary/10 border-primary text-primary"
                 : "bg-card border-border text-muted-foreground hover:border-primary/50"
             )}
@@ -324,121 +368,53 @@ function StepVision({
           </button>
         ))}
       </div>
-
-      <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.activitiesLabel}</label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {(c.activityOptions as Option[]).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => toggleArray("preferred_activities", opt.value)}
-              className={cn(
-                "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200 text-left",
-                form.preferred_activities.includes(opt.value)
-                  ? "bg-primary/10 border-primary text-primary"
-                  : "bg-card border-border text-muted-foreground hover:border-primary/50"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.whoLabel}</label>
-        <div className="flex gap-3">
-          {(c.groupOptions as Option[]).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => update("group_type", opt.value)}
-              className={cn(
-                "flex-1 px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200",
-                form.group_type === opt.value
-                  ? "bg-primary/10 border-primary text-primary"
-                  : "bg-card border-border text-muted-foreground hover:border-primary/50"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
 
-function StepDates({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
-  const s = c.step2;
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
-        <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
-      </div>
-
-      <div>
-        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.datesLabel}</label>
-        <Input
-          value={form.preferred_dates}
-          onChange={(e) => update("preferred_dates", e.target.value)}
-          placeholder={s.datesPlaceholder}
-          className="h-12 rounded-xl"
-        />
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Checkbox
-          id="flexible"
-          checked={form.flexible_dates}
-          onCheckedChange={(v) => update("flexible_dates", !!v)}
-        />
-        <label htmlFor="flexible" className="font-body text-sm text-foreground cursor-pointer">
-          {s.flexibleLabel}
-        </label>
-      </div>
-
-      <div>
-        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.lengthLabel}</label>
-        <Input
-          value={form.length_of_stay}
-          onChange={(e) => update("length_of_stay", e.target.value)}
-          placeholder={s.lengthPlaceholder}
-          className="h-12 rounded-xl"
-        />
-      </div>
-    </div>
-  );
-}
-
-function StepPersonalize({ form, update, c }: { form: any; update: (k: string, v: any) => void; c: any }) {
+function StepServices({
+  form,
+  toggleArray,
+  update,
+  c,
+}: {
+  form: any;
+  toggleArray: (key: "retreat_intention" | "selected_services", val: string) => void;
+  update: (k: string, v: any) => void;
+  c: any;
+}) {
   const s = c.step3;
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h2 className="font-heading text-xl font-medium text-foreground mb-1">{s.title}</h2>
         <p className="font-body text-sm text-muted-foreground">{s.subtitle}</p>
       </div>
 
-      <div>
-        <label className="font-body text-sm font-medium text-foreground mb-2 block">{s.budgetLabel}</label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {(c.budgetOptions as Option[]).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => update("budget_range", form.budget_range === opt.value ? "" : opt.value)}
-              className={cn(
-                "px-4 py-3 rounded-xl text-sm font-body font-medium border transition-all duration-200",
-                form.budget_range === opt.value
-                  ? "bg-primary/10 border-primary text-primary"
-                  : "bg-card border-border text-muted-foreground hover:border-primary/50"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+      {(c.serviceCategories as ServiceCategory[]).map((cat) => (
+        <div key={cat.title}>
+          <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-foreground">{cat.title}</h3>
+          {cat.subtitle && (
+            <p className="font-body text-xs text-muted-foreground mt-0.5 mb-3">{cat.subtitle}</p>
+          )}
+          <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-2.5", !cat.subtitle && "mt-3")}>
+            {cat.options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => toggleArray("selected_services", opt.value)}
+                className={cn(
+                  "px-3 py-2.5 rounded-xl text-xs sm:text-sm font-body font-medium border transition-all duration-200 text-left",
+                  form.selected_services.includes(opt.value)
+                    ? "bg-primary/10 border-primary text-primary"
+                    : "bg-card border-border text-muted-foreground hover:border-primary/50"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
       <div>
         <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.requestsLabel}</label>
@@ -446,7 +422,7 @@ function StepPersonalize({ form, update, c }: { form: any; update: (k: string, v
           value={form.special_requests}
           onChange={(e) => update("special_requests", e.target.value)}
           placeholder={s.requestsPlaceholder}
-          className="min-h-[120px] rounded-xl resize-none"
+          className="min-h-[110px] rounded-xl resize-none"
         />
       </div>
     </div>

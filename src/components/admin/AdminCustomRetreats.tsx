@@ -19,6 +19,9 @@ type Inquiry = {
   flexible_dates: boolean;
   length_of_stay: string | null;
   budget_range: string | null;
+  arrival_date: string | null;
+  departure_date: string | null;
+  num_participants: string | null;
   special_requests: string | null;
   status: string;
   created_at: string;
@@ -114,26 +117,22 @@ export function AdminCustomRetreats() {
                   <p className="text-foreground">{selected.phone || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Group Type</p>
-                  <p className="text-foreground capitalize">{selected.group_type}</p>
+                  <p className="text-muted-foreground text-xs">Arrival</p>
+                  <p className="text-foreground">{selected.arrival_date || selected.preferred_dates || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Length of Stay</p>
-                  <p className="text-foreground">{selected.length_of_stay || "—"}</p>
+                  <p className="text-muted-foreground text-xs">Departure</p>
+                  <p className="text-foreground">{selected.departure_date || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Preferred Dates</p>
-                  <p className="text-foreground">{selected.preferred_dates || "Flexible"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Budget</p>
-                  <p className="text-foreground">{selected.budget_range || "—"}</p>
+                  <p className="text-muted-foreground text-xs">Participants</p>
+                  <p className="text-foreground">{selected.num_participants || selected.length_of_stay || "—"}</p>
                 </div>
               </div>
 
               {selected.retreat_vision.length > 0 && (
                 <div>
-                  <p className="text-xs text-muted-foreground font-body mb-1.5">Vision</p>
+                  <p className="text-xs text-muted-foreground font-body mb-1.5">Intention</p>
                   <div className="flex flex-wrap gap-2">
                     {selected.retreat_vision.map((v) => (
                       <Badge key={v} variant="secondary">{v}</Badge>
@@ -144,7 +143,7 @@ export function AdminCustomRetreats() {
 
               {selected.preferred_activities.length > 0 && (
                 <div>
-                  <p className="text-xs text-muted-foreground font-body mb-1.5">Preferred Activities</p>
+                  <p className="text-xs text-muted-foreground font-body mb-1.5">Services &amp; Activities</p>
                   <div className="flex flex-wrap gap-2">
                     {selected.preferred_activities.map((a) => (
                       <Badge key={a} variant="outline">{a}</Badge>
