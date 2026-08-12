@@ -117,7 +117,7 @@ const Index = () => {
                   )}
                 </div>
                 <div className="shrink-0 w-full md:w-auto">
-                  <Button asChild variant="spa" size="xl" className="w-full md:w-auto whitespace-normal text-center h-auto min-h-12 py-3 leading-tight bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button asChild variant="ghost" size="xl" className="w-full md:w-auto whitespace-normal text-center h-auto min-h-12 py-3 leading-tight rounded-full border border-spa-cream/40 text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10">
                     <Link to={inHouse.ctaLink}>{inHouse.ctaText}</Link>
                   </Button>
                 </div>

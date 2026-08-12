@@ -41,6 +41,7 @@ import TestPayment from "./pages/TestPayment";
 import TestPaymentReturn from "./pages/TestPaymentReturn";
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
+import { ThemeApplier } from "./components/ThemeApplier";
 const queryClient = new QueryClient();
 
 // Redirect that preserves search params and hash so links like /booking?service=...
@@ -111,6 +112,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <LanguageProvider>
+          <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />
           <Routes>
