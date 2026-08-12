@@ -55,8 +55,9 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
       <div className="grid md:grid-cols-[38%_1fr] items-stretch">
         {/* Image */}
         {cls.image_url && (
-          <div className="relative h-28 sm:h-36 md:h-auto md:min-h-[190px] overflow-hidden bg-[#16424b]">
-            <img src={cls.image_url} alt={cls.title} className="w-full h-full object-cover object-center" loading="eager" />
+          <div className="relative md:h-auto md:min-h-[190px] overflow-hidden bg-[#16424b]">
+            {/* Mobile: show the full flyer (no crop). Desktop: fill the side column. */}
+            <img src={cls.image_url} alt={cls.title} className="w-full h-auto md:h-full object-contain md:object-cover object-center" loading="eager" />
           </div>
         )}
 
