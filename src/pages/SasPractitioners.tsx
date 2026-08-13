@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search, MapPin, Globe2, Calendar, ShieldCheck, X } from "lucide-react";
 import {
-  getActivePractitioners,
   STATUS_LABELS,
   type Practitioner,
   type PractitionerStatus,
 } from "@/data/practitioners";
+import { usePractitioners } from "@/hooks/usePractitioners";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 
@@ -107,7 +107,8 @@ const SasPractitionersPage = () => {
   const { data: seoData } = useSiteSeo();
   const c = (siteContent as any)?.sasPractitioners || (defaults as any).sasPractitioners;
   const seoc = (seoData as any)?.sasPractitioners || (seoDefaults as any).sasPractitioners;
-  const all = useMemo(() => getActivePractitioners(), []);
+  const { data: practitionersData } = usePractitioners();
+  const all = useMemo(() => (practitionersData ?? []).filter((p) => p.isActive !== false), [practitionersData]);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState<string>("all");
   const [city, setCity] = useState<string>("all");

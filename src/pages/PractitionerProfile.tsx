@@ -15,13 +15,27 @@ import {
   Mail,
   ExternalLink,
 } from "lucide-react";
-import { getPractitionerBySlug, STATUS_LABELS } from "@/data/practitioners";
+import { STATUS_LABELS } from "@/data/practitioners";
+import { usePractitioners } from "@/hooks/usePractitioners";
 
 const PractitionerProfilePage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const p = slug ? getPractitionerBySlug(slug) : undefined;
+  const { data: all, isLoading } = usePractitioners();
+  const p = slug ? (all ?? []).find((x) => x.slug === slug && x.isActive !== false) : undefined;
 
   if (!p) {
+    // Still loading the directory — don't flash the "not found" screen.
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-background">
+          <Navbar />
+          <main className="pt-28 pb-16 px-4 max-w-2xl mx-auto text-center">
+            <p className="spa-body text-muted-foreground">Loading…</p>
+          </main>
+          <Footer />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-background">
         <SEO

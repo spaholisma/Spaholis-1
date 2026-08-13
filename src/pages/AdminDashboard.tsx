@@ -30,6 +30,7 @@ import { AdminCustomRetreats } from "@/components/admin/AdminCustomRetreats";
 import { AdminHomeLists } from "@/components/admin/AdminHomeLists";
 import { AdminIntakeQuestions } from "@/components/admin/AdminIntakeQuestions";
 import { AdminTheme } from "@/components/admin/AdminTheme";
+import { AdminPractitioners } from "@/components/admin/AdminPractitioners";
 import AdminExperiencesManager from "@/components/admin/AdminExperiencesManager";
 import { AdminBlogManager } from "@/components/admin/AdminBlogManager";
 import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager";
@@ -64,6 +65,7 @@ const sidebarLinks = [
   { label: "Wellness", icon: Heart, id: "wellness" },
   { label: "Spa Packages", icon: Package, id: "spa-packages" },
   { label: "Custom Retreats", icon: Sparkles, id: "custom-retreats" },
+  { label: "Practitioners", icon: UserCircle, id: "practitioners" },
   { label: "Experiences", icon: CalendarDays, id: "experiences" },
   { label: "Blog", icon: BookOpen, id: "blog" },
   { label: "FAQs", icon: HelpCircle, id: "faqs" },
@@ -211,6 +213,7 @@ const AdminDashboard = () => {
           {activeTab === "wellness" && <AdminWellnessOrganizer />}
           {activeTab === "spa-packages" && <AdminSpaPackagesManager />}
           {activeTab === "custom-retreats" && <AdminCustomRetreats />}
+          {activeTab === "practitioners" && <AdminPractitioners />}
           {activeTab === "experiences" && <AdminExperiencesManager />}
           {activeTab === "blog" && <AdminBlogManager />}
           {activeTab === "faqs" && <AdminFaqsManager />}
