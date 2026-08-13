@@ -7,7 +7,7 @@ import { SEO } from "@/components/SEO";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, MapPin, Globe2, Calendar } from "lucide-react";
+import { Search, MapPin, Globe2, Calendar, ShieldCheck, X } from "lucide-react";
 import {
   getActivePractitioners,
   STATUS_LABELS,
@@ -169,6 +169,15 @@ const SasPractitionersPage = () => {
     })),
   };
 
+  const anyFilter = !!query || country !== "all" || city !== "all" || specialty !== "all" || statusFilter !== "all";
+  const clearAll = () => {
+    setQuery("");
+    setCountry("all");
+    setCity("all");
+    setSpecialty("all");
+    setStatusFilter("all");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <SEO
@@ -184,78 +193,103 @@ const SasPractitionersPage = () => {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-2xl mx-auto mb-12"
+          className="text-center max-w-2xl mx-auto mb-10"
         >
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
-            {c.eyebrow}
+          <p className="inline-flex items-center gap-1.5 font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+            <ShieldCheck className="h-4 w-4" /> {c.eyebrow}
           </p>
           <h1 className="spa-heading-xl text-foreground">{c.title}</h1>
           <p className="spa-body mt-4">{c.subtitle}</p>
+          {c.registryNote && (
+            <p className="mt-4 inline-flex items-start gap-2 text-left font-body text-sm text-muted-foreground bg-spa-sage/10 border border-spa-sage/20 rounded-full px-4 py-2">
+              <ShieldCheck className="h-4 w-4 text-spa-sage shrink-0 mt-0.5" /> {c.registryNote}
+            </p>
+          )}
         </motion.header>
 
-        {/* Filters */}
-        <div className="bg-card border border-border rounded-2xl p-5 mb-10 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={c.searchPlaceholder}
-              className="pl-9"
-              aria-label="Search practitioners"
-            />
-          </div>
+        <div className="grid lg:grid-cols-[280px_1fr] gap-8 lg:gap-10 items-start">
+          {/* Sidebar filters */}
+          <aside className="space-y-5 lg:sticky lg:top-24">
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-heading text-base font-semibold text-foreground mb-3">{c.searchLabel}</h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={c.searchPlaceholder}
+                  className="pl-9"
+                  aria-label="Search practitioners"
+                />
+              </div>
+            </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <FilterSelect
-              label={c.countryLabel}
-              value={country}
-              onChange={(v) => {
-                setCountry(v);
-                setCity("all");
-              }}
-              options={[{ value: "all", label: c.allCountries }, ...countries.map((ct) => ({ value: ct, label: ct }))]}
-            />
-            <FilterSelect
-              label={c.cityLabel}
-              value={city}
-              onChange={setCity}
-              options={[{ value: "all", label: c.allCities }, ...cities.map((ct) => ({ value: ct, label: ct }))]}
-            />
-            <FilterSelect
-              label={c.specialtyLabel}
-              value={specialty}
-              onChange={setSpecialty}
-              options={[{ value: "all", label: c.allSpecialties }, ...specialties.map((s) => ({ value: s, label: s }))]}
-            />
-            <FilterSelect
-              label={c.statusLabel}
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as PractitionerStatus | "all")}
-              options={[
-                { value: "all", label: c.allStatuses },
-                ...STATUS_ORDER.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
-              ]}
-            />
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-heading text-base font-semibold text-foreground">{c.filtersLabel}</h3>
+                {anyFilter && (
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="inline-flex items-center gap-1 font-body text-xs text-spa-sage hover:underline"
+                  >
+                    <X className="h-3 w-3" /> {c.clearFilters}
+                  </button>
+                )}
+              </div>
+              <FilterSelect
+                label={c.countryLabel}
+                value={country}
+                onChange={(v) => {
+                  setCountry(v);
+                  setCity("all");
+                }}
+                options={[{ value: "all", label: c.allCountries }, ...countries.map((ct) => ({ value: ct, label: ct }))]}
+              />
+              <FilterSelect
+                label={c.cityLabel}
+                value={city}
+                onChange={setCity}
+                options={[{ value: "all", label: c.allCities }, ...cities.map((ct) => ({ value: ct, label: ct }))]}
+              />
+              <FilterSelect
+                label={c.specialtyLabel}
+                value={specialty}
+                onChange={setSpecialty}
+                options={[{ value: "all", label: c.allSpecialties }, ...specialties.map((s) => ({ value: s, label: s }))]}
+              />
+              <FilterSelect
+                label={c.statusLabel}
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as PractitionerStatus | "all")}
+                options={[
+                  { value: "all", label: c.allStatuses },
+                  ...STATUS_ORDER.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+                ]}
+              />
+            </div>
+          </aside>
+
+          {/* Results */}
+          <div>
+            <p className="font-body text-sm text-muted-foreground mb-6">
+              {filtered.length} {filtered.length === 1 ? c.practitionerSingular : c.practitionerPlural}
+              {statusFilter !== "all" && ` · ${STATUS_LABELS[statusFilter]}`}
+            </p>
+
+            {filtered.length === 0 ? (
+              <div className="text-center py-16 bg-card border border-border rounded-2xl">
+                <p className="font-body text-muted-foreground">{c.emptyText}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filtered.map((p) => (
+                  <PractitionerCard key={p.slug} p={p} viewProfileLabel={c.viewProfileLabel} bookLabel={c.bookLabel} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        <p className="font-body text-sm text-muted-foreground mb-6">
-          {filtered.length} {filtered.length === 1 ? c.practitionerSingular : c.practitionerPlural}
-          {statusFilter !== "all" && ` · ${STATUS_LABELS[statusFilter]}`}
-        </p>
-
-        {filtered.length === 0 ? (
-          <div className="text-center py-16 bg-card border border-border rounded-2xl">
-            <p className="font-body text-muted-foreground">{c.emptyText}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filtered.map((p) => (
-              <PractitionerCard key={p.slug} p={p} viewProfileLabel={c.viewProfileLabel} bookLabel={c.bookLabel} />
-            ))}
-          </div>
-        )}
       </main>
 
       <Footer />
