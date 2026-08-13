@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Receipt, Send, Eye } from "lucide-react";
 import { toast } from "sonner";
 
-type Kind = "purchase" | "refund" | "commission";
+type Kind = "purchase" | "refund" | "commission" | "teacher";
 type Currency = "CRC" | "USD";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,6 +29,7 @@ function formatAmount(amount: string, currency: Currency): string {
 function amountRowLabelFor(kind: Kind): string {
   if (kind === "refund") return "Amount refunded";
   if (kind === "commission") return "Commission paid";
+  if (kind === "teacher") return "Payment amount";
   return "Amount paid";
 }
 
@@ -101,6 +102,14 @@ ${box}
 <p>Kind regards,<br>Holis Wellness Center</p>`;
       return renderShell("Commission Payment Confirmation", inner);
     }
+    if (kind === "teacher") {
+      const inner = `<p>Hi ${firstName},</p>
+<p>This message confirms that Holis Wellness Center has issued the following payment for your classes and sessions.</p>
+${box}
+<p>Thank you for sharing your practice with our community. If you have any questions about this payment, just reply to this email and we will be glad to help.</p>
+<p>With gratitude,<br>Holis Wellness Center</p>`;
+      return renderShell("Payment Confirmation", inner);
+    }
     const heading = kind === "refund" ? "Your refund has been processed 🌿" : "Thank you for your purchase 🌿";
     const intro = kind === "refund"
       ? `Hi ${firstName}, we have processed a refund to you from Holis Wellness Center. Here are the details:`
@@ -154,7 +163,7 @@ ${box}
           <div>
             <Label className="font-body text-sm">Receipt type</Label>
             <div className="mt-2 flex flex-wrap gap-1 rounded-xl border border-border p-1 bg-muted/40">
-              {(["purchase", "refund", "commission"] as Kind[]).map((k) => (
+              {(["purchase", "refund", "commission", "teacher"] as Kind[]).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -163,7 +172,7 @@ ${box}
                     kind === k ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
                   }`}
                 >
-                  {k === "purchase" ? "Purchase" : k === "refund" ? "Refund (money handed out)" : "Commission"}
+                  {k === "purchase" ? "Purchase" : k === "refund" ? "Refund (money handed out)" : k === "commission" ? "Commission" : "Teacher payment"}
                 </button>
               ))}
             </div>
@@ -172,11 +181,11 @@ ${box}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="r-email" className="font-body text-sm">Recipient email *</Label>
-              <Input id="r-email" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder={kind === "commission" ? "hotel@example.com" : "client@email.com"} maxLength={255} />
+              <Input id="r-email" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder={kind === "commission" ? "hotel@example.com" : kind === "teacher" ? "teacher@email.com" : "client@email.com"} maxLength={255} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="r-name" className="font-body text-sm">Recipient name</Label>
-              <Input id="r-name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : "Ana López"} maxLength={120} />
+              <Input id="r-name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : kind === "teacher" ? "Betza" : "Ana López"} maxLength={120} />
             </div>
           </div>
 
@@ -206,12 +215,12 @@ ${box}
 
           <div className="space-y-2">
             <Label htmlFor="r-concept" className="font-body text-sm">Concept / reason</Label>
-            <Input id="r-concept" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder={kind === "refund" ? "Refund for cancelled class" : kind === "commission" ? "Direct sale commission" : "Monthly membership"} maxLength={160} />
+            <Input id="r-concept" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder={kind === "refund" ? "Refund for cancelled class" : kind === "commission" ? "Direct sale commission" : kind === "teacher" ? "Yoga classes — August" : "Monthly membership"} maxLength={160} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="r-paidto" className="font-body text-sm">Paid to <span className="text-muted-foreground">(who receives the money)</span></Label>
-            <Input id="r-paidto" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : "Ana López"} maxLength={120} />
+            <Input id="r-paidto" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder={kind === "commission" ? "Hotel Costa Verde" : kind === "teacher" ? "Betza" : "Ana López"} maxLength={120} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
