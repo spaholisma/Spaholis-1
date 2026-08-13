@@ -233,6 +233,40 @@ const EducationalPage = () => {
               </div>
             </motion.div>
 
+            <div className="grid lg:grid-cols-[300px_1fr] gap-8 lg:gap-10 items-start">
+              {/* LEFT: SAS-certified practitioners directory */}
+              {sasPractitioners.length > 0 && (
+                <aside className="lg:sticky lg:top-24">
+                  <div className="bg-card border border-border rounded-2xl p-5">
+                    <p className="inline-flex items-center gap-1.5 font-body text-[11px] font-semibold uppercase tracking-[0.16em] text-spa-sage mb-2">
+                      <ShieldCheck className="h-3.5 w-3.5" /> {edu.tabSas || "SAS Training"}
+                    </p>
+                    <h3 className="font-heading text-lg font-semibold text-foreground leading-tight">
+                      {(edu as any).practitionersHeading || "Our SAS-Certified Practitioners"}
+                    </h3>
+                    <p className="font-body text-xs text-muted-foreground mt-1.5 mb-4">{(edu as any).practitionersSubtitle}</p>
+                    <div className="divide-y divide-border/60">
+                      {sasPractitioners.map((p) => (
+                        <Link key={p.slug} to={`/practitioner/${p.slug}`} className="flex items-center gap-2.5 py-2 group">
+                          <ShieldCheck className="h-4 w-4 text-spa-sage/70 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-body text-sm font-medium text-foreground truncate group-hover:text-spa-sage transition-colors">{p.name}</p>
+                            <p className="font-body text-xs text-muted-foreground truncate">{p.role}</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    <Button asChild variant="outline" size="sm" className="w-full mt-4">
+                      <Link to="/sas-practitioners">
+                        {(edu as any).practitionersCta || "View the full directory"} <ChevronRight className="h-4 w-4 ml-1" />
+                      </Link>
+                    </Button>
+                  </div>
+                </aside>
+              )}
+
+              {/* RIGHT: levels / modules + course CTA */}
+              <div className="space-y-8">
             {/* ── Accordion Levels ── */}
             <Accordion
               type="multiple"
@@ -302,50 +336,8 @@ const EducationalPage = () => {
               </motion.div>
             )}
 
-            {/* ── SAS-certified practitioners preview ── */}
-            {sasPractitioners.length > 0 && (
-              <motion.div {...fadeIn} className="mt-20">
-                <div className="text-center max-w-2xl mx-auto mb-10">
-                  <p className="inline-flex items-center gap-1.5 font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
-                    <ShieldCheck className="h-4 w-4" /> {edu.tabSas || "SAS Training"}
-                  </p>
-                  <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
-                    {(edu as any).practitionersHeading || "Our SAS-Certified Practitioners"}
-                  </h2>
-                  <p className="spa-body mt-3">{(edu as any).practitionersSubtitle}</p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {sasPractitioners.map((p) => (
-                    <Link
-                      key={p.slug}
-                      to={`/practitioner/${p.slug}`}
-                      className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
-                    >
-                      <div className="aspect-square bg-muted overflow-hidden">
-                        {p.image ? (
-                          <img src={p.image} alt={p.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-spa-sage/10">
-                            <span className="font-heading text-3xl text-spa-sage/30">{p.name[0]}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <p className="font-heading text-sm font-medium text-foreground truncate">{p.name}</p>
-                        <p className="font-body text-xs text-muted-foreground truncate">{p.role}</p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-                <div className="text-center mt-8">
-                  <Button asChild variant="outline" size="lg">
-                    <Link to="/sas-practitioners">
-                      {(edu as any).practitionersCta || "View the full directory"} <ChevronRight className="h-4 w-4 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
-              </motion.div>
-            )}
+              </div>
+            </div>
           </section>
           )}
 
