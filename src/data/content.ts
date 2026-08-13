@@ -681,7 +681,8 @@ export const content = {
     tabCouples: "Couples & Connection",
     // ── SAS-certified practitioners preview (shown under SAS Training) ──
     practitionersHeading: "Our SAS-Certified Practitioners",
-    practitionersSubtitle: "Every therapist below is personally trained and certified by Holis Wellness Center.",
+    practitionersSubtitle: "Every therapist in our registry is personally trained and certified by Holis Wellness Center.",
+    practitionersCountLabel: "certified practitioners",
     practitionersCta: "View the full directory",
     // ── Somato levels (accordion) ──
     sasLevels: [

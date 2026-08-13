@@ -67,7 +67,7 @@ const EducationalPage = () => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [activeTab, setActiveTab] = useState<"sas" | "modules" | "couples">("sas");
   const { data: practitionersData } = usePractitioners();
-  const sasPractitioners = (practitionersData ?? []).filter((p) => p.isActive !== false).slice(0, 8);
+  const sasPractitionerCount = (practitionersData ?? []).filter((p) => p.isActive !== false).length;
 
   const allCourses = (services ?? []).filter((s) => s.type === "course");
   // The SAS training has its own section above ($600 per module). Every other
@@ -234,8 +234,8 @@ const EducationalPage = () => {
             </motion.div>
 
             <div className="grid lg:grid-cols-[300px_1fr] gap-8 lg:gap-10 items-start">
-              {/* LEFT: SAS-certified practitioners directory */}
-              {sasPractitioners.length > 0 && (
+              {/* LEFT: SAS-certified practitioners registry (count only — no names) */}
+              {sasPractitionerCount > 0 && (
                 <aside className="lg:sticky lg:top-24">
                   <div className="bg-card border border-border rounded-2xl p-5">
                     <p className="inline-flex items-center gap-1.5 font-body text-[11px] font-semibold uppercase tracking-[0.16em] text-spa-sage mb-2">
@@ -245,18 +245,14 @@ const EducationalPage = () => {
                       {(edu as any).practitionersHeading || "Our SAS-Certified Practitioners"}
                     </h3>
                     <p className="font-body text-xs text-muted-foreground mt-1.5 mb-4">{(edu as any).practitionersSubtitle}</p>
-                    <div className="divide-y divide-border/60">
-                      {sasPractitioners.map((p) => (
-                        <Link key={p.slug} to={`/practitioner/${p.slug}`} className="flex items-center gap-2.5 py-2 group">
-                          <ShieldCheck className="h-4 w-4 text-spa-sage/70 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="font-body text-sm font-medium text-foreground truncate group-hover:text-spa-sage transition-colors">{p.name}</p>
-                            <p className="font-body text-xs text-muted-foreground truncate">{p.role}</p>
-                          </div>
-                        </Link>
-                      ))}
+                    <div className="flex items-center gap-3 rounded-xl bg-spa-sage/10 border border-spa-sage/20 px-4 py-3 mb-4">
+                      <ShieldCheck className="h-6 w-6 text-spa-sage shrink-0" />
+                      <p className="font-body text-sm text-foreground leading-tight">
+                        <span className="font-heading text-2xl font-semibold text-foreground">{sasPractitionerCount}</span>{" "}
+                        {(edu as any).practitionersCountLabel || "certified practitioners"}
+                      </p>
                     </div>
-                    <Button asChild variant="outline" size="sm" className="w-full mt-4">
+                    <Button asChild variant="outline" size="sm" className="w-full">
                       <Link to="/sas-practitioners">
                         {(edu as any).practitionersCta || "View the full directory"} <ChevronRight className="h-4 w-4 ml-1" />
                       </Link>
