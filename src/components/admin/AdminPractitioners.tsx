@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Camera, Loader2 } from "lucide-react";
 import { ImageUploadField } from "./ImageUploadField";
+import { uploadContentImage } from "@/lib/uploadImage";
 import { STATUS_LABELS, type PractitionerStatus } from "@/data/practitioners";
 import { toast } from "sonner";
 
@@ -50,6 +51,9 @@ export function AdminPractitioners() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Row | (Omit<Row, "id"> & { id?: string }) | null>(null);
   const [saving, setSaving] = useState(false);
+  const [photoBusyId, setPhotoBusyId] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const pendingRow = useRef<Row | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("practitioners").select("*").order("sort_order").order("name");
@@ -57,6 +61,29 @@ export function AdminPractitioners() {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Quick photo change directly from the list (no need to open the full form).
+  const pickPhoto = (row: Row) => {
+    pendingRow.current = row;
+    photoInputRef.current?.click();
+  };
+  const onPhotoPicked = async (file: File) => {
+    const row = pendingRow.current;
+    if (!row?.id) return;
+    setPhotoBusyId(row.id);
+    try {
+      const { url, savedPct } = await uploadContentImage(file);
+      const { error } = await supabase.from("practitioners").update({ image: url, updated_at: new Date().toISOString() }).eq("id", row.id);
+      if (error) throw error;
+      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, image: url } : r)));
+      toast.success(savedPct > 0 ? `Photo updated — optimized ${savedPct}% smaller` : "Photo updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Photo update failed");
+    } finally {
+      setPhotoBusyId(null);
+      pendingRow.current = null;
+    }
+  };
 
   const startNew = () => setEditing({ ...empty, sort_order: rows.length });
 
@@ -120,12 +147,28 @@ export function AdminPractitioners() {
         <Button size="sm" onClick={startNew}><Plus className="h-4 w-4 mr-1" /> Add practitioner</Button>
       </div>
 
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPhotoPicked(f); e.target.value = ""; }}
+      />
+
       <div className="space-y-3">
         {rows.map((row) => (
           <div key={row.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full overflow-hidden bg-muted shrink-0">
+            <button
+              type="button"
+              onClick={() => pickPhoto(row)}
+              title="Change photo"
+              className="relative w-12 h-12 rounded-full overflow-hidden bg-muted shrink-0 group"
+            >
               {row.image ? <img src={row.image} alt={row.name} className="w-full h-full object-cover" /> : null}
-            </div>
+              <span className={`absolute inset-0 flex items-center justify-center bg-foreground/55 transition-opacity ${photoBusyId === row.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                {photoBusyId === row.id ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
+              </span>
+            </button>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-body text-sm font-medium text-foreground">{row.name}</p>
