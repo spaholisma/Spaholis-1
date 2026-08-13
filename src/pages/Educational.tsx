@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { CourseReviews } from "@/components/CourseReviews";
 
@@ -10,10 +11,11 @@ import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
 import { useServices, type ServiceRow } from "@/hooks/useServices";
+import { usePractitioners } from "@/hooks/usePractitioners";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -64,6 +66,8 @@ const EducationalPage = () => {
   const [enrollDialog, setEnrollDialog] = useState<ServiceRow | null>(null);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [activeTab, setActiveTab] = useState<"sas" | "modules" | "couples">("sas");
+  const { data: practitionersData } = usePractitioners();
+  const sasPractitioners = (practitionersData ?? []).filter((p) => p.isActive !== false).slice(0, 8);
 
   const allCourses = (services ?? []).filter((s) => s.type === "course");
   // The SAS training has its own section above ($600 per module). Every other
@@ -295,6 +299,51 @@ const EducationalPage = () => {
                 <Button variant="default" size="lg" onClick={() => openRequest(sasCourse)}>
                   {edu.requestInfo} <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
+              </motion.div>
+            )}
+
+            {/* ── SAS-certified practitioners preview ── */}
+            {sasPractitioners.length > 0 && (
+              <motion.div {...fadeIn} className="mt-20">
+                <div className="text-center max-w-2xl mx-auto mb-10">
+                  <p className="inline-flex items-center gap-1.5 font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+                    <ShieldCheck className="h-4 w-4" /> {edu.tabSas || "SAS Training"}
+                  </p>
+                  <h2 className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
+                    {(edu as any).practitionersHeading || "Our SAS-Certified Practitioners"}
+                  </h2>
+                  <p className="spa-body mt-3">{(edu as any).practitionersSubtitle}</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {sasPractitioners.map((p) => (
+                    <Link
+                      key={p.slug}
+                      to={`/practitioner/${p.slug}`}
+                      className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
+                    >
+                      <div className="aspect-square bg-muted overflow-hidden">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-spa-sage/10">
+                            <span className="font-heading text-3xl text-spa-sage/30">{p.name[0]}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <p className="font-heading text-sm font-medium text-foreground truncate">{p.name}</p>
+                        <p className="font-body text-xs text-muted-foreground truncate">{p.role}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <div className="text-center mt-8">
+                  <Button asChild variant="outline" size="lg">
+                    <Link to="/sas-practitioners">
+                      {(edu as any).practitionersCta || "View the full directory"} <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
               </motion.div>
             )}
           </section>
