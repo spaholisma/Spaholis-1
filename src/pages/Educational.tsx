@@ -26,6 +26,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
 const fadeIn = {
@@ -62,6 +63,7 @@ const EducationalPage = () => {
   const seo = seoData || seoDefaults;
   const [enrollDialog, setEnrollDialog] = useState<ServiceRow | null>(null);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+  const [activeTab, setActiveTab] = useState<"sas" | "modules" | "couples">("sas");
 
   const allCourses = (services ?? []).filter((s) => s.type === "course");
   // The SAS training has its own section above ($600 per module). Every other
@@ -69,6 +71,13 @@ const EducationalPage = () => {
   const sasCourse = allCourses.find((s) => s.title.toLowerCase().includes("somato")) ?? null;
   const courses = allCourses.filter((s) => s.id !== sasCourse?.id);
   const workshops = (services ?? []).filter((s) => s.type === "workshop");
+
+  // Category pills (bubbles) — only show a tab when it has content.
+  const tabs: { id: "sas" | "modules" | "couples"; label: string }[] = [
+    { id: "sas", label: edu.tabSas || "SAS Training" },
+    ...(courses.length > 0 ? ([{ id: "modules", label: edu.tabModules || "Professional Modules" }] as const) : []),
+    ...(workshops.length > 0 ? ([{ id: "couples", label: edu.tabCouples || "Couples & Connection" }] as const) : []),
+  ];
 
   const handleEnroll = async () => {
     if (!enrollDialog) return;
@@ -149,8 +158,29 @@ const EducationalPage = () => {
         </div>
       ) : (
         <>
+          {/* ── Category pills (bubbles) ── */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+            <motion.div {...fadeIn} className="flex flex-wrap gap-2 border-b border-border pb-4">
+              {tabs.map((tb) => (
+                <button
+                  key={tb.id}
+                  onClick={() => setActiveTab(tb.id)}
+                  className={cn(
+                    "px-5 py-2.5 rounded-full font-body text-sm font-medium transition-all",
+                    activeTab === tb.id
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground",
+                  )}
+                >
+                  {tb.label}
+                </button>
+              ))}
+            </motion.div>
+          </div>
+
           {/* ── Somato Awareness System Section ── */}
-          <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          {activeTab === "sas" && (
+          <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-20">
               <motion.div {...fadeIn} className="rounded-2xl overflow-hidden">
                 <img {...cmsEditProps("education.somatoImage", "image")} src={edu.somatoImage} alt="Somato Awareness System" className="w-full h-full object-cover" />
@@ -200,7 +230,11 @@ const EducationalPage = () => {
             </motion.div>
 
             {/* ── Accordion Levels ── */}
-            <Accordion type="single" collapsible className="space-y-4">
+            <Accordion
+              type="multiple"
+              defaultValue={(edu.sasLevels ?? []).map((_: any, i: number) => `level${i + 1}`)}
+              className="space-y-4"
+            >
               {(edu.sasLevels ?? []).map((lvl: any, idx: number) => {
                 const learnItems: string[] = Array.isArray(lvl.learn) ? lvl.learn : [];
                 const practiceItems: string[] = Array.isArray(lvl.practice) ? lvl.practice : [];
@@ -264,10 +298,11 @@ const EducationalPage = () => {
               </motion.div>
             )}
           </section>
+          )}
 
           {/* ── Professional Modules (request format) ── */}
-          {courses.length > 0 && (
-            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-20">
+          {activeTab === "modules" && courses.length > 0 && (
+            <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">
               <motion.div {...fadeIn} className="text-center max-w-2xl mx-auto mb-12">
                 <p {...cmsEditProps("education.modulesEyebrow")} className="font-body text-xs uppercase tracking-widest text-muted-foreground mb-3">
                   {edu.modulesEyebrow}
@@ -279,37 +314,43 @@ const EducationalPage = () => {
                   {edu.modulesSubtitle}
                 </p>
               </motion.div>
-              <div className="grid grid-cols-1 gap-6">
+              <Accordion type="multiple" defaultValue={courses.map((c) => c.id)} className="space-y-4">
                 {courses.map((c) => (
-                  <motion.div {...fadeIn} key={c.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3">
-                    <h3 className="font-heading text-xl font-medium text-foreground">{c.title}</h3>
-                    {Number(c.duration_minutes) > 0 && (
-                      <p className="font-body text-xs font-semibold uppercase tracking-wider text-spa-sage">
-                        {Number(c.duration_minutes) % 60 === 0
-                          ? `${Number(c.duration_minutes) / 60} hours`
-                          : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
-                      </p>
-                    )}
-                    <p className="spa-body-sm whitespace-pre-line flex-1">{c.description}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
-                      {Number(c.price) > 0 ? (
-                        <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
-                      ) : (
-                        <span className="font-body text-sm text-muted-foreground">{edu.byRequest}</span>
-                      )}
-                      <Button variant="default" size="default" onClick={() => openRequest(c)}>
-                        {edu.requestInfo} <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                    <CourseReviews serviceId={c.id} />
-                  </motion.div>
+                  <AccordionItem key={c.id} value={c.id} className="border border-border rounded-2xl overflow-hidden px-0 bg-card">
+                    <AccordionTrigger className="px-6 py-5 hover:no-underline">
+                      <div className="text-left">
+                        <span className="font-heading text-lg md:text-xl font-medium text-foreground">{c.title}</span>
+                        {Number(c.duration_minutes) > 0 && (
+                          <span className="block font-body text-xs font-semibold uppercase tracking-wider text-spa-sage mt-1">
+                            {Number(c.duration_minutes) % 60 === 0
+                              ? `${Number(c.duration_minutes) / 60} hours`
+                              : `${(Number(c.duration_minutes) / 60).toFixed(1)} hours`}
+                          </span>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-6 pb-6">
+                      <p className="spa-body-sm whitespace-pre-line">{c.description}</p>
+                      <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+                        {Number(c.price) > 0 ? (
+                          <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(c.price)}</span>
+                        ) : (
+                          <span className="font-body text-sm text-muted-foreground">{edu.byRequest}</span>
+                        )}
+                        <Button variant="default" size="default" onClick={() => openRequest(c)}>
+                          {edu.requestInfo} <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                      <CourseReviews serviceId={c.id} />
+                    </AccordionContent>
+                  </AccordionItem>
                 ))}
-              </div>
+              </Accordion>
             </section>
           )}
 
           {/* ── Couple's & Connection Experience ── */}
-          {workshops.length > 0 && (
+          {activeTab === "couples" && workshops.length > 0 && (
             <section className="bg-muted/30">
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
@@ -324,18 +365,24 @@ const EducationalPage = () => {
                       {edu.couplesIntro}
                     </p>
 
-                    {workshops.map((ws) => (
-                      <div key={ws.id} className="bg-card border border-border rounded-xl p-6 space-y-3">
-                        <h3 className="font-heading text-xl font-medium text-foreground">{ws.title}</h3>
-                        <p className="spa-body-sm">{ws.description}</p>
-                        <div className="flex items-center justify-between pt-2">
-                          <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(ws.price)}</span>
-                          <Button variant="default" size="default" onClick={() => openRequest(ws)}>
-                            {edu.requestInfo} <ChevronRight className="h-4 w-4 ml-1" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                    <Accordion type="multiple" defaultValue={workshops.map((ws) => ws.id)} className="space-y-4">
+                      {workshops.map((ws) => (
+                        <AccordionItem key={ws.id} value={ws.id} className="border border-border rounded-xl overflow-hidden px-0 bg-card">
+                          <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                            <span className="font-heading text-lg md:text-xl font-medium text-foreground text-left">{ws.title}</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-6 pb-6">
+                            <p className="spa-body-sm">{ws.description}</p>
+                            <div className="flex items-center justify-between pt-4">
+                              <span className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(ws.price)}</span>
+                              <Button variant="default" size="default" onClick={() => openRequest(ws)}>
+                                {edu.requestInfo} <ChevronRight className="h-4 w-4 ml-1" />
+                              </Button>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                   </motion.div>
                 </div>
               </div>

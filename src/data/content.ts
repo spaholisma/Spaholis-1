@@ -675,6 +675,10 @@ export const content = {
     perModule: "per module",
     byRequest: "By request",
     requestInfo: "Request Information",
+    // ── Category pills (tabs) ──
+    tabSas: "SAS Training",
+    tabModules: "Professional Modules",
+    tabCouples: "Couples & Connection",
     // ── Somato levels (accordion) ──
     sasLevels: [
       {
