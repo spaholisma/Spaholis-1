@@ -31,6 +31,7 @@ import { AdminHomeLists } from "@/components/admin/AdminHomeLists";
 import { AdminIntakeQuestions } from "@/components/admin/AdminIntakeQuestions";
 import { AdminTheme } from "@/components/admin/AdminTheme";
 import { AdminPractitioners } from "@/components/admin/AdminPractitioners";
+import { AdminFeaturedEvent } from "@/components/admin/AdminFeaturedEvent";
 import AdminExperiencesManager from "@/components/admin/AdminExperiencesManager";
 import { AdminBlogManager } from "@/components/admin/AdminBlogManager";
 import { AdminOfferingsManager } from "@/components/admin/AdminOfferingsManager";
@@ -51,6 +52,7 @@ const sidebarLinks = [
   { label: "Trash", icon: Trash2, id: "trash" },
   { label: "Services", icon: Briefcase, id: "services" },
   { label: "Classes", icon: CalendarDays, id: "events" },
+  { label: "Featured Event", icon: Sparkles, id: "featured-event" },
   { label: "Weekly Schedule", icon: CalendarDays, id: "weekly-schedule" },
   { label: "Business Hours", icon: Clock, id: "business-hours" },
   { label: "Vacation Mode", icon: Palmtree, id: "vacation" },
@@ -199,6 +201,7 @@ const AdminDashboard = () => {
           {activeTab === "trash" && canRender("trash") && <BookingsTrash />}
           {activeTab === "services" && <AdminServicesManager />}
           {activeTab === "events" && <AdminEventsManager />}
+          {activeTab === "featured-event" && <AdminFeaturedEvent />}
           {activeTab === "weekly-schedule" && <AdminWeeklySchedule />}
           {activeTab === "business-hours" && <AdminBusinessHours />}
           {activeTab === "vacation" && <AdminVacationMode />}
