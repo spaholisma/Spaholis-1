@@ -43,9 +43,10 @@ const ClassesPage = () => {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   }, [isLoading]);
 
-  // Separate workshops from regular events
-  const workshops = events?.filter((e) => e.classes.category === "Workshop") ?? [];
-  const regularEvents = events?.filter((e) => e.classes.category !== "Workshop") ?? [];
+  // One-off events (workshops, special events, etc.) vs regular weekly classes.
+  const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
+  const specialEvents = events?.filter((e) => EVENT_CATEGORIES.has(e.classes.category)) ?? [];
+  const regularEvents = events?.filter((e) => !EVENT_CATEGORIES.has(e.classes.category)) ?? [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,7 +140,7 @@ const ClassesPage = () => {
               <Skeleton key={i} className="h-64 rounded-2xl" />
             ))}
           </div>
-        ) : !events?.length ? (
+        ) : specialEvents.length === 0 && regularEvents.length === 0 ? (
           <motion.div {...fadeIn} className="text-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
@@ -148,39 +149,42 @@ const ClassesPage = () => {
             </p>
           </motion.div>
         ) : (
-          <motion.div {...fadeIn} className="space-y-8 mt-10">
-            {regularEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-          </motion.div>
-        )}
+          <>
+            {/* Workshops & Special Events (one-off) */}
+            {specialEvents.length > 0 && (
+              <motion.div {...fadeIn} className="mt-10">
+                <p className="text-center font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-6">
+                  {(cls as any).eventsEyebrow || "Workshops & Special Events"}
+                </p>
+                <div className="space-y-8">
+                  {specialEvents.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
-        {/* Workshops Section */}
-        {workshops.length > 0 && (
-          <motion.div {...fadeIn} className="mt-20">
-            <div className="text-center mb-10">
-              <p {...cmsEditProps("classes.workshopsEyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
-                {cls.workshopsEyebrow}
-              </p>
-              <Link to="/education" className="inline-block group">
-                <h2 {...cmsEditProps("classes.workshopsTitle")} className="spa-heading-lg text-foreground group-hover:text-spa-sage transition-colors">{cls.workshopsTitle}</h2>
-              </Link>
-              <p {...cmsEditProps("classes.workshopsSubtitle")} className="spa-body mt-3 max-w-xl mx-auto">
-                {cls.workshopsSubtitle}
-              </p>
-              <Link
-                to="/education"
-                className="inline-flex items-center gap-1 mt-3 font-body text-sm font-semibold text-spa-sage hover:underline"
-              >
-                {cls.workshopsExploreLink}
-              </Link>
-            </div>
-            <div className="space-y-8">
-              {workshops.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
-          </motion.div>
+            {/* Regular weekly classes */}
+            {regularEvents.length > 0 && (
+              <motion.div {...fadeIn} className="mt-20">
+                <div className="text-center mb-8">
+                  <h2 className="spa-heading-lg text-foreground">{(cls as any).weeklyClassesTitle || "Weekly Classes"}</h2>
+                  <p className="spa-body mt-3 max-w-xl mx-auto">{(cls as any).weeklyClassesSubtitle}</p>
+                  <Link
+                    to="/classes/schedule"
+                    className="inline-flex items-center gap-1 mt-3 font-body text-sm font-semibold text-spa-sage hover:underline"
+                  >
+                    {cls.calendarLink}
+                  </Link>
+                </div>
+                <div className="space-y-8">
+                  {regularEvents.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </>
         )}
 
         {/* Buy Memberships, Class Passes & Drop-ins */}
