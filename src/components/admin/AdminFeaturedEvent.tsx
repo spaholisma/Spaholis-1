@@ -26,8 +26,10 @@ export function AdminFeaturedEvent() {
     date: todayISO(),
     startTime: "16:30",
     duration: 90,
+    pricing: "fixed" as "fixed" | "free" | "donation",
     price: 0,
     priceLabel: "",
+    info: "",
     category: "Special Event",
     capacity: 20,
   });
@@ -45,6 +47,12 @@ export function AdminFeaturedEvent() {
       const local = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 
       // 1) Create the featured class (featured until end of the event day, CR time).
+      const priceValue = form.pricing === "fixed" ? (Number(form.price) || 0) : 0;
+      const priceLabel =
+        form.pricing === "free" ? "Free"
+        : form.pricing === "donation" ? (form.priceLabel.trim() || "By donation")
+        : (form.priceLabel.trim() || null);
+
       const { data: cls, error: clsErr } = await supabase
         .from("classes")
         .insert({
@@ -52,8 +60,8 @@ export function AdminFeaturedEvent() {
           description: form.description.trim() || null,
           category: form.category,
           duration_minutes: Number(form.duration) || 60,
-          price: Number(form.price) || 0,
-          price_label: form.priceLabel.trim() || null,
+          price: priceValue,
+          price_label: priceLabel,
           image_url: form.image || null,
           location: "Holis Studio",
           instructor: form.instructor.trim() || null,
@@ -62,6 +70,7 @@ export function AdminFeaturedEvent() {
           requires_payment: false,
           max_capacity: Number(form.capacity) || 20,
           featured_until: `${form.date}T23:59:59-06:00`,
+          payment_instructions: form.info.trim() || null,
         } as any)
         .select("id")
         .single();
@@ -132,19 +141,58 @@ export function AdminFeaturedEvent() {
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <Label className="font-body text-sm">Pricing</Label>
+          <div className="flex flex-wrap gap-2">
+            {([["fixed", "Fixed price"], ["free", "Free"], ["donation", "Donation based"]] as const).map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => set("pricing", v)}
+                className={`px-3.5 py-1.5 rounded-full text-sm font-body border transition-colors ${form.pricing === v ? "bg-foreground text-background border-foreground" : "bg-muted text-muted-foreground border-border hover:border-foreground/40"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <Label className="font-body text-sm">Price (₡)</Label>
-            <Input type="number" min={0} value={form.price} onChange={(e) => set("price", parseFloat(e.target.value) || 0)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="font-body text-sm">Price label <span className="text-muted-foreground">(optional)</span></Label>
-            <Input value={form.priceLabel} onChange={(e) => set("priceLabel", e.target.value)} placeholder="$25 / Free" maxLength={40} />
-          </div>
+          {form.pricing === "fixed" && (
+            <div className="space-y-1.5">
+              <Label className="font-body text-sm">Price (₡)</Label>
+              <Input type="number" min={0} value={form.price} onChange={(e) => set("price", parseFloat(e.target.value) || 0)} />
+            </div>
+          )}
+          {form.pricing !== "free" && (
+            <div className="space-y-1.5">
+              <Label className="font-body text-sm">Price label <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                value={form.priceLabel}
+                onChange={(e) => set("priceLabel", e.target.value)}
+                placeholder={form.pricing === "donation" ? "By donation" : "$25"}
+                maxLength={40}
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="font-body text-sm">Capacity</Label>
             <Input type="number" min={1} value={form.capacity} onChange={(e) => set("capacity", parseInt(e.target.value) || 0)} />
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="font-body text-sm">
+            Info note <span className="text-muted-foreground">(optional — how to pay or contribute; great for donation-based events)</span>
+          </Label>
+          <Textarea
+            value={form.info}
+            onChange={(e) => set("info", e.target.value)}
+            placeholder={form.pricing === "donation"
+              ? "This is a donation-based event — contribute what feels right. Cash at the studio or SINPE to 8814 6760. All are welcome."
+              : "Any extra details guests should know…"}
+            className="min-h-[80px]"
+          />
         </div>
 
         <div className="space-y-1.5">
