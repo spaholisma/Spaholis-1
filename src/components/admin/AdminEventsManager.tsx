@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MarkdownTextarea } from "./MarkdownTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { Pencil, Trash2, Plus, Upload, X, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -369,23 +370,23 @@ export function AdminEventsManager() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Description (EN)</label>
-            <Textarea
+            <MarkdownTextarea
               value={editing.description || ""}
-              onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+              onChange={(v) => setEditing({ ...editing, description: v })}
               className="min-h-[120px]"
             />
           </div>
           <div>
             <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Description (ES)</label>
-            <Textarea
+            <MarkdownTextarea
               value={editing.description_es || ""}
-              onChange={(e) => setEditing({ ...editing, description_es: e.target.value })}
+              onChange={(v) => setEditing({ ...editing, description_es: v })}
               className="min-h-[120px]"
             />
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground -mt-2">
-          Tip: add links with <code className="bg-muted px-1 rounded">[text](https://…)</code> — e.g. <code className="bg-muted px-1 rounded">[contraindications](https://…)</code>. Also <code className="bg-muted px-1 rounded">**bold**</code> / <code className="bg-muted px-1 rounded">*italic*</code>.
+          Select a word and click <span className="font-medium">Link</span> to name it — or just paste a URL and it becomes a link.
         </p>
 
         {/* Featured + pay-to-teacher (for one-off special events) */}

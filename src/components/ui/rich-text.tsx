@@ -17,6 +17,9 @@ import { isCmsEditMode } from "@/lib/cmsEdit";
 const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 const BOLD_RE = /\*\*([^*]+)\*\*/g;
 const ITALIC_RE = /\*(?!\s)([^*]+?)\*/g;
+// Bare URLs (and www.) pasted into copy — auto-linked. Trailing punctuation is
+// trimmed off so "…here: https://x.com." doesn't swallow the period.
+const URL_RE = /((?:https?:\/\/|www\.)[^\s<]+)/g;
 
 type Transform = (text: string, key: string) => ReactNode[];
 
@@ -48,8 +51,8 @@ function isExternal(url: string): boolean {
   return /^(https?:|mailto:|tel:)/i.test(url);
 }
 
-// Innermost transform: split remaining plain text on newlines into <br/>.
-function renderText(text: string, key: string): ReactNode[] {
+// Split plain text on newlines into <br/>.
+function renderPlain(text: string, key: string): ReactNode[] {
   const parts = text.split("\n");
   const nodes: ReactNode[] = [];
   parts.forEach((part, i) => {
@@ -57,6 +60,42 @@ function renderText(text: string, key: string): ReactNode[] {
     if (part) nodes.push(part);
   });
   return nodes;
+}
+
+// Innermost transform: auto-link bare URLs, then handle newlines in the gaps.
+function renderText(text: string, key: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  URL_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = URL_RE.exec(text)) !== null) {
+    if (m.index > last) out.push(...renderPlain(text.slice(last, m.index), `${key}-t${i}`));
+    let url = m[0];
+    // Don't let sentence punctuation glue onto the end of the link.
+    let trail = "";
+    const mt = url.match(/[.,;:!?)\]]+$/);
+    if (mt) { trail = mt[0]; url = url.slice(0, -trail.length); }
+    const href = url.startsWith("www.") ? `https://${url}` : url;
+    out.push(
+      createElement(
+        "a",
+        {
+          key: `${key}-u${i}`,
+          href,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          className: "underline underline-offset-2 hover:opacity-80 transition-opacity break-words",
+        },
+        url,
+      ),
+    );
+    if (trail) out.push(trail);
+    last = m.index + m[0].length;
+    i++;
+  }
+  if (last < text.length) out.push(...renderPlain(text.slice(last), `${key}-t${i}`));
+  return out;
 }
 
 function renderItalic(text: string, key: string): ReactNode[] {

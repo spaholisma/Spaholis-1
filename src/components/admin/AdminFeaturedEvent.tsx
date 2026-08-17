@@ -2,10 +2,10 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Sparkles, CalendarPlus } from "lucide-react";
 import { ImageUploadField } from "./ImageUploadField";
+import { MarkdownTextarea } from "./MarkdownTextarea";
 import { toast } from "sonner";
 
 const CATEGORIES = ["Special Event", "Workshop", "Sound Bath", "Breathwork", "Meditation", "Yoga", "Fitness"];
@@ -121,9 +121,9 @@ export function AdminFeaturedEvent() {
 
         <div className="space-y-1.5">
           <Label className="font-body text-sm">Description</Label>
-          <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="What the event is about…" className="min-h-[90px]" />
+          <MarkdownTextarea value={form.description} onChange={(v) => set("description", v)} placeholder="What the event is about…" className="min-h-[90px]" />
           <p className="text-[11px] text-muted-foreground">
-            Tip: add links with <code className="bg-muted px-1 rounded">[text](https://…)</code> — e.g. <code className="bg-muted px-1 rounded">[contraindications](https://…)</code>. Also <code className="bg-muted px-1 rounded">**bold**</code> / <code className="bg-muted px-1 rounded">*italic*</code>.
+            Select a word and click <span className="font-medium">Link</span> to name it — or just paste a URL and it becomes a link.
           </p>
         </div>
 
@@ -188,16 +188,16 @@ export function AdminFeaturedEvent() {
           <Label className="font-body text-sm">
             Info note <span className="text-muted-foreground">(optional — how to pay or contribute; great for donation-based events)</span>
           </Label>
-          <Textarea
+          <MarkdownTextarea
             value={form.info}
-            onChange={(e) => set("info", e.target.value)}
+            onChange={(v) => set("info", v)}
             placeholder={form.pricing === "donation"
               ? "This is a donation-based event — contribute what feels right. Cash at the studio or SINPE to 8814 6760. All are welcome."
               : "Any extra details guests should know…"}
             className="min-h-[80px]"
           />
           <p className="text-[11px] text-muted-foreground">
-            Supports links: <code className="bg-muted px-1 rounded">[text](https://…)</code> (shown on the booking page).
+            Links supported (shown on the booking page). Select text + <span className="font-medium">Link</span>, or paste a URL.
           </p>
         </div>
 
