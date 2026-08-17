@@ -3,6 +3,7 @@ import { formatCRC } from "@/lib/currency";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { RichText } from "@/components/ui/rich-text";
 import { Input } from "@/components/ui/input";
 import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField";
 import { Navbar } from "@/components/Navbar";
@@ -744,7 +745,7 @@ const ClassBookingPage = () => {
                       How to pay
                     </p>
                     <p className="font-body text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
-                      {(cls as any).payment_instructions}
+                      <RichText value={(cls as any).payment_instructions} />
                     </p>
                   </div>
                 </div>

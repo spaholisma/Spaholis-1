@@ -196,6 +196,9 @@ export function AdminFeaturedEvent() {
               : "Any extra details guests should know…"}
             className="min-h-[80px]"
           />
+          <p className="text-[11px] text-muted-foreground">
+            Supports links: <code className="bg-muted px-1 rounded">[text](https://…)</code> (shown on the booking page).
+          </p>
         </div>
 
         <div className="space-y-1.5">
