@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { formatCRC, formatUsdRef } from "@/lib/currency";
+import { formatCRC } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -144,9 +144,8 @@ export function AdminServicesManager() {
                 </select>
               </div>
               <div>
-                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price (₡ CRC)</label>
+                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price ($ USD)</label>
                 <Input type="number" step="1" value={editing.price} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} />
-                <p className="text-xs text-muted-foreground mt-1 font-body">{formatUsdRef(editing.price)} (reference only)</p>
               </div>
               <div>
                 <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Duration (min)</label>

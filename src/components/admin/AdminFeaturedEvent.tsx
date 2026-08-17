@@ -163,7 +163,7 @@ export function AdminFeaturedEvent() {
         <div className="grid sm:grid-cols-3 gap-4">
           {form.pricing === "fixed" && (
             <div className="space-y-1.5">
-              <Label className="font-body text-sm">Price (₡)</Label>
+              <Label className="font-body text-sm">Price ($ USD)</Label>
               <Input type="number" min={0} value={form.price} onChange={(e) => set("price", parseFloat(e.target.value) || 0)} />
             </div>
           )}

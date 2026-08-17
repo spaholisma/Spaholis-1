@@ -9,13 +9,12 @@ import { Receipt, Send, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 type Kind = "purchase" | "refund" | "commission" | "teacher";
-type Currency = "CRC" | "USD";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function formatAmount(amount: string, currency: Currency): string {
-  const symbol = currency === "USD" ? "$" : "₡";
-  const suffix = currency === "USD" ? " USD" : " CRC";
+function formatAmount(amount: string): string {
+  const symbol = "$";
+  const suffix = " USD";
   const raw = amount.trim();
   const num = Number(raw.replace(/[,\s]/g, ""));
   const shown = raw !== "" && !Number.isNaN(num)
@@ -74,7 +73,6 @@ export function AdminSendReceipt() {
   const [to, setTo] = useState("");
   const [guestName, setGuestName] = useState("");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<Currency>("CRC");
   const [concept, setConcept] = useState("");
   const [date, setDate] = useState(todayISO());
   const [reference, setReference] = useState("");
@@ -90,7 +88,7 @@ export function AdminSendReceipt() {
   }, [date]);
 
   const previewHtml = useMemo(() => {
-    const amountLabel = formatAmount(amount || "0", currency);
+    const amountLabel = formatAmount(amount || "0");
     const firstName = guestName.trim().split(/\s+/)[0] || "there";
     const fullName = guestName.trim() || firstName;
     const box = receiptBox(kind, amountLabel, paidTo, concept, prettyDate, reference);
@@ -118,7 +116,7 @@ ${box}
       ? `If you have any questions about this refund, just reply to this email and we'll be happy to help. 🌺`
       : `We appreciate your trust and look forward to seeing you soon. 🌺`;
     return renderShell(heading, `<p>${intro}</p>${box}<p>${outro}</p>`);
-  }, [kind, guestName, amount, currency, paidTo, concept, prettyDate, reference]);
+  }, [kind, guestName, amount, paidTo, concept, prettyDate, reference]);
 
   const canSend = EMAIL_RE.test(to.trim()) && amount.trim() !== "" && !sending;
 
@@ -132,7 +130,7 @@ ${box}
       const { data, error } = await supabase.functions.invoke("send-receipt", {
         body: {
           kind, to: to.trim(), guest_name: guestName.trim(), amount: amount.trim(),
-          currency, concept: concept.trim(), date: prettyDate, reference: reference.trim(),
+          currency: "USD", concept: concept.trim(), date: prettyDate, reference: reference.trim(),
           paid_to: paidTo.trim(), cc_admin: ccAdmin,
         },
       });
@@ -189,28 +187,9 @@ ${box}
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="r-amount" className="font-body text-sm">Amount *</Label>
-              <Input id="r-amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="25000" inputMode="decimal" maxLength={20} />
-            </div>
-            <div className="space-y-2">
-              <Label className="font-body text-sm">Currency</Label>
-              <div className="mt-0.5 inline-flex rounded-xl border border-border p-1 bg-muted/40">
-                {(["CRC", "USD"] as Currency[]).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setCurrency(c)}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-body font-medium transition-colors ${
-                      currency === c ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {c === "CRC" ? "₡ CRC" : "$ USD"}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="r-amount" className="font-body text-sm">Amount ($ USD) *</Label>
+            <Input id="r-amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="150" inputMode="decimal" maxLength={20} />
           </div>
 
           <div className="space-y-2">

@@ -396,7 +396,7 @@ export function AdminEventsManager() {
             <div>
               <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Custom price label</label>
               <Input
-                placeholder="e.g. ₡12,500 CRC — leave blank to show the $ price"
+                placeholder="e.g. Free / By donation — leave blank to show the $ price"
                 value={editing.price_label || ""}
                 onChange={(e) => setEditing({ ...editing, price_label: e.target.value || null })}
               />

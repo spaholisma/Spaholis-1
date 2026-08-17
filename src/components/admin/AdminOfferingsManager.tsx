@@ -260,9 +260,8 @@ export function AdminOfferingsManager() {
                   </Select>
                 </div>
                 <div>
-                  <label className="font-body text-sm font-medium mb-1.5 block">Price (₡ CRC) *</label>
+                  <label className="font-body text-sm font-medium mb-1.5 block">Price ($ USD) *</label>
                   <Input type="number" step="1" min="0" value={editing.price ?? 0} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} />
-                  <p className="text-xs text-muted-foreground mt-1 font-body">{formatUsdRef(editing.price)} (reference only)</p>
                 </div>
               </div>
 

@@ -121,7 +121,7 @@ function sampleVars(category: string): Record<string, string> {
   if (category === "receipts") {
     const receipt_box = `<div style="background:#f3f6f6;border-radius:12px;padding:20px;margin:20px 0;">
       <p style="margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount paid</p>
-      <p style="margin:0 0 12px;font-size:28px;font-weight:bold;color:#2F2F2F;">₡25,000 CRC</p>
+      <p style="margin:0 0 12px;font-size:28px;font-weight:bold;color:#2F2F2F;">$250</p>
       <table style="width:100%;border-collapse:collapse;border-top:1px solid #e2e8e8;">
         <tr><td style="padding:8px 0;color:#666;font-size:14px;">Paid to</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">Ana López</td></tr>
         <tr><td style="padding:8px 0;color:#666;font-size:14px;">Concept</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#2F2F2F;">Monthly membership</td></tr>
@@ -130,7 +130,7 @@ function sampleVars(category: string): Record<string, string> {
       </table>
     </div>`;
     return {
-      guest_name: "Ana", amount: "₡25,000 CRC", paid_to: "Ana López", concept: "Monthly membership",
+      guest_name: "Ana", amount: "$250", paid_to: "Ana López", concept: "Monthly membership",
       date: "August 3, 2026", reference: "HOLIS-0042", receipt_box,
     };
   }

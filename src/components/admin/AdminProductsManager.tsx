@@ -233,14 +233,12 @@ export function AdminProductsManager() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price (₡ CRC)</label>
+                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Price ($ USD)</label>
                 <Input type="number" step="1" value={editing.price} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} />
-                <p className="text-xs text-muted-foreground mt-1 font-body">{formatUsdRef(editing.price)} (reference only)</p>
               </div>
               <div>
-                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Compare-at price (₡ CRC)</label>
+                <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Compare-at price ($ USD)</label>
                 <Input type="number" step="1" value={editing.compare_at_price ?? ""} onChange={(e) => setEditing({ ...editing, compare_at_price: e.target.value ? Number(e.target.value) : null })} />
-                {editing.compare_at_price ? <p className="text-xs text-muted-foreground mt-1 font-body">{formatUsdRef(editing.compare_at_price)} (reference only)</p> : null}
               </div>
               <div>
                 <label className="font-body text-sm font-medium text-foreground mb-1.5 block">SKU</label>

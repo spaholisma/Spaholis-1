@@ -141,9 +141,8 @@ function PackageCard({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-body font-medium text-muted-foreground mb-1 block">Price (₡ CRC)</label>
+              <label className="text-xs font-body font-medium text-muted-foreground mb-1 block">Price ($ USD)</label>
               <Input type="number" value={meta.price} onChange={e => setMeta(p => ({ ...p, price: Number(e.target.value) }))} />
-              <p className="text-[10px] text-muted-foreground mt-1 font-body">{formatUsdRef(meta.price)} (reference only)</p>
             </div>
             <div>
               <label className="text-xs font-body font-medium text-muted-foreground mb-1 block">Booking URL</label>
