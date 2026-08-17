@@ -122,6 +122,9 @@ export function AdminFeaturedEvent() {
         <div className="space-y-1.5">
           <Label className="font-body text-sm">Description</Label>
           <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="What the event is about…" className="min-h-[90px]" />
+          <p className="text-[11px] text-muted-foreground">
+            Tip: add links with <code className="bg-muted px-1 rounded">[text](https://…)</code> — e.g. <code className="bg-muted px-1 rounded">[contraindications](https://…)</code>. Also <code className="bg-muted px-1 rounded">**bold**</code> / <code className="bg-muted px-1 rounded">*italic*</code>.
+          </p>
         </div>
 
         <ImageUploadField fieldId="featured-event-image" label="Flyer / image" value={form.image} onChange={(v) => set("image", v)} />

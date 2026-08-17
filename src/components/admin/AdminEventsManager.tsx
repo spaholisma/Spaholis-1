@@ -384,6 +384,9 @@ export function AdminEventsManager() {
             />
           </div>
         </div>
+        <p className="text-[11px] text-muted-foreground -mt-2">
+          Tip: add links with <code className="bg-muted px-1 rounded">[text](https://…)</code> — e.g. <code className="bg-muted px-1 rounded">[contraindications](https://…)</code>. Also <code className="bg-muted px-1 rounded">**bold**</code> / <code className="bg-muted px-1 rounded">*italic*</code>.
+        </p>
 
         {/* Featured + pay-to-teacher (for one-off special events) */}
         <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">

@@ -6,6 +6,7 @@ import type { ScheduleRow } from "@/hooks/useClasses";
 import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
 import { formatCRC } from "@/lib/currency";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
+import { RichText } from "@/components/ui/rich-text";
 
 // Branded default shown whenever a class has no image (or a broken one).
 const fallbackImg = "/class-placeholder.jpg";
@@ -56,7 +57,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
         {cls.description && (
           <div className="max-w-md mx-auto">
             <p className={`spa-body-sm whitespace-pre-line ${expanded ? "" : "line-clamp-3"}`}>
-              {cls.description}
+              <RichText value={cls.description} />
             </p>
             {isLong && (
               <button

@@ -6,6 +6,7 @@ import { CalendarDays, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { useUpcomingEvents, type ScheduleRow } from "@/hooks/useClasses";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatCRC } from "@/lib/currency";
+import { RichText } from "@/components/ui/rich-text";
 
 /**
  * A prominent, self-hiding highlight for one-off featured classes/workshops.
@@ -94,7 +95,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
 
             {variant === "full" && cls.description && (
               <p className="hidden md:block font-body text-[13px] sm:text-sm text-spa-cream/80 leading-relaxed mb-3 line-clamp-4">
-                {cls.description}
+                <RichText value={cls.description} />
               </p>
             )}
 
