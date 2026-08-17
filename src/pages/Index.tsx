@@ -87,6 +87,11 @@ const Index = () => {
                   <Link to={hero.tertiaryCta.link}>{hero.tertiaryCta.text}</Link>
                 </Button>
               )}
+              {(hero as any).quaternaryCta && (
+                <Button variant="ghost" size="xl" className="text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10 border border-spa-cream/30" asChild>
+                  <Link to={(hero as any).quaternaryCta.link}>{(hero as any).quaternaryCta.text}</Link>
+                </Button>
+              )}
             </div>
           </motion.div>
         </div>

@@ -129,6 +129,7 @@ export const content = {
     primaryCta: { text: "Book Your Free Consultation", link: "/book?service=consultation" },
     secondaryCta: { text: "Explore Treatments", link: "/treatments-therapies" },
     tertiaryCta: { text: "Explore Classes", link: "/classes" },
+    quaternaryCta: { text: "Request Craniosacral Therapy", link: "/craniosacral-therapy-manuel-antonio" },
     backgroundImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg",
     backgroundAlt: "Holis Wellness Center",
   },
@@ -187,9 +188,9 @@ export const content = {
     note: "No extra cost — we come to you!",
   },
 
-  // ── Homepage "Discover Craniosacral Therapy" highlight ──
+  // ── Homepage "Discover Craniosacral Therapy" highlight (disabled — using the hero button instead) ──
   craniosacralPromo: {
-    enabled: true,
+    enabled: false,
     image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
     eyebrow: "New at Holis",
     title: "Discover Craniosacral Therapy",
