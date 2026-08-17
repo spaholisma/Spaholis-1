@@ -223,6 +223,16 @@ const BookingPage = () => {
     currentService?.title
   );
 
+  const isRetreat = currentService?.category === "Wellness Retreats" || currentService?.type === "program";
+  // Per-treatment "we come to you" availability (admin-controlled). Defaults to
+  // allowed when the field is missing; retreats never use a location visit.
+  const locationAllowed = ((currentService as any)?.location_available ?? true) && !isRetreat;
+  // If a service that can't be done at your location gets selected while the
+  // location option was on (e.g. from ?location=1), fall back to studio slots.
+  useEffect(() => {
+    if (!locationAllowed && locationVisit) setLocationVisit(false);
+  }, [locationAllowed, locationVisit]);
+
   // Intercept consultation flow (after all hooks)
   if (preselected === "consultation") {
     return <ConsultationForm />;
@@ -272,15 +282,6 @@ const BookingPage = () => {
   }
 
   const steps = getStepKeys(currentService);
-  const isRetreat = currentService?.category === "Wellness Retreats" || currentService?.type === "program";
-  // Per-treatment "we come to you" availability (admin-controlled). Defaults to
-  // allowed when the field is missing; retreats never use a location visit.
-  const locationAllowed = ((currentService as any)?.location_available ?? true) && !isRetreat;
-  // If a service that can't be done at your location gets selected while the
-  // location option was on (e.g. from ?location=1), fall back to studio slots.
-  useEffect(() => {
-    if (!locationAllowed && locationVisit) setLocationVisit(false);
-  }, [locationAllowed, locationVisit]);
   const checkoutStepIdx = steps.indexOf("booking.steps.checkout");
   const needsPayment = checkoutStepIdx >= 0;
   const serviceLocked = !!selectedService;

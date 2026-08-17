@@ -129,7 +129,7 @@ export const content = {
     primaryCta: { text: "Book Your Free Consultation", link: "/book?service=consultation" },
     secondaryCta: { text: "Explore Treatments", link: "/treatments-therapies" },
     tertiaryCta: { text: "Explore Classes", link: "/classes" },
-    quaternaryCta: { text: "Request Craniosacral Therapy", link: "/craniosacral-therapy-manuel-antonio" },
+    quaternaryCta: { text: "Discover Craniosacral Therapy", link: "/craniosacral-therapy-manuel-antonio" },
     backgroundImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg",
     backgroundAlt: "Holis Wellness Center",
   },
@@ -1049,7 +1049,7 @@ export const content = {
       "Craniosacral Therapy is a gentle, hands-on practice that invites deep relaxation and greater awareness of the body.",
       "At Holis Wellness Center in Manuel Antonio, each session is offered personally by Evelina Bolognini, founder of Holis, in a quiet, supportive environment.",
     ],
-    bookCta: "Book a Craniosacral session",
+    bookCta: "Request a Craniosacral session",
     bookLink: "/book?service=0a5bfae5-e7b5-4259-b933-645fcff07409",
     whatTitle: "What is Craniosacral Therapy?",
     whatText: [
@@ -1086,7 +1086,7 @@ export const content = {
       "You only need curiosity and a willingness to slow down.",
     ],
     experienceMeta: ["Private session", "Holis Wellness Center", "Manuel Antonio, Costa Rica"],
-    bookCta2: "Book your session",
+    bookCta2: "Request your session",
     faqTitle: "FAQ",
     faqs: [
       { question: "Is Craniosacral Therapy the same as massage?", answer: "No. Craniosacral Therapy uses a much lighter touch and provides a very different experience from traditional massage." },
