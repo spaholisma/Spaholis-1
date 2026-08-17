@@ -34,6 +34,7 @@ const Index = () => {
   const { hero, signatureExperiences, movement, testimonials: testimonialsContent, cta } = c;
   const trReviews: any[] = (testimonialsContent as any).reviews || (defaultContent as any).testimonials.reviews || [];
   const inHouse = (c as any).inHouse || (defaultContent as any).inHouse;
+  const csPromo = (c as any).craniosacralPromo || (defaultContent as any).craniosacralPromo;
   const googleReviews = (c as any).googleReviews || (defaultContent as any).googleReviews;
   const googleReviewsList: { name: string; text: string; rating: number; context: string; date: string }[] =
     (googleReviews?.reviews || []).filter((r: any) => r?.text?.trim());
@@ -162,6 +163,30 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Discover Craniosacral Therapy */}
+      {csPromo?.enabled && (
+        <section className="spa-section">
+          <motion.div {...fadeIn} className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            <Link to={csPromo.link} className="group rounded-2xl overflow-hidden aspect-[4/3] lg:aspect-[5/4] block">
+              <img
+                src={csPromo.image}
+                alt={csPromo.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                loading="lazy"
+              />
+            </Link>
+            <div>
+              <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">{csPromo.eyebrow}</p>
+              <h2 className="spa-heading-lg text-foreground mb-4">{csPromo.title}</h2>
+              <p className="spa-body mb-8 max-w-lg">{csPromo.text}</p>
+              <Button variant="spa" size="lg" asChild>
+                <Link to={csPromo.link}>{csPromo.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+            </div>
+          </motion.div>
+        </section>
+      )}
 
       {/* Movement */}
       <section className="spa-section">

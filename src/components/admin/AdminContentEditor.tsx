@@ -594,6 +594,7 @@ export function AdminContentEditor() {
     signatureExperiences: "✨ Signature Experiences (Homepage)",
     movement: "🏃 Movement & Classes",
     inHouse: "🏠 In-Home / On-Location Banner (Homepage)",
+    craniosacralPromo: "🌊 Craniosacral Highlight (Homepage)",
     testimonials: "⭐ Testimonials (Tripadvisor)",
     googleReviews: "🌟 Google Reviews",
     cta: "📢 Call to Action",

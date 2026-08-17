@@ -187,6 +187,17 @@ export const content = {
     note: "No extra cost — we come to you!",
   },
 
+  // ── Homepage "Discover Craniosacral Therapy" highlight ──
+  craniosacralPromo: {
+    enabled: true,
+    image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
+    eyebrow: "New at Holis",
+    title: "Discover Craniosacral Therapy",
+    text: "A gentle, hands-on practice that invites deep relaxation and greater awareness of the body — offered personally by Evelina Bolognini. A space to slow down, listen and reconnect.",
+    cta: "Discover Craniosacral Therapy",
+    link: "/craniosacral-therapy-manuel-antonio",
+  },
+
   // ── Homepage Movement Section ──
   movement: {
     eyebrow: "Movement is Medicine",
