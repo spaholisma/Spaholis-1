@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { useUpcomingEvents, type ScheduleRow } from "@/hooks/useClasses";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatCRC } from "@/lib/currency";
@@ -38,7 +38,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
   // Auto-rotate through the featured events.
   useEffect(() => {
     if (count <= 1) return;
-    const t = setInterval(() => setIdx((i) => (i + 1) % count), 6000);
+    const t = setInterval(() => setIdx((i) => (i + 1) % count), 5000);
     return () => clearInterval(t);
   }, [count]);
   useEffect(() => {
@@ -121,6 +121,28 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
           </div>
         </motion.div>
       </div>
+
+      {/* Prev / next arrows */}
+      {count > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setIdx((i) => (i - 1 + count) % count)}
+            aria-label="Previous event"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-spa-charcoal/30 hover:bg-spa-charcoal/50 text-spa-cream flex items-center justify-center transition-colors backdrop-blur-sm"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIdx((i) => (i + 1) % count)}
+            aria-label="Next event"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-spa-charcoal/30 hover:bg-spa-charcoal/50 text-spa-cream flex items-center justify-center transition-colors backdrop-blur-sm"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
 
       {/* Rotation dots */}
       {count > 1 && (
