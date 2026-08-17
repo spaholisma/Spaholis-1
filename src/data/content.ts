@@ -96,6 +96,11 @@ export const seo = {
     description: "Find certified Somato Awareness System practitioners trained at Holis Wellness Center.",
     canonical: "/sas-practitioners",
   },
+  craniosacral: {
+    title: "Craniosacral Therapy in Manuel Antonio, Costa Rica",
+    description: "Experience a gentle, restorative Craniosacral Therapy session with Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/craniosacral-therapy-manuel-antonio",
+  },
 } as const;
 
 export const content = {
@@ -1021,6 +1026,63 @@ export const content = {
     label: string;
     placeholder: string;
   }[],
+
+  // ── Craniosacral Therapy landing page ──
+  craniosacral: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
+    heroTitle: "Craniosacral Therapy",
+    heroSubtitle: "A gentle invitation to slow down, listen and reconnect.",
+    heroText: [
+      "Sometimes what the body needs most is not more activity, but space to settle.",
+      "Craniosacral Therapy is a gentle, hands-on practice that invites deep relaxation and greater awareness of the body.",
+      "At Holis Wellness Center in Manuel Antonio, each session is offered personally by Evelina Bolognini, founder of Holis, in a quiet, supportive environment.",
+    ],
+    bookCta: "Book a Craniosacral session",
+    bookLink: "/book?service=0a5bfae5-e7b5-4259-b933-645fcff07409",
+    whatTitle: "What is Craniosacral Therapy?",
+    whatText: [
+      "Craniosacral Therapy is a subtle form of bodywork that uses a very light touch.",
+      "Rather than manipulating muscles or applying deep pressure, the practitioner listens through touch and works gently with the body.",
+      "For many people, the experience creates an opportunity to become quiet, rest deeply and notice sensations that are easily overlooked in everyday life.",
+      "It is a very different experience from massage — and that is precisely what makes it interesting.",
+    ],
+    feelTitle: "What does a session feel like?",
+    feelText: [
+      "A session takes place fully clothed on a comfortable treatment table.",
+      "Evelina uses gentle contact at different areas of the body while you rest.",
+      "There is nothing you need to accomplish.",
+      "Some people experience profound relaxation. Others become more aware of their breathing, tension patterns or subtle sensations in the body.",
+      "Every experience is individual.",
+    ],
+    slowTitle: "A different kind of wellness experience in Manuel Antonio",
+    slowText: [
+      "Manuel Antonio is a place to explore, move and experience nature.",
+      "It can also be a beautiful place to slow down.",
+      "If your life has been filled with responsibility, work, travel, stress… a Craniosacral session offers something completely different: time to simply receive, rest and reconnect with yourself.",
+    ],
+    practitionerEyebrow: "Your Practitioner",
+    practitionerName: "Evelina Bolognini",
+    practitionerText: [
+      "Your Craniosacral Therapy session is offered personally by Evelina Bolognini, founder of Holis Wellness Center.",
+      "Her work brings together years of exploration of movement, body awareness and holistic approaches to wellbeing.",
+    ],
+    meetCta: "Meet Evelina →",
+    meetLink: "/about#founder",
+    experienceTitle: "Experience Craniosacral Therapy at Holis",
+    experienceText: [
+      "You don't need previous experience with Craniosacral Therapy.",
+      "You only need curiosity and a willingness to slow down.",
+    ],
+    experienceMeta: ["Private session", "Holis Wellness Center", "Manuel Antonio, Costa Rica"],
+    bookCta2: "Book your session",
+    faqTitle: "FAQ",
+    faqs: [
+      { question: "Is Craniosacral Therapy the same as massage?", answer: "No. Craniosacral Therapy uses a much lighter touch and provides a very different experience from traditional massage." },
+      { question: "Do I remain clothed?", answer: "Yes. Sessions are generally experienced fully clothed in comfortable clothing." },
+      { question: "I've never tried Craniosacral Therapy. Is that okay?", answer: "Absolutely. No previous experience is necessary." },
+      { question: "Can I book while I'm visiting Manuel Antonio?", answer: "Yes. Visitors are welcome to book an individual session during their stay." },
+    ],
+  },
 
   // ── WhatsApp Button ──
   // NOTE: `link` is derived from src/data/contact.ts — never hardcode a wa.me URL here.
