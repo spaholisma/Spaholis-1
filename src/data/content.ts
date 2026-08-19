@@ -1104,17 +1104,13 @@ export const content = {
 
   // ── Private GYROTONIC® landing page ──
   gyrotonic: {
-    // Short YouTube clip shown in the hero (Evelina working on the equipment).
+    // Self-hosted hero clip (muted, seamless loop) — takes priority over YouTube.
+    heroVideoSrc: "/media/gyrotonic-hero.mp4",
+    // Fallback still: the blurred fill behind the video and the frame before play.
+    heroPoster: "/media/gyrotonic-hero.jpg",
+    // Legacy YouTube fallback — only used if heroVideoSrc is cleared.
     heroVideoId: "aXTLmcgTIcw",
-    // The hero plays a curated segment of the clip on loop, muted & blurred, as
-    // a background. Tune the "best parts" here (seconds). heroClipEnd 0 = play to
-    // the end of the video before looping.
-    // The hero plays these [startSec, endSec] segments back-to-back on loop —
-    // just the best bits. Edit/add pairs to re-cut the montage.
     heroClipSegments: [[8, 18], [75, 95]] as [number, number][],
-    // Fallback still shown behind the video (and if autoplay is blocked, e.g. on
-    // some phones). Defaults to the clip's own YouTube thumbnail.
-    heroPoster: "https://img.youtube.com/vi/aXTLmcgTIcw/maxresdefault.jpg",
     fullVideoUrl: "https://youtu.be/aXTLmcgTIcw",
     watchFullText: "Watch the full video here →",
     eyebrow: "Discover a New Way to Move",

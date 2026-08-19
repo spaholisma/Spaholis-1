@@ -158,6 +158,37 @@ const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; seg
   );
 };
 
+/**
+ * Self-hosted hero clip as a clean, full-bleed background: no player chrome,
+ * seamless loop, no buffering. The video is shown WHOLE (object-contain) so the
+ * subject is never cropped, over a heavily-blurred fill that keeps the hero
+ * edge-to-edge; a soft blur matches the mood.
+ */
+const NativeVideoBackground = ({ src, poster }: { src: string; poster?: string }) => (
+  <div className="absolute inset-0 overflow-hidden bg-spa-charcoal">
+    {poster && (
+      <img
+        src={poster}
+        alt=""
+        aria-hidden
+        className="absolute inset-0 h-full w-full object-cover scale-110"
+        style={{ filter: "blur(18px)" }}
+      />
+    )}
+    <video
+      src={src}
+      poster={poster}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+      style={{ filter: "blur(2px)" }}
+    />
+  </div>
+);
+
 const GyrotonicPage = () => {
   const { data: siteContent } = useSiteContent();
   const { data: seoData } = useSiteSeo();
@@ -173,9 +204,11 @@ const GyrotonicPage = () => {
           min-height (not fixed) so the copy-heavy hero grows on small screens
           instead of hiding under the navbar; py clears the fixed menu. */}
       <section className="relative min-h-[90vh] overflow-hidden">
-        {c.heroVideoId
-          ? <YouTubeBackground videoId={c.heroVideoId} segments={(c.heroClipSegments as [number, number][]) || []} poster={c.heroPoster} />
-          : <div className="absolute inset-0 bg-spa-charcoal" />}
+        {c.heroVideoSrc
+          ? <NativeVideoBackground src={c.heroVideoSrc} poster={c.heroPoster} />
+          : c.heroVideoId
+            ? <YouTubeBackground videoId={c.heroVideoId} segments={(c.heroClipSegments as [number, number][]) || []} poster={c.heroPoster} />
+            : <div className="absolute inset-0 bg-spa-charcoal" />}
         <div className="absolute inset-0 bg-spa-charcoal/60" />
         <div className="relative z-10 flex items-center justify-center min-h-[90vh] px-4 sm:px-6 lg:px-8 pt-28 pb-16">
           <motion.div {...fadeIn} className="w-full max-w-3xl text-center">
