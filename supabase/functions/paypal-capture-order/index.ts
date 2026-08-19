@@ -69,23 +69,32 @@ Deno.serve(async (req) => {
     const t = rec.target ?? {};
 
     if (rec.kind === "class") {
-      // Claim a spot atomically; if the class just filled, still honour the paid
-      // booking (staff can reconcile) but note it.
-      const { data: remaining } = await admin.rpc("decrement_class_spot", { _schedule_id: t.schedule_id });
-      const overbooked = remaining === null || remaining === undefined;
+      // One paid booking row per spot. Claim each spot atomically; if the class
+      // just filled, still honour the paid booking (staff can reconcile) but note it.
+      const qty = Math.max(1, Math.min(Number(t.quantity ?? 1), 10));
+      const perSpot = Math.round((Number(rec.amount) / qty) * 100) / 100;
+      const bookingIds: string[] = [];
+      let overbooked = false;
+      for (let i = 0; i < qty; i++) {
+        const { data: remaining } = await admin.rpc("decrement_class_spot", { _schedule_id: t.schedule_id });
+        const spotOverbooked = remaining === null || remaining === undefined;
+        if (spotOverbooked) overbooked = true;
 
-      const bookingId = crypto.randomUUID();
-      const { error: insErr } = await admin.from("class_bookings").insert({
-        id: bookingId, schedule_id: t.schedule_id,
-        guest_name: t.guest_name, guest_email: t.guest_email, guest_phone: t.guest_phone || null,
-        status: "confirmed", payment_status: "paid", payment_method: "paypal",
-        coupon_code: t.coupon_code || null, total_price: rec.amount,
-      });
-      if (insErr) { if (!overbooked) await admin.rpc("increment_class_spot", { _schedule_id: t.schedule_id }); throw insErr; }
+        const bookingId = crypto.randomUUID();
+        const { error: insErr } = await admin.from("class_bookings").insert({
+          id: bookingId, schedule_id: t.schedule_id,
+          guest_name: t.guest_name, guest_email: t.guest_email, guest_phone: t.guest_phone || null,
+          status: "confirmed", payment_status: "paid", payment_method: "paypal",
+          coupon_code: i === 0 ? (t.coupon_code || null) : null, total_price: perSpot,
+        });
+        if (insErr) { if (!spotOverbooked) await admin.rpc("increment_class_spot", { _schedule_id: t.schedule_id }); throw insErr; }
+        bookingIds.push(bookingId);
+      }
 
-      await admin.from("paypal_orders").update({ status: "captured", class_booking_id: bookingId, updated_at: new Date().toISOString() }).eq("order_id", orderId);
-      try { await admin.functions.invoke("send-booking-notification", { body: { classBookingId: bookingId } }); } catch (e) { console.error("[paypal-capture-order] notify failed", e); }
-      return json({ ok: true, kind: "class", bookingId, overbooked });
+      await admin.from("paypal_orders").update({ status: "captured", class_booking_id: bookingIds[0], updated_at: new Date().toISOString() }).eq("order_id", orderId);
+      // One confirmation email to the guest (covers all their spots).
+      try { await admin.functions.invoke("send-booking-notification", { body: { classBookingId: bookingIds[0] } }); } catch (e) { console.error("[paypal-capture-order] notify failed", e); }
+      return json({ ok: true, kind: "class", bookingId: bookingIds[0], bookingIds, quantity: qty, overbooked });
     }
 
     // offering

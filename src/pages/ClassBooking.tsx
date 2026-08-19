@@ -66,10 +66,18 @@ const ClassBookingPage = () => {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  // How many spots to book at once (e.g. bringing friends). Multi-spot always
+  // pays by card — memberships/credits are personal and stay at one spot.
+  const [quantity, setQuantity] = useState(1);
 
   const cls = event?.classes;
   const needsPayment = cls?.requires_payment && cls.price > 0;
   const classId = cls?.id ?? "";
+
+  const spotsRemaining = (event as any)?.spots_remaining as number | null | undefined;
+  const maxQty = Math.max(1, Math.min(spotsRemaining == null ? 10 : Number(spotsRemaining), 10));
+  const multi = quantity > 1;
+  useEffect(() => { setQuantity((q) => Math.min(Math.max(1, q), maxQty)); }, [maxQty]);
 
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId
@@ -119,35 +127,39 @@ const ClassBookingPage = () => {
     paymentStatus: string;
     paymentMethod: PayMethod | "free";
     userOfferingId?: string;
+    /** Number of spots to book (one row per spot). Defaults to one. */
+    count?: number;
   }) => {
     const basePrice = Number(cls?.price ?? 0);
     const discount = appliedCoupon?.discount ?? 0;
-    // Generate id client-side to avoid INSERT ... RETURNING being blocked by
-    // the SELECT RLS policy for anonymous guest bookings.
-    const newId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : undefined;
-    const bookingData: Record<string, any> = {
-      id: newId,
-      schedule_id: scheduleId,
-      guest_name: formData.name,
-      guest_email: formData.email,
-      guest_phone: formData.phone || null,
-      status: "booked",
-      payment_status: opts.paymentStatus,
-      payment_method: opts.paymentMethod,
-      user_offering_id: opts.userOfferingId ?? null,
-      coupon_code: appliedCoupon?.code ?? null,
-      discount_amount: discount,
-      total_price: opts.paymentMethod === "card" ? Math.max(0, basePrice - discount) : basePrice,
-    };
+    const count = Math.max(1, opts.count ?? 1);
     const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (currentSession?.user?.id) bookingData.user_id = currentSession.user.id;
+    const userId = currentSession?.user?.id;
 
-    const { error } = await supabase.from("class_bookings").insert(bookingData as any);
+    // One row per spot; ids are generated client-side to avoid INSERT ...
+    // RETURNING being blocked by the SELECT RLS policy for guest bookings.
+    const rows = Array.from({ length: count }).map(() => {
+      const row: Record<string, any> = {
+        id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : undefined,
+        schedule_id: scheduleId,
+        guest_name: formData.name,
+        guest_email: formData.email,
+        guest_phone: formData.phone || null,
+        status: "booked",
+        payment_status: opts.paymentStatus,
+        payment_method: opts.paymentMethod,
+        user_offering_id: opts.userOfferingId ?? null,
+        coupon_code: appliedCoupon?.code ?? null,
+        discount_amount: discount,
+        total_price: opts.paymentMethod === "card" ? Math.max(0, basePrice - discount) : basePrice,
+      };
+      if (userId) row.user_id = userId;
+      return row;
+    });
+
+    const { error } = await supabase.from("class_bookings").insert(rows as any);
     if (error) throw error;
-    return newId as string;
+    return rows[0].id as string;
   };
 
   const handleNext = async () => {
@@ -155,12 +167,12 @@ const ClassBookingPage = () => {
       if (!needsPayment) {
         setSubmitting(true);
         try {
-          const bookingId = await createClassBooking({ paymentStatus: "not_required", paymentMethod: "free" });
+          const bookingId = await createClassBooking({ paymentStatus: "not_required", paymentMethod: "free", count: quantity });
           // Fire-and-forget: send USD-formatted class confirmation email.
           supabase.functions
             .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
             .catch((e) => console.error("[class-booking] notify failed", e));
-          toast.success(t("booking.classBookedSuccess"));
+          toast.success(multi ? `Booked ${quantity} spots!` : t("booking.classBookedSuccess"));
           setBookingComplete(true);
           setStep(steps.length - 1);
         } catch (err: any) {
@@ -168,6 +180,14 @@ const ClassBookingPage = () => {
         } finally {
           setSubmitting(false);
         }
+        return;
+      }
+      // Multiple spots always pay by card (memberships/credits are personal).
+      if (multi) {
+        setPayMethod("card");
+        setSelectedOfferingId(null);
+        setUseLinkMembership(false);
+        setStep(1);
         return;
       }
       // Default to whichever redeemable option is available (logged-in first,
@@ -463,6 +483,24 @@ const ClassBookingPage = () => {
                     )}
 
                     <div className="space-y-4 max-w-md">
+                      {maxQty > 1 && (
+                        <div>
+                          <label className="font-body text-sm font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+                            <Users className="h-4 w-4 text-spa-sage" /> How many spots?
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <Button type="button" variant="outline" size="icon" className="h-10 w-10 text-lg" disabled={quantity <= 1} onClick={() => setQuantity((q) => Math.max(1, q - 1))}>−</Button>
+                            <span className="w-8 text-center font-heading text-lg font-semibold">{quantity}</span>
+                            <Button type="button" variant="outline" size="icon" className="h-10 w-10 text-lg" disabled={quantity >= maxQty} onClick={() => setQuantity((q) => Math.min(maxQty, q + 1))}>+</Button>
+                            {spotsRemaining != null && (
+                              <span className="text-xs text-muted-foreground font-body">{spotsRemaining} spot{spotsRemaining === 1 ? "" : "s"} left</span>
+                            )}
+                          </div>
+                          {multi && needsPayment && (
+                            <p className="text-xs text-muted-foreground mt-1.5 font-body">Multiple spots are paid by card.</p>
+                          )}
+                        </div>
+                      )}
                       <div>
                         <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
                         <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Jane Doe" />
@@ -494,7 +532,7 @@ const ClassBookingPage = () => {
                     <div className="max-w-md space-y-3">
 
                       {/* Recognized membership from the emailed link (no login) */}
-                      {tokenEligible && tokenOffering && (
+                      {!multi && tokenEligible && tokenOffering && (
                         <PayOption
                           icon={tokenOffering.is_unlimited ? <InfinityIcon className="h-4 w-4" /> : <Ticket className="h-4 w-4" />}
                           title="Use your membership"
@@ -508,7 +546,7 @@ const ClassBookingPage = () => {
                       )}
 
                       {/* Membership option */}
-                      {user && memberships.length > 0 && (
+                      {!multi && user && memberships.length > 0 && (
                         <PayOption
                           icon={<InfinityIcon className="h-4 w-4" />}
                           title="Use my membership"
@@ -525,7 +563,7 @@ const ClassBookingPage = () => {
                       )}
 
                       {/* Credits option */}
-                      {user && passes.length > 0 && (
+                      {!multi && user && passes.length > 0 && (
                         <PayOption
                           icon={<Ticket className="h-4 w-4" />}
                           title="Use class credits"
@@ -555,12 +593,14 @@ const ClassBookingPage = () => {
                       {/* Card */}
                       <PayOption
                         icon={<CreditCard className="h-4 w-4" />}
-                        title={`Pay ${formatCRC(cls.price)} by card`}
+                        title={multi
+                          ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
+                          : `Pay ${formatCRC(cls.price)} by card`}
                         selected={payMethod === "card"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
 
-                      {!user && !tokenEligible && (
+                      {!multi && !user && !tokenEligible && (
                         <p className="text-xs font-body text-muted-foreground px-1">
                           <Link to="/auth" className="underline">Sign in</Link> to use a membership or class credits.
                         </p>
@@ -607,6 +647,12 @@ const ClassBookingPage = () => {
                           <span className="font-body text-sm text-muted-foreground">Class</span>
                           <span className="font-body text-sm font-medium text-foreground">{cls.title}</span>
                         </div>
+                        {multi && (
+                          <div className="flex justify-between text-sm font-body text-muted-foreground mb-2">
+                            <span>Spots</span>
+                            <span>{quantity} × {formatCRC(Number(cls.price))}</span>
+                          </div>
+                        )}
                         {payMethod === "card" && appliedCoupon && (
                           <div className="flex justify-between text-sm font-body text-spa-sage mb-2">
                             <span>Coupon ({appliedCoupon.code})</span>
@@ -617,7 +663,7 @@ const ClassBookingPage = () => {
                           <span className="font-body text-sm font-semibold text-foreground">Total</span>
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
-                              ? formatCRC(Math.max(0, Number(cls.price) - (appliedCoupon?.discount ?? 0)))
+                              ? formatCRC(Math.max(0, quantity * Number(cls.price) - (appliedCoupon?.discount ?? 0)))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>
@@ -628,11 +674,11 @@ const ClassBookingPage = () => {
                           disabled={!formData.name || !formData.email}
                           createOrderBody={() =>
                             formData.name && formData.email
-                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null }
+                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null, quantity }
                               : null
                           }
                           onSuccess={() => {
-                            toast.success(t("booking.classBookedSuccess"));
+                            toast.success(multi ? `Booked ${quantity} spots!` : t("booking.classBookedSuccess"));
                             setBookingComplete(true);
                             setStep(steps.length - 1);
                           }}

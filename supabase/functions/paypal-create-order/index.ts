@@ -42,6 +42,8 @@ const Body = z.object({
   guest_email: z.string().trim().email().max(255).optional().nullable(),
   guest_phone: z.string().trim().max(40).optional().nullable(),
   user_id: z.string().uuid().optional().nullable(),
+  // Number of class spots to book in one payment (default 1).
+  quantity: z.number().int().min(1).max(10).optional(),
 });
 
 async function couponDiscount(admin: any, code: string | null | undefined, base: number, classId?: string) {
@@ -83,13 +85,15 @@ Deno.serve(async (req) => {
         .eq("id", body.schedule_id).maybeSingle();
       const cls: any = (sched as any)?.classes;
       if (!sched || !cls || cls.is_active === false) return json({ ok: false, reason: "class_unavailable" }, 404);
-      if (Number(sched.spots_remaining) <= 0) return json({ ok: false, reason: "class_full" }, 409);
+      const qty = Math.max(1, Math.min(Number(body.quantity ?? 1), 10));
+      if (Number(sched.spots_remaining) < qty) return json({ ok: false, reason: "class_full" }, 409);
       const base = Number(cls.price ?? 0);
+      // Coupon applies once to the whole order (not per spot).
       const discount = await couponDiscount(admin, body.coupon_code, base, String(cls.id));
-      amount = Math.max(0, Math.round((base - discount) * 100) / 100);
+      amount = Math.max(0, Math.round((base * qty - discount) * 100) / 100);
       if (amount <= 0) return json({ ok: false, reason: "class_is_free" }, 400);
-      description = `Class: ${cls.title}`;
-      target = { schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone, coupon_code: (body.coupon_code || "").trim().toUpperCase() || null };
+      description = qty > 1 ? `Class: ${cls.title} (${qty} spots)` : `Class: ${cls.title}`;
+      target = { schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone, coupon_code: (body.coupon_code || "").trim().toUpperCase() || null, quantity: qty };
     } else {
       if (!body.offering_id) return json({ ok: false, reason: "missing_offering" }, 400);
       const { data: off } = await admin.from("offerings").select("id, name, price, status").eq("id", body.offering_id).maybeSingle();
