@@ -1,227 +1,227 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://spaholis.com/</loc>
+    <loc>https://www.spaholis.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es"/>
   </url>
   <url>
-    <loc>https://spaholis.com/about</loc>
+    <loc>https://www.spaholis.com/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/about"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/about"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/about"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/about"/>
   </url>
   <url>
-    <loc>https://spaholis.com/treatments-therapies</loc>
+    <loc>https://www.spaholis.com/treatments-therapies</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/treatments-therapies"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/treatments-therapies"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/treatments-therapies"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/treatments-therapies"/>
   </url>
   <url>
-    <loc>https://spaholis.com/signature-treatments</loc>
+    <loc>https://www.spaholis.com/signature-treatments</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/signature-treatments"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/signature-treatments"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/signature-treatments"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/signature-treatments"/>
   </url>
   <url>
-    <loc>https://spaholis.com/book</loc>
+    <loc>https://www.spaholis.com/book</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/book"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/book"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/book"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/book"/>
   </url>
   <url>
-    <loc>https://spaholis.com/classes</loc>
+    <loc>https://www.spaholis.com/classes</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/classes"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/classes"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/classes"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/classes"/>
   </url>
   <url>
-    <loc>https://spaholis.com/classes/schedule</loc>
+    <loc>https://www.spaholis.com/classes/schedule</loc>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/classes/schedule"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/classes/schedule"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/classes/schedule"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/classes/schedule"/>
   </url>
   <url>
-    <loc>https://spaholis.com/private-sessions</loc>
+    <loc>https://www.spaholis.com/private-sessions</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/private-sessions"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/private-sessions"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/private-sessions"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/private-sessions"/>
   </url>
   <url>
-    <loc>https://spaholis.com/education</loc>
+    <loc>https://www.spaholis.com/education</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/education"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/education"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/education"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/education"/>
   </url>
   <url>
-    <loc>https://spaholis.com/gift-cards</loc>
+    <loc>https://www.spaholis.com/gift-cards</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/gift-cards"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/gift-cards"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/gift-cards"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/gift-cards"/>
   </url>
   <url>
-    <loc>https://spaholis.com/retreats</loc>
+    <loc>https://www.spaholis.com/retreats</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/retreats"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/retreats"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/retreats"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/retreats"/>
   </url>
   <url>
-    <loc>https://spaholis.com/retreats/beach-yoga-retreat</loc>
+    <loc>https://www.spaholis.com/retreats/beach-yoga-retreat</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/retreats/beach-yoga-retreat"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/retreats/beach-yoga-retreat"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/retreats/beach-yoga-retreat"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/retreats/beach-yoga-retreat"/>
   </url>
   <url>
-    <loc>https://spaholis.com/retreats/surf-yoga-retreat</loc>
+    <loc>https://www.spaholis.com/retreats/surf-yoga-retreat</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/retreats/surf-yoga-retreat"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/retreats/surf-yoga-retreat"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/retreats/surf-yoga-retreat"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/retreats/surf-yoga-retreat"/>
   </url>
   <url>
-    <loc>https://spaholis.com/retreats/holistic-balance-retreat</loc>
+    <loc>https://www.spaholis.com/retreats/holistic-balance-retreat</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/retreats/holistic-balance-retreat"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/retreats/holistic-balance-retreat"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/retreats/holistic-balance-retreat"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/retreats/holistic-balance-retreat"/>
   </url>
   <url>
-    <loc>https://spaholis.com/retreats/love-your-life-retreat</loc>
+    <loc>https://www.spaholis.com/retreats/love-your-life-retreat</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/retreats/love-your-life-retreat"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/retreats/love-your-life-retreat"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/retreats/love-your-life-retreat"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/retreats/love-your-life-retreat"/>
   </url>
   <url>
-    <loc>https://spaholis.com/custom-retreat</loc>
+    <loc>https://www.spaholis.com/custom-retreat</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/custom-retreat"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/custom-retreat"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/custom-retreat"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/custom-retreat"/>
   </url>
   <url>
-    <loc>https://spaholis.com/experience-booking</loc>
+    <loc>https://www.spaholis.com/experience-booking</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/experience-booking"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/experience-booking"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/experience-booking"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/experience-booking"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog</loc>
+    <loc>https://www.spaholis.com/blog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica</loc>
+    <loc>https://www.spaholis.com/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/affordable-yoga-and-holistic-wellbeing-retreats-in-costa-rica"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind</loc>
+    <loc>https://www.spaholis.com/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/breathwork-the-science-and-practice-of-using-the-breath-to-transform-body-and-mind"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center</loc>
+    <loc>https://www.spaholis.com/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/meet-florian-mode-your-expert-osteopath-at-holis-wellness-center"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred</loc>
+    <loc>https://www.spaholis.com/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/mindfulness-and-coffee-how-to-make-our-morning-ritual-sacred"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/mindfulness-returning-to-the-simplicity-of-being</loc>
+    <loc>https://www.spaholis.com/blog/mindfulness-returning-to-the-simplicity-of-being</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/mindfulness-returning-to-the-simplicity-of-being"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/mindfulness-returning-to-the-simplicity-of-being"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/mindfulness-returning-to-the-simplicity-of-being"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/mindfulness-returning-to-the-simplicity-of-being"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/things-to-do-manuel-antonio-costa-rica</loc>
+    <loc>https://www.spaholis.com/blog/things-to-do-manuel-antonio-costa-rica</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/things-to-do-manuel-antonio-costa-rica"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/things-to-do-manuel-antonio-costa-rica"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/things-to-do-manuel-antonio-costa-rica"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/things-to-do-manuel-antonio-costa-rica"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy</loc>
+    <loc>https://www.spaholis.com/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/unveiling-the-miraculous-benefits-of-molecular-hydrogen-therapy"/>
   </url>
   <url>
-    <loc>https://spaholis.com/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga</loc>
+    <loc>https://www.spaholis.com/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/blog/when-tradition-meets-the-modern-world-the-evolving-power-of-yoga"/>
   </url>
   <url>
-    <loc>https://spaholis.com/faqs</loc>
+    <loc>https://www.spaholis.com/faqs</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/faqs"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/faqs"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/faqs"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/faqs"/>
   </url>
   <url>
-    <loc>https://spaholis.com/sas-practitioners</loc>
+    <loc>https://www.spaholis.com/sas-practitioners</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/sas-practitioners"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/sas-practitioners"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/sas-practitioners"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/sas-practitioners"/>
   </url>
   <url>
-    <loc>https://spaholis.com/class-booking</loc>
+    <loc>https://www.spaholis.com/class-booking</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/class-booking"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/class-booking"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/class-booking"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/class-booking"/>
   </url>
   <url>
-    <loc>https://spaholis.com/terms</loc>
+    <loc>https://www.spaholis.com/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/terms"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/terms"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/terms"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/terms"/>
   </url>
   <url>
-    <loc>https://spaholis.com/privacy</loc>
+    <loc>https://www.spaholis.com/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/privacy"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/privacy"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/privacy"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/privacy"/>
   </url>
   <url>
-    <loc>https://spaholis.com/refund</loc>
+    <loc>https://www.spaholis.com/refund</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://spaholis.com/refund"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://spaholis.com/es/refund"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/refund"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/refund"/>
   </url>
 </urlset>

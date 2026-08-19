@@ -10,7 +10,7 @@ interface SEOProps {
 }
 
 const SITE_NAME = "Holis Wellness Center";
-const BASE_URL = "https://spaholis.com";
+const BASE_URL = "https://www.spaholis.com";
 const DEFAULT_OG_IMAGE = `${BASE_URL}/images/social-share.jpg`;
 
 export function SEO({ title, description, canonical, type = "website", image, jsonLd }: SEOProps) {
