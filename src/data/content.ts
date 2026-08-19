@@ -1109,8 +1109,9 @@ export const content = {
     // The hero plays a curated segment of the clip on loop, muted & blurred, as
     // a background. Tune the "best parts" here (seconds). heroClipEnd 0 = play to
     // the end of the video before looping.
-    heroClipStart: 8,
-    heroClipEnd: 50,
+    // The hero plays these [startSec, endSec] segments back-to-back on loop —
+    // just the best bits. Edit/add pairs to re-cut the montage.
+    heroClipSegments: [[8, 18], [75, 95]] as [number, number][],
     // Fallback still shown behind the video (and if autoplay is blocked, e.g. on
     // some phones). Defaults to the clip's own YouTube thumbnail.
     heroPoster: "https://img.youtube.com/vi/aXTLmcgTIcw/maxresdefault.jpg",

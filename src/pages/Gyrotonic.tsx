@@ -30,17 +30,29 @@ const Para = ({ items }: { items: string[] }) => (
 
 /**
  * Muted, looping YouTube clip used as a blurred, full-bleed hero background.
- * Loops the curated [start, end] segment via the IFrame API (end ≤ start = play
- * the whole video before looping). The API swaps the inner div for an iframe,
- * so the sizing/blur live on the wrapper and stretch the iframe to cover.
+ * Plays the curated [start, end] segments back-to-back on loop via the IFrame
+ * API. The API swaps the inner div for an iframe, so the sizing/blur live on the
+ * wrapper and stretch the iframe to cover.
  */
-const YouTubeBackground = ({ videoId, start = 0, end = 0, poster }: { videoId: string; start?: number; end?: number; poster?: string }) => {
+const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; segments: [number, number][]; poster?: string }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!videoId || !hostRef.current) return;
+    // Sanitised, ordered list of segments; fall back to the whole video.
+    const segs = (segments || [])
+      .map(([s, e]) => [Math.max(0, Number(s) || 0), Number(e) || 0] as [number, number])
+      .filter(([s, e]) => e > s);
+    const clips: [number, number][] = segs.length ? segs : [[0, 0]];
+    let idx = 0;
     let player: any;
     let poll: any;
     let cancelled = false;
+
+    const playClip = (i: number) => {
+      idx = i % clips.length;
+      const [s] = clips[idx];
+      try { player.seekTo(s, true); player.playVideo(); } catch { /* player gone */ }
+    };
 
     const build = () => {
       if (cancelled || !hostRef.current) return;
@@ -50,18 +62,21 @@ const YouTubeBackground = ({ videoId, start = 0, end = 0, poster }: { videoId: s
         playerVars: {
           autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0,
           modestbranding: 1, playsinline: 1, rel: 0,
-          start: Math.max(0, Math.floor(start)) || 0,
+          start: Math.floor(clips[0][0]) || 0,
           loop: 1, playlist: videoId,
         },
         events: {
-          onReady: (e: any) => { e.target.mute(); e.target.playVideo(); },
+          onReady: (e: any) => { e.target.mute(); playClip(0); },
           onStateChange: (e: any) => {
-            // Keep the curated segment on repeat once playback starts.
-            if (e.data === YT.PlayerState.PLAYING && end > start) {
+            // Once playing, advance to the next segment when the current one ends.
+            if (e.data === YT.PlayerState.PLAYING) {
               clearInterval(poll);
               poll = setInterval(() => {
-                try { if (player.getCurrentTime() >= end) player.seekTo(start, true); } catch { /* player gone */ }
-              }, 250);
+                try {
+                  const [, end] = clips[idx];
+                  if (end > 0 && player.getCurrentTime() >= end) playClip(idx + 1);
+                } catch { /* player gone */ }
+              }, 200);
             }
           },
         },
@@ -86,7 +101,7 @@ const YouTubeBackground = ({ videoId, start = 0, end = 0, poster }: { videoId: s
       clearInterval(poll);
       try { player && player.destroy(); } catch { /* already gone */ }
     };
-  }, [videoId, start, end]);
+  }, [videoId, JSON.stringify(segments)]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-spa-charcoal">
@@ -131,7 +146,7 @@ const GyrotonicPage = () => {
           instead of hiding under the navbar; py clears the fixed menu. */}
       <section className="relative min-h-[90vh] overflow-hidden">
         {c.heroVideoId
-          ? <YouTubeBackground videoId={c.heroVideoId} start={Number(c.heroClipStart) || 0} end={Number(c.heroClipEnd) || 0} poster={c.heroPoster} />
+          ? <YouTubeBackground videoId={c.heroVideoId} segments={(c.heroClipSegments as [number, number][]) || []} poster={c.heroPoster} />
           : <div className="absolute inset-0 bg-spa-charcoal" />}
         <div className="absolute inset-0 bg-spa-charcoal/60" />
         <div className="relative z-10 flex items-center justify-center min-h-[90vh] px-4 sm:px-6 lg:px-8 pt-28 pb-16">
