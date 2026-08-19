@@ -1106,6 +1106,13 @@ export const content = {
   gyrotonic: {
     // Short YouTube clip shown in the hero (Evelina working on the equipment).
     heroVideoId: "aXTLmcgTIcw",
+    // The hero plays a curated segment of the clip on loop, muted & blurred, as
+    // a background. Tune the "best parts" here (seconds). heroClipEnd 0 = play to
+    // the end of the video before looping.
+    heroClipStart: 0,
+    heroClipEnd: 0,
+    fullVideoUrl: "https://youtu.be/aXTLmcgTIcw",
+    watchFullText: "Watch the full video here →",
     eyebrow: "Discover a New Way to Move",
     heroTitle: "Private GYROTONIC® Sessions in Manuel Antonio",
     heroText: [

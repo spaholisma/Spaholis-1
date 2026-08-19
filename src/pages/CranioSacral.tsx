@@ -38,27 +38,31 @@ const CranioSacralPage = () => {
       <SEO title={seo.title} description={seo.description} canonical={seo.canonical} />
       <Navbar />
 
-      {/* Hero */}
-      <section className="pt-28 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
-          <motion.div {...fadeIn}>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+      {/* Hero — full-bleed image with centered overlay text (homepage style) */}
+      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+        <img
+          src={c.heroImage}
+          alt={c.heroTitle}
+          className="absolute inset-0 w-full h-full object-cover"
+          fetchPriority="high"
+        />
+        <div className="absolute inset-0 bg-spa-charcoal/55" />
+        <div className="relative z-10 flex items-center justify-center h-full px-4 sm:px-6 lg:px-8">
+          <motion.div {...fadeIn} className="max-w-3xl text-center">
+            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/70 mb-4">
               Holis Wellness Center · Manuel Antonio
             </p>
-            <h1 className="spa-heading-xl text-foreground mb-4">{c.heroTitle}</h1>
-            <p className="font-heading text-xl md:text-2xl text-foreground/80 mb-6">{c.heroSubtitle}</p>
-            <Para items={c.heroText} />
+            <h1 className="spa-heading-xl text-spa-cream mb-5">{c.heroTitle}</h1>
+            <p className="font-heading text-xl md:text-2xl text-spa-cream/90 mb-6">{c.heroSubtitle}</p>
+            <div className="text-spa-cream/80 [&_p]:text-spa-cream/80 max-w-2xl mx-auto">
+              <Para items={c.heroText} />
+            </div>
             <div className="mt-8">
               <Button asChild variant="spa" size="xl">
                 <Link to={c.bookLink}>{c.bookCta}</Link>
               </Button>
             </div>
           </motion.div>
-          {c.heroImage && (
-            <motion.div {...fadeIn} className="rounded-2xl overflow-hidden aspect-[4/5] max-h-[560px]">
-              <img src={c.heroImage} alt={c.heroTitle} className="w-full h-full object-cover" loading="eager" />
-            </motion.div>
-          )}
         </div>
       </section>
 

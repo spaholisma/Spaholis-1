@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -27,6 +28,78 @@ const Para = ({ items }: { items: string[] }) => (
   </>
 );
 
+/**
+ * Muted, looping YouTube clip used as a blurred, full-bleed hero background.
+ * Loops the curated [start, end] segment via the IFrame API (end ≤ start = play
+ * the whole video before looping). The API swaps the inner div for an iframe,
+ * so the sizing/blur live on the wrapper and stretch the iframe to cover.
+ */
+const YouTubeBackground = ({ videoId, start = 0, end = 0 }: { videoId: string; start?: number; end?: number }) => {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!videoId || !hostRef.current) return;
+    let player: any;
+    let poll: any;
+    let cancelled = false;
+
+    const build = () => {
+      if (cancelled || !hostRef.current) return;
+      const YT = (window as any).YT;
+      player = new YT.Player(hostRef.current, {
+        videoId,
+        playerVars: {
+          autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0,
+          modestbranding: 1, playsinline: 1, rel: 0,
+          start: Math.max(0, Math.floor(start)) || 0,
+          loop: 1, playlist: videoId,
+        },
+        events: {
+          onReady: (e: any) => { e.target.mute(); e.target.playVideo(); },
+          onStateChange: (e: any) => {
+            // Keep the curated segment on repeat once playback starts.
+            if (e.data === YT.PlayerState.PLAYING && end > start) {
+              clearInterval(poll);
+              poll = setInterval(() => {
+                try { if (player.getCurrentTime() >= end) player.seekTo(start, true); } catch { /* player gone */ }
+              }, 250);
+            }
+          },
+        },
+      });
+    };
+
+    if ((window as any).YT && (window as any).YT.Player) {
+      build();
+    } else {
+      const prev = (window as any).onYouTubeIframeAPIReady;
+      (window as any).onYouTubeIframeAPIReady = () => { if (prev) prev(); build(); };
+      if (!document.querySelector("script[data-yt-api]")) {
+        const s = document.createElement("script");
+        s.src = "https://www.youtube.com/iframe_api";
+        s.setAttribute("data-yt-api", "1");
+        document.body.appendChild(s);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      try { player && player.destroy(); } catch { /* already gone */ }
+    };
+  }, [videoId, start, end]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-spa-charcoal">
+      <div
+        className="pointer-events-none absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 scale-110 [&>iframe]:h-full [&>iframe]:w-full"
+        style={{ filter: "blur(4px)" }}
+      >
+        <div ref={hostRef} className="h-full w-full" />
+      </div>
+    </div>
+  );
+};
+
 const GyrotonicPage = () => {
   const { data: siteContent } = useSiteContent();
   const { data: seoData } = useSiteSeo();
@@ -38,33 +111,37 @@ const GyrotonicPage = () => {
       <SEO title={seo.title} description={seo.description} canonical={seo.canonical} />
       <Navbar />
 
-      {/* Hero — text + short GYROTONIC® video */}
-      <section className="pt-28 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
-          <motion.div {...fadeIn}>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">
+      {/* Hero — full-bleed, blurred GYROTONIC® video playing behind the text */}
+      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+        {c.heroVideoId
+          ? <YouTubeBackground videoId={c.heroVideoId} start={Number(c.heroClipStart) || 0} end={Number(c.heroClipEnd) || 0} />
+          : <div className="absolute inset-0 bg-spa-charcoal" />}
+        <div className="absolute inset-0 bg-spa-charcoal/60" />
+        <div className="relative z-10 flex items-center justify-center h-full px-4 sm:px-6 lg:px-8">
+          <motion.div {...fadeIn} className="max-w-3xl text-center">
+            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/70 mb-4">
               {c.eyebrow}
             </p>
-            <h1 className="spa-heading-xl text-foreground mb-6">{c.heroTitle}</h1>
-            <Para items={c.heroText} />
-            <div className="mt-8">
+            <h1 className="spa-heading-xl text-spa-cream mb-6">{c.heroTitle}</h1>
+            <div className="text-spa-cream/85 [&_p]:text-spa-cream/85 max-w-2xl mx-auto">
+              <Para items={c.heroText} />
+            </div>
+            <div className="mt-8 flex flex-col items-center gap-4">
               <Button asChild variant="spa" size="xl">
                 <Link to={c.bookLink}>{c.bookCta}</Link>
               </Button>
+              {c.fullVideoUrl && (
+                <a
+                  href={c.fullVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-body text-sm text-spa-cream/80 underline underline-offset-4 hover:text-spa-cream transition-colors"
+                >
+                  {c.watchFullText || "Watch the full video here →"}
+                </a>
+              )}
             </div>
           </motion.div>
-          {c.heroVideoId && (
-            <motion.div {...fadeIn} className="rounded-2xl overflow-hidden shadow-lg aspect-video bg-spa-charcoal">
-              <iframe
-                className="w-full h-full"
-                src={`https://www.youtube-nocookie.com/embed/${c.heroVideoId}?rel=0&modestbranding=1&playsinline=1`}
-                title={c.heroTitle}
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </motion.div>
-          )}
         </div>
       </section>
 
