@@ -310,19 +310,31 @@ function MassageTherapyAccordion({
   const { data: siteContent } = useSiteContent();
   const ui = ((siteContent?.services || defaults.services) as any).ui || (defaults.services as any).ui;
 
-  // Group services by base name, preserving sort order
-  const groups = new Map<string, ServiceRow[]>();
+  const localizedTitle = (s: ServiceRow) =>
+    (pickLocalized(s as unknown as Record<string, unknown>, "title", language) as string) || s.title;
+  // Match on the canonical English title so grouping works in both languages.
+  const enKey = (t: string) => getBaseName(t).toLowerCase();
+
+  // Group the single treatments by base name. Couples versions are NOT given
+  // their own accordion — they're attached to their parent massage and shown as
+  // a "Couple's" link underneath it, so it's always clear which massage the
+  // couple's booking is (e.g. Holisynergie vs Pure Bliss).
+  const groups = new Map<string, { display: string; items: ServiceRow[] }>();
+  const couplesByParent = new Map<string, ServiceRow[]>();
   for (const s of services) {
-    const key = getBaseName(
-      (pickLocalized(s as unknown as Record<string, unknown>, "title", language) as string) ||
-        s.title
-    );
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(s);
+    if (/couple/i.test(s.title)) {
+      const parentKey = enKey(s.title.replace(/\s*couple'?s\s*/i, " "));
+      if (!couplesByParent.has(parentKey)) couplesByParent.set(parentKey, []);
+      couplesByParent.get(parentKey)!.push(s);
+      continue;
+    }
+    const key = enKey(s.title);
+    if (!groups.has(key)) groups.set(key, { display: getBaseName(localizedTitle(s)), items: [] });
+    groups.get(key)!.items.push(s);
   }
 
-  // Pick a representative service for description per group (first one with description)
   const groupEntries = Array.from(groups.entries());
+  const couplesWord = language === "es" ? "En pareja" : "Couple's";
 
   // Use first group's image_url if present, else fallback
   const heroImg =
@@ -344,16 +356,33 @@ function MassageTherapyAccordion({
         defaultValue={groupEntries[0]?.[0]}
         className="w-full"
       >
-        {groupEntries.map(([groupName, items]) => {
+        {groupEntries.map(([key, { display, items }]) => {
           const rep = items.find((i) => i.description) ?? items[0];
           const description =
             (pickLocalized(rep as unknown as Record<string, unknown>, "description", language) as string) ||
             rep.description ||
             "";
+          const couples = couplesByParent.get(key) ?? [];
+          const bookLink = (s: ServiceRow, label: string) => (
+            <li key={s.id}>
+              <Link
+                to={withLangPrefix(
+                  s.request_only
+                    ? `/book?service=consultation&topic=${encodeURIComponent(localizedTitle(s))}`
+                    : `/book?service=${s.id}&category=${encodeURIComponent(s.category)}`,
+                  language
+                )}
+                className="font-body text-sm font-semibold text-primary hover:underline inline-flex items-baseline gap-1.5"
+              >
+                <span>{label}</span>
+                <span className="text-foreground">{formatCRCWithUsd(s.price)}</span>
+              </Link>
+            </li>
+          );
           return (
-            <AccordionItem key={groupName} value={groupName} className="border-border">
+            <AccordionItem key={key} value={key} className="border-border">
               <AccordionTrigger className="font-heading text-base uppercase tracking-wider text-foreground py-5 hover:no-underline">
-                {groupName}
+                {display}
               </AccordionTrigger>
               <AccordionContent className="pt-1 pb-6 space-y-4">
                 {description && (
@@ -362,31 +391,25 @@ function MassageTherapyAccordion({
                   </p>
                 )}
                 <ul className="space-y-2">
-                  {items.map((s) => {
-                    const title =
-                      (pickLocalized(s as unknown as Record<string, unknown>, "title", language) as string) ||
-                      s.title;
-                    return (
-                      <li key={s.id}>
-                        <Link
-                          to={withLangPrefix(
-                            s.request_only
-                              ? `/book?service=consultation&topic=${encodeURIComponent(title)}`
-                              : `/book?service=${s.id}&category=${encodeURIComponent(s.category)}`,
-                            language
-                          )}
-                          className="font-body text-sm font-semibold text-primary hover:underline inline-flex items-baseline gap-1.5"
-                        >
-                          <span>
-                            {s.request_only ? ui.request : ui.book}{" "}
-                            {durationLabel(s)} {title}:
-                          </span>
-                          <span className="text-foreground">{formatCRCWithUsd(s.price)}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  {items.map((s) =>
+                    bookLink(
+                      s,
+                      `${s.request_only ? ui.request : ui.book} ${durationLabel(s)} ${localizedTitle(s)}:`
+                    )
+                  )}
                 </ul>
+                {couples.length > 0 && (
+                  <div className="pt-3 mt-1 border-t border-border/60">
+                    <p className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                      {couplesWord}
+                    </p>
+                    <ul className="space-y-2">
+                      {couples.map((s) =>
+                        bookLink(s, `${ui.book} ${couplesWord} ${durationLabel(s)}:`)
+                      )}
+                    </ul>
+                  </div>
+                )}
               </AccordionContent>
             </AccordionItem>
           );
