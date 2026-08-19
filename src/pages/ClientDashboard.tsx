@@ -13,6 +13,7 @@ import { isAdminEmail } from "@/lib/adminEmails";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 
 const ClientDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -141,7 +142,7 @@ const ClientDashboard = () => {
             <p className="font-body text-xs text-muted-foreground mt-1">Schedule a visit</p>
           </Link>
           {[
-            { icon: Gift, label: "My Rewards", desc: `${availableRewards.length} available`, target: "rewards" },
+            { icon: Gift, label: "My Rewards", desc: "View progress", target: "rewards" },
             { icon: User, label: "Profile", desc: "Edit your info", target: "profile" },
           ].map((action) => (
             <button
@@ -156,33 +157,10 @@ const ClientDashboard = () => {
           ))}
         </div>
 
-        {/* Loyalty Progress */}
-        {loyaltySettings && (
-          <div id="rewards" className="bg-card rounded-2xl border border-border p-6 mb-10 scroll-mt-24">
-            <h2 className="font-heading text-lg font-medium text-foreground mb-4">Loyalty Rewards</h2>
-            <div className="flex items-center gap-4 mb-3">
-              <div className="flex-1 bg-muted rounded-full h-3">
-                <div
-                  className="bg-spa-sage rounded-full h-3 transition-all"
-                  style={{ width: `${Math.min(((profile?.total_visits ?? 0) % loyaltySettings.visits_required) / loyaltySettings.visits_required * 100, 100)}%` }}
-                />
-              </div>
-              <span className="text-sm font-body font-medium text-foreground">
-                {(profile?.total_visits ?? 0) % loyaltySettings.visits_required}/{loyaltySettings.visits_required}
-              </span>
-            </div>
-            <p className="spa-body-sm">
-              {visitsToReward} more visit{visitsToReward !== 1 ? "s" : ""} until your next {loyaltySettings.discount_percentage}% discount!
-            </p>
-            {availableRewards.length > 0 && (
-              <div className="mt-4 p-3 bg-spa-sage/10 rounded-xl">
-                <p className="text-sm font-body font-medium text-spa-sage">
-                  🎉 You have {availableRewards.length} reward{availableRewards.length > 1 ? "s" : ""} available!
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Loyalty Progress — free reward for renewing memberships/passes */}
+        <div id="rewards" className="mb-10 scroll-mt-24">
+          <LoyaltyRewardCard email={user?.email} />
+        </div>
 
         {/* Upcoming */}
         <div className="mb-10">

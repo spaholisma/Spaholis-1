@@ -24,6 +24,7 @@ import { useMyOfferings, redeemOffering, type UserOffering } from "@/hooks/useOf
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 
 function useScheduleEvent(scheduleId: string | null) {
   return useQuery({
@@ -442,6 +443,9 @@ const ClassBookingPage = () => {
                         </p>
                       </div>
                     )}
+
+                    {/* Loyalty: progress toward the free reward for renewing memberships */}
+                    <LoyaltyRewardCard email={tokenOffering?.guest_email || formData.email} className="max-w-md mb-6" />
 
                     {/* Entitlements summary — what you can use for THIS class */}
                     {user && needsPayment && (myOfferings.length > 0) && (
