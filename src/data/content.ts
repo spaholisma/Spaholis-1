@@ -525,6 +525,7 @@ export const content = {
     weeklyClassesSubtitle: "Our regular studio classes — see the full weekly schedule for days and times.",
     calendarLink: "View all events in calendar format",
     privateLink: "Book a Private Class",
+    gyrotonicLink: "Discover GYROTONIC® Expansion System",
     buyMemberships: "Buy memberships & class passes ↓",
     coursesLink: "Courses, workshops & professional training →",
     emptyTitle: "No Upcoming Events",

@@ -11,6 +11,7 @@ import { EventCard } from "@/components/EventCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
 import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
 import { useTranslation } from "react-i18next";
@@ -104,6 +105,13 @@ const ClassesPage = () => {
             >
               {cls.privateLink}
             </Link>
+          </div>
+          <div className="mt-6">
+            <Button asChild variant="spa" size="lg">
+              <Link to="/private-gyrotonic-manuel-antonio">
+                {(cls as any).gyrotonicLink || "Discover GYROTONIC® Expansion System"}
+              </Link>
+            </Button>
           </div>
         </motion.div>
 
