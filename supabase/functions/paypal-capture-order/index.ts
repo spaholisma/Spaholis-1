@@ -73,6 +73,9 @@ Deno.serve(async (req) => {
       // just filled, still honour the paid booking (staff can reconcile) but note it.
       const qty = Math.max(1, Math.min(Number(t.quantity ?? 1), 10));
       const perSpot = Math.round((Number(rec.amount) / qty) * 100) / 100;
+      const names: string[] = Array.isArray(t.participant_names) ? t.participant_names : [];
+      // Group the spots of this one payment so the email lists everyone.
+      const groupId = qty > 1 ? crypto.randomUUID() : null;
       const bookingIds: string[] = [];
       let overbooked = false;
       for (let i = 0; i < qty; i++) {
@@ -82,8 +85,9 @@ Deno.serve(async (req) => {
 
         const bookingId = crypto.randomUUID();
         const { error: insErr } = await admin.from("class_bookings").insert({
-          id: bookingId, schedule_id: t.schedule_id,
-          guest_name: t.guest_name, guest_email: t.guest_email, guest_phone: t.guest_phone || null,
+          id: bookingId, schedule_id: t.schedule_id, booking_group_id: groupId,
+          guest_name: (names[i] || t.guest_name || "").trim() || t.guest_name,
+          guest_email: t.guest_email, guest_phone: t.guest_phone || null,
           status: "confirmed", payment_status: "paid", payment_method: "paypal",
           coupon_code: i === 0 ? (t.coupon_code || null) : null, total_price: perSpot,
         });

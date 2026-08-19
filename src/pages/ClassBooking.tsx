@@ -69,6 +69,11 @@ const ClassBookingPage = () => {
   // How many spots to book at once (e.g. bringing friends). Multi-spot always
   // pays by card — memberships/credits are personal and stay at one spot.
   const [quantity, setQuantity] = useState(1);
+  // Names of the extra participants (spots 2..N); spot 1 is the booker's name.
+  const [extraNames, setExtraNames] = useState<string[]>([]);
+  useEffect(() => {
+    setExtraNames((prev) => Array.from({ length: Math.max(0, quantity - 1) }, (_, i) => prev[i] ?? ""));
+  }, [quantity]);
 
   const cls = event?.classes;
   const needsPayment = cls?.requires_payment && cls.price > 0;
@@ -120,8 +125,12 @@ const ClassBookingPage = () => {
     ? ["Your Details", "Payment", "Confirmation"]
     : ["Your Details", "Confirmation"];
 
+  // One name per spot: the booker first, then each extra participant.
+  const participantNames = [formData.name, ...extraNames].slice(0, quantity);
   const canProceed =
-    !!formData.name && !!formData.email && (!formData.phone || isValidPhoneNumber(formData.phone));
+    !!formData.name && !!formData.email &&
+    (!formData.phone || isValidPhoneNumber(formData.phone)) &&
+    (!multi || extraNames.every((n) => n.trim().length > 0));
 
   const createClassBooking = async (opts: {
     paymentStatus: string;
@@ -135,14 +144,17 @@ const ClassBookingPage = () => {
     const count = Math.max(1, opts.count ?? 1);
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     const userId = currentSession?.user?.id;
+    // Group the rows of a multi-spot booking so the email/admin see them together.
+    const groupId = count > 1 && "randomUUID" in crypto ? crypto.randomUUID() : null;
 
     // One row per spot; ids are generated client-side to avoid INSERT ...
     // RETURNING being blocked by the SELECT RLS policy for guest bookings.
-    const rows = Array.from({ length: count }).map(() => {
+    const rows = Array.from({ length: count }).map((_, i) => {
       const row: Record<string, any> = {
         id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : undefined,
         schedule_id: scheduleId,
-        guest_name: formData.name,
+        booking_group_id: groupId,
+        guest_name: (participantNames[i] || formData.name || "").trim() || formData.name,
         guest_email: formData.email,
         guest_phone: formData.phone || null,
         status: "booked",
@@ -521,6 +533,29 @@ const ClassBookingPage = () => {
                           <p className="text-xs text-destructive mt-1 font-body">Enter a valid phone number for the selected country.</p>
                         )}
                       </div>
+
+                      {multi && (
+                        <div className="rounded-2xl border border-border bg-muted/30 p-4 space-y-3">
+                          <p className="font-body text-sm font-medium text-foreground flex items-center gap-1.5">
+                            <Users className="h-4 w-4 text-spa-sage" /> Names of the other {extraNames.length} participant{extraNames.length === 1 ? "" : "s"}
+                          </p>
+                          <div>
+                            <label className="font-body text-xs text-muted-foreground mb-1 block">Participant 1</label>
+                            <Input value={formData.name} disabled placeholder="You (from above)" />
+                          </div>
+                          {extraNames.map((n, i) => (
+                            <div key={i}>
+                              <label className="font-body text-xs text-muted-foreground mb-1 block">Participant {i + 2} *</label>
+                              <Input
+                                value={n}
+                                onChange={(e) => setExtraNames((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                                placeholder="Full name"
+                              />
+                            </div>
+                          ))}
+                          <p className="text-xs text-muted-foreground font-body">The confirmation email goes to {formData.email || "your email"} and covers everyone.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -674,7 +709,7 @@ const ClassBookingPage = () => {
                           disabled={!formData.name || !formData.email}
                           createOrderBody={() =>
                             formData.name && formData.email
-                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null, quantity }
+                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null, quantity, participant_names: participantNames }
                               : null
                           }
                           onSuccess={() => {

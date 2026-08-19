@@ -44,6 +44,8 @@ const Body = z.object({
   user_id: z.string().uuid().optional().nullable(),
   // Number of class spots to book in one payment (default 1).
   quantity: z.number().int().min(1).max(10).optional(),
+  // One name per spot (booker first), so each spot books a named participant.
+  participant_names: z.array(z.string().trim().max(120)).max(10).optional(),
 });
 
 async function couponDiscount(admin: any, code: string | null | undefined, base: number, classId?: string) {
@@ -93,7 +95,8 @@ Deno.serve(async (req) => {
       amount = Math.max(0, Math.round((base * qty - discount) * 100) / 100);
       if (amount <= 0) return json({ ok: false, reason: "class_is_free" }, 400);
       description = qty > 1 ? `Class: ${cls.title} (${qty} spots)` : `Class: ${cls.title}`;
-      target = { schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone, coupon_code: (body.coupon_code || "").trim().toUpperCase() || null, quantity: qty };
+      const names = (body.participant_names || []).map((n) => (n || "").trim()).slice(0, qty);
+      target = { schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone, coupon_code: (body.coupon_code || "").trim().toUpperCase() || null, quantity: qty, participant_names: names };
     } else {
       if (!body.offering_id) return json({ ok: false, reason: "missing_offering" }, 400);
       const { data: off } = await admin.from("offerings").select("id, name, price, status").eq("id", body.offering_id).maybeSingle();

@@ -559,7 +559,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     .select(`
       id, status, payment_status, payment_method, payment_id,
       guest_name, guest_email, coupon_code, discount_amount, total_price,
-      notification_sent_at,
+      notification_sent_at, booking_group_id,
       schedule:class_schedule(
         id, start_time, end_time,
         class:classes(id, title, instructor, location, price, requires_payment)
@@ -611,8 +611,24 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   const location = cls?.location || null;
 
   // Prices are stored in USD in the DB — render as dollars, never CRC math.
-  const totalUsd = booking.total_price != null ? Number(booking.total_price) : null;
+  let totalUsd = booking.total_price != null ? Number(booking.total_price) : null;
   const discountUsd = booking.discount_amount != null ? Number(booking.discount_amount) : null;
+
+  // Multi-spot booking: gather every participant so the email lists them all and
+  // the amount reflects the whole party (each row stores its own per-spot price).
+  let party: string[] = [];
+  if (booking.booking_group_id) {
+    const { data: members } = await supabase
+      .from("class_bookings")
+      .select("guest_name, total_price, created_at")
+      .eq("booking_group_id", booking.booking_group_id)
+      .order("created_at", { ascending: true });
+    if (Array.isArray(members) && members.length > 1) {
+      party = members.map((m: any) => (m.guest_name || "").trim()).filter(Boolean);
+      totalUsd = members.reduce((sum: number, m: any) => sum + Number(m.total_price ?? 0), 0);
+    }
+  }
+  const partyLine = party.length > 1 ? `${party.length} spots — ${party.join(", ")}` : null;
 
   const start = booking.schedule?.start_time ? new Date(booking.schedule.start_time) : null;
   const scheduleLabel = start
@@ -650,7 +666,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     discountAmount: discountUsd,
   });
 
-  const adminSubj = `New Class Booking — ${className} — ${booking.guest_name || "Guest"} (${reservationId})`;
+  const adminSubj = `New Class Booking — ${className} — ${partyLine ? `${party.length} spots (${booking.guest_name || "Guest"})` : (booking.guest_name || "Guest")} (${reservationId})`;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] class admin email failed:", adminRes.error);
   const backupRes = await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
@@ -666,6 +682,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
       const rows: string[] = [];
       rows.push(tableRow("Reservation ID", escHtml(reservationId)));
       rows.push(tableRow("Class", escHtml(className)));
+      if (partyLine) rows.push(tableRow("Participants", escHtml(partyLine)));
       if (instructor) rows.push(tableRow("Instructor", escHtml(instructor)));
       rows.push(tableRow("When", escHtml(scheduleLabel)));
       if (location) rows.push(tableRow("Location", escHtml(location)));
