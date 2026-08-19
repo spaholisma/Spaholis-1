@@ -34,7 +34,7 @@ const Para = ({ items }: { items: string[] }) => (
  * the whole video before looping). The API swaps the inner div for an iframe,
  * so the sizing/blur live on the wrapper and stretch the iframe to cover.
  */
-const YouTubeBackground = ({ videoId, start = 0, end = 0 }: { videoId: string; start?: number; end?: number }) => {
+const YouTubeBackground = ({ videoId, start = 0, end = 0, poster }: { videoId: string; start?: number; end?: number; poster?: string }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!videoId || !hostRef.current) return;
@@ -90,11 +90,26 @@ const YouTubeBackground = ({ videoId, start = 0, end = 0 }: { videoId: string; s
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-spa-charcoal">
-      <div
-        className="pointer-events-none absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 scale-110 [&>iframe]:h-full [&>iframe]:w-full"
-        style={{ filter: "blur(4px)" }}
-      >
-        <div ref={hostRef} className="h-full w-full" />
+      {/* Heavily-blurred fill so the hero stays edge-to-edge; cropping here is
+          only ambiance behind the real video. Also the autoplay fallback. */}
+      {poster && (
+        <img
+          src={poster}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover scale-110"
+          style={{ filter: "blur(18px)" }}
+        />
+      )}
+      {/* The clip itself, shown WHOLE (contained) and centered so the person is
+          never cropped, with a soft blur to match the hero's mood. */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div
+          className="h-full aspect-video max-w-full [&>iframe]:h-full [&>iframe]:w-full"
+          style={{ filter: "blur(2px)" }}
+        >
+          <div ref={hostRef} className="h-full w-full" />
+        </div>
       </div>
     </div>
   );
@@ -111,14 +126,16 @@ const GyrotonicPage = () => {
       <SEO title={seo.title} description={seo.description} canonical={seo.canonical} />
       <Navbar />
 
-      {/* Hero — full-bleed, blurred GYROTONIC® video playing behind the text */}
-      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+      {/* Hero — full-bleed, blurred GYROTONIC® video playing behind the text.
+          min-height (not fixed) so the copy-heavy hero grows on small screens
+          instead of hiding under the navbar; py clears the fixed menu. */}
+      <section className="relative min-h-[90vh] overflow-hidden">
         {c.heroVideoId
-          ? <YouTubeBackground videoId={c.heroVideoId} start={Number(c.heroClipStart) || 0} end={Number(c.heroClipEnd) || 0} />
+          ? <YouTubeBackground videoId={c.heroVideoId} start={Number(c.heroClipStart) || 0} end={Number(c.heroClipEnd) || 0} poster={c.heroPoster} />
           : <div className="absolute inset-0 bg-spa-charcoal" />}
         <div className="absolute inset-0 bg-spa-charcoal/60" />
-        <div className="relative z-10 flex items-center justify-center h-full px-4 sm:px-6 lg:px-8">
-          <motion.div {...fadeIn} className="max-w-3xl text-center">
+        <div className="relative z-10 flex items-center justify-center min-h-[90vh] px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+          <motion.div {...fadeIn} className="w-full max-w-3xl text-center">
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/70 mb-4">
               {c.eyebrow}
             </p>
@@ -127,7 +144,7 @@ const GyrotonicPage = () => {
               <Para items={c.heroText} />
             </div>
             <div className="mt-8 flex flex-col items-center gap-4">
-              <Button asChild variant="spa" size="xl">
+              <Button asChild variant="spa" size="xl" className="max-w-full whitespace-normal h-auto min-h-12 py-3 text-center leading-tight">
                 <Link to={c.bookLink}>{c.bookCta}</Link>
               </Button>
               {c.fullVideoUrl && (

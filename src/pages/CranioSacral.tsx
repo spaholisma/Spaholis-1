@@ -38,8 +38,10 @@ const CranioSacralPage = () => {
       <SEO title={seo.title} description={seo.description} canonical={seo.canonical} />
       <Navbar />
 
-      {/* Hero — full-bleed image with centered overlay text (homepage style) */}
-      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+      {/* Hero — full-bleed image with centered overlay text (homepage style).
+          min-height so the copy grows on small screens instead of hiding under
+          the navbar; py clears the fixed menu. */}
+      <section className="relative min-h-[90vh] overflow-hidden">
         <img
           src={c.heroImage}
           alt={c.heroTitle}
@@ -47,8 +49,8 @@ const CranioSacralPage = () => {
           fetchPriority="high"
         />
         <div className="absolute inset-0 bg-spa-charcoal/55" />
-        <div className="relative z-10 flex items-center justify-center h-full px-4 sm:px-6 lg:px-8">
-          <motion.div {...fadeIn} className="max-w-3xl text-center">
+        <div className="relative z-10 flex items-center justify-center min-h-[90vh] px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+          <motion.div {...fadeIn} className="w-full max-w-3xl text-center">
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-cream/70 mb-4">
               Holis Wellness Center · Manuel Antonio
             </p>
@@ -58,7 +60,7 @@ const CranioSacralPage = () => {
               <Para items={c.heroText} />
             </div>
             <div className="mt-8">
-              <Button asChild variant="spa" size="xl">
+              <Button asChild variant="spa" size="xl" className="max-w-full whitespace-normal h-auto min-h-12 py-3 text-center leading-tight">
                 <Link to={c.bookLink}>{c.bookCta}</Link>
               </Button>
             </div>

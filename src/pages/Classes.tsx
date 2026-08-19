@@ -106,8 +106,8 @@ const ClassesPage = () => {
               {cls.privateLink}
             </Link>
           </div>
-          <div className="mt-6">
-            <Button asChild variant="spa" size="lg">
+          <div className="mt-6 flex justify-center px-4">
+            <Button asChild variant="spa" size="lg" className="h-auto min-h-12 w-full sm:w-auto max-w-full whitespace-normal text-center py-3 leading-tight">
               <Link to="/private-gyrotonic-manuel-antonio">
                 {(cls as any).gyrotonicLink || "Discover GYROTONIC® Expansion System"}
               </Link>

@@ -1109,8 +1109,11 @@ export const content = {
     // The hero plays a curated segment of the clip on loop, muted & blurred, as
     // a background. Tune the "best parts" here (seconds). heroClipEnd 0 = play to
     // the end of the video before looping.
-    heroClipStart: 0,
-    heroClipEnd: 0,
+    heroClipStart: 8,
+    heroClipEnd: 50,
+    // Fallback still shown behind the video (and if autoplay is blocked, e.g. on
+    // some phones). Defaults to the clip's own YouTube thumbnail.
+    heroPoster: "https://img.youtube.com/vi/aXTLmcgTIcw/maxresdefault.jpg",
     fullVideoUrl: "https://youtu.be/aXTLmcgTIcw",
     watchFullText: "Watch the full video here →",
     eyebrow: "Discover a New Way to Move",
