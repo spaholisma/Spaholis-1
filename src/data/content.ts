@@ -101,6 +101,11 @@ export const seo = {
     description: "Experience a gentle, restorative Craniosacral Therapy session with Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/craniosacral-therapy-manuel-antonio",
   },
+  gyrotonic: {
+    title: "Private GYROTONIC® Sessions in Manuel Antonio, Costa Rica | Holis",
+    description: "Discover the GYROTONIC® Method with a private session led by Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/private-gyrotonic-manuel-antonio",
+  },
 } as const;
 
 export const content = {
@@ -1093,6 +1098,68 @@ export const content = {
       { question: "Do I remain clothed?", answer: "Yes. Sessions are generally experienced fully clothed in comfortable clothing." },
       { question: "I've never tried Craniosacral Therapy. Is that okay?", answer: "Absolutely. No previous experience is necessary." },
       { question: "Can I book while I'm visiting Manuel Antonio?", answer: "Yes. Visitors are welcome to book an individual session during their stay." },
+    ],
+  },
+
+  // ── Private GYROTONIC® landing page ──
+  gyrotonic: {
+    // Short YouTube clip shown in the hero (Evelina working on the equipment).
+    heroVideoId: "aXTLmcgTIcw",
+    eyebrow: "Discover a New Way to Move",
+    heroTitle: "Private GYROTONIC® Sessions in Manuel Antonio",
+    heroText: [
+      "You may know yoga.",
+      "You may know Pilates.",
+      "But have you experienced the GYROTONIC® Method?",
+      "Through circular, flowing and three-dimensional movement, a private GYROTONIC® session offers an opportunity to explore your body in a completely different way.",
+      "At Holis, sessions are offered one-on-one with Evelina Bolognini, founder of Holis Wellness Center.",
+    ],
+    bookCta: "Book a private session",
+    bookLink: "/book?service=consultation&topic=Private%20GYROTONIC%20Session",
+    aliveTitle: "Movement should feel alive.",
+    aliveText: [
+      "The GYROTONIC® Method explores movement beyond simple forward-and-back exercises.",
+      "Using specialized equipment, movements travel through spirals, circles and flowing sequences designed to explore the body's natural possibilities.",
+      "The experience can feel simultaneously focused, fluid and playful.",
+      "And you don't need to know anything about GYROTONIC® exercise before arriving.",
+    ],
+    newTitle: "Never tried GYROTONIC® before?",
+    newText: [
+      "Perfect.",
+      "A vacation is a wonderful time to try something new.",
+      "Your first session is private, so Evelina can introduce the equipment and movements according to your experience and comfort.",
+      "There is no class to keep up with and no expectation that you already know what you're doing.",
+      "It's simply an opportunity to discover a new way to move.",
+    ],
+    moreTitle: "More than a workout",
+    moreText: [
+      "A private GYROTONIC® session invites you to pay attention to movement differently.",
+      "Rather than simply counting repetitions, you explore coordination, rhythm, breath and movement through space.",
+      "If you enjoy yoga, Pilates, dance, sports or simply discovering new ways of experiencing your body, this can be a fascinating addition to your time in Manuel Antonio.",
+    ],
+    practitionerEyebrow: "Your Instructor",
+    practitionerName: "Evelina Bolognini",
+    practitionerText: [
+      "Private sessions at Holis are taught personally by Evelina Bolognini, founder of Holis Wellness Center.",
+      "Her approach to movement is grounded in curiosity, body awareness and helping each person explore movement as an experience rather than simply an exercise.",
+    ],
+    meetCta: "Meet Evelina →",
+    meetLink: "/about#founder",
+    experienceTitle: "Now try something different.",
+    experienceText: [
+      "You've done yoga.",
+      "You've done Pilates.",
+      "Private GYROTONIC® sessions are available at Holis Wellness Center in Manuel Antonio.",
+      "No previous experience required.",
+    ],
+    experienceMeta: ["Private session", "Holis Wellness Center", "Manuel Antonio, Costa Rica"],
+    bookCta2: "Try GYROTONIC®",
+    faqTitle: "FAQ",
+    faqs: [
+      { question: "Do I need GYROTONIC® experience?", answer: "No. First-time students are welcome." },
+      { question: "Is this a group class?", answer: "No. This experience is offered as a private session." },
+      { question: "Is it similar to Pilates?", answer: "There are some similarities in the use of specialized equipment and guided movement, but the movement vocabulary and experience are distinctly different." },
+      { question: "What should I wear?", answer: "Comfortable clothing that allows you to move freely." },
     ],
   },
 

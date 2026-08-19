@@ -33,6 +33,7 @@ import Contact from "./pages/Contact";
 import StudioRental from "./pages/StudioRental";
 import DayRetreats from "./pages/DayRetreats";
 import CranioSacral from "./pages/CranioSacral";
+import Gyrotonic from "./pages/Gyrotonic";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Refund from "./pages/Refund";
@@ -77,6 +78,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/experience-booking", element: <ExperienceBooking /> },
   { path: "/studio-rental", element: <StudioRental /> },
   { path: "/craniosacral-therapy-manuel-antonio", element: <CranioSacral /> },
+  { path: "/private-gyrotonic-manuel-antonio", element: <Gyrotonic /> },
   { path: "/contact", element: <Contact /> },
   { path: "/blog", element: <Blog /> },
   { path: "/blog/:slug", element: <BlogPost /> },

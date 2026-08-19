@@ -580,6 +580,7 @@ export function AdminContentEditor() {
     { label: "❓ FAQs", path: "/faqs" },
     { label: "🧘 Studio Rental", path: "/studio-rental" },
     { label: "🌊 Craniosacral", path: "/craniosacral-therapy-manuel-antonio" },
+    { label: "🌀 GYROTONIC®", path: "/private-gyrotonic-manuel-antonio" },
     { label: "🌅 Day Retreats", path: "/day-retreats" },
     { label: "📍 Contact", path: "/contact" },
     { label: "🌴 Custom Retreat", path: "/custom-retreat" },
@@ -612,6 +613,7 @@ export function AdminContentEditor() {
     dayRetreats: "🌅 Day Retreats Page",
     contact: "📍 Location & Contact Page",
     craniosacral: "🌊 Craniosacral Therapy Page",
+    gyrotonic: "🌀 GYROTONIC® Page",
     customRetreat: "🌴 Custom Retreat Page (form)",
     sasPractitioners: "🎓 SAS Practitioners Page",
     whatsapp: "💬 WhatsApp Button",
@@ -633,6 +635,7 @@ export function AdminContentEditor() {
     dayRetreats: "🌅 Day Retreats",
     contact: "📍 Contact",
     craniosacral: "🌊 Craniosacral",
+    gyrotonic: "🌀 GYROTONIC®",
     customRetreat: "🌴 Custom Retreat",
     sasPractitioners: "🎓 SAS Practitioners",
   };
