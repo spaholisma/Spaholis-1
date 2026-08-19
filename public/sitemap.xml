@@ -29,6 +29,20 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/signature-treatments"/>
   </url>
   <url>
+    <loc>https://www.spaholis.com/craniosacral-therapy-manuel-antonio</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/craniosacral-therapy-manuel-antonio"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/craniosacral-therapy-manuel-antonio"/>
+  </url>
+  <url>
+    <loc>https://www.spaholis.com/private-gyrotonic-manuel-antonio</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/private-gyrotonic-manuel-antonio"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/private-gyrotonic-manuel-antonio"/>
+  </url>
+  <url>
     <loc>https://www.spaholis.com/book</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
@@ -113,13 +127,6 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/custom-retreat"/>
   </url>
   <url>
-    <loc>https://www.spaholis.com/experience-booking</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/experience-booking"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/experience-booking"/>
-  </url>
-  <url>
     <loc>https://www.spaholis.com/blog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -195,13 +202,6 @@
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/sas-practitioners"/>
     <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/sas-practitioners"/>
-  </url>
-  <url>
-    <loc>https://www.spaholis.com/class-booking</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/class-booking"/>
-    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/class-booking"/>
   </url>
   <url>
     <loc>https://www.spaholis.com/terms</loc>

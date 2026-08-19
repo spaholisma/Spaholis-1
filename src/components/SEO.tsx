@@ -7,18 +7,27 @@ interface SEOProps {
   type?: "website" | "article";
   image?: string;
   jsonLd?: Record<string, unknown>;
+  /** Keep this page out of search results (empty states, transactional flows). */
+  noindex?: boolean;
 }
 
 const SITE_NAME = "Holis Wellness Center";
 const BASE_URL = "https://www.spaholis.com";
 const DEFAULT_OG_IMAGE = `${BASE_URL}/images/social-share.jpg`;
 
-export function SEO({ title, description, canonical, type = "website", image, jsonLd }: SEOProps) {
+export function SEO({ title, description, canonical, type = "website", image, jsonLd, noindex = false }: SEOProps) {
   const fullTitle = title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`;
   const canonicalUrl = canonical ? `${BASE_URL}${canonical}` : undefined;
 
   useEffect(() => {
     document.title = fullTitle;
+    // Always set robots so it's correct after client-side route changes.
+    const setRobots = (content: string) => {
+      let el = document.querySelector('meta[name="robots"]');
+      if (!el) { el = document.createElement("meta"); el.setAttribute("name", "robots"); document.head.appendChild(el); }
+      el.setAttribute("content", content);
+    };
+    setRobots(noindex ? "noindex, nofollow" : "index, follow");
 
     const setMeta = (name: string, content: string, attr = "name") => {
       let el = document.querySelector(`meta[${attr}="${name}"]`);
@@ -70,7 +79,7 @@ export function SEO({ title, description, canonical, type = "website", image, js
       const ld = document.querySelector('script[data-seo-jsonld]');
       if (ld) ld.remove();
     };
-  }, [fullTitle, description, canonicalUrl, type, jsonLd]);
+  }, [fullTitle, description, canonicalUrl, type, jsonLd, noindex]);
 
   return null;
 }

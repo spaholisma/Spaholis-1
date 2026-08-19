@@ -144,6 +144,7 @@ export default function ExperienceBooking() {
   if (!experience) {
     return (
       <div className="min-h-screen bg-background">
+        <SEO title="Experience not found" description="" noindex />
         <Navbar />
         <div className="pt-24 px-4 max-w-3xl mx-auto text-center py-20">
           <h1 className="font-heading text-2xl mb-4">Experience not found</h1>

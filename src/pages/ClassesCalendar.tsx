@@ -7,12 +7,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { SEO } from "@/components/SEO";
 
 const ClassesCalendarPage = () => {
   const { data: weekEvents, isLoading } = useWeekEvents();
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Class Schedule"
+        description="See the weekly schedule of yoga, breathwork, meditation and wellness classes at Holis Wellness Center in Manuel Antonio, Costa Rica."
+        canonical="/classes/schedule"
+      />
       <Navbar />
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
@@ -30,7 +36,7 @@ const ClassesCalendarPage = () => {
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
             Weekly Schedule
           </p>
-          <h1 className="spa-heading-xl text-foreground">Class Calendar</h1>
+          <h1 className="spa-heading-xl text-foreground">Class Schedule</h1>
         </motion.div>
 
         {isLoading ? (
