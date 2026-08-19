@@ -539,23 +539,18 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       ?? entry.color
       ?? TYPE_COLORS[calendarType];
 
-  /**
-   * What a bubble is actually painted with. For the read-only device (front
-   * desk) a website booking is colored by its STATUS — paid / confirmed /
-   * pending read at a glance — instead of the "Holis Spa" sub-calendar color
-   * that made every booking the same purple. Manual blocks (therapist hours,
-   * lunch, on-call…) keep their meaningful sub-calendar color, and the full
-   * admin calendar is unchanged.
-   */
-  const displayColor = (entry: CalendarEntry): string =>
-    readOnly && entry.booking ? bookingColor(entry.booking.status) : entryColor(entry);
-
   /** Entries on hidden sub-calendars drop out; ungrouped ones always show. */
   const visibleEntries = entries.filter((e) => !e.group_id || !hiddenGroups.has(e.group_id));
 
   /** What the calendar grid + day view render: manual entries AND website
    *  bookings. The management list below stays manual-only. */
   const calendarItems = [...visibleEntries, ...bookingEntries];
+
+  /** Sub-calendars actually present in what's on screen — drives the read-only
+   *  legend so the front desk can tell Horario terapeutas from Out Call from
+   *  Holis Spa (its group toggle bar is hidden). Order follows the groups' own
+   *  sort order; ungrouped items don't need a legend row. */
+  const legendGroups = groups.filter((g) => calendarItems.some((e) => e.group_id === g.id));
 
   /** yyyy-MM-dd strings compare correctly, so a plain range check is enough. */
   const coversDay = (e: CalendarEntry, dayKey: string) =>
@@ -943,14 +938,15 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               />
             )}
 
-            {/* Read-only device: the sub-calendar legend is hidden, so bookings
-                are colored by status instead — this tiny legend decodes them. */}
-            {readOnly && (
+            {/* Read-only device: the interactive group bar is hidden, so this
+                static legend decodes the sub-calendar colors (Horario terapeutas,
+                Out Call, Holis Spa…) — only the ones actually on screen. */}
+            {readOnly && legendGroups.length > 0 && (
               <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 mb-4 text-xs font-body">
-                {([["Paid", "paid"], ["Confirmed", "confirmed"], ["Pending", "pending"]] as const).map(([label, st]) => (
-                  <span key={st} className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: bookingColor(st) }} />
-                    {label}
+                {legendGroups.map((g) => (
+                  <span key={g.id} className="inline-flex items-center gap-1.5 text-muted-foreground">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                    {g.name}
                   </span>
                 ))}
               </div>
@@ -992,7 +988,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                     <div key={key}>
                       <div className="space-y-1.5">
                         {banners.map((e) => {
-                          const color = displayColor(e); const loc = locationLabel(e);
+                          const color = entryColor(e); const loc = locationLabel(e);
                           return (
                             <div key={e.id} onClick={() => openItem(e, d)} className="rounded-lg border shadow-sm px-3 py-2 cursor-pointer hover:brightness-95 transition-all" style={{ backgroundColor: color, borderColor: color, color: readableOn(color) }}>
                               <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">All day</p>
@@ -1002,7 +998,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                           );
                         })}
                         {timed.map((e) => {
-                          const color = displayColor(e); const loc = locationLabel(e); const s = toMinutes(e.start_time);
+                          const color = entryColor(e); const loc = locationLabel(e); const s = toMinutes(e.start_time);
                           return (
                             <div key={e.id} onClick={() => openItem(e, d)} className="flex items-stretch gap-2 cursor-pointer group">
                               <div className="w-16 shrink-0 text-right pt-1">
@@ -1046,7 +1042,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   {allDayEntries.length > 0 && (
                     <div className="mb-3 space-y-1">
                       {allDayEntries.map((entry) => {
-                        const color = displayColor(entry);
+                        const color = entryColor(entry);
                         const loc = locationLabel(entry);
                         return (
                           <div
@@ -1082,7 +1078,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                         ))}
                         <div className="absolute inset-y-0 right-0" style={{ left: DAY_TIME_GUTTER_PX }}>
                           {laid.map(({ entry, startMin, endMin, lane }) => {
-                            const color = displayColor(entry);
+                            const color = entryColor(entry);
                             const loc = locationLabel(entry);
                             return (
                               <div
@@ -1158,7 +1154,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                       </div>
                       <div className="space-y-0.5">
                         {dayEntries.slice(0, 3).map((entry) => {
-                          const color = displayColor(entry);
+                          const color = entryColor(entry);
                           return (
                             <div
                               key={entry.id}
@@ -1307,7 +1303,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 {allDayEntries.length > 0 && (
                   <div className="mb-3 space-y-1 border-b border-border pb-3">
                     {allDayEntries.map((entry) => {
-                      const color = displayColor(entry);
+                      const color = entryColor(entry);
                       const loc = locationLabel(entry);
                       return (
                         <div
@@ -1342,7 +1338,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                     [...laid]
                       .sort((a, b) => a.startMin - b.startMin)
                       .map(({ entry, startMin, endMin }) => {
-                        const color = displayColor(entry);
+                        const color = entryColor(entry);
                         const loc = locationLabel(entry);
                         return (
                           <div
@@ -1377,7 +1373,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
 
                     <div className="absolute inset-y-0 right-0" style={{ left: DAY_TIME_GUTTER_PX }}>
                       {laid.map(({ entry, startMin, endMin, lane }) => {
-                        const color = displayColor(entry);
+                        const color = entryColor(entry);
                         const loc = locationLabel(entry);
                         return (
                           <div
