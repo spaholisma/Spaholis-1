@@ -86,16 +86,23 @@ Deno.serve(async (req) => {
     const towardNext = total % threshold;
     const remaining = towardNext === 0 ? 0 : threshold - towardNext;
 
-    // Latest name for a friendly greeting.
+    // Most recent offering for this customer — greeting name, code, benefits,
+    // and a no-login booking link (matches the membership-order flow).
     const { data: last } = await admin
       .from("user_offerings")
-      .select("guest_name")
+      .select("guest_name, name_snapshot, is_unlimited, credits_remaining, code, access_token, expires_at")
       .filter("guest_email", "ilike", email)
-      .eq("offering_id", offeringId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     const guestName = (last?.guest_name || "there").split(" ")[0];
+    const membershipName = last?.name_snapshot || off.name;
+    const entitlement = last?.is_unlimited ? "Unlimited classes" : `${last?.credits_remaining ?? 0} class credits`;
+    const code = last?.code || "";
+    const validUntil = last?.expires_at
+      ? new Date(last.expires_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Costa_Rica" })
+      : "";
+    const scheduleLink = last?.access_token ? `${SITE_URL}/classes?m=${last.access_token}` : `${SITE_URL}/classes`;
 
     const rewardLabel = cfg.reward_label || "a free Pure Bliss 60-min massage";
     const key = earned ? "loyalty_reward_earned" : "loyalty_progress";
@@ -106,20 +113,30 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (tpl && tpl.enabled === false) return json({ ok: true, skipped: "template_disabled" });
 
-    const appButton = `<p style="text-align:center;margin:24px 0;">
-      <a href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:14px 28px;border-radius:9999px;font-size:15px;display:inline-block;">Open Holis on your phone</a></p>
-      <p style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to get the Holis app and see your bookings anytime.</p>`;
+    const appButton = `<p style="text-align:center;margin:20px 0 6px;">
+      <a href="${scheduleLink}" style="background:#1d5b6a;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;font-size:15px;display:inline-block;">Book your classes</a></p>
+      <p style="text-align:center;margin:0 0 18px;">
+      <a href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:13px 26px;border-radius:9999px;font-size:14px;display:inline-block;">Get the Holis app</a></p>
+      <p style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to install the Holis app and see your bookings anytime.</p>`;
 
-    const details = `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:10px 0 18px;">
-      ${row("Membership", escHtml(off.name))}
-      ${row("Renewals so far", String(total))}
-      ${row("Reward every", `${threshold} renewals`)}
-      ${row(earned ? "Reward earned" : "Renewals to your reward", earned ? "Yes 🎁" : String(remaining))}
-    </table>`;
+    // Complete member box: membership, benefits, code, validity + loyalty progress.
+    const details = `<div style="background:#f3f6f6;border-radius:12px;padding:18px;margin:14px 0;">
+      <p style="margin:0 0 6px;font-weight:bold;font-size:16px;">${escHtml(membershipName)}</p>
+      <p style="margin:4px 0;color:#334155;font-size:14px;">Your benefits: <strong>${escHtml(entitlement)}</strong></p>
+      ${code ? `<p style="margin:4px 0;color:#334155;font-size:14px;">Your code: <strong style="letter-spacing:1px;">${escHtml(code)}</strong> <span style="color:#666;">— use it to book without logging in</span></p>` : ""}
+      ${validUntil ? `<p style="margin:4px 0;color:#666;font-size:13px;">Valid until ${escHtml(validUntil)}</p>` : ""}
+      <hr style="border:none;border-top:1px solid #dde5e5;margin:12px 0;">
+      <p style="margin:4px 0;color:#334155;font-size:14px;">Renewals so far: <strong>${total}</strong> · Reward every <strong>${threshold}</strong></p>
+      <p style="margin:4px 0;color:#334155;font-size:14px;">${earned ? "Free reward earned: <strong>Yes 🎁</strong>" : `Renewals to your free reward: <strong>${remaining}</strong>`}</p>
+    </div>`;
 
     const vars: Record<string, string> = {
       guest_name: escHtml(guestName),
-      offering_name: escHtml(off.name),
+      offering_name: escHtml(membershipName),
+      entitlement: escHtml(entitlement),
+      code: escHtml(code),
+      valid_until: escHtml(validUntil),
+      schedule_link: scheduleLink,
       purchases: String(total),
       threshold: String(threshold),
       remaining: String(remaining),
