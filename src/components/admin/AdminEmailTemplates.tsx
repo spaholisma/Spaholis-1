@@ -49,8 +49,8 @@ const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class
 const CATEGORY_VARS: Record<string, string[]> = {
   treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "total", "payment_status", "details"],
   class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "payment_status", "details", "button"],
-  offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button"],
-  offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button"],
+  offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button", "loyalty"],
+  offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button", "loyalty"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
   receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
@@ -172,9 +172,10 @@ function sampleVars(category: string): Record<string, string> {
     ${isOrder ? `<p style="margin:8px 0 0;color:#666;font-size:13px;">Reference code: <strong style="letter-spacing:1px;">ABCD1234</strong></p>` : ""}
   </div>`;
   const button = `<p style="text-align:center;margin:24px 0;"><a href="#" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">${isOrder ? "Schedule your classes" : "Browse classes"}</a></p>`;
+  const loyalty = `<div style="background:#eef5f0;border:1px solid #cfe3d6;border-radius:12px;padding:16px;margin:18px 0;"><p style="margin:0 0 4px;font-weight:bold;font-size:15px;">🎁 Loyalty reward</p><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Renew your <strong>5-Class Pass</strong> <strong>5</strong> times and you'll earn <strong>a free Pure Bliss 60-min massage</strong>.</p></div>`;
   return {
     first_name: "Ana", guest_name: "Ana Lopez", offering_name: "5-Class Pass", entitlement: "5 class credits",
-    code: "ABCD1234", schedule_link: "https://spaholis.com/classes?m=sample-token", details, button,
+    code: "ABCD1234", schedule_link: "https://spaholis.com/classes?m=sample-token", details, button, loyalty,
   };
 }
 
@@ -182,7 +183,7 @@ function buildPreview(tpl: { heading: string; body_html: string }, category: str
   const raw = sampleVars(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line"].includes(k) ? v : escHtml(v);
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty"].includes(k) ? v : escHtml(v);
   return renderShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars));
 }
 

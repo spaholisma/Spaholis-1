@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id")
     .eq("id", userOfferingId)
     .maybeSingle();
 
@@ -224,10 +224,26 @@ Deno.serve(async (req) => {
     const button = isOrder
       ? ctaButton("Schedule your classes", link)
       : ctaButton("Browse classes", `${SITE_URL}/classes`);
+    // Loyalty reward highlight — renew N times to earn a free treatment. A bonus,
+    // so any lookup failure must never block the welcome email.
+    let loyaltyHtml = "";
+    try {
+      const { data: cfg } = await supabase.from("membership_reward_config").select("enabled, reward_label").maybeSingle();
+      if (cfg && cfg.enabled !== false) {
+        const { data: offRow } = await supabase.from("offerings").select("loyalty_threshold").eq("id", (o as any).offering_id).maybeSingle();
+        const th = Number(offRow?.loyalty_threshold ?? 0);
+        if (th > 0) {
+          loyaltyHtml = `<div style="background:#eef5f0;border:1px solid #cfe3d6;border-radius:12px;padding:16px;margin:18px 0;">
+            <p style="margin:0 0 4px;font-weight:bold;font-size:15px;">🎁 Loyalty reward</p>
+            <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Renew your <strong>${esc(o.name_snapshot)}</strong> <strong>${th}</strong> times and you'll earn <strong>${esc(cfg.reward_label || "a free Pure Bliss 60-min massage")}</strong>. We'll keep you posted as you get closer!</p>
+          </div>`;
+        }
+      }
+    } catch { /* loyalty is a bonus; never block the welcome email */ }
     const built = buildFromTemplate(
       tpl,
       { first_name: firstName, guest_name: o.guest_name || firstName, offering_name: o.name_snapshot, entitlement, code: o.code || "" },
-      { details: offeringDetailsHtml(o), button, schedule_link: link },
+      { details: offeringDetailsHtml(o), button, schedule_link: link, loyalty: loyaltyHtml },
     );
     custRes = await sendEmail(to, built.subject, built.html);
   } else {
