@@ -39,9 +39,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   offering_expired: "Membership & pass expiry",
   receipts: "Receipts (purchase & refund)",
   appointment_request: "Appointment requests (staff + client)",
+  loyalty: "Loyalty rewards (renewal progress & earned)",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "class", "treatment", "client_notify", "offering_expired", "receipts", "appointment_request"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "client_notify", "offering_expired", "receipts", "appointment_request"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -54,6 +55,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   offering_expired: ["guest_name", "first_name", "offering_name", "button"],
   receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
   appointment_request: ["therapy", "guest_name", "preferred_datetime", "preferred_line", "phone", "email", "notes", "details"],
+  loyalty: ["guest_name", "offering_name", "purchases", "threshold", "remaining", "reward_label", "details", "button"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -148,6 +150,17 @@ function sampleVars(category: string): Record<string, string> {
       preferred_datetime: "Friday, August 8, 2026 · 14:30",
       preferred_line: " for <strong>Friday, August 8, 2026 · 14:30</strong>",
       phone: "8888-8888", email: "ana@email.com", notes: "", details,
+    };
+  }
+  if (category === "loyalty") {
+    const details = table([
+      row("Membership", "Monthly Unlimited"), row("Renewals so far", "2"),
+      row("Reward every", "3 renewals"), row("Renewals to your reward", "1"),
+    ]);
+    const button = `<p style="text-align:center;margin:24px 0;"><a href="#" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:14px 28px;border-radius:9999px;font-size:15px;display:inline-block;">Open Holis on your phone</a></p>`;
+    return {
+      guest_name: "Ana", offering_name: "Monthly Unlimited", purchases: "2", threshold: "3",
+      remaining: "1", reward_label: "a free Pure Bliss 60-min massage", details, button,
     };
   }
   // offering_purchase / offering_order
