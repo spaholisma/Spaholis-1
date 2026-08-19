@@ -36,8 +36,14 @@ const Para = ({ items }: { items: string[] }) => (
  */
 const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; segments: [number, number][]; poster?: string }) => {
   const hostRef = useRef<HTMLDivElement>(null);
+  // Blurred still raised over the video to hide the buffer/seek flash (and any
+  // YouTube chrome that flickers) while jumping between segments.
+  const maskRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!videoId || !hostRef.current) return;
+    const showMask = () => { if (maskRef.current) maskRef.current.style.opacity = "1"; };
+    const hideMask = () => { if (maskRef.current) maskRef.current.style.opacity = "0"; };
+    let maskTimer: any;
     // Sanitised, ordered list of segments; fall back to the whole video.
     const segs = (segments || [])
       .map(([s, e]) => [Math.max(0, Number(s) || 0), Number(e) || 0] as [number, number])
@@ -51,7 +57,13 @@ const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; seg
     const playClip = (i: number) => {
       idx = i % clips.length;
       const [s] = clips[idx];
+      // Mask the jump so the buffer flash / YouTube UI never shows, then lift it
+      // once the new segment has had a moment to start playing.
+      showMask();
       try { player.seekTo(s, true); player.playVideo(); } catch { /* player gone */ }
+      // Safety net in case the poll never confirms playback (hidden tab, etc.).
+      clearTimeout(maskTimer);
+      maskTimer = setTimeout(hideMask, 2500);
     };
 
     const build = () => {
@@ -73,10 +85,13 @@ const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; seg
               clearInterval(poll);
               poll = setInterval(() => {
                 try {
-                  const [, end] = clips[idx];
-                  if (end > 0 && player.getCurrentTime() >= end) playClip(idx + 1);
+                  const [start, end] = clips[idx];
+                  const t = player.getCurrentTime();
+                  // Lift the mask only once the new segment is really on screen.
+                  if (t >= start + 0.25 && (end <= 0 || t < end)) hideMask();
+                  if (end > 0 && t >= end) playClip(idx + 1);
                 } catch { /* player gone */ }
-              }, 200);
+              }, 150);
             }
           },
         },
@@ -99,6 +114,7 @@ const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; seg
     return () => {
       cancelled = true;
       clearInterval(poll);
+      clearTimeout(maskTimer);
       try { player && player.destroy(); } catch { /* already gone */ }
     };
   }, [videoId, JSON.stringify(segments)]);
@@ -116,16 +132,28 @@ const YouTubeBackground = ({ videoId, segments, poster }: { videoId: string; seg
           style={{ filter: "blur(18px)" }}
         />
       )}
-      {/* The clip itself, shown WHOLE (contained) and centered so the person is
-          never cropped, with a soft blur to match the hero's mood. */}
+      {/* The clip itself, contained & centered so the person isn't cropped, with
+          a light overscan (scale) that pushes YouTube's title/controls off-screen
+          and a soft blur to match the hero's mood. */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div
-          className="h-full aspect-video max-w-full [&>iframe]:h-full [&>iframe]:w-full"
+          className="h-full aspect-video max-w-full scale-[1.18] [&>iframe]:h-full [&>iframe]:w-full"
           style={{ filter: "blur(2px)" }}
         >
           <div ref={hostRef} className="h-full w-full" />
         </div>
       </div>
+
+      {/* Transition mask — a blurred still raised over the video during segment
+          jumps so the buffer flash and YouTube UI never show. */}
+      {poster && (
+        <div
+          ref={maskRef}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500"
+          style={{ backgroundImage: `url(${poster})`, backgroundSize: "cover", backgroundPosition: "center", filter: "blur(18px)", transform: "scale(1.1)" }}
+        />
+      )}
     </div>
   );
 };
