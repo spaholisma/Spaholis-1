@@ -43,6 +43,13 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/private-gyrotonic-manuel-antonio"/>
   </url>
   <url>
+    <loc>https://www.spaholis.com/integrative-kinesiology-course</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.spaholis.com/integrative-kinesiology-course"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.spaholis.com/es/integrative-kinesiology-course"/>
+  </url>
+  <url>
     <loc>https://www.spaholis.com/book</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>

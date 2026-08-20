@@ -34,6 +34,7 @@ import StudioRental from "./pages/StudioRental";
 import DayRetreats from "./pages/DayRetreats";
 import CranioSacral from "./pages/CranioSacral";
 import Gyrotonic from "./pages/Gyrotonic";
+import Kinesiology from "./pages/Kinesiology";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Refund from "./pages/Refund";
@@ -79,6 +80,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/studio-rental", element: <StudioRental /> },
   { path: "/craniosacral-therapy-manuel-antonio", element: <CranioSacral /> },
   { path: "/private-gyrotonic-manuel-antonio", element: <Gyrotonic /> },
+  { path: "/integrative-kinesiology-course", element: <Kinesiology /> },
   { path: "/contact", element: <Contact /> },
   { path: "/blog", element: <Blog /> },
   { path: "/blog/:slug", element: <BlogPost /> },

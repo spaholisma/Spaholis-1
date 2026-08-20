@@ -106,6 +106,11 @@ export const seo = {
     description: "Discover the GYROTONIC® Method with a private session led by Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/private-gyrotonic-manuel-antonio",
   },
+  kinesiology: {
+    title: "Integrative Kinesiology Course | Professional Bodywork Training | Holis",
+    description: "Professional Integrative Kinesiology training created by Evelina Bolognini. Learn to use the Myofascial Tissue Reflex to assess priorities and personalize bodywork sessions.",
+    canonical: "/integrative-kinesiology-course",
+  },
 } as const;
 
 export const content = {
@@ -1169,6 +1174,119 @@ export const content = {
       { question: "Is it similar to Pilates?", answer: "There are some similarities in the use of specialized equipment and guided movement, but the movement vocabulary and experience are distinctly different." },
       { question: "What should I wear?", answer: "Comfortable clothing that allows you to move freely." },
     ],
+  },
+
+  // ── Integrative Kinesiology course landing page ──
+  kinesiology: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
+    eyebrow: "Professional Training · Holis Wellness Center",
+    heroTitle: "Integrative Kinesiology",
+    heroSubtitle: "featuring the Myofascial Tissue Reflex",
+    heroTagline: "Learn to listen to the body.",
+    heroText: [
+      "Integrative Kinesiology is a professional training created and taught by Evelina Bolognini, founder of Holis Wellness Center.",
+      "At the center of the course is the **Myofascial Tissue Reflex**, a functional assessment tool used to explore the body's priority needs, guide therapeutic decision-making, and observe changes before and after a session.",
+      "Rather than relying solely on predetermined treatment protocols, practitioners learn a systematic approach to asking: Where does this body need attention first? Which therapeutic approach is most appropriate at this moment? How did the tissue respond to the treatment?",
+    ],
+    datesCta: "View course dates",
+    datesLink: "/education",
+    infoCta: "Request course information",
+    infoLink: "/book?service=consultation&topic=Integrative%20Kinesiology%20Course",
+
+    protocolTitle: "From protocol to personalized treatment",
+    protocolText: [
+      "Every client arrives with a different history, different patterns of tension and a different response to treatment. Yet practitioners often have to decide where to begin based primarily on symptoms, observation or a standard protocol.",
+      "Integrative Kinesiology adds another layer to that decision-making process. Through the Myofascial Tissue Reflex, practitioners learn to assess the body's response, identify areas that require priority attention, select therapeutic tools according to the individual client, and reassess after treatment.",
+      "The objective is not simply to perform a technique. It is to develop a clearer therapeutic direction for each individual session.",
+    ],
+
+    learnTitle: "What you will learn",
+    learnIntro: "The training combines theoretical foundations, demonstrations and supervised practice.",
+    learnItems: [
+      { title: "Connective Tissue, Fascia & the Extracellular Matrix", text: "Develop a deeper understanding of the connective tissue system and its role in the body's structural relationships." },
+      { title: "Body Segments & Patterns of Tension", text: "Explore body segments and their relationship to different patterns of tension and restriction." },
+      { title: "Diaphragms & Tissue Priorities", text: "Learn to precisely identify diaphragms and tissues that may require priority attention." },
+      { title: "The Myofascial Tissue Reflex", text: "Learn how to use the Myofascial Tissue Reflex as a functional assessment tool before treatment." },
+      { title: "Therapeutic Decision-Making", text: "Use the information obtained through assessment to help select therapeutic tools according to the individual needs of each client." },
+      { title: "Reassessment", text: "Observe the body's response after treatment and compare it with the initial assessment." },
+      { title: "Aromatherapy Integration", text: "Learn professional applications of aromatherapy that can complement physical and emotional integration within the therapeutic process." },
+    ],
+
+    flowTitle: "Assess. Treat. Reassess.",
+    flowIntro: "This simple sequence is one of the foundations of Integrative Kinesiology.",
+    steps: [
+      { label: "Assess", text: "Use the Myofascial Tissue Reflex to explore the body's priority needs." },
+      { label: "Treat", text: "Choose an appropriate therapeutic approach according to the individual response." },
+      { label: "Reassess", text: "Test again to observe how the tissue has responded." },
+      { label: "Plan", text: "Use that information to help determine the direction of subsequent sessions." },
+    ],
+    flowOutro: "The practitioner is therefore not simply applying the same sequence to every client. The treatment evolves according to the body's response.",
+
+    integrateTitle: "Designed to integrate with the work you already do",
+    integrateText: [
+      "Integrative Kinesiology does not require practitioners to abandon their existing therapeutic approach. It is designed to provide an additional assessment and decision-making framework that can be incorporated into practices such as:",
+    ],
+    integrateList: [
+      "Massage Therapy",
+      "CranioSacral Therapy",
+      "Fascial & Bodywork Techniques",
+      "Holistic Aromatherapy",
+      "Integrative Wellness Practices",
+      "Movement-Based Practices",
+    ],
+    integrateOutro: "The practitioner can continue using the techniques they already know while developing a more individualized way of determining what to prioritize and when.",
+
+    observeTitle: "Make change easier to observe",
+    observeText: [
+      "One of the challenges in hands-on therapeutic work is evaluating what changed during a session.",
+      "By assessing before treatment and reassessing afterward, Integrative Kinesiology provides practitioners with a structured way to observe the body's response.",
+      "This can support clearer professional communication with clients and help practitioners consider whether additional sessions may be appropriate and how future sessions might be structured.",
+    ],
+
+    forWhoTitle: "Who is this course for?",
+    forWhoIntro: "Integrative Kinesiology is designed for professionals and students working in areas such as:",
+    forWhoList: [
+      "Massage therapy",
+      "CranioSacral Therapy",
+      "Bodywork and fascial techniques",
+      "Holistic wellness",
+      "Aromatherapy",
+      "Movement practices",
+      "Other complementary hands-on approaches",
+    ],
+    forWhoQuestionsIntro: "It may be particularly valuable for practitioners who find themselves asking:",
+    forWhoQuestions: [
+      "Where should I begin?",
+      "Which technique should I use with this particular client?",
+      "How can I determine whether the tissue responded?",
+      "What should I prioritize in the next session?",
+    ],
+
+    founderTitle: "Created and taught by Evelina Bolognini",
+    founderText: [
+      "Integrative Kinesiology was developed by Evelina Bolognini, founder of Holis Wellness Center, through her experience integrating bodywork, movement, fascia, holistic approaches and therapeutic observation.",
+      "The course emerged from a practical question: How can we better determine what an individual body needs before choosing how to work with it?",
+      "The resulting approach brings assessment, therapeutic decision-making and reassessment into a single integrative framework.",
+    ],
+    meetCta: "Meet Evelina — Founder of Holis →",
+    meetLink: "/about#founder",
+
+    trainingTitle: "Professional training in Manuel Antonio, Costa Rica",
+    trainingIntro: "The course combines:",
+    trainingCombines: [
+      { title: "Theory", text: "to understand the principles behind the approach." },
+      { title: "Demonstration", text: "to see the assessment process in practice." },
+      { title: "Supervised hands-on practice", text: "to develop confidence applying the method." },
+    ],
+    trainingNote: "This is an educational professional training rather than a passive wellness experience.",
+
+    certificateTitle: "Certificate",
+    certificateText: [
+      "Upon completion of the course, participants receive a certificate endorsed by FECOPROVE.",
+    ],
+    finalCta: "View dates & register",
+    finalCta2: "Request course information",
+    faqTitle: "",
   },
 
   // ── WhatsApp Button ──
