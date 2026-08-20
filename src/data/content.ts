@@ -482,15 +482,6 @@ export const content = {
         comingSoon: false,
       },
       {
-        title: "Wellness Packages",
-        description: "Thoughtfully curated multi-session journeys that weave together movement, bodywork, and holistic therapies. Each package offers a progressive pathway — building session by session toward deeper healing, greater awareness, and lasting transformation.",
-        benefits: ["Progressive, multi-treatment healing arcs", "Integrated movement and bodywork", "Personalized wellness milestones", "Deeper results through continuity", "Best value for committed wellness"],
-        image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151717240-ZYA0HM24HQ7SS949DZ8I/unsplash-image-9BjH8jl7Uj0.jpg",
-        imageAlt: "Wellness Packages at Holis",
-        bookingLink: "/book",
-        comingSoon: false,
-      },
-      {
         title: "Essenthya Deluxe Facial",
         description: "A luxurious, results-driven facial ritual that deeply nourishes and revitalizes your skin. Using premium botanical essences, this treatment restores your complexion's natural luminosity while providing a profoundly relaxing sensory experience.",
         benefits: ["Deep skin nourishment and hydration", "Visible radiance and glow", "Fine line and tension reduction", "Complete sensory rejuvenation"],
@@ -500,12 +491,12 @@ export const content = {
         comingSoon: false,
       },
       {
-        title: "Structural Balance Class",
-        description: "A movement-based alignment session rooted in holistic body mechanics. Through guided exercises and breath awareness, this class strengthens postural integrity, improves functional movement, and cultivates lasting harmony between body and mind.",
-        benefits: ["Improved posture and alignment", "Core strength and stability", "Greater range of motion", "Body-mind integration through movement"],
+        title: "GYROTONIC®",
+        description: "A movement-based practice of flowing, spiraling sequences performed on specialized equipment. GYROTONIC® decompresses the joints, mobilizes the spine, and builds strength and coordination — all synchronized with breath to leave the body longer, freer, and more connected.",
+        benefits: ["Spinal decompression and mobility", "Improved posture and alignment", "Core strength and stability", "Greater range of motion", "Body-mind integration through breath and movement"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151216283-Z4YHQODOZBVVH892ABP1/unsplash-image-rBLTWS3WsQ8.jpg",
-        imageAlt: "Structural Balance Class",
-        bookingLink: "/private-classes",
+        imageAlt: "Private GYROTONIC® session at Holis",
+        bookingLink: "/private-gyrotonic-manuel-antonio",
         comingSoon: false,
       },
       {
