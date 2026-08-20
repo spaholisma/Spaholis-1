@@ -21,6 +21,8 @@ export const ConsultationForm = () => {
   const [searchParams] = useSearchParams();
   const topic = searchParams.get("topic")?.trim() || "";
   const isRequest = topic.length > 0;
+  // kind=info → an information request (e.g. a course), not an appointment.
+  const isInfo = (searchParams.get("kind")?.trim() || "") === "info";
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
@@ -111,7 +113,9 @@ export const ConsultationForm = () => {
             </div>
             <h2 className="spa-heading-lg text-foreground mb-4">{t("consultation.thankYou")}</h2>
             <p className="font-body text-muted-foreground leading-relaxed">
-              {isRequest
+              {isInfo
+                ? t("consultation.infoThankYou", { defaultValue: "Thank you! Our team will be in touch shortly with the course information — dates, pricing and how to register." })
+                : isRequest
                 ? t("consultation.appointmentThankYou", { defaultValue: "Holis Wellness Center will reach out to you shortly to confirm your appointment — or suggest another time based on our therapists' availability." })
                 : t("consultation.thankYouMessage")}
             </p>
@@ -136,7 +140,9 @@ export const ConsultationForm = () => {
             transition={{ duration: 0.5 }}
           >
             <h1 className="spa-heading-lg text-foreground mb-2 text-center">
-              {isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
+              {isInfo
+                ? t("consultation.infoTitle", { defaultValue: "Request Course Information" })
+                : isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
             </h1>
             {isRequest ? (
               <p className="font-body text-sm text-foreground text-center mb-2 max-w-sm mx-auto">
@@ -144,7 +150,9 @@ export const ConsultationForm = () => {
               </p>
             ) : null}
             <p className="font-body text-sm text-muted-foreground text-center mb-10 leading-relaxed max-w-sm mx-auto">
-              {isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
+              {isInfo
+                ? t("consultation.infoSubtitle", { defaultValue: "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register." })
+                : isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -221,7 +229,7 @@ export const ConsultationForm = () => {
               </div>
               )}
 
-              {isRequest && (
+              {isRequest && !isInfo && (
                 <div className="space-y-3">
                   <Label className="font-body text-sm">
                     {t("consultation.preferredDateTime", { defaultValue: "Preferred date & time" })}{" "}
@@ -255,7 +263,7 @@ export const ConsultationForm = () => {
                 className="w-full"
                 disabled={submitting}
               >
-                {submitting ? t("consultation.submitting") : t("consultation.submit")}
+                {submitting ? t("consultation.submitting") : (isInfo ? t("consultation.infoSubmit", { defaultValue: "Request Information" }) : t("consultation.submit"))}
               </Button>
 
               <p className="font-body text-xs text-center text-muted-foreground/60">

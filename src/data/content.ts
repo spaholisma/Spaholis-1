@@ -1191,7 +1191,7 @@ export const content = {
     datesCta: "View course dates",
     datesLink: "/education",
     infoCta: "Request course information",
-    infoLink: "/book?service=consultation&topic=Integrative%20Kinesiology%20Course",
+    infoLink: "/book?service=consultation&topic=Integrative%20Kinesiology%20Course&kind=info",
 
     protocolTitle: "From protocol to personalized treatment",
     protocolText: [
