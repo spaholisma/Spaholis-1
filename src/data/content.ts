@@ -469,7 +469,7 @@ export const content = {
         benefits: ["Deep muscular and emotional tension release", "Nervous system reset and regulation", "Enhanced body-mind awareness", "Restored energetic flow and balance"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151575626-1H40BRUPSKAXDESWYE0U/unsplash-image-0MoF-Fe0w0A.jpg",
         imageAlt: "Somato Awareness Massage at Holis",
-        bookingLink: "/book",
+        bookingLink: "/book?service=4a65592e-d174-4c79-9282-90433723fa2f&category=Massage Therapy",
         comingSoon: false,
       },
       {
@@ -478,7 +478,7 @@ export const content = {
         benefits: ["Full-system energy activation", "Metabolic and circulatory boost", "Mental clarity and focus", "Foundation for ongoing wellness"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151383170-WHX3TKIDKZTKZPB7RCD1/image-asset.jpeg",
         imageAlt: "Holis Jump Start treatment",
-        bookingLink: "/book",
+        bookingLink: "/book?service=0082aadb-ee59-4770-92b7-24bc12e1c75b&category=Holistic Therapy",
         comingSoon: false,
       },
       {
@@ -487,7 +487,7 @@ export const content = {
         benefits: ["Deep skin nourishment and hydration", "Visible radiance and glow", "Fine line and tension reduction", "Complete sensory rejuvenation"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151281607-QT5PXOJR1O8Z8LTIIR2N/unsplash-image-HXsYayB33a8.jpg",
         imageAlt: "Essenthya Deluxe Facial",
-        bookingLink: "/book",
+        bookingLink: "/book?service=9eb898af-f290-48d9-bf00-378369ac1f28&category=Organic Facials",
         comingSoon: false,
       },
       {
@@ -505,7 +505,7 @@ export const content = {
         benefits: ["Enhanced circulation and lymphatic flow", "Whole-body tension relief", "Natural healing activation", "Deep relaxation and stress reduction"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151132437-7N7HV23I2FBJA8YJQ6NJ/image-asset.jpeg",
         imageAlt: "Holis Reflexology treatment",
-        bookingLink: "/book",
+        bookingLink: "/book?service=a8abe55b-8183-4b57-9634-cd99ecac2aad&category=Massage Therapy",
         comingSoon: true,
       },
     ],
