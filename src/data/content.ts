@@ -1284,6 +1284,7 @@ export const content = {
     certificateText: [
       "Upon completion of the course, participants receive a certificate endorsed by FECOPROVE.",
     ],
+    certificateLogo: "/images/fecoprobe-certificacion.png",
     finalCta: "View dates & register",
     finalCta2: "Request course information",
     faqTitle: "",

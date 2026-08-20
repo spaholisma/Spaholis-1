@@ -182,6 +182,20 @@ const EducationalPage = () => {
             </motion.div>
           </div>
 
+          {/* ── Featured: Integrative Kinesiology course ── */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+            <motion.div {...fadeIn} className="rounded-2xl border border-spa-sage/30 bg-spa-sage/8 p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+              <div>
+                <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-1">Professional training · with the Myofascial Tissue Reflex</p>
+                <h2 className="font-heading text-xl sm:text-2xl font-semibold text-foreground">Integrative Kinesiology</h2>
+                <p className="spa-body-sm text-muted-foreground mt-1 max-w-xl">A professional training created by Evelina Bolognini — learn to assess the body's priorities and personalize every bodywork session.</p>
+              </div>
+              <Button asChild variant="spa" size="lg" className="shrink-0 w-full sm:w-auto whitespace-normal h-auto min-h-11 py-2.5 text-center leading-tight">
+                <Link to="/integrative-kinesiology-course">Discover the Integrative Kinesiology Course →</Link>
+              </Button>
+            </motion.div>
+          </div>
+
           {/* ── Somato Awareness System Section ── */}
           {activeTab === "sas" && (
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">

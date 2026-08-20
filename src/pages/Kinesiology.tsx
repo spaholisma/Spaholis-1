@@ -196,6 +196,11 @@ const KinesiologyPage = () => {
           <div className="text-spa-cream/80 [&_p]:text-spa-cream/80 max-w-xl mx-auto">
             <Para items={c.certificateText} />
           </div>
+          {c.certificateLogo && (
+            <div className="mt-6 flex justify-center">
+              <img src={c.certificateLogo} alt="FECOPROVE certification" className="h-24 w-auto bg-white rounded-xl p-3 shadow-sm" />
+            </div>
+          )}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild variant="spa" size="xl" className="max-w-full whitespace-normal h-auto min-h-12 py-3 text-center leading-tight">
               <Link to={c.datesLink}>{c.finalCta} <ArrowRight className="ml-2 h-4 w-4" /></Link>
