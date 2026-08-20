@@ -49,6 +49,7 @@ import { format } from "date-fns";
 
 const sidebarLinks = [
   { label: "Dashboard", icon: LayoutDashboard, id: "overview" },
+  { label: "Menu / Navigation", icon: Menu, id: "navigation" },
   { label: "Appointments", icon: Calendar, id: "appointments" },
   { label: "Trash", icon: Trash2, id: "trash" },
   { label: "Services", icon: Briefcase, id: "services" },
@@ -77,7 +78,6 @@ const sidebarLinks = [
   { label: "Home Lists", icon: FileEdit, id: "home-lists" },
   { label: "Intake Questions", icon: ClipboardList, id: "intake-questions" },
   { label: "Theme & Colors", icon: Paintbrush, id: "theme" },
-  { label: "Menu / Navigation", icon: Menu, id: "navigation" },
   { label: "Content", icon: FileEdit, id: "content" },
   { label: "Client Emails", icon: Mail, id: "client-emails" },
   { label: "Receipts", icon: Receipt, id: "receipts" },
