@@ -9,13 +9,21 @@ export interface ValidatableService {
   duration_minutes: number | null;
   type?: string | null;
   category?: string | null;
+  is_addon?: boolean | null;
 }
 
-// Categories/types where a duration suffix in the title is not expected
-const SKIP_TYPES = new Set(["experience", "program", "workshop"]);
+// Types/categories that are NOT booked as an individual timed slot, so their
+// titles are brand/course names and don't need a duration suffix:
+//  - experiences, programs, workshops, and multi-session courses
+//  - Spa Packages (branded bundles — duration shows in the package detail)
+//  - Add-ons (extras attached to a treatment, never booked on their own)
+const SKIP_TYPES = new Set(["experience", "program", "workshop", "course"]);
 const SKIP_CATEGORIES = new Set([
   "Manuel Antonio Experiences",
   "Wellness Programs",
+  "Spa Packages",
+  "Add-ons",
+  "course",
 ]);
 
 /**
@@ -44,6 +52,7 @@ export function parseTitleDuration(title: string): number | null {
 }
 
 export function validateServiceTitle(s: ValidatableService): string | null {
+  if (s.is_addon) return null;
   if (s.type && SKIP_TYPES.has(s.type)) return null;
   if (s.category && SKIP_CATEGORIES.has(s.category)) return null;
   if (!s.duration_minutes) return "Missing duration_minutes";
