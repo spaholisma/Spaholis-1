@@ -182,7 +182,8 @@ const EducationalPage = () => {
             </motion.div>
           </div>
 
-          {/* ── Featured: Integrative Kinesiology course ── */}
+          {/* ── Featured: Integrative Kinesiology course (Professional Modules tab only) ── */}
+          {activeTab === "modules" && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
             <motion.div {...fadeIn} className="rounded-2xl border border-spa-sage/30 bg-spa-sage/8 p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
               <div>
@@ -195,6 +196,7 @@ const EducationalPage = () => {
               </Button>
             </motion.div>
           </div>
+          )}
 
           {/* ── Somato Awareness System Section ── */}
           {activeTab === "sas" && (
