@@ -469,7 +469,7 @@ export const content = {
         benefits: ["Deep muscular and emotional tension release", "Nervous system reset and regulation", "Enhanced body-mind awareness", "Restored energetic flow and balance"],
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151575626-1H40BRUPSKAXDESWYE0U/unsplash-image-0MoF-Fe0w0A.jpg",
         imageAlt: "Somato Awareness Massage at Holis",
-        bookingLink: "/book?service=4a65592e-d174-4c79-9282-90433723fa2f&category=Massage Therapy",
+        bookingLink: "/book?service=5729288d-6041-4ccb-adba-d228da5d68a5&category=Massage Therapy",
         comingSoon: false,
       },
       {
@@ -506,7 +506,7 @@ export const content = {
         image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151132437-7N7HV23I2FBJA8YJQ6NJ/image-asset.jpeg",
         imageAlt: "Holis Reflexology treatment",
         bookingLink: "/book?service=a8abe55b-8183-4b57-9634-cd99ecac2aad&category=Massage Therapy",
-        comingSoon: true,
+        comingSoon: false,
       },
     ],
   },
