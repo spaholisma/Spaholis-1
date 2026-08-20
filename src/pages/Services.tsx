@@ -52,7 +52,6 @@ const spaCategories = [
   "Body Treatments",
   "Holistic Therapy",
   "Wellness Programs",
-  "Manuel Antonio Experiences",
 ];
 
 // Unified item type
