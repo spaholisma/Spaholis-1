@@ -23,6 +23,7 @@ import { AdminLoyaltyManager } from "@/components/admin/AdminLoyaltyManager";
 import { AdminSettingsManager } from "@/components/admin/AdminSettingsManager";
 import { AdminRoomsManager } from "@/components/admin/AdminRoomsManager";
 import { AdminContentEditor } from "@/components/admin/AdminContentEditor";
+import { AdminNavManager } from "@/components/admin/AdminNavManager";
 import { AdminInternalCalendars } from "@/components/admin/AdminInternalCalendars";
 import { AdminWellnessOrganizer } from "@/components/admin/AdminWellnessOrganizer";
 import { AdminSpaPackagesManager } from "@/components/admin/AdminSpaPackagesManager";
@@ -76,6 +77,7 @@ const sidebarLinks = [
   { label: "Home Lists", icon: FileEdit, id: "home-lists" },
   { label: "Intake Questions", icon: ClipboardList, id: "intake-questions" },
   { label: "Theme & Colors", icon: Paintbrush, id: "theme" },
+  { label: "Menu / Navigation", icon: Menu, id: "navigation" },
   { label: "Content", icon: FileEdit, id: "content" },
   { label: "Client Emails", icon: Mail, id: "client-emails" },
   { label: "Receipts", icon: Receipt, id: "receipts" },
@@ -225,6 +227,7 @@ const AdminDashboard = () => {
           {activeTab === "home-lists" && <AdminHomeLists />}
           {activeTab === "intake-questions" && <AdminIntakeQuestions />}
           {activeTab === "theme" && <AdminTheme />}
+          {activeTab === "navigation" && <AdminNavManager />}
           {activeTab === "content" && <AdminContentEditor />}
           {activeTab === "client-emails" && <AdminEmailTemplates />}
           {activeTab === "receipts" && <AdminSendReceipt />}

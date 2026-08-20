@@ -6,13 +6,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteContent } from "@/hooks/useSiteContent";
+import { useNavMenu } from "@/hooks/useNavMenu";
 import { content as defaults } from "@/data/content";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import holisLogo from "@/assets/holis-logo-clean.png";
 
 interface NavItem {
-  labelKey: string;
+  labelKey?: string;
   label: string;
   to: string;
 }
@@ -34,7 +35,6 @@ const MENU: NavEntry[] = [
       { labelKey: "nav.subFacialsBody", label: "Facials & Body Treatments", to: "/treatments-therapies?category=Organic Facials" },
       { labelKey: "nav.subWellnessPackages", label: "Wellness Packages", to: "/treatments-therapies?category=Spa Packages" },
       { labelKey: "nav.subSignature", label: "Signature Experiences", to: "/signature-treatments" },
-      { labelKey: "nav.subKinesiology", label: "Integrative Kinesiology (Course)", to: "/integrative-kinesiology-course" },
     ],
   },
   {
@@ -86,8 +86,11 @@ export function Navbar() {
   const desktopNavRef = useRef<HTMLDivElement>(null);
 
   const nav = siteContent?.nav || defaults.nav;
+  // Admin-editable menu from the DB; falls back to the built-in MENU below.
+  const dbMenu = useNavMenu();
+  const menu: NavEntry[] = (dbMenu as NavEntry[] | null) ?? MENU;
   const lp = (path: string) => withLangPrefix(path, language);
-  const label = (item: NavItem) => t(item.labelKey, { defaultValue: item.label });
+  const label = (item: NavItem) => (item.labelKey ? t(item.labelKey, { defaultValue: item.label }) : item.label);
 
   // Escape closes the mobile drawer.
   useEffect(() => {
@@ -131,7 +134,7 @@ export function Navbar() {
 
         {/* Desktop */}
         <div ref={desktopNavRef} className="hidden lg:flex items-center gap-5 xl:gap-6">
-          {MENU.map((entry) => {
+          {menu.map((entry) => {
             if (!entry.children) {
               if (entry.cta) {
                 return (
@@ -191,7 +194,7 @@ export function Navbar() {
                     >
                       <ul>
                         {entry.children.map((child) => (
-                          <li key={child.to + child.labelKey}>
+                          <li key={child.to + child.label}>
                             <Link
                               to={lp(child.to)}
                               onClick={() => setOpenMenu(null)}
@@ -261,7 +264,7 @@ export function Navbar() {
           >
             <nav aria-label={t("nav.mobileNavigation", { defaultValue: "Mobile" })} className="px-4 py-4">
               <ul className="space-y-1">
-                {MENU.map((entry) => {
+                {menu.map((entry) => {
                   if (!entry.children) {
                     if (entry.cta) {
                       return (
@@ -318,7 +321,7 @@ export function Navbar() {
                               </Link>
                             </li>
                             {entry.children.map((child) => (
-                              <li key={child.to + child.labelKey}>
+                              <li key={child.to + child.label}>
                                 <Link
                                   to={lp(child.to)}
                                   onClick={() => setOpen(false)}
