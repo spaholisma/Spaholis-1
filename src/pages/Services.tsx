@@ -112,11 +112,17 @@ const ServicesPage = () => {
     : availableCategories;
 
   useEffect(() => {
-    if (!selected && allCategories.length > 0) {
-      const fromUrl = categoryParam && allCategories.includes(categoryParam) ? categoryParam : null;
-      setSelected(fromUrl || allCategories[0]);
+    // A ?category= deep-link (e.g. from the top menu) always wins — even when a
+    // tab is already selected — so choosing a category above selects it below.
+    if (categoryParam && allCategories.includes(categoryParam)) {
+      setSelected(categoryParam);
+    } else if (!selected && allCategories.length > 0) {
+      setSelected(allCategories[0]);
     }
-  }, [allCategories, selected, categoryParam]);
+    // Intentionally not depending on `selected`: manual pill clicks must not be
+    // overridden, only a change in the URL category should re-sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCategories, categoryParam]);
 
   // Build unified items for the selected category
   const unifiedItems: UnifiedItem[] =
