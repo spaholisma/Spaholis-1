@@ -494,7 +494,7 @@ export const content = {
         title: "GYROTONIC®",
         description: "A movement-based practice of flowing, spiraling sequences performed on specialized equipment. GYROTONIC® decompresses the joints, mobilizes the spine, and builds strength and coordination — all synchronized with breath to leave the body longer, freer, and more connected.",
         benefits: ["Spinal decompression and mobility", "Improved posture and alignment", "Core strength and stability", "Greater range of motion", "Body-mind integration through breath and movement"],
-        image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1733151216283-Z4YHQODOZBVVH892ABP1/unsplash-image-rBLTWS3WsQ8.jpg",
+        image: "/images/gyrotonic.jpg",
         imageAlt: "Private GYROTONIC® session at Holis",
         bookingLink: "/private-gyrotonic-manuel-antonio",
         comingSoon: false,
