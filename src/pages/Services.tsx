@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -110,16 +110,26 @@ const ServicesPage = () => {
     ? [...availableCategories, SPA_PACKAGES_CATEGORY]
     : availableCategories;
 
+  // Remembers which ?category= value we've already applied, so we only honor a
+  // deep-link ONCE per distinct value. Otherwise this effect (whose `allCategories`
+  // dependency is a fresh array every render) would keep re-forcing the URL's
+  // category and snap the selection back whenever the user clicks another pill.
+  const appliedParamRef = useRef<string | null>(null);
   useEffect(() => {
-    // A ?category= deep-link (e.g. from the top menu) always wins — even when a
-    // tab is already selected — so choosing a category above selects it below.
+    if (allCategories.length === 0) return;
+    // A ?category= deep-link (e.g. from the top menu) preselects a tab, but only
+    // the first time we see that value — after that the user is free to click
+    // any pill (deselect/reselect) without it snapping back.
     if (categoryParam && allCategories.includes(categoryParam)) {
-      setSelected(categoryParam);
-    } else if (!selected && allCategories.length > 0) {
+      if (appliedParamRef.current !== categoryParam) {
+        appliedParamRef.current = categoryParam;
+        setSelected(categoryParam);
+      }
+    } else if (!selected) {
       setSelected(allCategories[0]);
     }
     // Intentionally not depending on `selected`: manual pill clicks must not be
-    // overridden, only a change in the URL category should re-sync.
+    // overridden, only a NEW URL category should re-sync (guarded by the ref).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCategories, categoryParam]);
 
