@@ -34,6 +34,7 @@ const MENU: NavEntry[] = [
       { labelKey: "nav.subFacialsBody", label: "Facials & Body Treatments", to: "/treatments-therapies?category=Organic Facials" },
       { labelKey: "nav.subWellnessPackages", label: "Wellness Packages", to: "/treatments-therapies?category=Spa Packages" },
       { labelKey: "nav.subSignature", label: "Signature Experiences", to: "/signature-treatments" },
+      { labelKey: "nav.subKinesiology", label: "Integrative Kinesiology (Course)", to: "/integrative-kinesiology-course" },
     ],
   },
   {
@@ -43,6 +44,7 @@ const MENU: NavEntry[] = [
       { labelKey: "nav.subPrivate", label: "Private Classes", to: "/private-sessions" },
       { labelKey: "nav.subPasses", label: "Passes & Memberships", to: "/classes#buy" },
       { labelKey: "nav.subTraining", label: "Professional Training & Workshops", to: "/education" },
+      { labelKey: "nav.subKinesiology", label: "Integrative Kinesiology Course", to: "/integrative-kinesiology-course" },
       { labelKey: "nav.subRental", label: "Studio Rental", to: "/studio-rental" },
     ],
   },
