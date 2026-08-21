@@ -101,12 +101,13 @@ export function AdminWeeklySchedule() {
   };
 
   const regenerate = async () => {
-    if (!confirm(`Regenerate the next ${weeks} weeks of sessions from the template? Existing unbooked future sessions for these classes will be replaced.`)) return;
+    if (!confirm(`Regenerate the next ${weeks} weeks of sessions from the template?\n\nSessions that already have bookings are KEPT (never deleted). Only empty future sessions for these classes are replaced.`)) return;
     setGenerating(true);
     try {
       const active = slots.filter((s) => s.is_active);
       const classIds = Array.from(new Set(active.map((s) => s.class_id)));
       const capacityByClass = new Map(classes.map((c) => [c.id, c.max_capacity]));
+      const instructorByClass = new Map(classes.map((c) => [c.id, c.instructor ?? null]));
 
       // Compute Monday of next week (Costa Rica time — use local Monday)
       const today = new Date();
@@ -117,28 +118,53 @@ export function AdminWeeklySchedule() {
       monday.setHours(0, 0, 0, 0);
       const cutoffISO = monday.toISOString();
 
-      // Delete future non-cancelled sessions for these classes from next Monday onward
-      const { error: delErr } = await supabase
+      // 1. Look at existing future sessions for these classes.
+      const { data: future, error: futErr } = await supabase
         .from("class_schedule")
-        .delete()
+        .select("id, class_id, start_time")
         .in("class_id", classIds)
         .gte("start_time", cutoffISO);
-      if (delErr) throw delErr;
+      if (futErr) throw futErr;
+      const futureRows = (future as { id: string; class_id: string; start_time: string }[]) ?? [];
 
-      // Build rows
-      const rows: { class_id: string; start_time: string; end_time: string; spots_remaining: number }[] = [];
+      // 2. Which of those already have (non-cancelled) bookings? Those are protected.
+      let protectedIds = new Set<string>();
+      if (futureRows.length) {
+        const { data: booked, error: bkErr } = await supabase
+          .from("class_bookings")
+          .select("schedule_id")
+          .neq("status", "cancelled")
+          .in("schedule_id", futureRows.map((r) => r.id));
+        if (bkErr) throw bkErr;
+        protectedIds = new Set((booked as { schedule_id: string }[] ?? []).map((b) => b.schedule_id));
+      }
+      // Keys (class + exact time) of protected sessions, so we don't recreate a duplicate.
+      const protectedKeys = new Set(
+        futureRows.filter((r) => protectedIds.has(r.id)).map((r) => `${r.class_id}|${new Date(r.start_time).getTime()}`),
+      );
+      // 3. Delete only the UNbooked future sessions.
+      const deletableIds = futureRows.filter((r) => !protectedIds.has(r.id)).map((r) => r.id);
+      for (let i = 0; i < deletableIds.length; i += 200) {
+        const { error } = await supabase.from("class_schedule").delete().in("id", deletableIds.slice(i, i + 200));
+        if (error) throw error;
+      }
+
+      // 4. Build the new rows, skipping any that would duplicate a protected (booked) session.
+      const rows: { class_id: string; start_time: string; end_time: string; spots_remaining: number; instructor: string | null }[] = [];
       for (let w = 0; w < weeks; w++) {
         for (const s of active) {
           const d = new Date(monday);
           d.setDate(monday.getDate() + w * 7 + s.day_of_week);
           const [h, m] = s.start_time.split(":").map(Number);
           d.setHours(h, m, 0, 0);
+          if (protectedKeys.has(`${s.class_id}|${d.getTime()}`)) continue; // keep the booked one
           const end = new Date(d.getTime() + s.duration_minutes * 60000);
           rows.push({
             class_id: s.class_id,
             start_time: d.toISOString(),
             end_time: end.toISOString(),
             spots_remaining: capacityByClass.get(s.class_id) ?? 15,
+            instructor: instructorByClass.get(s.class_id) ?? null,
           });
         }
       }
@@ -148,7 +174,8 @@ export function AdminWeeklySchedule() {
         const { error } = await supabase.from("class_schedule").insert(rows.slice(i, i + 200));
         if (error) throw error;
       }
-      toast.success(`Generated ${rows.length} sessions across ${weeks} weeks`);
+      const kept = protectedKeys.size;
+      toast.success(`Generated ${rows.length} sessions across ${weeks} weeks${kept ? ` · kept ${kept} booked session(s)` : ""}`);
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
     } finally {
