@@ -17,7 +17,8 @@ const sb = supabase as any;
 // ── Types ──
 interface Sched {
   id: string; class_id: string; start_time: string; is_cancelled: boolean;
-  instructor: string | null; classes: { title: string | null; instructor: string | null } | null;
+  instructor: string | null; taxi_cost: number | null; concierge_commission: number | null;
+  classes: { title: string | null; instructor: string | null } | null;
 }
 interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; }
 interface Rate { id: string; name: string; fixed_per_class: number; commission_pct: number; active: boolean; }
@@ -67,7 +68,7 @@ export function AdminClassFinances() {
     const end = format(endOfMonth(month), "yyyy-MM-dd");
     const { data: sc } = await sb
       .from("class_schedule")
-      .select("id, class_id, start_time, is_cancelled, instructor, classes(title, instructor)")
+      .select("id, class_id, start_time, is_cancelled, instructor, taxi_cost, concierge_commission, classes(title, instructor)")
       .gte("start_time", `${start}T00:00:00Z`).lte("start_time", `${end}T23:59:59Z`)
       .order("start_time", { ascending: true });
     const active = (((sc as any) ?? []) as Sched[]).filter((s) => !s.is_cancelled);
@@ -114,15 +115,17 @@ export function AdminClassFinances() {
   const expensesTotal = useMemo(() => expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [expenses]);
 
   const totals = useMemo(() => {
-    let income = 0, pax = 0, online = 0, other = 0, teacherPay = 0;
+    let income = 0, pax = 0, online = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
     for (const s of scheds) {
       const p = perSched.get(s.id);
       const inc = p?.income ?? 0;
       income += inc; pax += p?.pax ?? 0; online += p?.online ?? 0; other += p?.other ?? 0;
       teacherPay += payFor(teacherName(s), inc);
+      taxi += Number(s.taxi_cost) || 0;
+      concierge += Number(s.concierge_commission) || 0;
     }
-    const netIncome = income - teacherPay;
-    return { income, pax, online, other, sessions: scheds.length, teacherPay, netIncome, netProfit: netIncome - expensesTotal };
+    const netIncome = income - teacherPay - taxi - concierge;
+    return { income, pax, online, other, sessions: scheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
   }, [scheds, perSched, payFor, expensesTotal]);
 
   const byTeacher = useMemo(() => {
@@ -157,21 +160,29 @@ export function AdminClassFinances() {
       const p = perSched.get(s.id) ?? { pax: 0, income: 0, online: 0, other: 0 };
       const teacher = teacherName(s);
       return {
-        date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
+        id: s.id, date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
         class: s.classes?.title ?? "Class", teacher, pax: p.pax, online: p.online, drop: p.other,
         income: p.income, pay: payFor(teacher, p.income),
+        taxi: Number(s.taxi_cost) || 0, concierge: Number(s.concierge_commission) || 0,
       };
     }), [scheds, perSched, payFor]);
+
+  // Persist a per-session cost (taxi / concierge) and refresh.
+  const patchSession = useCallback(async (id: string, p: { taxi_cost?: number; concierge_commission?: number }) => {
+    const { error } = await sb.from("class_schedule").update(p).eq("id", id);
+    if (error) toast.error(error.message); else load();
+  }, [load]);
 
   const crc = (n: number) => `${n < 0 ? "-" : ""}₡${Math.abs(Math.round(n * crcRate)).toLocaleString("es-CR")}`;
 
   const exportCsv = () => {
-    const header = ["Date", "Time", "Class", "Teacher", "PAX", "Online $", "Drop-in/Other $", "Income $", "Teacher pay $", "HWC earnings $"];
-    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.online.toFixed(2), r.drop.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), (r.income - r.pay).toFixed(2)]);
+    const header = ["Date", "Time", "Class", "Teacher", "PAX", "Online $", "Drop-in/Other $", "Income $", "Teacher pay $", "Taxi $", "Concierge $", "HWC earnings $"];
+    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.online.toFixed(2), r.drop.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), r.taxi.toFixed(2), r.concierge.toFixed(2), (r.income - r.pay - r.taxi - r.concierge).toFixed(2)]);
     const summary = [
-      [], ["TOTAL", "", "", "", totals.pax, totals.online.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.netIncome.toFixed(2)],
+      [], ["TOTAL", "", "", "", totals.pax, totals.online.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.taxi.toFixed(2), totals.concierge.toFixed(2), totals.netIncome.toFixed(2)],
       [], ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
-      ["Net income (after teachers)", totals.netIncome.toFixed(2)], ["Monthly expenses", expensesTotal.toFixed(2)],
+      ["Taxi", totals.taxi.toFixed(2)], ["Concierge", totals.concierge.toFixed(2)],
+      ["Net income (after teachers, taxi, concierge)", totals.netIncome.toFixed(2)], ["Monthly expenses", expensesTotal.toFixed(2)],
       ["NET PROFIT", totals.netProfit.toFixed(2)],
     ];
     const csv = [header, ...rows, ...summary].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -246,13 +257,14 @@ export function AdminClassFinances() {
                     <th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Time</th><th className="py-2 pr-3">Class</th>
                     <th className="py-2 pr-3">Teacher</th><th className="py-2 pr-3 text-right">PAX</th>
                     <th className="py-2 pr-3 text-right">Income</th><th className="py-2 pr-3 text-right">Teacher pay</th>
+                    <th className="py-2 pr-3 text-right w-24">Taxi</th><th className="py-2 pr-3 text-right w-24">Concierge</th>
                     <th className="py-2 text-right">HWC earns</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
-                  {ledger.map((r, i) => (
-                    <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
+                  {ledger.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
+                  {ledger.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-1.5 pr-3 whitespace-nowrap">{r.date}</td>
                       <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
                       <td className="py-1.5 pr-3">{r.class}</td>
@@ -260,7 +272,15 @@ export function AdminClassFinances() {
                       <td className="py-1.5 pr-3 text-right">{r.pax}</td>
                       <td className="py-1.5 pr-3 text-right">{r.income ? usd(r.income) : "—"}</td>
                       <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
-                      <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay)}</td>
+                      <td className="py-1.5 pr-3 text-right">
+                        <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
+                          onBlur={(e) => (Number(e.target.value) || 0) !== r.taxi && patchSession(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
+                      </td>
+                      <td className="py-1.5 pr-3 text-right">
+                        <Input type="number" defaultValue={r.concierge || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
+                          onBlur={(e) => (Number(e.target.value) || 0) !== r.concierge && patchSession(r.id, { concierge_commission: Math.max(0, Number(e.target.value) || 0) })} />
+                      </td>
+                      <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay - r.taxi - r.concierge)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -271,6 +291,8 @@ export function AdminClassFinances() {
                       <td className="py-2 pr-3 text-right">{totals.pax}</td>
                       <td className="py-2 pr-3 text-right">{usd(totals.income)}</td>
                       <td className="py-2 pr-3 text-right">{usd(totals.teacherPay)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.taxi)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.concierge)}</td>
                       <td className="py-2 text-right">{usd(totals.netIncome)}</td>
                     </tr>
                   </tfoot>
