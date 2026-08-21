@@ -21,23 +21,19 @@ const CRC_RATE_KEY = "hwc_crc_rate";
 const usd = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const norm = (s: string) => s.trim().toLowerCase();
 
-const CLIENT_TYPES = [
-  "Drop in Local", "Drop in Tourist", "5 Class Pass", "5 Class Pass Tourist", "10 Class Pass",
-  "Monthly Unlimited", "Local Membership", "Concierge Pass", "Staff", "Free Buddy Pass", "Pago de Clase", "Other",
-];
-
 interface Rec {
   id: string; entry_date: string; time_label: string | null; pax: number; yoga_class: string | null;
-  location: string; client_type: string | null; paypal_deposit: number; drop_in: number; instructor: string | null;
+  location: string; client_type: string | null; paypal_deposit: number; drop_in: number; member_income: number; instructor: string | null;
   comm_teacher_pct: number; salario_teacher: number; paid: boolean; taxi: number; concierge: string | null;
   comm_concierge_pct: number; comm_concierge: number; note: string | null; sort_order: number;
 }
+interface FinOption { id: string; kind: string; label: string; sort_order: number; }
 interface Rate { id: string; name: string; fixed_per_class: number; commission_pct: number; active: boolean; }
 interface Expense { id: string; ym: string; label: string; amount: number; category: string; sort_order: number; }
 interface Payout { id: string; week_start: string; teacher: string; paid: boolean; note: string | null; }
 
 // ── Row math ──
-const rIncome = (r: Rec) => (Number(r.paypal_deposit) || 0) + (Number(r.drop_in) || 0);
+const rIncome = (r: Rec) => (Number(r.paypal_deposit) || 0) + (Number(r.drop_in) || 0) + (Number(r.member_income) || 0);
 const rCommTeacher = (r: Rec) => ((Number(r.comm_teacher_pct) || 0) / 100) * rIncome(r);
 const rConc = (r: Rec) => (Number(r.comm_concierge_pct) || 0) > 0 ? ((Number(r.comm_concierge_pct) || 0) / 100) * rIncome(r) : (Number(r.comm_concierge) || 0);
 const rTeacherPay = (r: Rec) => rCommTeacher(r) + (Number(r.salario_teacher) || 0);
@@ -46,7 +42,7 @@ const rHwc = (r: Rec) => rIncome(r) - rTeacherPay(r) - (Number(r.taxi) || 0) - r
 type FinView = "day" | "week" | "month";
 const emptyRow = (date: string, sort: number): Rec => ({
   id: `new-${Math.random().toString(36).slice(2)}`, entry_date: date, time_label: "", pax: 0, yoga_class: "",
-  location: "HWC", client_type: "", paypal_deposit: 0, drop_in: 0, instructor: "", comm_teacher_pct: 0,
+  location: "HWC", client_type: "", paypal_deposit: 0, drop_in: 0, member_income: 0, instructor: "", comm_teacher_pct: 0,
   salario_teacher: 0, paid: false, taxi: 0, concierge: "", comm_concierge_pct: 0, comm_concierge: 0, note: "", sort_order: sort,
 });
 
@@ -62,8 +58,10 @@ export function AdminClassFinances() {
   const [classes, setClasses] = useState<string[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [options, setOptions] = useState<FinOption[]>([]);
   const [showRates, setShowRates] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const [crcRate, setCrcRate] = useState<number>(() => {
     const v = Number(localStorage.getItem(CRC_RATE_KEY));
     return Number.isFinite(v) && v > 0 ? v : 505;
@@ -80,6 +78,12 @@ export function AdminClassFinances() {
     const { data } = await sb.from("class_teacher_rates").select("*").order("name");
     setRates((data ?? []) as Rate[]);
   }, []);
+  const loadOptions = useCallback(async () => {
+    const { data } = await sb.from("class_finance_options").select("*").order("sort_order").order("label");
+    setOptions((data ?? []) as FinOption[]);
+  }, []);
+  const clientTypeOptions = useMemo(() => options.filter((o) => o.kind === "client_type").map((o) => o.label), [options]);
+  const salarioOptions = useMemo(() => options.filter((o) => o.kind === "salario").map((o) => o.label), [options]);
   const loadExpenses = useCallback(async () => {
     const { data } = await sb.from("monthly_expenses").select("*").eq("ym", ym).order("sort_order").order("created_at");
     setExpenses((data ?? []) as Expense[]);
@@ -99,7 +103,7 @@ export function AdminClassFinances() {
     setLoading(false);
   }, [startStr, endStr]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); loadExpenses(); loadPayouts(); }, [load, loadExpenses, loadPayouts]);
-  useEffect(() => { loadRates(); sb.from("classes").select("title").eq("is_active", true).order("title").then(({ data }: any) => setClasses(((data ?? []) as any[]).map((c) => c.title))); }, [loadRates]);
+  useEffect(() => { loadRates(); loadOptions(); sb.from("classes").select("title").eq("is_active", true).order("title").then(({ data }: any) => setClasses(((data ?? []) as any[]).map((c) => c.title))); }, [loadRates, loadOptions]);
 
   const dirty = deletedIds.length > 0 || JSON.stringify(rows) !== JSON.stringify(loaded);
   useEffect(() => {
@@ -167,9 +171,9 @@ export function AdminClassFinances() {
 
   // ── Aggregations (from working rows) ──
   const totals = useMemo(() => {
-    const t = { paypal: 0, drop: 0, income: 0, teacherPay: 0, taxi: 0, conc: 0, hwc: 0, pax: 0, rows: rows.length };
+    const t = { paypal: 0, drop: 0, member: 0, income: 0, teacherPay: 0, taxi: 0, conc: 0, hwc: 0, pax: 0, rows: rows.length };
     for (const r of rows) {
-      t.paypal += Number(r.paypal_deposit) || 0; t.drop += Number(r.drop_in) || 0;
+      t.paypal += Number(r.paypal_deposit) || 0; t.drop += Number(r.drop_in) || 0; t.member += Number(r.member_income) || 0;
       t.income += rIncome(r); t.teacherPay += rTeacherPay(r); t.taxi += Number(r.taxi) || 0; t.conc += rConc(r);
       t.hwc += rHwc(r); t.pax += Number(r.pax) || 0;
     }
@@ -244,13 +248,13 @@ export function AdminClassFinances() {
   };
 
   const exportCsv = () => {
-    const header = ["Date", "Time", "PAX", "Class", "Client type", "PayPal $", "Drop-in $", "Instructor", "Comm %", "Comm $", "Salario $", "Paid", "Taxi $", "Concierge", "CommConc %", "CommConc $", "HWC $", "Note"];
+    const header = ["Date", "Time", "PAX", "Class", "Client type", "PayPal $", "Drop-in $", "Member $", "Instructor", "Comm %", "Comm $", "Salario $", "Paid", "Taxi $", "Concierge", "CommConc %", "CommConc $", "HWC $", "Note"];
     const body = [...rows].sort((a, b) => a.entry_date.localeCompare(b.entry_date) || a.sort_order - b.sort_order).map((r) => [
-      r.entry_date, r.time_label ?? "", r.pax, r.yoga_class ?? "", r.client_type ?? "", (Number(r.paypal_deposit) || 0).toFixed(2), (Number(r.drop_in) || 0).toFixed(2),
+      r.entry_date, r.time_label ?? "", r.pax, r.yoga_class ?? "", r.client_type ?? "", (Number(r.paypal_deposit) || 0).toFixed(2), (Number(r.drop_in) || 0).toFixed(2), (Number(r.member_income) || 0).toFixed(2),
       r.instructor ?? "", (Number(r.comm_teacher_pct) || 0).toString(), rCommTeacher(r).toFixed(2), (Number(r.salario_teacher) || 0).toFixed(2), r.paid ? "yes" : "no",
       (Number(r.taxi) || 0).toFixed(2), r.concierge ?? "", (Number(r.comm_concierge_pct) || 0).toString(), rConc(r).toFixed(2), rHwc(r).toFixed(2), r.note ?? "",
     ]);
-    const summary = [[], ["TOTAL", "", totals.pax, "", "", totals.paypal.toFixed(2), totals.drop.toFixed(2), "", "", "", totals.teacherPay.toFixed(2), "", totals.taxi.toFixed(2), "", "", totals.conc.toFixed(2), totals.hwc.toFixed(2)],
+    const summary = [[], ["TOTAL", "", totals.pax, "", "", totals.paypal.toFixed(2), totals.drop.toFixed(2), totals.member.toFixed(2), "", "", "", totals.teacherPay.toFixed(2), "", totals.taxi.toFixed(2), "", "", totals.conc.toFixed(2), totals.hwc.toFixed(2)],
       [], ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)], ["Taxi", totals.taxi.toFixed(2)], ["Concierge", totals.conc.toFixed(2)], ["HWC earnings", totals.hwc.toFixed(2)],
       ...(view === "month" ? [["Monthly expenses", expensesTotal.toFixed(2)], ["NET PROFIT", netProfit.toFixed(2)]] : [])];
     const csv = [header, ...body, ...summary].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -268,8 +272,8 @@ export function AdminClassFinances() {
     <div className="space-y-5">
       <datalist id="cr-teachers">{teacherOptions.map((n) => <option key={n} value={n} />)}</datalist>
       <datalist id="cr-classes">{classes.map((n) => <option key={n} value={n} />)}</datalist>
-      <datalist id="cr-clients">{CLIENT_TYPES.map((n) => <option key={n} value={n} />)}</datalist>
-      <datalist id="cr-salario">{[0, 10, 30, 35].map((n) => <option key={n} value={n} />)}</datalist>
+      <datalist id="cr-clients">{clientTypeOptions.map((n) => <option key={n} value={n} />)}</datalist>
+      <datalist id="cr-salario">{salarioOptions.map((n) => <option key={n} value={n} />)}</datalist>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -345,14 +349,14 @@ export function AdminClassFinances() {
               <table className="text-xs" style={{ minWidth: 1400 }}>
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border">
-                    {["Time", "PAX", "Class", "Client type", "PayPal", "Drop-in", "Instructor", "Comm%", "Salario", "Paid", "Taxi", "Concierge", "CC%", "CC$", "HWC", "Note", ""].map((h) => <th key={h} className="py-2 px-1 bg-card whitespace-nowrap">{h}</th>)}
+                    {["Time", "PAX", "Class", "Client type", "PayPal", "Drop-in", "Member", "Instructor", "Comm%", "Salario", "Paid", "Taxi", "Concierge", "CC%", "CC$", "HWC", "Note", ""].map((h, i) => <th key={i} className="py-2 px-1 bg-card whitespace-nowrap" title={h === "Member" ? "Pass/membership share for this class at YOUR price (e.g. $45 5-pass = $9/class)" : undefined}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={17} className="py-6 text-center text-muted-foreground">No rows. Use “Add row” or “Generate from calendar”.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={18} className="py-6 text-center text-muted-foreground">No rows. Use “Add row” or “Generate from calendar”.</td></tr>}
                   {rowsByDay.map((g) => (
                     <Fragment key={g.date}>
-                      <tr className="bg-muted/50"><td colSpan={14} className="py-1 px-1 font-semibold">{g.label} · income {usd(g.income)}</td><td className="py-1 px-1 text-right font-medium">{usd(g.hwc)}</td><td colSpan={2}></td></tr>
+                      <tr className="bg-muted/50"><td colSpan={15} className="py-1 px-1 font-semibold">{g.label} · income {usd(g.income)}</td><td className="py-1 px-1 text-right font-medium">{usd(g.hwc)}</td><td colSpan={2}></td></tr>
                       {g.rows.map((r) => (
                         <tr key={r.id} className={cn("border-b border-border/50", r.id.startsWith("new-") && "bg-amber-50/40 dark:bg-amber-950/10")}>
                           <td className="px-1 py-1"><input value={r.time_label ?? ""} placeholder="8:00" className="h-7 w-14 rounded border border-input bg-background px-1 text-xs" onChange={(e) => updateRow(r.id, { time_label: e.target.value })} /></td>
@@ -361,6 +365,7 @@ export function AdminClassFinances() {
                           <td className="px-1 py-1"><input list="cr-clients" value={r.client_type ?? ""} placeholder="client type" className="h-7 w-32 rounded border border-input bg-background px-1 text-xs" onChange={(e) => updateRow(r.id, { client_type: e.target.value })} /></td>
                           <td className="px-1 py-1">{numCell(r, "paypal_deposit")}</td>
                           <td className="px-1 py-1">{numCell(r, "drop_in")}</td>
+                          <td className="px-1 py-1">{numCell(r, "member_income")}</td>
                           <td className="px-1 py-1"><input list="cr-teachers" value={r.instructor ?? ""} placeholder="teacher" className="h-7 w-28 rounded border border-input bg-background px-1 text-xs" onChange={(e) => updateRow(r.id, { instructor: e.target.value })} /></td>
                           <td className="px-1 py-1">{numCell(r, "comm_teacher_pct", "w-12")}</td>
                           <td className="px-1 py-1"><input list="cr-salario" type="number" value={r.salario_teacher || ""} placeholder="0" className="h-7 w-14 rounded border border-input bg-background px-1 text-right text-xs" onChange={(e) => updateRow(r.id, { salario_teacher: Math.max(0, Number(e.target.value) || 0) })} /></td>
@@ -383,6 +388,7 @@ export function AdminClassFinances() {
                       <td className="px-1 py-2 bg-card" colSpan={4}>Total — {periodTitle}</td>
                       <td className="px-1 py-2 text-right bg-card">{usd(totals.paypal)}</td>
                       <td className="px-1 py-2 text-right bg-card">{usd(totals.drop)}</td>
+                      <td className="px-1 py-2 text-right bg-card">{usd(totals.member)}</td>
                       <td colSpan={2}></td>
                       <td className="px-1 py-2 text-right bg-card">{usd(totals.teacherPay)}</td>
                       <td></td>
@@ -428,6 +434,7 @@ export function AdminClassFinances() {
           )}
 
           <TeacherRatesManager rates={rates} reload={loadRates} onAdd={addTeacher} open={showRates} setOpen={setShowRates} />
+          <OptionsManager options={options} reload={loadOptions} open={showOptions} setOpen={setShowOptions} />
           {view === "month" && (
             <ExpensesManager ym={ym} monthLabel={format(month, "MMMM yyyy")} prevYm={format(subMonths(month, 1), "yyyy-MM")} expenses={expenses} total={expensesTotal} reload={loadExpenses} open={showExpenses} setOpen={setShowExpenses} />
           )}
@@ -487,6 +494,52 @@ function TeacherRatesManager({ rates, reload, onAdd, open, setOpen }: { rates: R
             </tbody>
           </table></div>
           <Button size="sm" variant="outline" onClick={onAdd}><Plus className="h-4 w-4 mr-1" /> Add teacher</Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function OptionsManager({ options, reload, open, setOpen }: { options: FinOption[]; reload: () => void; open: boolean; setOpen: (v: boolean) => void; }) {
+  const [newVals, setNewVals] = useState<{ client_type: string; salario: string }>({ client_type: "", salario: "" });
+  const add = async (kind: "client_type" | "salario") => {
+    const label = newVals[kind].trim();
+    if (!label) return;
+    const max = Math.max(0, ...options.filter((o) => o.kind === kind).map((o) => o.sort_order));
+    const { error } = await sb.from("class_finance_options").insert({ kind, label, sort_order: max + 1 });
+    if (error) toast.error(error.message.toLowerCase().includes("duplicate") ? "Already exists" : error.message);
+    else { setNewVals((p) => ({ ...p, [kind]: "" })); reload(); }
+  };
+  const del = async (id: string) => { const { error } = await sb.from("class_finance_options").delete().eq("id", id); if (error) toast.error(error.message); else reload(); };
+  const list = (kind: "client_type" | "salario", label: string, placeholder: string) => (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {options.filter((o) => o.kind === kind).map((o) => (
+          <span key={o.id} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs">
+            {o.label}
+            <button onClick={() => del(o.id)} className="text-destructive hover:opacity-70"><Trash2 className="h-3 w-3" /></button>
+          </span>
+        ))}
+        {options.filter((o) => o.kind === kind).length === 0 && <span className="text-xs text-muted-foreground">None yet.</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Input value={newVals[kind]} onChange={(e) => setNewVals((p) => ({ ...p, [kind]: e.target.value }))} placeholder={placeholder} className="h-8 max-w-xs" onKeyDown={(e) => e.key === "Enter" && add(kind)} />
+        <Button size="sm" variant="outline" onClick={() => add(kind)}><Plus className="h-4 w-4 mr-1" /> Add</Button>
+      </div>
+    </div>
+  );
+  return (
+    <Card className="p-4">
+      <button className="w-full flex items-center justify-between" onClick={() => setOpen(!open)}>
+        <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2"><Sparkles className="h-4 w-4" /> Dropdown options (Client type &amp; Salario)</h4>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-4">
+          <p className="text-xs text-muted-foreground">These fill the <strong>Client type</strong> and <strong>Salario</strong> dropdowns in the grid. Add your own (e.g. a promo type or a salary amount). You can still type any value directly in a cell.</p>
+          {list("client_type", "Client types", "e.g. Low-season promo")}
+          {list("salario", "Salario amounts ($)", "e.g. 25")}
         </div>
       )}
     </Card>
