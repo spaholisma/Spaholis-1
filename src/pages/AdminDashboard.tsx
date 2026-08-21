@@ -103,14 +103,33 @@ const AdminDashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // ── Customizable sidebar (per-browser): reorder + hide items ──
+  // ── Customizable sidebar (shared across all admins & devices, stored in the DB) ──
   const [customize, setCustomize] = useState(false);
-  const [order, setOrder] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("admin_sidebar_order_v1") || "[]"); } catch { return []; } });
-  const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("admin_sidebar_hidden_v1") || "[]"); } catch { return []; } });
-  useEffect(() => { localStorage.setItem("admin_sidebar_order_v1", JSON.stringify(order)); }, [order]);
-  useEffect(() => { localStorage.setItem("admin_sidebar_hidden_v1", JSON.stringify(hidden)); }, [hidden]);
+  const [order, setOrder] = useState<string[]>([]);
+  const [hidden, setHidden] = useState<string[]>([]);
   const dragId = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+
+  // Load the shared sidebar layout once.
+  useEffect(() => {
+    (supabase as any).from("site_content").select("content").eq("section_key", "admin_sidebar").maybeSingle()
+      .then(({ data }: any) => {
+        const c = data?.content;
+        if (c && typeof c === "object") {
+          if (Array.isArray(c.order)) setOrder(c.order);
+          if (Array.isArray(c.hidden)) setHidden(c.hidden);
+        }
+      });
+  }, []);
+
+  // Persist the shared layout (called on every reorder/hide/reset).
+  const persistSidebar = async (nextOrder: string[], nextHidden: string[]) => {
+    const sb = supabase as any;
+    const payload = { order: nextOrder, hidden: nextHidden };
+    const { data } = await sb.from("site_content").select("id").eq("section_key", "admin_sidebar").maybeSingle();
+    if (data?.id) await sb.from("site_content").update({ content: payload }).eq("id", data.id);
+    else await sb.from("site_content").insert({ section_key: "admin_sidebar", content: payload });
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -166,8 +185,11 @@ const AdminDashboard = () => {
     : visibleLinks;
   const shownLinks = customize ? orderedLinks : orderedLinks.filter((l) => !hidden.includes(l.id));
 
-  const toggleHidden = (id: string) =>
-    setHidden((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
+  const toggleHidden = (id: string) => {
+    const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
+    setHidden(next);
+    persistSidebar(order, next);
+  };
   const dropOn = (targetId: string) => {
     const src = dragId.current;
     dragId.current = null;
@@ -177,8 +199,9 @@ const AdminDashboard = () => {
     const at = ids.indexOf(targetId);
     ids.splice(at < 0 ? ids.length : at, 0, src);
     setOrder(ids);
+    persistSidebar(ids, hidden);
   };
-  const resetSidebar = () => { setOrder([]); setHidden([]); };
+  const resetSidebar = () => { setOrder([]); setHidden([]); persistSidebar([], []); };
 
   if (loading || isAdmin === null) {
     return (
