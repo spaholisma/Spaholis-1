@@ -509,6 +509,16 @@ export function AdminClassCalendarWithAttendees() {
 
   useEffect(() => { loadScheduled(); }, [loadScheduled]);
 
+  // Deep-link from Class Finances: open the "New Order" dialog on mount.
+  useEffect(() => {
+    if (sessionStorage.getItem("open_new_order")) {
+      sessionStorage.removeItem("open_new_order");
+      resetOrder();
+      setOrderOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Deep-link from Class Finances: open a specific session's attendees on mount.
   useEffect(() => {
     const pid = sessionStorage.getItem("open_class_schedule_id");

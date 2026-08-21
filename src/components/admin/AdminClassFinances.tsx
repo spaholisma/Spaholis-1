@@ -25,7 +25,7 @@ interface Sched {
   pay_override: number | null;
   classes: { title: string | null; instructor: string | null } | null;
 }
-interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; }
+interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; user_offering_id: string | null; }
 interface Rate { id: string; name: string; fixed_per_class: number; commission_pct: number; active: boolean; }
 interface Expense { id: string; ym: string; label: string; amount: number; category: string; sort_order: number; }
 interface Payout { id: string; week_start: string; teacher: string; paid: boolean; note: string | null; }
@@ -52,6 +52,8 @@ export function AdminClassFinances() {
   const [rates, setRates] = useState<Rate[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
+  // Recognized per-class value of each pass/membership (user_offering_id -> $/class).
+  const [offeringVal, setOfferingVal] = useState<Record<string, number>>({});
   const [showRates, setShowRates] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
   // Draft edits (not saved until "Save changes"): sessionId -> partial fields.
@@ -101,9 +103,31 @@ export function AdminClassFinances() {
     const ids = active.map((s) => s.id);
     if (ids.length) {
       const { data: bk } = await sb.from("class_bookings")
-        .select("schedule_id, status, total_price, payment_method, payment_status").in("schedule_id", ids);
-      setBookings(((bk as any) ?? []) as Bk[]);
-    } else setBookings([]);
+        .select("schedule_id, status, total_price, payment_method, payment_status, user_offering_id").in("schedule_id", ids);
+      const bkRows = ((bk as any) ?? []) as Bk[];
+      setBookings(bkRows);
+
+      // Recognize pass/membership revenue per class (accrual). For each pass used
+      // here, value/class = price_paid / credits_total; for unlimited memberships
+      // it's price_paid / (total classes that membership was used for).
+      const offIds = Array.from(new Set(bkRows.map((b) => b.user_offering_id).filter(Boolean))) as string[];
+      if (offIds.length) {
+        const [{ data: offs }, { data: counts }] = await Promise.all([
+          sb.from("user_offerings").select("id, price_paid, credits_total, is_unlimited").in("id", offIds),
+          sb.from("class_bookings").select("user_offering_id").in("user_offering_id", offIds).neq("status", "cancelled"),
+        ]);
+        const usage: Record<string, number> = {};
+        ((counts as any[]) ?? []).forEach((c) => { usage[c.user_offering_id] = (usage[c.user_offering_id] ?? 0) + 1; });
+        const val: Record<string, number> = {};
+        ((offs as any[]) ?? []).forEach((o) => {
+          const price = Number(o.price_paid) || 0;
+          if (!price) { val[o.id] = 0; return; }
+          if (o.is_unlimited) val[o.id] = price / Math.max(1, usage[o.id] ?? 1);
+          else val[o.id] = price / Math.max(1, Number(o.credits_total) || 1);
+        });
+        setOfferingVal(val);
+      } else setOfferingVal({});
+    } else { setBookings([]); setOfferingVal({}); }
     setLoading(false);
   }, [rangeStartStr, rangeEndStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -177,40 +201,47 @@ export function AdminClassFinances() {
   [payFor]);
 
   const perSched = useMemo(() => {
-    const m = new Map<string, { pax: number; income: number; paypal: number; cc: number; cash: number; other: number }>();
+    const m = new Map<string, { pax: number; income: number; paypal: number; cc: number; cash: number; membership: number; other: number }>();
     for (const b of bookings) {
       if (b.status === "cancelled") continue;
-      const cur = m.get(b.schedule_id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, other: 0 };
+      const cur = m.get(b.schedule_id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, membership: 0, other: 0 };
       cur.pax += 1;
       const price = Number(b.total_price) || 0;
-      cur.income += price;
-      // Split by payment source (prices differ by tax handling).
+      // Direct payment split (prices differ by tax handling).
       if (b.payment_method === "paypal") cur.paypal += price;
       else if (b.payment_method === "card") cur.cc += price;
       else if (b.payment_method === "cash") cur.cash += price;
       else cur.other += price;
+      // Recognized pass/membership share for this class (accrual).
+      const memb = b.user_offering_id ? (offeringVal[b.user_offering_id] ?? 0) : 0;
+      cur.membership += memb;
+      cur.income += price + memb;
       m.set(b.schedule_id, cur);
     }
     return m;
-  }, [bookings]);
+  }, [bookings, offeringVal]);
 
   const expensesTotal = useMemo(() => expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [expenses]);
 
   const totals = useMemo(() => {
-    let income = 0, pax = 0, paypal = 0, cc = 0, cash = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
+    let income = 0, pax = 0, paypal = 0, cc = 0, cash = 0, membership = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
     for (const s of effectiveScheds) {
       const p = perSched.get(s.id);
       const inc = p?.income ?? 0;
       income += inc; pax += p?.pax ?? 0;
-      paypal += p?.paypal ?? 0; cc += p?.cc ?? 0; cash += p?.cash ?? 0; other += p?.other ?? 0;
+      paypal += p?.paypal ?? 0; cc += p?.cc ?? 0; cash += p?.cash ?? 0; membership += p?.membership ?? 0; other += p?.other ?? 0;
       teacherPay += payForSched(s, inc);
       taxi += Number(s.taxi_cost) || 0;
       concierge += Number(s.concierge_commission) || 0;
     }
     const netIncome = income - teacherPay - taxi - concierge;
-    return { income, pax, paypal, cc, cash, other, sessions: effectiveScheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
+    return { income, pax, paypal, cc, cash, membership, other, sessions: effectiveScheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
   }, [effectiveScheds, perSched, payForSched, expensesTotal]);
   const hasOther = totals.other > 0;
+  const hasMembership = totals.membership > 0;
+  // Columns before the Income column, and total column count (for colspans).
+  const leadCols = 8 + (hasMembership ? 1 : 0) + (hasOther ? 1 : 0);
+  const totalCols = leadCols + 5;
 
   const byTeacher = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number; pay: number }>();
@@ -241,12 +272,12 @@ export function AdminClassFinances() {
 
   const ledger = useMemo(() =>
     effectiveScheds.map((s) => {
-      const p = perSched.get(s.id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, other: 0 };
+      const p = perSched.get(s.id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, membership: 0, other: 0 };
       const teacher = teacherName(s);
       return {
         id: s.id, date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
         class: s.classes?.title ?? "Class", teacher, pax: p.pax,
-        paypal: p.paypal, cc: p.cc, cash: p.cash, other: p.other,
+        paypal: p.paypal, cc: p.cc, cash: p.cash, membership: p.membership, other: p.other,
         income: p.income, pay: payForSched(s, p.income),
         payAuto: payFor(teacher, p.income), payOverride: s.pay_override,
         taxi: Number(s.taxi_cost) || 0, concierge: Number(s.concierge_commission) || 0,
@@ -281,6 +312,12 @@ export function AdminClassFinances() {
     window.dispatchEvent(new CustomEvent("admin-tab", { detail: "calendars" }));
     window.dispatchEvent(new CustomEvent("admin-cal-type-class"));
   };
+  // Record a membership/pass sale via the calendar's "New Order" flow.
+  const newMembershipSale = () => {
+    sessionStorage.setItem("open_new_order", "1");
+    window.dispatchEvent(new CustomEvent("admin-tab", { detail: "calendars" }));
+    window.dispatchEvent(new CustomEvent("admin-cal-type-class"));
+  };
 
   // ── Spreadsheet-style filters ──
   const [fSearch, setFSearch] = useState("");
@@ -296,9 +333,9 @@ export function AdminClassFinances() {
   }, [ledger, fSearch, fTeacher, fClass]);
   const hasFilter = !!(fSearch || fTeacher || fClass);
   const ledgerTotals = useMemo(() => {
-    const t = { pax: 0, paypal: 0, cc: 0, cash: 0, other: 0, income: 0, pay: 0, taxi: 0, concierge: 0, net: 0 };
+    const t = { pax: 0, paypal: 0, cc: 0, cash: 0, membership: 0, other: 0, income: 0, pay: 0, taxi: 0, concierge: 0, net: 0 };
     for (const r of filteredLedger) {
-      t.pax += r.pax; t.paypal += r.paypal; t.cc += r.cc; t.cash += r.cash; t.other += r.other;
+      t.pax += r.pax; t.paypal += r.paypal; t.cc += r.cc; t.cash += r.cash; t.membership += r.membership; t.other += r.other;
       t.income += r.income; t.pay += r.pay; t.taxi += r.taxi; t.concierge += r.concierge;
       t.net += r.income - r.pay - r.taxi - r.concierge;
     }
@@ -368,11 +405,11 @@ export function AdminClassFinances() {
   const crc = (n: number) => `${n < 0 ? "-" : ""}₡${Math.abs(Math.round(n * crcRate)).toLocaleString("es-CR")}`;
 
   const exportCsv = () => {
-    const header = ["Date", "Time", "Class", "Teacher", "PAX", "PayPal $", "CC $", "Cash $", "Other $", "Income $", "Teacher pay $", "Taxi $", "Concierge $", "HWC earnings $"];
-    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.paypal.toFixed(2), r.cc.toFixed(2), r.cash.toFixed(2), r.other.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), r.taxi.toFixed(2), r.concierge.toFixed(2), (r.income - r.pay - r.taxi - r.concierge).toFixed(2)]);
+    const header = ["Date", "Time", "Class", "Teacher", "PAX", "PayPal $", "CC $", "Cash $", "Membership $", "Other $", "Income $", "Teacher pay $", "Taxi $", "Concierge $", "HWC earnings $"];
+    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.paypal.toFixed(2), r.cc.toFixed(2), r.cash.toFixed(2), r.membership.toFixed(2), r.other.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), r.taxi.toFixed(2), r.concierge.toFixed(2), (r.income - r.pay - r.taxi - r.concierge).toFixed(2)]);
     const summary = [
-      [], ["TOTAL", "", "", "", totals.pax, totals.paypal.toFixed(2), totals.cc.toFixed(2), totals.cash.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.taxi.toFixed(2), totals.concierge.toFixed(2), totals.netIncome.toFixed(2)],
-      [], ["Income — PayPal", totals.paypal.toFixed(2)], ["Income — CC (card)", totals.cc.toFixed(2)], ["Income — Cash", totals.cash.toFixed(2)], ["Income — Other", totals.other.toFixed(2)],
+      [], ["TOTAL", "", "", "", totals.pax, totals.paypal.toFixed(2), totals.cc.toFixed(2), totals.cash.toFixed(2), totals.membership.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.taxi.toFixed(2), totals.concierge.toFixed(2), totals.netIncome.toFixed(2)],
+      [], ["Income — PayPal", totals.paypal.toFixed(2)], ["Income — CC (card)", totals.cc.toFixed(2)], ["Income — Cash", totals.cash.toFixed(2)], ["Income — Membership (recognized)", totals.membership.toFixed(2)], ["Income — Other", totals.other.toFixed(2)],
       ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
       ["Taxi", totals.taxi.toFixed(2)], ["Concierge", totals.concierge.toFixed(2)],
       ["Net income (after teachers, taxi, concierge)", totals.netIncome.toFixed(2)],
@@ -417,6 +454,7 @@ export function AdminClassFinances() {
           <h3 className="font-heading text-base font-semibold min-w-[170px] text-center">{periodTitle}</h3>
           <Button variant="outline" size="icon" onClick={goNext}><ChevronRight className="h-4 w-4" /></Button>
           {!isCurrentPeriod && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>Today</Button>}
+          <Button variant="outline" size="sm" onClick={newMembershipSale}><Plus className="h-4 w-4 mr-1" /> Membership sale</Button>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading || ledger.length === 0}><Download className="h-4 w-4 mr-1" /> CSV</Button>
         </div>
       </div>
@@ -442,13 +480,14 @@ export function AdminClassFinances() {
           {/* Income split by payment source (prices differ by tax handling). */}
           <Card className="p-4">
             <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Income by payment method</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <MethodTile label="PayPal" value={usd(totals.paypal)} pct={totals.income ? (totals.paypal / totals.income) * 100 : 0} />
               <MethodTile label="Card (CC)" value={usd(totals.cc)} pct={totals.income ? (totals.cc / totals.income) * 100 : 0} />
               <MethodTile label="Cash" value={usd(totals.cash)} pct={totals.income ? (totals.cash / totals.income) * 100 : 0} />
+              <MethodTile label="Membership" value={usd(totals.membership)} pct={totals.income ? (totals.membership / totals.income) * 100 : 0} />
               <MethodTile label="Other" value={usd(totals.other)} pct={totals.income ? (totals.other / totals.income) * 100 : 0} muted />
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">PayPal = online PayPal · CC = card in person · Cash = cash · Other = transfer / SINPE / gift card / package redemption / complimentary.</p>
+            <p className="text-[11px] text-muted-foreground mt-2">Membership = recognized share of a pass/membership for each class used (pass price ÷ classes; unlimited = price ÷ classes attended). PayPal/CC/Cash = direct payment · Other = transfer / SINPE / gift card / complimentary.</p>
           </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -516,6 +555,7 @@ export function AdminClassFinances() {
                     <th className="py-2 pr-3 bg-card">Date</th><th className="py-2 pr-3 bg-card">Time</th><th className="py-2 pr-3 bg-card">Class</th>
                     <th className="py-2 pr-3 bg-card">Teacher</th><th className="py-2 pr-3 text-right bg-card">PAX</th>
                     <th className="py-2 pr-3 text-right bg-card">PayPal</th><th className="py-2 pr-3 text-right bg-card">CC</th><th className="py-2 pr-3 text-right bg-card">Cash</th>
+                    {hasMembership && <th className="py-2 pr-3 text-right bg-card" title="Recognized pass/membership share (accrual)">Member</th>}
                     {hasOther && <th className="py-2 pr-3 text-right bg-card">Other</th>}
                     <th className="py-2 pr-3 text-right bg-card">Income</th><th className="py-2 pr-3 text-right bg-card">Teacher pay</th>
                     <th className="py-2 pr-3 text-right w-24 bg-card">Taxi</th><th className="py-2 pr-3 text-right w-24 bg-card">Concierge</th>
@@ -523,11 +563,11 @@ export function AdminClassFinances() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLedger.length === 0 && <tr><td colSpan={hasOther ? 14 : 13} className="py-6 text-center text-muted-foreground">{hasFilter ? "No sessions match the filters." : "No sessions this month."}</td></tr>}
+                  {filteredLedger.length === 0 && <tr><td colSpan={totalCols} className="py-6 text-center text-muted-foreground">{hasFilter ? "No sessions match the filters." : "No sessions this period."}</td></tr>}
                   {ledgerByDay.map((g) => (
                     <Fragment key={g.date}>
                       <tr className="bg-muted/50">
-                        <td colSpan={hasOther ? 9 : 8} className="py-1.5 pr-3 font-semibold text-foreground">{g.label}</td>
+                        <td colSpan={leadCols} className="py-1.5 pr-3 font-semibold text-foreground">{g.label}</td>
                         <td className="py-1.5 pr-3 text-right font-medium">{usd(g.income)}</td>
                         <td className="py-1.5 pr-3 text-right text-muted-foreground">{usd(g.pay)}</td>
                         <td colSpan={2}></td>
@@ -556,6 +596,7 @@ export function AdminClassFinances() {
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.paypal ? usd(r.paypal) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cc ? usd(r.cc) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cash ? usd(r.cash) : "—"}</td>
+                          {hasMembership && <td className="py-1.5 pr-3 text-right text-sky-700 dark:text-sky-400" title="Recognized pass/membership share">{r.membership ? usd(r.membership) : "—"}</td>}
                           {hasOther && <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.other ? usd(r.other) : "—"}</td>}
                           <td className="py-1.5 pr-3 text-right font-medium">{r.income ? usd(r.income) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right">
@@ -587,6 +628,7 @@ export function AdminClassFinances() {
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.paypal)}</td>
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.cc)}</td>
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.cash)}</td>
+                      {hasMembership && <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.membership)}</td>}
                       {hasOther && <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.other)}</td>}
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.income)}</td>
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.pay)}</td>
