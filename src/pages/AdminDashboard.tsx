@@ -92,7 +92,7 @@ const sidebarLinks = [
 const COORDINATOR_TABS = ["calendars", "appointments", "trash"];
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("calendars");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   // True for a coordinator who is NOT also a full admin.
