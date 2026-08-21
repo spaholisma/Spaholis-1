@@ -20,6 +20,7 @@ import { AdminGiftCardsManager } from "@/components/admin/AdminGiftCardsManager"
 import { ClientBookingHistory } from "@/components/admin/ClientBookingHistory";
 import { AdminCouponsManager } from "@/components/admin/AdminCouponsManager";
 import { AdminLoyaltyManager } from "@/components/admin/AdminLoyaltyManager";
+import { AdminClassFinances } from "@/components/admin/AdminClassFinances";
 import { AdminSettingsManager } from "@/components/admin/AdminSettingsManager";
 import { AdminRoomsManager } from "@/components/admin/AdminRoomsManager";
 import { AdminContentEditor } from "@/components/admin/AdminContentEditor";
@@ -66,6 +67,7 @@ const sidebarLinks = [
   { label: "Coupons", icon: Tag, id: "coupons" },
   { label: "Rooms", icon: DoorOpen, id: "rooms" },
   { label: "Calendars", icon: CalendarDays, id: "calendars" },
+  { label: "Class Finances", icon: TrendingUp, id: "class-finances" },
   { label: "Wellness", icon: Heart, id: "wellness" },
   { label: "Spa Packages", icon: Package, id: "spa-packages" },
   { label: "Custom Retreats", icon: Sparkles, id: "custom-retreats" },
@@ -212,6 +214,7 @@ const AdminDashboard = () => {
           {activeTab === "clients" && <ClientsView />}
           {activeTab === "giftcards" && <AdminGiftCardsManager />}
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
+          {activeTab === "class-finances" && <AdminClassFinances />}
           {activeTab === "coupons" && <AdminCouponsManager />}
           {activeTab === "rooms" && <AdminRoomsManager />}
           {activeTab === "calendars" && canRender("calendars") && <AdminInternalCalendars restrictToTreatment={isCoordinator || isViewer} readOnly={isViewer} />}
