@@ -21,6 +21,7 @@ const sb = supabase as any;
 interface Sched {
   id: string; class_id: string; start_time: string; is_cancelled: boolean;
   instructor: string | null; taxi_cost: number | null; concierge_commission: number | null;
+  pay_override: number | null;
   classes: { title: string | null; instructor: string | null } | null;
 }
 interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; }
@@ -80,7 +81,7 @@ export function AdminClassFinances() {
     const end = format(endOfMonth(month), "yyyy-MM-dd");
     const { data: sc } = await sb
       .from("class_schedule")
-      .select("id, class_id, start_time, is_cancelled, instructor, taxi_cost, concierge_commission, classes(title, instructor)")
+      .select("id, class_id, start_time, is_cancelled, instructor, taxi_cost, concierge_commission, pay_override, classes(title, instructor)")
       .gte("start_time", `${start}T00:00:00Z`).lte("start_time", `${end}T23:59:59Z`)
       .order("start_time", { ascending: true });
     const active = (((sc as any) ?? []) as Sched[]).filter((s) => !s.is_cancelled);
@@ -108,6 +109,10 @@ export function AdminClassFinances() {
     if (!r) return 0;
     return r.fixed + (r.pct / 100) * income;
   }, [rateMap]);
+  // Effective pay for a session: a manual per-session override wins, else the rate.
+  const payForSched = useCallback((s: Sched, income: number) =>
+    s.pay_override != null ? (Number(s.pay_override) || 0) : payFor(teacherName(s), income),
+  [payFor]);
 
   const perSched = useMemo(() => {
     const m = new Map<string, { pax: number; income: number; paypal: number; cc: number; cash: number; other: number }>();
@@ -136,13 +141,13 @@ export function AdminClassFinances() {
       const inc = p?.income ?? 0;
       income += inc; pax += p?.pax ?? 0;
       paypal += p?.paypal ?? 0; cc += p?.cc ?? 0; cash += p?.cash ?? 0; other += p?.other ?? 0;
-      teacherPay += payFor(teacherName(s), inc);
+      teacherPay += payForSched(s, inc);
       taxi += Number(s.taxi_cost) || 0;
       concierge += Number(s.concierge_commission) || 0;
     }
     const netIncome = income - teacherPay - taxi - concierge;
     return { income, pax, paypal, cc, cash, other, sessions: scheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
-  }, [scheds, perSched, payFor, expensesTotal]);
+  }, [scheds, perSched, payForSched, expensesTotal]);
   const hasOther = totals.other > 0;
 
   const byTeacher = useMemo(() => {
@@ -153,11 +158,11 @@ export function AdminClassFinances() {
       cur.sessions += 1;
       const p = perSched.get(s.id);
       const inc = p?.income ?? 0;
-      cur.pax += p?.pax ?? 0; cur.income += inc; cur.pay += payFor(t, inc);
+      cur.pax += p?.pax ?? 0; cur.income += inc; cur.pay += payForSched(s, inc);
       m.set(t, cur);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.income - a.income || b.pax - a.pax);
-  }, [scheds, perSched, payFor]);
+  }, [scheds, perSched, payForSched]);
 
   const byClass = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number }>();
@@ -180,13 +185,16 @@ export function AdminClassFinances() {
         id: s.id, date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
         class: s.classes?.title ?? "Class", teacher, pax: p.pax,
         paypal: p.paypal, cc: p.cc, cash: p.cash, other: p.other,
-        income: p.income, pay: payFor(teacher, p.income),
+        income: p.income, pay: payForSched(s, p.income),
+        payAuto: payFor(teacher, p.income), payOverride: s.pay_override,
         taxi: Number(s.taxi_cost) || 0, concierge: Number(s.concierge_commission) || 0,
       };
-    }), [scheds, perSched, payFor]);
+    }), [scheds, perSched, payForSched, payFor]);
 
-  // Persist a per-session cost (taxi / concierge) and refresh.
-  const patchSession = useCallback(async (id: string, p: { taxi_cost?: number; concierge_commission?: number }) => {
+  const teacherOptions = useMemo(() => rates.map((r) => r.name).sort((a, b) => a.localeCompare(b)), [rates]);
+
+  // Persist per-session finance fields (teacher, pay override, taxi, concierge).
+  const patchSession = useCallback(async (id: string, p: { taxi_cost?: number; concierge_commission?: number; instructor?: string | null; pay_override?: number | null }) => {
     const { error } = await sb.from("class_schedule").update(p).eq("id", id);
     if (error) toast.error(error.message); else load();
   }, [load]);
@@ -227,7 +235,7 @@ export function AdminClassFinances() {
         const t = teacherName(s);
         const inc = perSched.get(s.id)?.income ?? 0;
         const cur = m.get(t) ?? { pay: 0, sessions: 0 };
-        cur.pay += payFor(t, inc); cur.sessions += 1;
+        cur.pay += payForSched(s, inc); cur.sessions += 1;
         m.set(t, cur);
       }
       const rows = [...m.entries()].map(([teacher, v]) => ({ teacher, ...v }))
@@ -238,7 +246,7 @@ export function AdminClassFinances() {
         rows, total: rows.reduce((s, r) => s + r.pay, 0),
       };
     }).filter((w) => w.rows.length > 0);
-  }, [scheds, perSched, payFor, month]);
+  }, [scheds, perSched, payForSched, month]);
 
   const setPayout = useCallback(async (weekStart: string, teacher: string, patch: { paid?: boolean; note?: string }) => {
     const existing = payoutMap.get(`${weekStart}|${norm(teacher)}`);
@@ -335,6 +343,9 @@ export function AdminClassFinances() {
 
           {/* Session ledger */}
           <Card className="p-4">
+            <datalist id="fin-teachers">
+              {teacherOptions.map((n) => <option key={n} value={n} />)}
+            </datalist>
             <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">Session ledger ({ledger.length})</h4>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -342,6 +353,7 @@ export function AdminClassFinances() {
                 <Input type="number" value={crcRate} onChange={(e) => setCrcRate(Math.max(1, Number(e.target.value) || 1))} className="h-7 w-20" />
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-2">Pick the <strong>teacher</strong> from the list (or type a new one). The <strong>pay</strong> box shows the rate automatically — type a number to override it for that session (e.g. <strong>0</strong> = free, <strong>10</strong> = no-show); clear it to go back to the rate. Overridden pays are highlighted.</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -371,14 +383,26 @@ export function AdminClassFinances() {
                           <td className="py-1.5 pr-3 whitespace-nowrap"></td>
                           <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
                           <td className="py-1.5 pr-3">{r.class}</td>
-                          <td className="py-1.5 pr-3">{r.teacher}</td>
+                          <td className="py-1.5 pr-3">
+                            <input list="fin-teachers" defaultValue={r.teacher === "Unassigned" ? "" : r.teacher} placeholder="teacher…"
+                              className="h-7 w-32 rounded-md border border-input bg-background px-2 text-sm"
+                              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.teacher === "Unassigned" ? "" : r.teacher)) patchSession(r.id, { instructor: v || null }); }} />
+                          </td>
                           <td className="py-1.5 pr-3 text-right">{r.pax}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.paypal ? usd(r.paypal) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cc ? usd(r.cc) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cash ? usd(r.cash) : "—"}</td>
                           {hasOther && <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.other ? usd(r.other) : "—"}</td>}
                           <td className="py-1.5 pr-3 text-right font-medium">{r.income ? usd(r.income) : "—"}</td>
-                          <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right">
+                            <input type="number" defaultValue={r.payOverride != null ? r.payOverride : ""} placeholder={r.payAuto ? r.payAuto.toFixed(0) : "0"}
+                              title={r.payOverride != null ? "Manual pay (overrides the rate). Clear to use the rate." : `Auto from rate${r.payAuto ? ` ($${r.payAuto.toFixed(2)})` : ""}. Type to override.`}
+                              className={cn("h-7 w-16 rounded-md border px-1.5 text-right text-sm ml-auto", r.payOverride != null ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30" : "border-input bg-background")}
+                              onBlur={(e) => {
+                                const raw = e.target.value.trim();
+                                const next = raw === "" ? null : Math.max(0, Number(raw) || 0);
+                                if (next !== (r.payOverride ?? null)) patchSession(r.id, { pay_override: next });
+                              }} /></td>
                           <td className="py-1.5 pr-3 text-right">
                             <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
                               onBlur={(e) => (Number(e.target.value) || 0) !== r.taxi && patchSession(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
