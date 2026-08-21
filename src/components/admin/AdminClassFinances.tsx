@@ -3,32 +3,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Download, Loader2, Users, CalendarDays, DollarSign, TrendingUp } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
-  format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth,
-} from "date-fns";
+  ChevronLeft, ChevronRight, Download, Loader2, Users, CalendarDays, DollarSign,
+  TrendingUp, Plus, Trash2, Wallet, Receipt, Copy, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const sb = supabase as any;
 
 // ── Types ──
 interface Sched {
-  id: string;
-  class_id: string;
-  start_time: string;
-  is_cancelled: boolean;
-  instructor: string | null;
-  classes: { title: string | null; instructor: string | null } | null;
+  id: string; class_id: string; start_time: string; is_cancelled: boolean;
+  instructor: string | null; classes: { title: string | null; instructor: string | null } | null;
 }
-interface Bk {
-  schedule_id: string;
-  status: string;
-  total_price: number | null;
-  payment_method: string | null;
-  payment_status: string | null;
-}
+interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; }
+interface Rate { id: string; name: string; fixed_per_class: number; commission_pct: number; active: boolean; }
+interface Expense { id: string; ym: string; label: string; amount: number; category: string; sort_order: number; }
 
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const CRC_RATE_KEY = "hwc_crc_rate";
+const norm = (s: string) => s.trim().toLowerCase();
 
 const teacherName = (s: Sched): string => {
   const a = s.instructor?.trim();
@@ -42,41 +39,63 @@ export function AdminClassFinances() {
   const [loading, setLoading] = useState(true);
   const [scheds, setScheds] = useState<Sched[]>([]);
   const [bookings, setBookings] = useState<Bk[]>([]);
+  const [rates, setRates] = useState<Rate[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [showRates, setShowRates] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(false);
   const [crcRate, setCrcRate] = useState<number>(() => {
     const v = Number(localStorage.getItem(CRC_RATE_KEY));
     return Number.isFinite(v) && v > 0 ? v : 505;
   });
   useEffect(() => { localStorage.setItem(CRC_RATE_KEY, String(crcRate)); }, [crcRate]);
 
+  const ym = format(month, "yyyy-MM");
+
+  const loadRates = useCallback(async () => {
+    const { data } = await sb.from("class_teacher_rates").select("*").order("name");
+    setRates((data ?? []) as Rate[]);
+  }, []);
+
+  const loadExpenses = useCallback(async () => {
+    const { data } = await sb.from("monthly_expenses").select("*").eq("ym", ym).order("sort_order").order("created_at");
+    setExpenses((data ?? []) as Expense[]);
+  }, [ym]);
+
   const load = useCallback(async () => {
     setLoading(true);
     const start = format(startOfMonth(month), "yyyy-MM-dd");
     const end = format(endOfMonth(month), "yyyy-MM-dd");
-    const { data: sc } = await supabase
+    const { data: sc } = await sb
       .from("class_schedule")
       .select("id, class_id, start_time, is_cancelled, instructor, classes(title, instructor)")
-      .gte("start_time", `${start}T00:00:00Z`)
-      .lte("start_time", `${end}T23:59:59Z`)
+      .gte("start_time", `${start}T00:00:00Z`).lte("start_time", `${end}T23:59:59Z`)
       .order("start_time", { ascending: true });
-    const list = ((sc as any) ?? []) as Sched[];
-    // Only sessions that actually ran (exclude cancelled) for the finances.
-    const active = list.filter((s) => !s.is_cancelled);
+    const active = (((sc as any) ?? []) as Sched[]).filter((s) => !s.is_cancelled);
     setScheds(active);
     const ids = active.map((s) => s.id);
     if (ids.length) {
-      const { data: bk } = await supabase
-        .from("class_bookings")
-        .select("schedule_id, status, total_price, payment_method, payment_status")
-        .in("schedule_id", ids);
+      const { data: bk } = await sb.from("class_bookings")
+        .select("schedule_id, status, total_price, payment_method, payment_status").in("schedule_id", ids);
       setBookings(((bk as any) ?? []) as Bk[]);
-    } else {
-      setBookings([]);
-    }
+    } else setBookings([]);
     setLoading(false);
   }, [month]);
-  useEffect(() => { load(); }, [load]);
 
-  // Active bookings per schedule (attendees + income).
+  useEffect(() => { load(); loadExpenses(); }, [load, loadExpenses]);
+  useEffect(() => { loadRates(); }, [loadRates]);
+
+  // Rate lookup (matched by teacher name, case-insensitive).
+  const rateMap = useMemo(() => {
+    const m = new Map<string, { fixed: number; pct: number }>();
+    for (const r of rates) if (r.active) m.set(norm(r.name), { fixed: Number(r.fixed_per_class) || 0, pct: Number(r.commission_pct) || 0 });
+    return m;
+  }, [rates]);
+  const payFor = useCallback((teacher: string, income: number) => {
+    const r = rateMap.get(norm(teacher));
+    if (!r) return 0;
+    return r.fixed + (r.pct / 100) * income;
+  }, [rateMap]);
+
   const perSched = useMemo(() => {
     const m = new Map<string, { pax: number; income: number; online: number; other: number }>();
     for (const b of bookings) {
@@ -92,27 +111,33 @@ export function AdminClassFinances() {
     return m;
   }, [bookings]);
 
+  const expensesTotal = useMemo(() => expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [expenses]);
+
   const totals = useMemo(() => {
-    let income = 0, pax = 0, online = 0, other = 0;
+    let income = 0, pax = 0, online = 0, other = 0, teacherPay = 0;
     for (const s of scheds) {
       const p = perSched.get(s.id);
-      if (p) { income += p.income; pax += p.pax; online += p.online; other += p.other; }
+      const inc = p?.income ?? 0;
+      income += inc; pax += p?.pax ?? 0; online += p?.online ?? 0; other += p?.other ?? 0;
+      teacherPay += payFor(teacherName(s), inc);
     }
-    return { income, pax, online, other, sessions: scheds.length };
-  }, [scheds, perSched]);
+    const netIncome = income - teacherPay;
+    return { income, pax, online, other, sessions: scheds.length, teacherPay, netIncome, netProfit: netIncome - expensesTotal };
+  }, [scheds, perSched, payFor, expensesTotal]);
 
   const byTeacher = useMemo(() => {
-    const m = new Map<string, { sessions: number; pax: number; income: number }>();
+    const m = new Map<string, { sessions: number; pax: number; income: number; pay: number }>();
     for (const s of scheds) {
       const t = teacherName(s);
-      const cur = m.get(t) ?? { sessions: 0, pax: 0, income: 0 };
+      const cur = m.get(t) ?? { sessions: 0, pax: 0, income: 0, pay: 0 };
       cur.sessions += 1;
       const p = perSched.get(s.id);
-      if (p) { cur.pax += p.pax; cur.income += p.income; }
+      const inc = p?.income ?? 0;
+      cur.pax += p?.pax ?? 0; cur.income += inc; cur.pay += payFor(t, inc);
       m.set(t, cur);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.income - a.income || b.pax - a.pax);
-  }, [scheds, perSched]);
+  }, [scheds, perSched, payFor]);
 
   const byClass = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number }>();
@@ -121,7 +146,7 @@ export function AdminClassFinances() {
       const cur = m.get(t) ?? { sessions: 0, pax: 0, income: 0 };
       cur.sessions += 1;
       const p = perSched.get(s.id);
-      if (p) { cur.pax += p.pax; cur.income += p.income; }
+      cur.pax += p?.pax ?? 0; cur.income += p?.income ?? 0;
       m.set(t, cur);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.income - a.income || b.pax - a.pax);
@@ -130,33 +155,32 @@ export function AdminClassFinances() {
   const ledger = useMemo(() =>
     scheds.map((s) => {
       const p = perSched.get(s.id) ?? { pax: 0, income: 0, online: 0, other: 0 };
+      const teacher = teacherName(s);
       return {
-        date: format(parseISO(s.start_time), "dd/MM/yyyy"),
-        time: format(parseISO(s.start_time), "HH:mm"),
-        class: s.classes?.title ?? "Class",
-        teacher: teacherName(s),
-        pax: p.pax,
-        online: p.online,
-        drop: p.other,
-        income: p.income,
+        date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
+        class: s.classes?.title ?? "Class", teacher, pax: p.pax, online: p.online, drop: p.other,
+        income: p.income, pay: payFor(teacher, p.income),
       };
-    }), [scheds, perSched]);
+    }), [scheds, perSched, payFor]);
+
+  const crc = (n: number) => `${n < 0 ? "-" : ""}₡${Math.abs(Math.round(n * crcRate)).toLocaleString("es-CR")}`;
 
   const exportCsv = () => {
-    const header = ["Date", "Time", "Class", "Teacher", "PAX", "Online $", "Drop-in/Other $", "Total Income $"];
-    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.online.toFixed(2), r.drop.toFixed(2), r.income.toFixed(2)]);
-    const csv = [header, ...rows, [], ["TOTAL", "", "", "", totals.pax, totals.online.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2)]]
-      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const header = ["Date", "Time", "Class", "Teacher", "PAX", "Online $", "Drop-in/Other $", "Income $", "Teacher pay $", "HWC earnings $"];
+    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.online.toFixed(2), r.drop.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), (r.income - r.pay).toFixed(2)]);
+    const summary = [
+      [], ["TOTAL", "", "", "", totals.pax, totals.online.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.netIncome.toFixed(2)],
+      [], ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
+      ["Net income (after teachers)", totals.netIncome.toFixed(2)], ["Monthly expenses", expensesTotal.toFixed(2)],
+      ["NET PROFIT", totals.netProfit.toFixed(2)],
+    ];
+    const csv = [header, ...rows, ...summary].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `class-finances-${format(month, "yyyy-MM")}.csv`;
-    a.click();
+    a.href = url; a.download = `class-finances-${ym}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
-
-  const crc = (n: number) => `₡${Math.round(n * crcRate).toLocaleString("es-CR")}`;
 
   return (
     <div className="space-y-5">
@@ -164,16 +188,14 @@ export function AdminClassFinances() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-heading font-bold text-foreground">Class Finances</h2>
-          <p className="text-sm text-muted-foreground">Income &amp; attendance per month, built automatically from class bookings. Grouped by teacher and by class.</p>
+          <p className="text-sm text-muted-foreground">Monthly income, teacher pay and net profit — income &amp; attendance are built automatically from class bookings.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
           <h3 className="font-heading text-lg font-semibold min-w-[150px] text-center">{format(month, "MMMM yyyy")}</h3>
           <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
           {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading || ledger.length === 0}>
-            <Download className="h-4 w-4 mr-1" /> Export CSV
-          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading || ledger.length === 0}><Download className="h-4 w-4 mr-1" /> CSV</Button>
         </div>
       </div>
 
@@ -183,26 +205,24 @@ export function AdminClassFinances() {
         <>
           {/* KPI cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Kpi icon={DollarSign} label="Gross income" value={usd(totals.income)} sub={crc(totals.income)} accent />
-            <Kpi icon={CalendarDays} label="Sessions" value={String(totals.sessions)} />
-            <Kpi icon={Users} label="Attendees (PAX)" value={String(totals.pax)} />
-            <Kpi icon={TrendingUp} label="Avg $ / session" value={usd(totals.sessions ? totals.income / totals.sessions : 0)} />
+            <Kpi icon={DollarSign} label="Gross income" value={usd(totals.income)} sub={`${totals.sessions} sessions · ${totals.pax} PAX`} />
+            <Kpi icon={Wallet} label="Teacher pay" value={usd(totals.teacherPay)} sub="fixed + commission" />
+            <Kpi icon={Receipt} label="Monthly expenses" value={usd(expensesTotal)} sub={`${expenses.length} items`} />
+            <Kpi icon={TrendingUp} label="Net profit" value={usd(totals.netProfit)} sub={crc(totals.netProfit)} accent={totals.netProfit >= 0} danger={totals.netProfit < 0} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* By teacher */}
             <Card className="p-4">
-              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Income by teacher</h4>
-              <Table
-                cols={["Teacher", "Sessions", "PAX", "Income"]}
-                rows={byTeacher.map((t) => [t.name, String(t.sessions), String(t.pax), usd(t.income)])}
+              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">By teacher</h4>
+              <SimpleTable
+                cols={["Teacher", "Sessions", "PAX", "Income", "Pay"]}
+                rows={byTeacher.map((t) => [t.name, String(t.sessions), String(t.pax), usd(t.income), usd(t.pay)])}
                 empty="No sessions this month."
               />
             </Card>
-            {/* By class */}
             <Card className="p-4">
-              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Income by class</h4>
-              <Table
+              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">By class</h4>
+              <SimpleTable
                 cols={["Class", "Sessions", "PAX", "Income"]}
                 rows={byClass.map((t) => [t.name, String(t.sessions), String(t.pax), usd(t.income)])}
                 empty="No sessions this month."
@@ -212,7 +232,7 @@ export function AdminClassFinances() {
 
           {/* Session ledger */}
           <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">Session ledger ({ledger.length})</h4>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span>₡ rate</span>
@@ -223,20 +243,14 @@ export function AdminClassFinances() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="py-2 pr-3">Date</th>
-                    <th className="py-2 pr-3">Time</th>
-                    <th className="py-2 pr-3">Class</th>
-                    <th className="py-2 pr-3">Teacher</th>
-                    <th className="py-2 pr-3 text-right">PAX</th>
-                    <th className="py-2 pr-3 text-right">Online</th>
-                    <th className="py-2 pr-3 text-right">Drop-in/Other</th>
-                    <th className="py-2 text-right">Income</th>
+                    <th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Time</th><th className="py-2 pr-3">Class</th>
+                    <th className="py-2 pr-3">Teacher</th><th className="py-2 pr-3 text-right">PAX</th>
+                    <th className="py-2 pr-3 text-right">Income</th><th className="py-2 pr-3 text-right">Teacher pay</th>
+                    <th className="py-2 text-right">HWC earns</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.length === 0 && (
-                    <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>
-                  )}
+                  {ledger.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
                   {ledger.map((r, i) => (
                     <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-1.5 pr-3 whitespace-nowrap">{r.date}</td>
@@ -244,9 +258,9 @@ export function AdminClassFinances() {
                       <td className="py-1.5 pr-3">{r.class}</td>
                       <td className="py-1.5 pr-3">{r.teacher}</td>
                       <td className="py-1.5 pr-3 text-right">{r.pax}</td>
-                      <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.online ? usd(r.online) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.drop ? usd(r.drop) : "—"}</td>
-                      <td className="py-1.5 text-right font-medium">{r.income ? usd(r.income) : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right">{r.income ? usd(r.income) : "—"}</td>
+                      <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
+                      <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -255,9 +269,9 @@ export function AdminClassFinances() {
                     <tr className="border-t border-border font-semibold">
                       <td className="py-2 pr-3" colSpan={4}>Total — {format(month, "MMMM yyyy")}</td>
                       <td className="py-2 pr-3 text-right">{totals.pax}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.online)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.other)}</td>
-                      <td className="py-2 text-right">{usd(totals.income)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.income)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.teacherPay)}</td>
+                      <td className="py-2 text-right">{usd(totals.netIncome)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -265,38 +279,31 @@ export function AdminClassFinances() {
             </div>
           </Card>
 
-          <div className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">Coming next (Phase B)</p>
-            Teacher pay &amp; commission, taxi cost, concierge commission and monthly fixed/variable expenses — to compute <strong>Net Profit</strong> per month (in $ and ₡), like your spreadsheet. This panel already covers the income side automatically; the cost inputs will be added on top.
-          </div>
+          {/* Managers */}
+          <TeacherRatesManager rates={rates} reload={loadRates} open={showRates} setOpen={setShowRates} />
+          <ExpensesManager ym={ym} monthLabel={format(month, "MMMM yyyy")} prevYm={format(subMonths(month, 1), "yyyy-MM")}
+            expenses={expenses} total={expensesTotal} reload={loadExpenses} open={showExpenses} setOpen={setShowExpenses} />
         </>
       )}
     </div>
   );
 }
 
-function Kpi({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: boolean }) {
+function Kpi({ icon: Icon, label, value, sub, accent, danger }: { icon: any; label: string; value: string; sub?: string; accent?: boolean; danger?: boolean }) {
   return (
-    <Card className={cn("p-4", accent && "border-emerald-500/40 bg-emerald-500/5")}>
-      <div className="flex items-center gap-2 text-muted-foreground mb-1">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
+    <Card className={cn("p-4", accent && "border-emerald-500/40 bg-emerald-500/5", danger && "border-destructive/40 bg-destructive/5")}>
+      <div className="flex items-center gap-2 text-muted-foreground mb-1"><Icon className="h-4 w-4" /><span className="text-xs uppercase tracking-wide">{label}</span></div>
+      <p className={cn("text-2xl font-bold leading-tight", danger ? "text-destructive" : "text-foreground")}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </Card>
   );
 }
 
-function Table({ cols, rows, empty }: { cols: string[]; rows: string[][]; empty: string }) {
+function SimpleTable({ cols, rows, empty }: { cols: string[]; rows: string[][]; empty: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-muted-foreground border-b border-border">
-            {cols.map((c, i) => <th key={c} className={cn("py-2 pr-3", i > 0 && "text-right")}>{c}</th>)}
-          </tr>
-        </thead>
+        <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">{cols.map((c, i) => <th key={c} className={cn("py-2 pr-3", i > 0 && "text-right")}>{c}</th>)}</tr></thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={cols.length} className="py-5 text-center text-muted-foreground">{empty}</td></tr>}
           {rows.map((r, ri) => (
@@ -307,5 +314,127 @@ function Table({ cols, rows, empty }: { cols: string[]; rows: string[][]; empty:
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ── Teacher rates manager ──
+function TeacherRatesManager({ rates, reload, open, setOpen }: { rates: Rate[]; reload: () => void; open: boolean; setOpen: (v: boolean) => void; }) {
+  const [newName, setNewName] = useState("");
+  const patch = async (id: string, p: Partial<Rate>) => {
+    const { error } = await sb.from("class_teacher_rates").update(p).eq("id", id);
+    if (error) toast.error(error.message); else reload();
+  };
+  const add = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const { error } = await sb.from("class_teacher_rates").insert({ name });
+    if (error) toast.error(error.message.includes("duplicate") ? "That teacher already exists" : error.message);
+    else { setNewName(""); reload(); }
+  };
+  const del = async (id: string) => {
+    if (!confirm("Remove this teacher rate?")) return;
+    const { error } = await sb.from("class_teacher_rates").delete().eq("id", id);
+    if (error) toast.error(error.message); else reload();
+  };
+  return (
+    <Card className="p-4">
+      <button className="w-full flex items-center justify-between" onClick={() => setOpen(!open)}>
+        <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2"><Wallet className="h-4 w-4" /> Teacher pay rates ({rates.length})</h4>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-muted-foreground">Pay per session = <strong>fixed</strong> + <strong>commission %</strong> of that session's income. Leave both at 0 for volunteer/unpaid. Matched to the teacher name on each session.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-muted-foreground border-b border-border"><th className="py-2 pr-3">Teacher</th><th className="py-2 pr-3 w-28">Fixed / class $</th><th className="py-2 pr-3 w-28">Commission %</th><th className="py-2 pr-3 w-16">Active</th><th className="py-2 w-10"></th></tr></thead>
+              <tbody>
+                {rates.map((r) => (
+                  <tr key={r.id} className="border-b border-border/50">
+                    <td className="py-1.5 pr-3 font-medium">{r.name}</td>
+                    <td className="py-1.5 pr-3"><Input type="number" defaultValue={r.fixed_per_class} className="h-8 w-24" onBlur={(e) => Number(e.target.value) !== Number(r.fixed_per_class) && patch(r.id, { fixed_per_class: Math.max(0, Number(e.target.value) || 0) })} /></td>
+                    <td className="py-1.5 pr-3"><Input type="number" defaultValue={r.commission_pct} className="h-8 w-24" onBlur={(e) => Number(e.target.value) !== Number(r.commission_pct) && patch(r.id, { commission_pct: Math.max(0, Number(e.target.value) || 0) })} /></td>
+                    <td className="py-1.5 pr-3"><Switch checked={r.active} onCheckedChange={(v) => patch(r.id, { active: v })} /></td>
+                    <td className="py-1.5"><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => del(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button></td>
+                  </tr>
+                ))}
+                {rates.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-muted-foreground">No teachers yet — add one below.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New teacher name" className="h-8 max-w-xs" onKeyDown={(e) => e.key === "Enter" && add()} />
+            <Button size="sm" variant="outline" onClick={add}><Plus className="h-4 w-4 mr-1" /> Add teacher</Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Monthly expenses manager ──
+function ExpensesManager({ ym, monthLabel, prevYm, expenses, total, reload, open, setOpen }: {
+  ym: string; monthLabel: string; prevYm: string; expenses: Expense[]; total: number; reload: () => void; open: boolean; setOpen: (v: boolean) => void;
+}) {
+  const patch = async (id: string, p: Partial<Expense>) => {
+    const { error } = await sb.from("monthly_expenses").update(p).eq("id", id);
+    if (error) toast.error(error.message); else reload();
+  };
+  const add = async (category: string) => {
+    const max = Math.max(0, ...expenses.map((e) => e.sort_order));
+    const { error } = await sb.from("monthly_expenses").insert({ ym, label: "New expense", amount: 0, category, sort_order: max + 1 });
+    if (error) toast.error(error.message); else reload();
+  };
+  const del = async (id: string) => {
+    const { error } = await sb.from("monthly_expenses").delete().eq("id", id);
+    if (error) toast.error(error.message); else reload();
+  };
+  const copyPrev = async () => {
+    const { data } = await sb.from("monthly_expenses").select("label, amount, category, sort_order").eq("ym", prevYm);
+    const rows = (data ?? []) as Expense[];
+    if (!rows.length) { toast.info("No expenses in the previous month to copy."); return; }
+    if (!confirm(`Copy ${rows.length} expense line(s) from ${prevYm} into ${ym}?`)) return;
+    const { error } = await sb.from("monthly_expenses").insert(rows.map((r) => ({ ym, label: r.label, amount: r.amount, category: r.category, sort_order: r.sort_order })));
+    if (error) toast.error(error.message); else { toast.success("Copied"); reload(); }
+  };
+  const group = (cat: string) => expenses.filter((e) => e.category === cat);
+  const row = (e: Expense) => (
+    <tr key={e.id} className="border-b border-border/50">
+      <td className="py-1.5 pr-3"><Input defaultValue={e.label} className="h-8" onBlur={(ev) => ev.target.value !== e.label && patch(e.id, { label: ev.target.value })} /></td>
+      <td className="py-1.5 pr-3 w-32"><Input type="number" defaultValue={e.amount} className="h-8 w-28 text-right" onBlur={(ev) => Number(ev.target.value) !== Number(e.amount) && patch(e.id, { amount: Math.max(0, Number(ev.target.value) || 0) })} /></td>
+      <td className="py-1.5 w-10"><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => del(e.id)}><Trash2 className="h-3.5 w-3.5" /></Button></td>
+    </tr>
+  );
+  return (
+    <Card className="p-4">
+      <button className="w-full flex items-center justify-between" onClick={() => setOpen(!open)}>
+        <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2"><Receipt className="h-4 w-4" /> Monthly expenses — {monthLabel} ({usd(total)})</h4>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-4">
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" onClick={copyPrev}><Copy className="h-4 w-4 mr-1" /> Copy from previous month</Button>
+          </div>
+          {(["fixed", "variable"] as const).map((cat) => (
+            <div key={cat}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{cat === "fixed" ? "Fixed expenses" : "Variable expenses"}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {group(cat).map(row)}
+                    {group(cat).length === 0 && <tr><td className="py-3 text-muted-foreground text-sm">None yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+              <Button size="sm" variant="outline" className="h-8 mt-1" onClick={() => add(cat)}><Plus className="h-3.5 w-3.5 mr-1" /> Add {cat} expense</Button>
+            </div>
+          ))}
+          <div className="flex justify-between border-t border-border pt-2 text-sm font-semibold">
+            <span>Total expenses — {monthLabel}</span><span>{usd(total)}</span>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
