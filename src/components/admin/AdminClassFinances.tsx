@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft, ChevronRight, Download, Loader2, Users, CalendarDays, DollarSign,
-  TrendingUp, Plus, Trash2, Wallet, Receipt, Copy, ChevronDown, ChevronUp,
+  TrendingUp, Plus, Trash2, Wallet, Receipt, Copy, ChevronDown, ChevronUp, Save,
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth,
@@ -50,6 +50,10 @@ export function AdminClassFinances() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [showRates, setShowRates] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
+  // Draft edits (not saved until "Save changes"): sessionId -> partial fields.
+  type SessionEdit = Partial<Pick<Sched, "instructor" | "pay_override" | "taxi_cost" | "concierge_commission">>;
+  const [edits, setEdits] = useState<Record<string, SessionEdit>>({});
+  const [savingEdits, setSavingEdits] = useState(false);
   const [crcRate, setCrcRate] = useState<number>(() => {
     const v = Number(localStorage.getItem(CRC_RATE_KEY));
     return Number.isFinite(v) && v > 0 ? v : 505;
@@ -77,6 +81,7 @@ export function AdminClassFinances() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setEdits({});
     const start = format(startOfMonth(month), "yyyy-MM-dd");
     const end = format(endOfMonth(month), "yyyy-MM-dd");
     const { data: sc } = await sb
@@ -97,6 +102,56 @@ export function AdminClassFinances() {
 
   useEffect(() => { load(); loadExpenses(); loadPayouts(); }, [load, loadExpenses, loadPayouts]);
   useEffect(() => { loadRates(); }, [loadRates]);
+
+  // Sessions with pending (unsaved) draft edits applied — everything recalculates
+  // live off these, but nothing is written until "Save changes".
+  const effectiveScheds = useMemo(
+    () => scheds.map((s) => (edits[s.id] ? { ...s, ...edits[s.id] } : s)),
+    [scheds, edits],
+  );
+  const dirtyCount = Object.keys(edits).length;
+  // Stage a draft change for a session (does NOT hit the DB).
+  const stageEdit = (id: string, patch: SessionEdit) => {
+    setEdits((prev) => {
+      const base = scheds.find((s) => s.id === id);
+      const merged = { ...(prev[id] ?? {}), ...patch };
+      // Drop keys that match the stored value so a no-op doesn't mark the row dirty.
+      const cleaned: SessionEdit = {};
+      (Object.keys(merged) as (keyof SessionEdit)[]).forEach((k) => {
+        if (base && (merged[k] ?? null) !== ((base as any)[k] ?? null)) (cleaned as any)[k] = merged[k];
+      });
+      const next = { ...prev };
+      if (Object.keys(cleaned).length) next[id] = cleaned; else delete next[id];
+      return next;
+    });
+  };
+  const discardEdits = () => setEdits({});
+  const saveEdits = async () => {
+    const ids = Object.keys(edits);
+    if (!ids.length) return;
+    setSavingEdits(true);
+    try {
+      for (const id of ids) {
+        const { error } = await sb.from("class_schedule").update(edits[id]).eq("id", id);
+        if (error) throw error;
+      }
+      // Merge into local state and clear the draft (no full reload = no flicker).
+      setScheds((prev) => prev.map((s) => (edits[s.id] ? { ...s, ...edits[s.id] } : s)));
+      setEdits({});
+      toast.success(`Saved ${ids.length} session${ids.length > 1 ? "s" : ""}`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Save failed");
+    } finally {
+      setSavingEdits(false);
+    }
+  };
+  // Warn before leaving with unsaved changes.
+  useEffect(() => {
+    if (!dirtyCount) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirtyCount]);
 
   // Rate lookup (matched by teacher name, case-insensitive).
   const rateMap = useMemo(() => {
@@ -136,7 +191,7 @@ export function AdminClassFinances() {
 
   const totals = useMemo(() => {
     let income = 0, pax = 0, paypal = 0, cc = 0, cash = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
-    for (const s of scheds) {
+    for (const s of effectiveScheds) {
       const p = perSched.get(s.id);
       const inc = p?.income ?? 0;
       income += inc; pax += p?.pax ?? 0;
@@ -146,13 +201,13 @@ export function AdminClassFinances() {
       concierge += Number(s.concierge_commission) || 0;
     }
     const netIncome = income - teacherPay - taxi - concierge;
-    return { income, pax, paypal, cc, cash, other, sessions: scheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
-  }, [scheds, perSched, payForSched, expensesTotal]);
+    return { income, pax, paypal, cc, cash, other, sessions: effectiveScheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
+  }, [effectiveScheds, perSched, payForSched, expensesTotal]);
   const hasOther = totals.other > 0;
 
   const byTeacher = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number; pay: number }>();
-    for (const s of scheds) {
+    for (const s of effectiveScheds) {
       const t = teacherName(s);
       const cur = m.get(t) ?? { sessions: 0, pax: 0, income: 0, pay: 0 };
       cur.sessions += 1;
@@ -162,11 +217,11 @@ export function AdminClassFinances() {
       m.set(t, cur);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.income - a.income || b.pax - a.pax);
-  }, [scheds, perSched, payForSched]);
+  }, [effectiveScheds, perSched, payForSched]);
 
   const byClass = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number }>();
-    for (const s of scheds) {
+    for (const s of effectiveScheds) {
       const t = s.classes?.title ?? "Class";
       const cur = m.get(t) ?? { sessions: 0, pax: 0, income: 0 };
       cur.sessions += 1;
@@ -175,10 +230,10 @@ export function AdminClassFinances() {
       m.set(t, cur);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.income - a.income || b.pax - a.pax);
-  }, [scheds, perSched]);
+  }, [effectiveScheds, perSched]);
 
   const ledger = useMemo(() =>
-    scheds.map((s) => {
+    effectiveScheds.map((s) => {
       const p = perSched.get(s.id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, other: 0 };
       const teacher = teacherName(s);
       return {
@@ -189,26 +244,29 @@ export function AdminClassFinances() {
         payAuto: payFor(teacher, p.income), payOverride: s.pay_override,
         taxi: Number(s.taxi_cost) || 0, concierge: Number(s.concierge_commission) || 0,
       };
-    }), [scheds, perSched, payForSched, payFor]);
+    }), [effectiveScheds, perSched, payForSched, payFor]);
 
   const teacherOptions = useMemo(() => {
     const set = new Set<string>(rates.map((r) => r.name));
-    scheds.forEach((s) => { const t = teacherName(s); if (t !== "Unassigned") set.add(t); });
+    effectiveScheds.forEach((s) => { const t = teacherName(s); if (t !== "Unassigned") set.add(t); });
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [rates, scheds]);
+  }, [rates, effectiveScheds]);
   const classOptions = useMemo(() => {
     const set = new Set<string>();
-    scheds.forEach((s) => set.add(s.classes?.title ?? "Class"));
+    effectiveScheds.forEach((s) => set.add(s.classes?.title ?? "Class"));
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [scheds]);
+  }, [effectiveScheds]);
 
-  // Persist per-session finance fields. Optimistic: update local state only
-  // (no full reload) so editing feels stable, like a spreadsheet cell.
-  const patchSession = useCallback(async (id: string, p: { taxi_cost?: number; concierge_commission?: number; instructor?: string | null; pay_override?: number | null }) => {
-    setScheds((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
-    const { error } = await sb.from("class_schedule").update(p).eq("id", id);
-    if (error) { toast.error(error.message); load(); }
-  }, [load]);
+  // Add a teacher on the fly (into the rate list) and assign it to this session.
+  const addTeacherInline = async (id: string) => {
+    const name = window.prompt("New teacher name:")?.trim();
+    if (!name) return;
+    const { error } = await sb.from("class_teacher_rates").insert({ name });
+    if (error && !String(error.message).toLowerCase().includes("duplicate")) { toast.error(error.message); return; }
+    await loadRates();
+    stageEdit(id, { instructor: name });
+    toast.success(`Added ${name} — set their rate under “Teacher pay rates”.`);
+  };
 
   // Jump to this session in the Classes calendar (to add attendees / edit).
   const openInCalendar = (scheduleId: string) => {
@@ -249,11 +307,11 @@ export function AdminClassFinances() {
       g.rows.push(r); g.income += r.income; g.pay += r.pay; g.net += r.income - r.pay - r.taxi - r.concierge;
     }
     for (const g of groups) {
-      const first = scheds.find((s) => format(parseISO(s.start_time), "dd/MM/yyyy") === g.date);
+      const first = effectiveScheds.find((s) => format(parseISO(s.start_time), "dd/MM/yyyy") === g.date);
       g.label = first ? format(parseISO(first.start_time), "EEE, MMM d") : g.date;
     }
     return groups;
-  }, [filteredLedger, scheds]);
+  }, [filteredLedger, effectiveScheds]);
 
   // Weekly (Mon–Sun) teacher-payment cut, clipped to the month.
   const payoutMap = useMemo(() => {
@@ -269,7 +327,7 @@ export function AdminClassFinances() {
       const dispStart = wkStart < mStart ? mStart : wkStart;
       const dispEnd = wkEnd > mEnd ? mEnd : wkEnd;
       const m = new Map<string, { pay: number; sessions: number }>();
-      for (const s of scheds) {
+      for (const s of effectiveScheds) {
         const d = parseISO(s.start_time);
         if (d < wkStart || d > wkEnd) continue;
         const t = teacherName(s);
@@ -286,7 +344,7 @@ export function AdminClassFinances() {
         rows, total: rows.reduce((s, r) => s + r.pay, 0),
       };
     }).filter((w) => w.rows.length > 0);
-  }, [scheds, perSched, payForSched, month]);
+  }, [effectiveScheds, perSched, payForSched, month]);
 
   const setPayout = useCallback(async (weekStart: string, teacher: string, patch: { paid?: boolean; note?: string }) => {
     const existing = payoutMap.get(`${weekStart}|${norm(teacher)}`);
@@ -383,6 +441,18 @@ export function AdminClassFinances() {
 
           {/* Session ledger */}
           <Card className="p-4">
+            {dirtyCount > 0 && (
+              <div className="sticky top-0 z-20 -mx-4 -mt-4 mb-3 px-4 py-2 flex items-center justify-between gap-3 bg-amber-100 dark:bg-amber-950/50 border-b border-amber-300 rounded-t-xl">
+                <span className="text-sm font-medium text-amber-900 dark:text-amber-200">{dirtyCount} unsaved change{dirtyCount > 1 ? "s" : ""}</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={discardEdits} disabled={savingEdits}>Discard</Button>
+                  <Button size="sm" onClick={saveEdits} disabled={savingEdits}>
+                    {savingEdits ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                    Save changes
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Session ledger ({filteredLedger.length}{hasFilter ? ` of ${ledger.length}` : ""})
@@ -432,9 +502,11 @@ export function AdminClassFinances() {
                         <td colSpan={2}></td>
                         <td className="py-1.5 text-right font-medium">{usd(g.net)}</td>
                       </tr>
-                      {g.rows.map((r) => (
-                        <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-1.5 pr-3 whitespace-nowrap"></td>
+                      {g.rows.map((r) => {
+                        const dirty = !!edits[r.id];
+                        return (
+                        <tr key={r.id} className={cn("border-b border-border/50 hover:bg-muted/30", dirty && "bg-amber-50/60 dark:bg-amber-950/20")}>
+                          <td className="py-1.5 pr-3 whitespace-nowrap">{dirty && <span className="text-amber-500" title="Unsaved change">●</span>}</td>
                           <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
                           <td className="py-1.5 pr-3">
                             <button onClick={() => openInCalendar(r.id)} className="text-left text-foreground hover:underline decoration-dotted" title="Open in calendar (add attendees)">{r.class}</button>
@@ -442,10 +514,11 @@ export function AdminClassFinances() {
                           <td className="py-1.5 pr-3">
                             <select value={r.teacher === "Unassigned" ? "" : r.teacher}
                               className="h-7 w-32 rounded-md border border-input bg-background px-1.5 text-sm"
-                              onChange={(e) => patchSession(r.id, { instructor: e.target.value || null })}>
+                              onChange={(e) => { if (e.target.value === "__add__") addTeacherInline(r.id); else stageEdit(r.id, { instructor: e.target.value || null }); }}>
                               <option value="">— none —</option>
                               {!teacherOptions.includes(r.teacher) && r.teacher !== "Unassigned" && <option value={r.teacher}>{r.teacher}</option>}
                               {teacherOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                              <option value="__add__">＋ Add new teacher…</option>
                             </select>
                           </td>
                           <td className="py-1.5 pr-3 text-right">{r.pax}</td>
@@ -455,25 +528,23 @@ export function AdminClassFinances() {
                           {hasOther && <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.other ? usd(r.other) : "—"}</td>}
                           <td className="py-1.5 pr-3 text-right font-medium">{r.income ? usd(r.income) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right">
-                            <input type="number" defaultValue={r.payOverride != null ? r.payOverride : ""} placeholder={r.payAuto ? r.payAuto.toFixed(0) : "0"}
+                            <input type="number" value={r.payOverride != null ? r.payOverride : ""} placeholder={r.payAuto ? r.payAuto.toFixed(0) : "0"}
                               title={r.payOverride != null ? "Manual pay (overrides the rate). Clear to use the rate." : `Auto from rate${r.payAuto ? ` ($${r.payAuto.toFixed(2)})` : ""}. Type to override.`}
                               className={cn("h-7 w-16 rounded-md border px-1.5 text-right text-sm ml-auto", r.payOverride != null ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30" : "border-input bg-background")}
-                              onBlur={(e) => {
-                                const raw = e.target.value.trim();
-                                const next = raw === "" ? null : Math.max(0, Number(raw) || 0);
-                                if (next !== (r.payOverride ?? null)) patchSession(r.id, { pay_override: next });
-                              }} /></td>
-                          <td className="py-1.5 pr-3 text-right">
-                            <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
-                              onBlur={(e) => (Number(e.target.value) || 0) !== r.taxi && patchSession(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
+                              onChange={(e) => { const raw = e.target.value.trim(); stageEdit(r.id, { pay_override: raw === "" ? null : Math.max(0, Number(raw) || 0) }); }} />
                           </td>
                           <td className="py-1.5 pr-3 text-right">
-                            <Input type="number" defaultValue={r.concierge || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
-                              onBlur={(e) => (Number(e.target.value) || 0) !== r.concierge && patchSession(r.id, { concierge_commission: Math.max(0, Number(e.target.value) || 0) })} />
+                            <input type="number" value={r.taxi || ""} placeholder="0" className="h-7 w-20 rounded-md border border-input bg-background px-1.5 text-right text-sm ml-auto"
+                              onChange={(e) => stageEdit(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
+                          </td>
+                          <td className="py-1.5 pr-3 text-right">
+                            <input type="number" value={r.concierge || ""} placeholder="0" className="h-7 w-20 rounded-md border border-input bg-background px-1.5 text-right text-sm ml-auto"
+                              onChange={(e) => stageEdit(r.id, { concierge_commission: Math.max(0, Number(e.target.value) || 0) })} />
                           </td>
                           <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay - r.taxi - r.concierge)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </Fragment>
                   ))}
                 </tbody>
