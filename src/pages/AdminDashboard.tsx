@@ -128,6 +128,17 @@ const AdminDashboard = () => {
     }
   }, [user, loading, navigate]);
 
+  // Allow child panels (e.g. the classes calendar) to jump to another tab via
+  // a decoupled window event, without threading setActiveTab through props.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (typeof id === "string") { setActiveTab(id); window.scrollTo({ top: 0 }); }
+    };
+    window.addEventListener("admin-tab", handler);
+    return () => window.removeEventListener("admin-tab", handler);
+  }, []);
+
   const visibleLinks = isViewer
     ? sidebarLinks.filter((l) => l.id === "calendars")
     : isCoordinator

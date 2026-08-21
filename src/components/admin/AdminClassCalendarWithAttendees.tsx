@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pencil, Ban, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pencil, Ban, RotateCcw, Trash2, Search, Loader2, DollarSign } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO,
@@ -848,6 +848,9 @@ export function AdminClassCalendarWithAttendees() {
           >
             {showCancelled ? <Ban className="h-4 w-4 mr-1" /> : <Ban className="h-4 w-4 mr-1 opacity-60" />}
             {showCancelled ? "Hide cancelled" : `Show cancelled${cancelledCount ? ` (${cancelledCount})` : ""}`}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("admin-tab", { detail: "class-finances" }))} title="Open Class Finances">
+            <DollarSign className="h-4 w-4 mr-1" /> Finances
           </Button>
           <Button size="sm" variant="outline" onClick={() => { resetOrder(); setOrderOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New Order

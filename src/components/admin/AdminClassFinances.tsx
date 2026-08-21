@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,10 @@ import {
   ChevronLeft, ChevronRight, Download, Loader2, Users, CalendarDays, DollarSign,
   TrendingUp, Plus, Trash2, Wallet, Receipt, Copy, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
+import {
+  format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth,
+  startOfWeek, endOfWeek, eachWeekOfInterval, isSameDay,
+} from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -23,6 +26,7 @@ interface Sched {
 interface Bk { schedule_id: string; status: string; total_price: number | null; payment_method: string | null; payment_status: string | null; }
 interface Rate { id: string; name: string; fixed_per_class: number; commission_pct: number; active: boolean; }
 interface Expense { id: string; ym: string; label: string; amount: number; category: string; sort_order: number; }
+interface Payout { id: string; week_start: string; teacher: string; paid: boolean; note: string | null; }
 
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const CRC_RATE_KEY = "hwc_crc_rate";
@@ -42,6 +46,7 @@ export function AdminClassFinances() {
   const [bookings, setBookings] = useState<Bk[]>([]);
   const [rates, setRates] = useState<Rate[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
   const [showRates, setShowRates] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
   const [crcRate, setCrcRate] = useState<number>(() => {
@@ -61,6 +66,13 @@ export function AdminClassFinances() {
     const { data } = await sb.from("monthly_expenses").select("*").eq("ym", ym).order("sort_order").order("created_at");
     setExpenses((data ?? []) as Expense[]);
   }, [ym]);
+
+  const loadPayouts = useCallback(async () => {
+    const from = format(startOfWeek(startOfMonth(month), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const to = format(endOfMonth(month), "yyyy-MM-dd");
+    const { data } = await sb.from("class_teacher_payouts").select("*").gte("week_start", from).lte("week_start", to);
+    setPayouts((data ?? []) as Payout[]);
+  }, [month]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,7 +94,7 @@ export function AdminClassFinances() {
     setLoading(false);
   }, [month]);
 
-  useEffect(() => { load(); loadExpenses(); }, [load, loadExpenses]);
+  useEffect(() => { load(); loadExpenses(); loadPayouts(); }, [load, loadExpenses, loadPayouts]);
   useEffect(() => { loadRates(); }, [loadRates]);
 
   // Rate lookup (matched by teacher name, case-insensitive).
@@ -172,6 +184,67 @@ export function AdminClassFinances() {
     const { error } = await sb.from("class_schedule").update(p).eq("id", id);
     if (error) toast.error(error.message); else load();
   }, [load]);
+
+  // Group the ledger by day (each day lists its class sessions) — mirrors the sheet.
+  const ledgerByDay = useMemo(() => {
+    const groups: { date: string; label: string; rows: typeof ledger; income: number; pay: number; net: number }[] = [];
+    for (const r of ledger) {
+      let g = groups.find((x) => x.date === r.date);
+      if (!g) { g = { date: r.date, label: "", rows: [], income: 0, pay: 0, net: 0 }; groups.push(g); }
+      g.rows.push(r); g.income += r.income; g.pay += r.pay; g.net += r.income - r.pay - r.taxi - r.concierge;
+    }
+    // Label with weekday from the first session of the day.
+    for (const g of groups) {
+      const first = scheds.find((s) => format(parseISO(s.start_time), "dd/MM/yyyy") === g.date);
+      g.label = first ? format(parseISO(first.start_time), "EEE, MMM d") : g.date;
+    }
+    return groups;
+  }, [ledger, scheds]);
+
+  // Weekly (Mon–Sun) teacher-payment cut, clipped to the month.
+  const payoutMap = useMemo(() => {
+    const m = new Map<string, Payout>();
+    for (const p of payouts) m.set(`${p.week_start}|${norm(p.teacher)}`, p);
+    return m;
+  }, [payouts]);
+  const weekly = useMemo(() => {
+    const mStart = startOfMonth(month), mEnd = endOfMonth(month);
+    const weeks = eachWeekOfInterval({ start: mStart, end: mEnd }, { weekStartsOn: 1 });
+    return weeks.map((wkStart) => {
+      const wkEnd = endOfWeek(wkStart, { weekStartsOn: 1 });
+      const dispStart = wkStart < mStart ? mStart : wkStart;
+      const dispEnd = wkEnd > mEnd ? mEnd : wkEnd;
+      const m = new Map<string, { pay: number; sessions: number }>();
+      for (const s of scheds) {
+        const d = parseISO(s.start_time);
+        if (d < wkStart || d > wkEnd) continue;
+        const t = teacherName(s);
+        const inc = perSched.get(s.id)?.income ?? 0;
+        const cur = m.get(t) ?? { pay: 0, sessions: 0 };
+        cur.pay += payFor(t, inc); cur.sessions += 1;
+        m.set(t, cur);
+      }
+      const rows = [...m.entries()].map(([teacher, v]) => ({ teacher, ...v }))
+        .sort((a, b) => b.pay - a.pay || a.teacher.localeCompare(b.teacher));
+      return {
+        weekStart: format(wkStart, "yyyy-MM-dd"),
+        label: `${format(dispStart, "MMM d")} – ${format(dispEnd, "MMM d")}`,
+        rows, total: rows.reduce((s, r) => s + r.pay, 0),
+      };
+    }).filter((w) => w.rows.length > 0);
+  }, [scheds, perSched, payFor, month]);
+
+  const setPayout = useCallback(async (weekStart: string, teacher: string, patch: { paid?: boolean; note?: string }) => {
+    const existing = payoutMap.get(`${weekStart}|${norm(teacher)}`);
+    if (existing) {
+      const { error } = await sb.from("class_teacher_payouts").update(patch).eq("id", existing.id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { error } = await sb.from("class_teacher_payouts").insert({ week_start: weekStart, teacher, ...patch });
+      if (error) { toast.error(error.message); return; }
+    }
+    loadPayouts();
+  }, [payoutMap, loadPayouts]);
 
   const crc = (n: number) => `${n < 0 ? "-" : ""}₡${Math.abs(Math.round(n * crcRate)).toLocaleString("es-CR")}`;
 
@@ -263,25 +336,36 @@ export function AdminClassFinances() {
                 </thead>
                 <tbody>
                   {ledger.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
-                  {ledger.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
-                      <td className="py-1.5 pr-3 whitespace-nowrap">{r.date}</td>
-                      <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
-                      <td className="py-1.5 pr-3">{r.class}</td>
-                      <td className="py-1.5 pr-3">{r.teacher}</td>
-                      <td className="py-1.5 pr-3 text-right">{r.pax}</td>
-                      <td className="py-1.5 pr-3 text-right">{r.income ? usd(r.income) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-right">
-                        <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
-                          onBlur={(e) => (Number(e.target.value) || 0) !== r.taxi && patchSession(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
-                      </td>
-                      <td className="py-1.5 pr-3 text-right">
-                        <Input type="number" defaultValue={r.concierge || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
-                          onBlur={(e) => (Number(e.target.value) || 0) !== r.concierge && patchSession(r.id, { concierge_commission: Math.max(0, Number(e.target.value) || 0) })} />
-                      </td>
-                      <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay - r.taxi - r.concierge)}</td>
-                    </tr>
+                  {ledgerByDay.map((g) => (
+                    <Fragment key={g.date}>
+                      <tr className="bg-muted/50">
+                        <td colSpan={5} className="py-1.5 pr-3 font-semibold text-foreground">{g.label}</td>
+                        <td className="py-1.5 pr-3 text-right font-medium">{usd(g.income)}</td>
+                        <td className="py-1.5 pr-3 text-right text-muted-foreground">{usd(g.pay)}</td>
+                        <td colSpan={2}></td>
+                        <td className="py-1.5 text-right font-medium">{usd(g.net)}</td>
+                      </tr>
+                      {g.rows.map((r) => (
+                        <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
+                          <td className="py-1.5 pr-3 whitespace-nowrap"></td>
+                          <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
+                          <td className="py-1.5 pr-3">{r.class}</td>
+                          <td className="py-1.5 pr-3">{r.teacher}</td>
+                          <td className="py-1.5 pr-3 text-right">{r.pax}</td>
+                          <td className="py-1.5 pr-3 text-right">{r.income ? usd(r.income) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right">
+                            <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
+                              onBlur={(e) => (Number(e.target.value) || 0) !== r.taxi && patchSession(r.id, { taxi_cost: Math.max(0, Number(e.target.value) || 0) })} />
+                          </td>
+                          <td className="py-1.5 pr-3 text-right">
+                            <Input type="number" defaultValue={r.concierge || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
+                              onBlur={(e) => (Number(e.target.value) || 0) !== r.concierge && patchSession(r.id, { concierge_commission: Math.max(0, Number(e.target.value) || 0) })} />
+                          </td>
+                          <td className="py-1.5 text-right font-medium">{usd(r.income - r.pay - r.taxi - r.concierge)}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
                   ))}
                 </tbody>
                 {ledger.length > 0 && (
@@ -299,6 +383,51 @@ export function AdminClassFinances() {
                 )}
               </table>
             </div>
+          </Card>
+
+          {/* Weekly teacher-payment cut (Mon–Sun) */}
+          <Card className="p-4">
+            <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Weekly teacher payments (Mon–Sun)</h4>
+            {weekly.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-3">No teacher pay this month (set rates under "Teacher pay rates").</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {weekly.map((w) => (
+                  <div key={w.weekStart} className="rounded-lg border border-border overflow-hidden">
+                    <div className="flex items-center justify-between bg-muted/50 px-3 py-2">
+                      <span className="text-sm font-semibold">Week {w.label}</span>
+                      <span className="text-sm font-semibold">{usd(w.total)}</span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {w.rows.map((r) => {
+                          const po = payoutMap.get(`${w.weekStart}|${norm(r.teacher)}`);
+                          const paid = po?.paid ?? false;
+                          return (
+                            <tr key={r.teacher} className="border-t border-border/50">
+                              <td className="py-1.5 px-3 font-medium">{r.teacher}<span className="text-xs text-muted-foreground ml-1">· {r.sessions}</span></td>
+                              <td className="py-1.5 px-2 text-right whitespace-nowrap">{usd(r.pay)}</td>
+                              <td className="py-1.5 px-2 w-24">
+                                <button
+                                  onClick={() => setPayout(w.weekStart, r.teacher, { paid: !paid })}
+                                  className={cn("text-xs px-2 py-1 rounded-full font-medium w-full", paid ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground hover:bg-border")}
+                                >
+                                  {paid ? "Paid ✓" : "Pending"}
+                                </button>
+                              </td>
+                              <td className="py-1.5 pr-3 w-40">
+                                <Input defaultValue={po?.note ?? ""} placeholder="note…" className="h-7 text-xs"
+                                  onBlur={(e) => e.target.value !== (po?.note ?? "") && setPayout(w.weekStart, r.teacher, { note: e.target.value })} />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Managers */}
