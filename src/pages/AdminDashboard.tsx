@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
   TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Receipt, ClipboardList, Paintbrush,
+  GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,7 +68,6 @@ const sidebarLinks = [
   { label: "Coupons", icon: Tag, id: "coupons" },
   { label: "Rooms", icon: DoorOpen, id: "rooms" },
   { label: "Calendars", icon: CalendarDays, id: "calendars" },
-  { label: "Class Finances", icon: TrendingUp, id: "class-finances" },
   { label: "Wellness", icon: Heart, id: "wellness" },
   { label: "Spa Packages", icon: Package, id: "spa-packages" },
   { label: "Custom Retreats", icon: Sparkles, id: "custom-retreats" },
@@ -102,6 +102,15 @@ const AdminDashboard = () => {
   const [isViewer, setIsViewer] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+
+  // ── Customizable sidebar (per-browser): reorder + hide items ──
+  const [customize, setCustomize] = useState(false);
+  const [order, setOrder] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("admin_sidebar_order_v1") || "[]"); } catch { return []; } });
+  const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("admin_sidebar_hidden_v1") || "[]"); } catch { return []; } });
+  useEffect(() => { localStorage.setItem("admin_sidebar_order_v1", JSON.stringify(order)); }, [order]);
+  useEffect(() => { localStorage.setItem("admin_sidebar_hidden_v1", JSON.stringify(hidden)); }, [hidden]);
+  const dragId = useRef<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -149,6 +158,28 @@ const AdminDashboard = () => {
   const canRender = (id: string) =>
     isViewer ? id === "calendars" : (!isCoordinator || COORDINATOR_TABS.includes(id));
 
+  // Only full admins may reorder/hide (coordinator/viewer have fixed sets).
+  const canCustomize = !isCoordinator && !isViewer;
+  const orderIndex = (id: string) => { const i = order.indexOf(id); return i === -1 ? 1e6 : i; };
+  const orderedLinks = canCustomize
+    ? [...visibleLinks].sort((a, b) => orderIndex(a.id) - orderIndex(b.id))
+    : visibleLinks;
+  const shownLinks = customize ? orderedLinks : orderedLinks.filter((l) => !hidden.includes(l.id));
+
+  const toggleHidden = (id: string) =>
+    setHidden((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
+  const dropOn = (targetId: string) => {
+    const src = dragId.current;
+    dragId.current = null;
+    setDragOver(null);
+    if (!src || src === targetId) return;
+    const ids = orderedLinks.map((l) => l.id).filter((x) => x !== src);
+    const at = ids.indexOf(targetId);
+    ids.splice(at < 0 ? ids.length : at, 0, src);
+    setOrder(ids);
+  };
+  const resetSidebar = () => { setOrder([]); setHidden([]); };
+
   if (loading || isAdmin === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -182,21 +213,68 @@ const AdminDashboard = () => {
           <img src={holisLogo} alt="Holis" className="h-10 w-auto" />
           <button className="lg:hidden" onClick={() => setSidebarOpen(false)}><X className="h-5 w-5" /></button>
         </div>
-        <p className="px-6 text-xs font-body font-semibold uppercase tracking-wider text-muted-foreground mb-4">Admin Panel</p>
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-          {visibleLinks.map((link) => (
-            <button
-              key={link.id}
-              onClick={() => { setActiveTab(link.id); setSidebarOpen(false); }}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors",
-                activeTab === link.id ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+        <div className="px-6 mb-3 flex items-center justify-between">
+          <p className="text-xs font-body font-semibold uppercase tracking-wider text-muted-foreground">Admin Panel</p>
+          {canCustomize && (
+            <div className="flex items-center gap-1">
+              {customize && (
+                <button onClick={resetSidebar} title="Reset to default" className="text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /></button>
               )}
-            >
-              <link.icon className="h-4 w-4" />
-              {link.label}
-            </button>
-          ))}
+              <button
+                onClick={() => setCustomize((v) => !v)}
+                title={customize ? "Done customizing" : "Customize menu (reorder / hide)"}
+                className={cn("text-xs flex items-center gap-1 px-1.5 py-0.5 rounded", customize ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> {customize ? "Done" : "Edit"}
+              </button>
+            </div>
+          )}
+        </div>
+        {customize && (
+          <p className="px-6 text-[11px] text-muted-foreground mb-2 -mt-1">Drag <GripVertical className="h-3 w-3 inline" /> to reorder · click the eye to hide/show.</p>
+        )}
+        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+          {shownLinks.map((link) => {
+            const isHidden = hidden.includes(link.id);
+            if (customize) {
+              return (
+                <div
+                  key={link.id}
+                  draggable
+                  onDragStart={() => { dragId.current = link.id; }}
+                  onDragEnd={() => { dragId.current = null; setDragOver(null); }}
+                  onDragOver={(e) => { if (dragId.current) { e.preventDefault(); setDragOver(link.id); } }}
+                  onDrop={(e) => { e.preventDefault(); dropOn(link.id); }}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm font-body font-medium border border-dashed",
+                    dragOver === link.id ? "border-spa-sage bg-muted/60" : "border-transparent",
+                    isHidden ? "text-muted-foreground/50" : "text-foreground",
+                    dragId.current === link.id && "opacity-50"
+                  )}
+                >
+                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0" />
+                  <link.icon className="h-4 w-4 shrink-0" />
+                  <span className={cn("flex-1 truncate", isHidden && "line-through")}>{link.label}</span>
+                  <button onClick={() => toggleHidden(link.id)} title={isHidden ? "Show" : "Hide"} className="text-muted-foreground hover:text-foreground shrink-0">
+                    {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={link.id}
+                onClick={() => { setActiveTab(link.id); setSidebarOpen(false); }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors",
+                  activeTab === link.id ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
+              >
+                <link.icon className="h-4 w-4" />
+                {link.label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
