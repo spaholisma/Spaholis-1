@@ -11,6 +11,7 @@ import {
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth,
   startOfWeek, endOfWeek, eachWeekOfInterval, isSameDay,
+  startOfDay, endOfDay, addDays, subDays, addWeeks, subWeeks, isSameWeek,
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -40,8 +41,11 @@ const teacherName = (s: Sched): string => {
   return b || "Unassigned";
 };
 
+type FinView = "day" | "week" | "month";
+
 export function AdminClassFinances() {
-  const [month, setMonth] = useState(new Date());
+  const [month, setMonth] = useState(new Date()); // anchor date for the current period
+  const [view, setView] = useState<FinView>("month");
   const [loading, setLoading] = useState(true);
   const [scheds, setScheds] = useState<Sched[]>([]);
   const [bookings, setBookings] = useState<Bk[]>([]);
@@ -61,6 +65,11 @@ export function AdminClassFinances() {
   useEffect(() => { localStorage.setItem(CRC_RATE_KEY, String(crcRate)); }, [crcRate]);
 
   const ym = format(month, "yyyy-MM");
+  // Visible period range (day / week Mon–Sun / month).
+  const rangeStart = view === "month" ? startOfMonth(month) : view === "week" ? startOfWeek(month, { weekStartsOn: 1 }) : startOfDay(month);
+  const rangeEnd = view === "month" ? endOfMonth(month) : view === "week" ? endOfWeek(month, { weekStartsOn: 1 }) : endOfDay(month);
+  const rangeStartStr = format(rangeStart, "yyyy-MM-dd");
+  const rangeEndStr = format(rangeEnd, "yyyy-MM-dd");
 
   const loadRates = useCallback(async () => {
     const { data } = await sb.from("class_teacher_rates").select("*").order("name");
@@ -73,21 +82,19 @@ export function AdminClassFinances() {
   }, [ym]);
 
   const loadPayouts = useCallback(async () => {
-    const from = format(startOfWeek(startOfMonth(month), { weekStartsOn: 1 }), "yyyy-MM-dd");
-    const to = format(endOfMonth(month), "yyyy-MM-dd");
+    const from = format(startOfWeek(rangeStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const to = format(rangeEnd, "yyyy-MM-dd");
     const { data } = await sb.from("class_teacher_payouts").select("*").gte("week_start", from).lte("week_start", to);
     setPayouts((data ?? []) as Payout[]);
-  }, [month]);
+  }, [rangeStartStr, rangeEndStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true);
     setEdits({});
-    const start = format(startOfMonth(month), "yyyy-MM-dd");
-    const end = format(endOfMonth(month), "yyyy-MM-dd");
     const { data: sc } = await sb
       .from("class_schedule")
       .select("id, class_id, start_time, is_cancelled, instructor, taxi_cost, concierge_commission, pay_override, classes(title, instructor)")
-      .gte("start_time", `${start}T00:00:00Z`).lte("start_time", `${end}T23:59:59Z`)
+      .gte("start_time", `${rangeStartStr}T00:00:00Z`).lte("start_time", `${rangeEndStr}T23:59:59Z`)
       .order("start_time", { ascending: true });
     const active = (((sc as any) ?? []) as Sched[]).filter((s) => !s.is_cancelled);
     setScheds(active);
@@ -98,7 +105,7 @@ export function AdminClassFinances() {
       setBookings(((bk as any) ?? []) as Bk[]);
     } else setBookings([]);
     setLoading(false);
-  }, [month]);
+  }, [rangeStartStr, rangeEndStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); loadExpenses(); loadPayouts(); }, [load, loadExpenses, loadPayouts]);
   useEffect(() => { loadRates(); }, [loadRates]);
@@ -320,7 +327,7 @@ export function AdminClassFinances() {
     return m;
   }, [payouts]);
   const weekly = useMemo(() => {
-    const mStart = startOfMonth(month), mEnd = endOfMonth(month);
+    const mStart = rangeStart, mEnd = rangeEnd;
     const weeks = eachWeekOfInterval({ start: mStart, end: mEnd }, { weekStartsOn: 1 });
     return weeks.map((wkStart) => {
       const wkEnd = endOfWeek(wkStart, { weekStartsOn: 1 });
@@ -344,7 +351,7 @@ export function AdminClassFinances() {
         rows, total: rows.reduce((s, r) => s + r.pay, 0),
       };
     }).filter((w) => w.rows.length > 0);
-  }, [effectiveScheds, perSched, payForSched, month]);
+  }, [effectiveScheds, perSched, payForSched, rangeStartStr, rangeEndStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setPayout = useCallback(async (weekStart: string, teacher: string, patch: { paid?: boolean; note?: string }) => {
     const existing = payoutMap.get(`${weekStart}|${norm(teacher)}`);
@@ -368,8 +375,8 @@ export function AdminClassFinances() {
       [], ["Income — PayPal", totals.paypal.toFixed(2)], ["Income — CC (card)", totals.cc.toFixed(2)], ["Income — Cash", totals.cash.toFixed(2)], ["Income — Other", totals.other.toFixed(2)],
       ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
       ["Taxi", totals.taxi.toFixed(2)], ["Concierge", totals.concierge.toFixed(2)],
-      ["Net income (after teachers, taxi, concierge)", totals.netIncome.toFixed(2)], ["Monthly expenses", expensesTotal.toFixed(2)],
-      ["NET PROFIT", totals.netProfit.toFixed(2)],
+      ["Net income (after teachers, taxi, concierge)", totals.netIncome.toFixed(2)],
+      ...(view === "month" ? [["Monthly expenses", expensesTotal.toFixed(2)], ["NET PROFIT", totals.netProfit.toFixed(2)]] : []),
     ];
     const csv = [header, ...rows, ...summary].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -379,19 +386,37 @@ export function AdminClassFinances() {
     URL.revokeObjectURL(url);
   };
 
+  const goPrev = () => setMonth(view === "month" ? subMonths(month, 1) : view === "week" ? subWeeks(month, 1) : subDays(month, 1));
+  const goNext = () => setMonth(view === "month" ? addMonths(month, 1) : view === "week" ? addWeeks(month, 1) : addDays(month, 1));
+  const periodTitle = view === "month" ? format(month, "MMMM yyyy")
+    : view === "week" ? `${format(rangeStart, "MMM d")} – ${format(rangeEnd, "MMM d, yyyy")}`
+    : format(month, "EEE, MMM d yyyy");
+  const isCurrentPeriod = view === "month" ? isSameMonth(month, new Date())
+    : view === "week" ? isSameWeek(month, new Date(), { weekStartsOn: 1 })
+    : isSameDay(month, new Date());
+
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-heading font-bold text-foreground">Class Finances</h2>
-          <p className="text-sm text-muted-foreground">Monthly income, teacher pay and net profit — income &amp; attendance are built automatically from class bookings.</p>
+          <p className="text-sm text-muted-foreground">Income, teacher pay and net profit — view by day, week or month.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-          <h3 className="font-heading text-lg font-semibold min-w-[150px] text-center">{format(month, "MMMM yyyy")}</h3>
-          <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
-          {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
+          {/* Day / Week / Month switch */}
+          <div className="inline-flex rounded-lg border border-border p-0.5">
+            {(["day", "week", "month"] as FinView[]).map((v) => (
+              <button key={v} onClick={() => setView(v)}
+                className={cn("px-2.5 py-1 text-xs font-medium rounded-md capitalize transition-colors", view === v ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
+                {v}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="icon" onClick={goPrev}><ChevronLeft className="h-4 w-4" /></Button>
+          <h3 className="font-heading text-base font-semibold min-w-[170px] text-center">{periodTitle}</h3>
+          <Button variant="outline" size="icon" onClick={goNext}><ChevronRight className="h-4 w-4" /></Button>
+          {!isCurrentPeriod && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>Today</Button>}
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading || ledger.length === 0}><Download className="h-4 w-4 mr-1" /> CSV</Button>
         </div>
       </div>
@@ -404,8 +429,14 @@ export function AdminClassFinances() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi icon={DollarSign} label="Gross income" value={usd(totals.income)} sub={`${totals.sessions} sessions · ${totals.pax} PAX`} />
             <Kpi icon={Wallet} label="Teacher pay" value={usd(totals.teacherPay)} sub="fixed + commission" />
-            <Kpi icon={Receipt} label="Monthly expenses" value={usd(expensesTotal)} sub={`${expenses.length} items`} />
-            <Kpi icon={TrendingUp} label="Net profit" value={usd(totals.netProfit)} sub={crc(totals.netProfit)} accent={totals.netProfit >= 0} danger={totals.netProfit < 0} />
+            {view === "month" ? (
+              <>
+                <Kpi icon={Receipt} label="Monthly expenses" value={usd(expensesTotal)} sub={`${expenses.length} items`} />
+                <Kpi icon={TrendingUp} label="Net profit" value={usd(totals.netProfit)} sub={crc(totals.netProfit)} accent={totals.netProfit >= 0} danger={totals.netProfit < 0} />
+              </>
+            ) : (
+              <Kpi icon={TrendingUp} label="Net (after teacher/costs)" value={usd(totals.netIncome)} sub={`${view === "week" ? "this week" : "this day"} · expenses are monthly`} accent={totals.netIncome >= 0} danger={totals.netIncome < 0} />
+            )}
           </div>
 
           {/* Income split by payment source (prices differ by tax handling). */}
@@ -551,7 +582,7 @@ export function AdminClassFinances() {
                 {filteredLedger.length > 0 && (
                   <tfoot className="sticky bottom-0 bg-card">
                     <tr className="border-t border-border font-semibold">
-                      <td className="py-2 pr-3 bg-card" colSpan={4}>{hasFilter ? "Total (filtered)" : `Total — ${format(month, "MMMM yyyy")}`}</td>
+                      <td className="py-2 pr-3 bg-card" colSpan={4}>{hasFilter ? "Total (filtered)" : `Total — ${periodTitle}`}</td>
                       <td className="py-2 pr-3 text-right bg-card">{ledgerTotals.pax}</td>
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.paypal)}</td>
                       <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.cc)}</td>
@@ -569,11 +600,12 @@ export function AdminClassFinances() {
             </div>
           </Card>
 
-          {/* Weekly teacher-payment cut (Mon–Sun) */}
+          {/* Weekly teacher-payment cut (Mon–Sun) — hidden in single-day view */}
+          {view !== "day" && (
           <Card className="p-4">
             <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Weekly teacher payments (Mon–Sun)</h4>
             {weekly.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-3">No teacher pay this month (set rates under "Teacher pay rates").</p>
+              <p className="text-sm text-muted-foreground py-3">No teacher pay in this period (set rates under "Teacher pay rates").</p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {weekly.map((w) => (
@@ -613,11 +645,14 @@ export function AdminClassFinances() {
               </div>
             )}
           </Card>
+          )}
 
           {/* Managers */}
           <TeacherRatesManager rates={rates} reload={loadRates} open={showRates} setOpen={setShowRates} />
-          <ExpensesManager ym={ym} monthLabel={format(month, "MMMM yyyy")} prevYm={format(subMonths(month, 1), "yyyy-MM")}
-            expenses={expenses} total={expensesTotal} reload={loadExpenses} open={showExpenses} setOpen={setShowExpenses} />
+          {view === "month" && (
+            <ExpensesManager ym={ym} monthLabel={format(month, "MMMM yyyy")} prevYm={format(subMonths(month, 1), "yyyy-MM")}
+              expenses={expenses} total={expensesTotal} reload={loadExpenses} open={showExpenses} setOpen={setShowExpenses} />
+          )}
         </>
       )}
     </div>
