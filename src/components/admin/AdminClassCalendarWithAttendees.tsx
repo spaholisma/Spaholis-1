@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pe
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO,
+  addWeeks, subWeeks, addDays, subDays,
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,6 +24,8 @@ interface ScheduledClass {
   end_time: string;
   spots_remaining: number;
   is_cancelled: boolean;
+  /** Per-session teacher (overrides the class template's instructor when set). */
+  instructor: string | null;
   classes: {
     title: string;
     instructor: string | null;
@@ -106,8 +109,138 @@ const PAYMENT_METHODS = [
 
 const DEFAULT_LOCATION = "Holis Wellness Center";
 
+/** The teacher shown for a session: the per-session name if set, else the class template's. */
+const teacherOf = (sc: ScheduledClass): string | null => {
+  const s = sc.instructor?.trim();
+  if (s) return s;
+  const c = sc.classes?.instructor?.trim();
+  return c || null;
+};
+
+// ── Hourly timeline (Week / Day views) ──
+const TL_HOUR_START = 6;
+const TL_HOUR_END = 21;
+const TL_PX_PER_MIN = 1.0;
+const TL_HEIGHT = (TL_HOUR_END - TL_HOUR_START) * 60 * TL_PX_PER_MIN;
+
+/** Assign overlapping sessions to side-by-side lanes so they don't cover each other. */
+function laneLayout(sessions: ScheduledClass[]): { byId: Record<string, number>; lanes: number } {
+  const sorted = [...sessions].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const laneEnd: number[] = [];
+  const byId: Record<string, number> = {};
+  for (const s of sorted) {
+    const st = new Date(s.start_time).getTime();
+    const et = new Date(s.end_time).getTime();
+    let lane = laneEnd.findIndex((end) => end <= st);
+    if (lane === -1) { lane = laneEnd.length; laneEnd.push(et); }
+    else laneEnd[lane] = et;
+    byId[s.id] = lane;
+  }
+  return { byId, lanes: Math.max(1, laneEnd.length) };
+}
+
+function ClassTimeline({
+  days,
+  sessions,
+  onOpen,
+}: {
+  days: Date[];
+  sessions: ScheduledClass[];
+  onOpen: (sc: ScheduledClass) => void;
+}) {
+  const hours = Array.from({ length: TL_HOUR_END - TL_HOUR_START }, (_, i) => TL_HOUR_START + i);
+  return (
+    <div className="border border-border rounded-xl overflow-x-auto bg-card">
+      <div className="flex min-w-[640px]">
+        {/* Hour gutter */}
+        <div className="w-12 shrink-0 border-r border-border">
+          <div className="h-9 border-b border-border" />
+          <div className="relative" style={{ height: TL_HEIGHT }}>
+            {hours.map((h) => (
+              <span
+                key={h}
+                className="absolute left-1 text-[10px] text-muted-foreground -translate-y-1/2"
+                style={{ top: (h - TL_HOUR_START) * 60 * TL_PX_PER_MIN }}
+              >
+                {format(new Date(2000, 0, 1, h), "h a")}
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* Day columns */}
+        {days.map((day) => {
+          const dayS = sessions.filter((s) => isSameDay(parseISO(s.start_time), day));
+          const { byId, lanes } = laneLayout(dayS);
+          const isToday = isSameDay(day, new Date());
+          return (
+            <div key={day.toISOString()} className="flex-1 min-w-[84px] border-r border-border last:border-r-0">
+              <div className={cn("h-9 border-b border-border flex flex-col items-center justify-center", isToday && "bg-primary/10")}>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{format(day, "EEE")}</span>
+                <span className={cn("text-xs font-semibold leading-none", isToday && "text-primary")}>{format(day, "d")}</span>
+              </div>
+              <div className="relative" style={{ height: TL_HEIGHT }}>
+                {hours.map((h) => (
+                  <div
+                    key={h}
+                    className="absolute left-0 right-0 border-b border-border/40"
+                    style={{ top: (h - TL_HOUR_START) * 60 * TL_PX_PER_MIN, height: 60 * TL_PX_PER_MIN }}
+                  />
+                ))}
+                {dayS.map((sc) => {
+                  const start = parseISO(sc.start_time);
+                  const end = parseISO(sc.end_time);
+                  const startMin = start.getHours() * 60 + start.getMinutes();
+                  const durMin = Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000));
+                  const top = (startMin - TL_HOUR_START * 60) * TL_PX_PER_MIN;
+                  const height = Math.max(durMin * TL_PX_PER_MIN, 26);
+                  const lane = byId[sc.id] ?? 0;
+                  const cap = sc.classes?.max_capacity ?? 0;
+                  const booked = cap - sc.spots_remaining;
+                  const teacher = teacherOf(sc);
+                  return (
+                    <button
+                      key={sc.id}
+                      onClick={() => onOpen(sc)}
+                      title={`${sc.classes?.title ?? "Class"} · ${format(start, "HH:mm")}${teacher ? ` · ${teacher}` : ""}`}
+                      className={cn(
+                        "absolute rounded-md border-l-[3px] px-1.5 py-1 text-left overflow-hidden shadow-sm hover:shadow-md transition-shadow",
+                        sc.is_cancelled
+                          ? "bg-destructive/10 border-destructive/70 text-destructive"
+                          : "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300"
+                      )}
+                      style={{
+                        top,
+                        height,
+                        left: `calc(${(lane / lanes) * 100}% + 2px)`,
+                        width: `calc(${100 / lanes}% - 4px)`,
+                        zIndex: 10,
+                      }}
+                    >
+                      <div className={cn("text-[10px] font-semibold leading-tight truncate", sc.is_cancelled && "line-through")}>
+                        {format(start, "HH:mm")} {sc.classes?.title ?? "Class"}
+                      </div>
+                      {height > 34 && (
+                        <div className="text-[9px] opacity-80 truncate leading-tight">
+                          {booked}/{cap}{teacher ? ` · ${teacher}` : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type ClassViewMode = "month" | "week" | "day";
+
 export function AdminClassCalendarWithAttendees() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ClassViewMode>("week");
   const [scheduled, setScheduled] = useState<ScheduledClass[]>([]);
   const [selected, setSelected] = useState<ScheduledClass | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -117,6 +250,9 @@ export function AdminClassCalendarWithAttendees() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>({ class_id: "", date: format(new Date(), "yyyy-MM-dd"), time: "09:00", duration_minutes: 60, capacity: 15, instructor: "", location: DEFAULT_LOCATION });
   const [saving, setSaving] = useState(false);
+  // Cancelled sessions are hidden by default (they clutter the calendar); a
+  // toggle reveals them. Nothing is deleted — is_cancelled is just filtered out.
+  const [showCancelled, setShowCancelled] = useState(false);
   const [attendeeOpen, setAttendeeOpen] = useState(false);
   const [editingAttendeeId, setEditingAttendeeId] = useState<string | null>(null);
   const [attendeeForm, setAttendeeForm] = useState<AttendeeForm>({ name: "", email: "", phone: "", total_price: 0, payment_method: "cash", payment_status: "paid", coupon_code: "" });
@@ -364,7 +500,7 @@ export function AdminClassCalendarWithAttendees() {
     const end = format(endOfWeek(endOfMonth(currentDate)), "yyyy-MM-dd");
     const { data } = await supabase
       .from("class_schedule")
-      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, classes(title, instructor, max_capacity, duration_minutes, location, price)")
+      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, duration_minutes, location, price)")
       .gte("start_time", `${start}T00:00:00Z`)
       .lte("start_time", `${end}T23:59:59Z`)
       .order("start_time", { ascending: true });
@@ -439,7 +575,7 @@ export function AdminClassCalendarWithAttendees() {
       time: format(start, "HH:mm"),
       duration_minutes: dur,
       capacity: Math.max(booked, cap),
-      instructor: sc.classes?.instructor ?? "",
+      instructor: teacherOf(sc) ?? "",
       location: sc.classes?.location ?? DEFAULT_LOCATION,
     });
     setEditorOpen(true);
@@ -469,12 +605,13 @@ export function AdminClassCalendarWithAttendees() {
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           spots_remaining: form.capacity - booked,
+          // Teacher is saved per SESSION (for stats/payroll by teacher).
+          instructor: form.instructor.trim() || null,
         }).eq("id", editingId);
         if (error) throw error;
-        // Update the class-level fields so they reflect on this and future sessions
+        // Capacity + location remain class-level (apply to this and future sessions).
         await supabase.from("classes").update({
           max_capacity: form.capacity,
-          instructor: form.instructor.trim() || null,
           location: form.location.trim() || DEFAULT_LOCATION,
         }).eq("id", form.class_id);
         toast.success("Session updated");
@@ -485,11 +622,12 @@ export function AdminClassCalendarWithAttendees() {
           end_time: end.toISOString(),
           spots_remaining: form.capacity,
           is_cancelled: false,
+          // Teacher is saved per SESSION (for stats/payroll by teacher).
+          instructor: form.instructor.trim() || null,
         });
         if (error) throw error;
         await supabase.from("classes").update({
           max_capacity: form.capacity,
-          instructor: form.instructor.trim() || null,
           location: form.location.trim() || DEFAULT_LOCATION,
         }).eq("id", form.class_id);
         toast.success("Session created");
@@ -652,23 +790,65 @@ export function AdminClassCalendarWithAttendees() {
     start: startOfWeek(startOfMonth(currentDate)),
     end: endOfWeek(endOfMonth(currentDate)),
   });
+  const weekDays = eachDayOfInterval({ start: startOfWeek(currentDate), end: endOfWeek(currentDate) });
+
+  const goPrev = () => setCurrentDate(
+    viewMode === "month" ? subMonths(currentDate, 1) : viewMode === "week" ? subWeeks(currentDate, 1) : subDays(currentDate, 1)
+  );
+  const goNext = () => setCurrentDate(
+    viewMode === "month" ? addMonths(currentDate, 1) : viewMode === "week" ? addWeeks(currentDate, 1) : addDays(currentDate, 1)
+  );
+  const headerTitle =
+    viewMode === "month" ? format(currentDate, "MMMM yyyy")
+    : viewMode === "week" ? `${format(startOfWeek(currentDate), "MMM d")} – ${format(endOfWeek(currentDate), "MMM d, yyyy")}`
+    : format(currentDate, "EEE, MMM d yyyy");
 
   const confirmedAttendees = attendees.filter((a) => a.status !== "cancelled");
   const capacity = selected?.classes?.max_capacity ?? 0;
 
+  // Hide cancelled sessions unless the toggle is on.
+  const cancelledCount = scheduled.filter((s) => s.is_cancelled).length;
+  const visibleScheduled = showCancelled ? scheduled : scheduled.filter((s) => !s.is_cancelled);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-2">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="icon" onClick={goPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="font-heading text-lg font-semibold">{format(currentDate, "MMMM yyyy")}</h3>
-          <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+          <h3 className="font-heading text-lg font-semibold min-w-[160px] text-center">{headerTitle}</h3>
+          <Button variant="outline" size="icon" onClick={goNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Today</Button>
+          {/* View switch: Month / Week / Day (like the Treatments calendar) */}
+          <div className="inline-flex rounded-lg border border-border p-0.5 ml-1">
+            {(["month", "week", "day"] as ClassViewMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium rounded-md capitalize transition-colors",
+                  viewMode === m ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={showCancelled ? "secondary" : "outline"}
+            onClick={() => setShowCancelled((v) => !v)}
+            title={showCancelled ? "Hide cancelled sessions" : "Show cancelled sessions"}
+            disabled={cancelledCount === 0}
+          >
+            {showCancelled ? <Ban className="h-4 w-4 mr-1" /> : <Ban className="h-4 w-4 mr-1 opacity-60" />}
+            {showCancelled ? "Hide cancelled" : `Show cancelled${cancelledCount ? ` (${cancelledCount})` : ""}`}
+          </Button>
           <Button size="sm" variant="outline" onClick={() => { resetOrder(); setOrderOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New Order
           </Button>
@@ -678,6 +858,7 @@ export function AdminClassCalendarWithAttendees() {
         </div>
       </div>
 
+      {viewMode === "month" ? (
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="grid grid-cols-7 bg-muted">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -688,7 +869,7 @@ export function AdminClassCalendarWithAttendees() {
         </div>
         <div className="grid grid-cols-7">
           {days.map((day) => {
-            const dayClasses = scheduled.filter((s) => isSameDay(parseISO(s.start_time), day));
+            const dayClasses = visibleScheduled.filter((s) => isSameDay(parseISO(s.start_time), day));
             const isToday = isSameDay(day, new Date());
             const inMonth = isSameMonth(day, currentDate);
             return (
@@ -732,15 +913,22 @@ export function AdminClassCalendarWithAttendees() {
           })}
         </div>
       </div>
+      ) : (
+        <ClassTimeline
+          days={viewMode === "week" ? weekDays : [currentDate]}
+          sessions={visibleScheduled}
+          onOpen={openClass}
+        />
+      )}
 
       <div className="mt-6 space-y-2">
         <h4 className="font-heading text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Classes this month ({scheduled.length})
+          Classes this month ({visibleScheduled.length}{!showCancelled && cancelledCount ? ` · ${cancelledCount} cancelled hidden` : ""})
         </h4>
-        {scheduled.length === 0 && (
+        {visibleScheduled.length === 0 && (
           <p className="text-sm text-muted-foreground py-4 text-center">No classes scheduled for this month.</p>
         )}
-        {scheduled.map((sc) => {
+        {visibleScheduled.map((sc) => {
           const cap = sc.classes?.max_capacity ?? 0;
           const booked = cap - sc.spots_remaining;
           return (
@@ -754,7 +942,7 @@ export function AdminClassCalendarWithAttendees() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {format(parseISO(sc.start_time), "EEE, MMM d · HH:mm")} – {format(parseISO(sc.end_time), "HH:mm")}
-                    {sc.classes?.instructor && ` · ${sc.classes.instructor}`}
+                    {teacherOf(sc) && ` · ${teacherOf(sc)}`}
                   </p>
                 </div>
               </div>
@@ -787,8 +975,8 @@ export function AdminClassCalendarWithAttendees() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Instructor</p>
-                  <p className="font-medium">{selected.classes?.instructor ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">Teacher</p>
+                  <p className="font-medium">{teacherOf(selected) ?? "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Location</p>
@@ -1063,7 +1251,7 @@ export function AdminClassCalendarWithAttendees() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Instructor</Label>
+                <Label>Teacher (this session)</Label>
                 <Input
                   value={form.instructor}
                   onChange={(e) => setForm({ ...form, instructor: e.target.value })}
@@ -1080,7 +1268,7 @@ export function AdminClassCalendarWithAttendees() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Instructor, location and capacity are saved on the class and apply to this and future sessions of the same class. Capacity cannot go below the number of already-booked attendees.
+              Teacher is saved on <strong>this session only</strong> (for per-teacher stats &amp; payroll). Location and capacity apply to this and future sessions of the same class. Capacity cannot go below the number of already-booked attendees.
             </p>
           </div>
           <DialogFooter>
