@@ -191,29 +191,69 @@ export function AdminClassFinances() {
       };
     }), [scheds, perSched, payForSched, payFor]);
 
-  const teacherOptions = useMemo(() => rates.map((r) => r.name).sort((a, b) => a.localeCompare(b)), [rates]);
+  const teacherOptions = useMemo(() => {
+    const set = new Set<string>(rates.map((r) => r.name));
+    scheds.forEach((s) => { const t = teacherName(s); if (t !== "Unassigned") set.add(t); });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [rates, scheds]);
+  const classOptions = useMemo(() => {
+    const set = new Set<string>();
+    scheds.forEach((s) => set.add(s.classes?.title ?? "Class"));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [scheds]);
 
-  // Persist per-session finance fields (teacher, pay override, taxi, concierge).
+  // Persist per-session finance fields. Optimistic: update local state only
+  // (no full reload) so editing feels stable, like a spreadsheet cell.
   const patchSession = useCallback(async (id: string, p: { taxi_cost?: number; concierge_commission?: number; instructor?: string | null; pay_override?: number | null }) => {
+    setScheds((prev) => prev.map((s) => (s.id === id ? { ...s, ...p } : s)));
     const { error } = await sb.from("class_schedule").update(p).eq("id", id);
-    if (error) toast.error(error.message); else load();
+    if (error) { toast.error(error.message); load(); }
   }, [load]);
 
-  // Group the ledger by day (each day lists its class sessions) — mirrors the sheet.
+  // Jump to this session in the Classes calendar (to add attendees / edit).
+  const openInCalendar = (scheduleId: string) => {
+    sessionStorage.setItem("open_class_schedule_id", scheduleId);
+    window.dispatchEvent(new CustomEvent("admin-tab", { detail: "calendars" }));
+    window.dispatchEvent(new CustomEvent("admin-cal-type-class"));
+  };
+
+  // ── Spreadsheet-style filters ──
+  const [fSearch, setFSearch] = useState("");
+  const [fTeacher, setFTeacher] = useState("");
+  const [fClass, setFClass] = useState("");
+  const filteredLedger = useMemo(() => {
+    const q = fSearch.trim().toLowerCase();
+    return ledger.filter((r) =>
+      (!fTeacher || r.teacher === fTeacher) &&
+      (!fClass || r.class === fClass) &&
+      (!q || r.class.toLowerCase().includes(q) || r.teacher.toLowerCase().includes(q))
+    );
+  }, [ledger, fSearch, fTeacher, fClass]);
+  const hasFilter = !!(fSearch || fTeacher || fClass);
+  const ledgerTotals = useMemo(() => {
+    const t = { pax: 0, paypal: 0, cc: 0, cash: 0, other: 0, income: 0, pay: 0, taxi: 0, concierge: 0, net: 0 };
+    for (const r of filteredLedger) {
+      t.pax += r.pax; t.paypal += r.paypal; t.cc += r.cc; t.cash += r.cash; t.other += r.other;
+      t.income += r.income; t.pay += r.pay; t.taxi += r.taxi; t.concierge += r.concierge;
+      t.net += r.income - r.pay - r.taxi - r.concierge;
+    }
+    return t;
+  }, [filteredLedger]);
+
+  // Group the (filtered) ledger by day — mirrors the sheet.
   const ledgerByDay = useMemo(() => {
     const groups: { date: string; label: string; rows: typeof ledger; income: number; pay: number; net: number }[] = [];
-    for (const r of ledger) {
+    for (const r of filteredLedger) {
       let g = groups.find((x) => x.date === r.date);
       if (!g) { g = { date: r.date, label: "", rows: [], income: 0, pay: 0, net: 0 }; groups.push(g); }
       g.rows.push(r); g.income += r.income; g.pay += r.pay; g.net += r.income - r.pay - r.taxi - r.concierge;
     }
-    // Label with weekday from the first session of the day.
     for (const g of groups) {
       const first = scheds.find((s) => format(parseISO(s.start_time), "dd/MM/yyyy") === g.date);
       g.label = first ? format(parseISO(first.start_time), "EEE, MMM d") : g.date;
     }
     return groups;
-  }, [ledger, scheds]);
+  }, [filteredLedger, scheds]);
 
   // Weekly (Mon–Sun) teacher-payment cut, clipped to the month.
   const payoutMap = useMemo(() => {
@@ -343,32 +383,46 @@ export function AdminClassFinances() {
 
           {/* Session ledger */}
           <Card className="p-4">
-            <datalist id="fin-teachers">
-              {teacherOptions.map((n) => <option key={n} value={n} />)}
-            </datalist>
-            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">Session ledger ({ledger.length})</h4>
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Session ledger ({filteredLedger.length}{hasFilter ? ` of ${ledger.length}` : ""})
+              </h4>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span>₡ rate</span>
                 <Input type="number" value={crcRate} onChange={(e) => setCrcRate(Math.max(1, Number(e.target.value) || 1))} className="h-7 w-20" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mb-2">Pick the <strong>teacher</strong> from the list (or type a new one). The <strong>pay</strong> box shows the rate automatically — type a number to override it for that session (e.g. <strong>0</strong> = free, <strong>10</strong> = no-show); clear it to go back to the rate. Overridden pays are highlighted.</p>
-            <div className="overflow-x-auto">
+            {/* Filter bar (spreadsheet-style) */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <input value={fSearch} onChange={(e) => setFSearch(e.target.value)} placeholder="Search class or teacher…"
+                className="h-8 w-52 rounded-md border border-input bg-background px-2 text-sm" />
+              <select value={fTeacher} onChange={(e) => setFTeacher(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm max-w-[160px]">
+                <option value="">All teachers</option>
+                <option value="Unassigned">— Unassigned —</option>
+                {teacherOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <select value={fClass} onChange={(e) => setFClass(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm max-w-[180px]">
+                <option value="">All classes</option>
+                {classOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              {hasFilter && <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFSearch(""); setFTeacher(""); setFClass(""); }}>Clear</Button>}
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-2">Click a <strong>class name</strong> to open it in the calendar (add attendees). Pick the <strong>teacher</strong> from the dropdown. The <strong>pay</strong> box shows the rate automatically — type to override for that session (<strong>0</strong> = free, <strong>10</strong> = no-show); clear it to revert. Overridden pays are highlighted.</p>
+            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-card">
                   <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Time</th><th className="py-2 pr-3">Class</th>
-                    <th className="py-2 pr-3">Teacher</th><th className="py-2 pr-3 text-right">PAX</th>
-                    <th className="py-2 pr-3 text-right">PayPal</th><th className="py-2 pr-3 text-right">CC</th><th className="py-2 pr-3 text-right">Cash</th>
-                    {hasOther && <th className="py-2 pr-3 text-right">Other</th>}
-                    <th className="py-2 pr-3 text-right">Income</th><th className="py-2 pr-3 text-right">Teacher pay</th>
-                    <th className="py-2 pr-3 text-right w-24">Taxi</th><th className="py-2 pr-3 text-right w-24">Concierge</th>
-                    <th className="py-2 text-right">HWC earns</th>
+                    <th className="py-2 pr-3 bg-card">Date</th><th className="py-2 pr-3 bg-card">Time</th><th className="py-2 pr-3 bg-card">Class</th>
+                    <th className="py-2 pr-3 bg-card">Teacher</th><th className="py-2 pr-3 text-right bg-card">PAX</th>
+                    <th className="py-2 pr-3 text-right bg-card">PayPal</th><th className="py-2 pr-3 text-right bg-card">CC</th><th className="py-2 pr-3 text-right bg-card">Cash</th>
+                    {hasOther && <th className="py-2 pr-3 text-right bg-card">Other</th>}
+                    <th className="py-2 pr-3 text-right bg-card">Income</th><th className="py-2 pr-3 text-right bg-card">Teacher pay</th>
+                    <th className="py-2 pr-3 text-right w-24 bg-card">Taxi</th><th className="py-2 pr-3 text-right w-24 bg-card">Concierge</th>
+                    <th className="py-2 text-right bg-card">HWC earns</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.length === 0 && <tr><td colSpan={hasOther ? 14 : 13} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
+                  {filteredLedger.length === 0 && <tr><td colSpan={hasOther ? 14 : 13} className="py-6 text-center text-muted-foreground">{hasFilter ? "No sessions match the filters." : "No sessions this month."}</td></tr>}
                   {ledgerByDay.map((g) => (
                     <Fragment key={g.date}>
                       <tr className="bg-muted/50">
@@ -382,11 +436,17 @@ export function AdminClassFinances() {
                         <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
                           <td className="py-1.5 pr-3 whitespace-nowrap"></td>
                           <td className="py-1.5 pr-3 whitespace-nowrap">{r.time}</td>
-                          <td className="py-1.5 pr-3">{r.class}</td>
                           <td className="py-1.5 pr-3">
-                            <input list="fin-teachers" defaultValue={r.teacher === "Unassigned" ? "" : r.teacher} placeholder="teacher…"
-                              className="h-7 w-32 rounded-md border border-input bg-background px-2 text-sm"
-                              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.teacher === "Unassigned" ? "" : r.teacher)) patchSession(r.id, { instructor: v || null }); }} />
+                            <button onClick={() => openInCalendar(r.id)} className="text-left text-foreground hover:underline decoration-dotted" title="Open in calendar (add attendees)">{r.class}</button>
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            <select value={r.teacher === "Unassigned" ? "" : r.teacher}
+                              className="h-7 w-32 rounded-md border border-input bg-background px-1.5 text-sm"
+                              onChange={(e) => patchSession(r.id, { instructor: e.target.value || null })}>
+                              <option value="">— none —</option>
+                              {!teacherOptions.includes(r.teacher) && r.teacher !== "Unassigned" && <option value={r.teacher}>{r.teacher}</option>}
+                              {teacherOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
                           </td>
                           <td className="py-1.5 pr-3 text-right">{r.pax}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.paypal ? usd(r.paypal) : "—"}</td>
@@ -417,20 +477,20 @@ export function AdminClassFinances() {
                     </Fragment>
                   ))}
                 </tbody>
-                {ledger.length > 0 && (
-                  <tfoot>
+                {filteredLedger.length > 0 && (
+                  <tfoot className="sticky bottom-0 bg-card">
                     <tr className="border-t border-border font-semibold">
-                      <td className="py-2 pr-3" colSpan={4}>Total — {format(month, "MMMM yyyy")}</td>
-                      <td className="py-2 pr-3 text-right">{totals.pax}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.paypal)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.cc)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.cash)}</td>
-                      {hasOther && <td className="py-2 pr-3 text-right">{usd(totals.other)}</td>}
-                      <td className="py-2 pr-3 text-right">{usd(totals.income)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.teacherPay)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.taxi)}</td>
-                      <td className="py-2 pr-3 text-right">{usd(totals.concierge)}</td>
-                      <td className="py-2 text-right">{usd(totals.netIncome)}</td>
+                      <td className="py-2 pr-3 bg-card" colSpan={4}>{hasFilter ? "Total (filtered)" : `Total — ${format(month, "MMMM yyyy")}`}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{ledgerTotals.pax}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.paypal)}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.cc)}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.cash)}</td>
+                      {hasOther && <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.other)}</td>}
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.income)}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.pay)}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.taxi)}</td>
+                      <td className="py-2 pr-3 text-right bg-card">{usd(ledgerTotals.concierge)}</td>
+                      <td className="py-2 text-right bg-card">{usd(ledgerTotals.net)}</td>
                     </tr>
                   </tfoot>
                 )}

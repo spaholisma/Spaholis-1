@@ -509,6 +509,22 @@ export function AdminClassCalendarWithAttendees() {
 
   useEffect(() => { loadScheduled(); }, [loadScheduled]);
 
+  // Deep-link from Class Finances: open a specific session's attendees on mount.
+  useEffect(() => {
+    const pid = sessionStorage.getItem("open_class_schedule_id");
+    if (!pid) return;
+    sessionStorage.removeItem("open_class_schedule_id");
+    (async () => {
+      const { data } = await supabase
+        .from("class_schedule")
+        .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, duration_minutes, location, price)")
+        .eq("id", pid)
+        .single();
+      if (data) { setCurrentDate(parseISO((data as any).start_time)); openClass(data as any); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadAttendees = async (scheduleId: string) => {
     setLoadingAttendees(true);
     const { data } = await supabase

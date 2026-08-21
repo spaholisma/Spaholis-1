@@ -293,11 +293,20 @@ const emptyForm = {
 };
 
 export function AdminInternalCalendars({ restrictToTreatment = false, readOnly = false }: { restrictToTreatment?: boolean; readOnly?: boolean } = {}) {
-  const [calendarType, setCalendarType] = useState<CalendarType>("treatment");
+  const [calendarType, setCalendarType] = useState<CalendarType>(
+    // Deep-link from Class Finances asks to open a class session directly.
+    () => (typeof window !== "undefined" && !restrictToTreatment && sessionStorage.getItem("open_class_schedule_id") ? "class" : "treatment"),
+  );
   // A coordinator only ever sees the treatments calendar.
   const visibleTypes = (Object.keys(TYPE_LABELS) as CalendarType[]).filter(
     (t) => !restrictToTreatment || t === "treatment",
   );
+  // If Class Finances asks to open a class session, switch to the Classes tab.
+  useEffect(() => {
+    const handler = () => { if (!restrictToTreatment) setCalendarType("class"); };
+    window.addEventListener("admin-cal-type-class", handler);
+    return () => window.removeEventListener("admin-cal-type-class", handler);
+  }, [restrictToTreatment]);
   const [currentDate, setCurrentDate] = useState(new Date());
   // Google-Calendar-style view switch: the month grid, or a chronological
   // agenda list of the month's entries. Phones default to Agenda (the grid is
