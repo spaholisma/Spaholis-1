@@ -161,7 +161,15 @@ const Index = () => {
                 <h3 className="font-heading text-base font-medium text-foreground mb-1.5 leading-tight whitespace-pre-line">{exp.title}</h3>
                 <p className="font-body text-xs text-muted-foreground leading-relaxed mb-3 whitespace-pre-line">{exp.benefit}</p>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/book?category=${encodeURIComponent(exp.category)}`}>{t("indexPage.book")}</Link>
+                  <Link
+                    to={
+                      (exp as any).serviceId
+                        ? `/book?service=${(exp as any).serviceId}&category=${encodeURIComponent(exp.category)}`
+                        : `/book?category=${encodeURIComponent(exp.category)}`
+                    }
+                  >
+                    {t("indexPage.book")}
+                  </Link>
                 </Button>
               </div>
             ))}
