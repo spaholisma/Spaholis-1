@@ -110,14 +110,17 @@ export function AdminClassFinances() {
   }, [rateMap]);
 
   const perSched = useMemo(() => {
-    const m = new Map<string, { pax: number; income: number; online: number; other: number }>();
+    const m = new Map<string, { pax: number; income: number; paypal: number; cc: number; cash: number; other: number }>();
     for (const b of bookings) {
       if (b.status === "cancelled") continue;
-      const cur = m.get(b.schedule_id) ?? { pax: 0, income: 0, online: 0, other: 0 };
+      const cur = m.get(b.schedule_id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, other: 0 };
       cur.pax += 1;
       const price = Number(b.total_price) || 0;
       cur.income += price;
-      if (b.payment_method === "paypal" || b.payment_method === "card") cur.online += price;
+      // Split by payment source (prices differ by tax handling).
+      if (b.payment_method === "paypal") cur.paypal += price;
+      else if (b.payment_method === "card") cur.cc += price;
+      else if (b.payment_method === "cash") cur.cash += price;
       else cur.other += price;
       m.set(b.schedule_id, cur);
     }
@@ -127,18 +130,20 @@ export function AdminClassFinances() {
   const expensesTotal = useMemo(() => expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0), [expenses]);
 
   const totals = useMemo(() => {
-    let income = 0, pax = 0, online = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
+    let income = 0, pax = 0, paypal = 0, cc = 0, cash = 0, other = 0, teacherPay = 0, taxi = 0, concierge = 0;
     for (const s of scheds) {
       const p = perSched.get(s.id);
       const inc = p?.income ?? 0;
-      income += inc; pax += p?.pax ?? 0; online += p?.online ?? 0; other += p?.other ?? 0;
+      income += inc; pax += p?.pax ?? 0;
+      paypal += p?.paypal ?? 0; cc += p?.cc ?? 0; cash += p?.cash ?? 0; other += p?.other ?? 0;
       teacherPay += payFor(teacherName(s), inc);
       taxi += Number(s.taxi_cost) || 0;
       concierge += Number(s.concierge_commission) || 0;
     }
     const netIncome = income - teacherPay - taxi - concierge;
-    return { income, pax, online, other, sessions: scheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
+    return { income, pax, paypal, cc, cash, other, sessions: scheds.length, teacherPay, taxi, concierge, netIncome, netProfit: netIncome - expensesTotal };
   }, [scheds, perSched, payFor, expensesTotal]);
+  const hasOther = totals.other > 0;
 
   const byTeacher = useMemo(() => {
     const m = new Map<string, { sessions: number; pax: number; income: number; pay: number }>();
@@ -169,11 +174,12 @@ export function AdminClassFinances() {
 
   const ledger = useMemo(() =>
     scheds.map((s) => {
-      const p = perSched.get(s.id) ?? { pax: 0, income: 0, online: 0, other: 0 };
+      const p = perSched.get(s.id) ?? { pax: 0, income: 0, paypal: 0, cc: 0, cash: 0, other: 0 };
       const teacher = teacherName(s);
       return {
         id: s.id, date: format(parseISO(s.start_time), "dd/MM/yyyy"), time: format(parseISO(s.start_time), "HH:mm"),
-        class: s.classes?.title ?? "Class", teacher, pax: p.pax, online: p.online, drop: p.other,
+        class: s.classes?.title ?? "Class", teacher, pax: p.pax,
+        paypal: p.paypal, cc: p.cc, cash: p.cash, other: p.other,
         income: p.income, pay: payFor(teacher, p.income),
         taxi: Number(s.taxi_cost) || 0, concierge: Number(s.concierge_commission) || 0,
       };
@@ -249,11 +255,12 @@ export function AdminClassFinances() {
   const crc = (n: number) => `${n < 0 ? "-" : ""}₡${Math.abs(Math.round(n * crcRate)).toLocaleString("es-CR")}`;
 
   const exportCsv = () => {
-    const header = ["Date", "Time", "Class", "Teacher", "PAX", "Online $", "Drop-in/Other $", "Income $", "Teacher pay $", "Taxi $", "Concierge $", "HWC earnings $"];
-    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.online.toFixed(2), r.drop.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), r.taxi.toFixed(2), r.concierge.toFixed(2), (r.income - r.pay - r.taxi - r.concierge).toFixed(2)]);
+    const header = ["Date", "Time", "Class", "Teacher", "PAX", "PayPal $", "CC $", "Cash $", "Other $", "Income $", "Teacher pay $", "Taxi $", "Concierge $", "HWC earnings $"];
+    const rows = ledger.map((r) => [r.date, r.time, r.class, r.teacher, r.pax, r.paypal.toFixed(2), r.cc.toFixed(2), r.cash.toFixed(2), r.other.toFixed(2), r.income.toFixed(2), r.pay.toFixed(2), r.taxi.toFixed(2), r.concierge.toFixed(2), (r.income - r.pay - r.taxi - r.concierge).toFixed(2)]);
     const summary = [
-      [], ["TOTAL", "", "", "", totals.pax, totals.online.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.taxi.toFixed(2), totals.concierge.toFixed(2), totals.netIncome.toFixed(2)],
-      [], ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
+      [], ["TOTAL", "", "", "", totals.pax, totals.paypal.toFixed(2), totals.cc.toFixed(2), totals.cash.toFixed(2), totals.other.toFixed(2), totals.income.toFixed(2), totals.teacherPay.toFixed(2), totals.taxi.toFixed(2), totals.concierge.toFixed(2), totals.netIncome.toFixed(2)],
+      [], ["Income — PayPal", totals.paypal.toFixed(2)], ["Income — CC (card)", totals.cc.toFixed(2)], ["Income — Cash", totals.cash.toFixed(2)], ["Income — Other", totals.other.toFixed(2)],
+      ["Gross income", totals.income.toFixed(2)], ["Teacher pay", totals.teacherPay.toFixed(2)],
       ["Taxi", totals.taxi.toFixed(2)], ["Concierge", totals.concierge.toFixed(2)],
       ["Net income (after teachers, taxi, concierge)", totals.netIncome.toFixed(2)], ["Monthly expenses", expensesTotal.toFixed(2)],
       ["NET PROFIT", totals.netProfit.toFixed(2)],
@@ -295,6 +302,18 @@ export function AdminClassFinances() {
             <Kpi icon={TrendingUp} label="Net profit" value={usd(totals.netProfit)} sub={crc(totals.netProfit)} accent={totals.netProfit >= 0} danger={totals.netProfit < 0} />
           </div>
 
+          {/* Income split by payment source (prices differ by tax handling). */}
+          <Card className="p-4">
+            <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Income by payment method</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MethodTile label="PayPal" value={usd(totals.paypal)} pct={totals.income ? (totals.paypal / totals.income) * 100 : 0} />
+              <MethodTile label="Card (CC)" value={usd(totals.cc)} pct={totals.income ? (totals.cc / totals.income) * 100 : 0} />
+              <MethodTile label="Cash" value={usd(totals.cash)} pct={totals.income ? (totals.cash / totals.income) * 100 : 0} />
+              <MethodTile label="Other" value={usd(totals.other)} pct={totals.income ? (totals.other / totals.income) * 100 : 0} muted />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">PayPal = online PayPal · CC = card in person · Cash = cash · Other = transfer / SINPE / gift card / package redemption / complimentary.</p>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="p-4">
               <h4 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">By teacher</h4>
@@ -329,17 +348,19 @@ export function AdminClassFinances() {
                   <tr className="text-left text-xs text-muted-foreground border-b border-border">
                     <th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Time</th><th className="py-2 pr-3">Class</th>
                     <th className="py-2 pr-3">Teacher</th><th className="py-2 pr-3 text-right">PAX</th>
+                    <th className="py-2 pr-3 text-right">PayPal</th><th className="py-2 pr-3 text-right">CC</th><th className="py-2 pr-3 text-right">Cash</th>
+                    {hasOther && <th className="py-2 pr-3 text-right">Other</th>}
                     <th className="py-2 pr-3 text-right">Income</th><th className="py-2 pr-3 text-right">Teacher pay</th>
                     <th className="py-2 pr-3 text-right w-24">Taxi</th><th className="py-2 pr-3 text-right w-24">Concierge</th>
                     <th className="py-2 text-right">HWC earns</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
+                  {ledger.length === 0 && <tr><td colSpan={hasOther ? 14 : 13} className="py-6 text-center text-muted-foreground">No sessions this month.</td></tr>}
                   {ledgerByDay.map((g) => (
                     <Fragment key={g.date}>
                       <tr className="bg-muted/50">
-                        <td colSpan={5} className="py-1.5 pr-3 font-semibold text-foreground">{g.label}</td>
+                        <td colSpan={hasOther ? 9 : 8} className="py-1.5 pr-3 font-semibold text-foreground">{g.label}</td>
                         <td className="py-1.5 pr-3 text-right font-medium">{usd(g.income)}</td>
                         <td className="py-1.5 pr-3 text-right text-muted-foreground">{usd(g.pay)}</td>
                         <td colSpan={2}></td>
@@ -352,7 +373,11 @@ export function AdminClassFinances() {
                           <td className="py-1.5 pr-3">{r.class}</td>
                           <td className="py-1.5 pr-3">{r.teacher}</td>
                           <td className="py-1.5 pr-3 text-right">{r.pax}</td>
-                          <td className="py-1.5 pr-3 text-right">{r.income ? usd(r.income) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.paypal ? usd(r.paypal) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cc ? usd(r.cc) : "—"}</td>
+                          <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.cash ? usd(r.cash) : "—"}</td>
+                          {hasOther && <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.other ? usd(r.other) : "—"}</td>}
+                          <td className="py-1.5 pr-3 text-right font-medium">{r.income ? usd(r.income) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.pay ? usd(r.pay) : "—"}</td>
                           <td className="py-1.5 pr-3 text-right">
                             <Input type="number" defaultValue={r.taxi || ""} placeholder="0" className="h-7 w-20 text-right ml-auto"
@@ -373,6 +398,10 @@ export function AdminClassFinances() {
                     <tr className="border-t border-border font-semibold">
                       <td className="py-2 pr-3" colSpan={4}>Total — {format(month, "MMMM yyyy")}</td>
                       <td className="py-2 pr-3 text-right">{totals.pax}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.paypal)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.cc)}</td>
+                      <td className="py-2 pr-3 text-right">{usd(totals.cash)}</td>
+                      {hasOther && <td className="py-2 pr-3 text-right">{usd(totals.other)}</td>}
                       <td className="py-2 pr-3 text-right">{usd(totals.income)}</td>
                       <td className="py-2 pr-3 text-right">{usd(totals.teacherPay)}</td>
                       <td className="py-2 pr-3 text-right">{usd(totals.taxi)}</td>
@@ -447,6 +476,16 @@ function Kpi({ icon: Icon, label, value, sub, accent, danger }: { icon: any; lab
       <p className={cn("text-2xl font-bold leading-tight", danger ? "text-destructive" : "text-foreground")}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </Card>
+  );
+}
+
+function MethodTile({ label, value, pct, muted }: { label: string; value: string; pct: number; muted?: boolean }) {
+  return (
+    <div className={cn("rounded-lg border border-border p-3", muted && "opacity-80")}>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xl font-bold text-foreground leading-tight">{value}</p>
+      <p className="text-xs text-muted-foreground">{pct.toFixed(0)}% of income</p>
+    </div>
   );
 }
 
