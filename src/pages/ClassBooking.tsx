@@ -176,6 +176,7 @@ const ClassBookingPage = () => {
   };
 
   const handleNext = async () => {
+    if (submitting) return; // guard against double-submit (free/direct booking path)
     if (step === 0 && canProceed) {
       if (!needsPayment) {
         setSubmitting(true);
@@ -293,6 +294,7 @@ const ClassBookingPage = () => {
   };
 
   const handleRedeem = async () => {
+    if (submitting) return; // guard against double-submit
     if (!selectedOfferingId) return toast.error(t("booking.selectOfferingError"));
     if (!user) return toast.error(t("booking.signInForOfferingError"));
     setSubmitting(true);
@@ -323,6 +325,7 @@ const ClassBookingPage = () => {
   const handleTokenRedeem = async () => {
     const token = getStoredMembershipToken();
     if (!token || !scheduleId) return;
+    if (submitting) return; // guard against double-submit
     setSubmitting(true);
     try {
       const { data, error } = await supabase.rpc("book_class_with_membership_token" as any, {

@@ -32,6 +32,18 @@ async function ppToken(): Promise<string> {
   return (await res.json()).access_token;
 }
 
+// Deterministic UUID from a seed, so a replayed capture reuses the SAME
+// class_booking ids per spot — making the spot inserts idempotent even if a
+// previous capture failed partway through the loop (no duplicate spots).
+async function seededUuid(seed: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
+  const b = new Uint8Array(buf).slice(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, reason: "method_not_allowed" }, 405);
@@ -79,11 +91,16 @@ Deno.serve(async (req) => {
       const bookingIds: string[] = [];
       let overbooked = false;
       for (let i = 0; i < qty; i++) {
+        // Stable id per (order, spot) so a retried capture doesn't duplicate a
+        // spot that was already inserted before a mid-loop failure.
+        const bookingId = await seededUuid(`${orderId}:${i}`);
+        const { data: already } = await admin.from("class_bookings").select("id").eq("id", bookingId).maybeSingle();
+        if (already) { bookingIds.push(bookingId); continue; } // this spot was already fulfilled
+
         const { data: remaining } = await admin.rpc("decrement_class_spot", { _schedule_id: t.schedule_id });
         const spotOverbooked = remaining === null || remaining === undefined;
         if (spotOverbooked) overbooked = true;
 
-        const bookingId = crypto.randomUUID();
         const { error: insErr } = await admin.from("class_bookings").insert({
           id: bookingId, schedule_id: t.schedule_id, booking_group_id: groupId,
           guest_name: (names[i] || t.guest_name || "").trim() || t.guest_name,
