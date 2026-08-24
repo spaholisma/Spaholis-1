@@ -187,14 +187,16 @@ async function ensureSlotAvailable(
 
   // Exclude cancelled AND payment_failed bookings — a failed BAC payment
   // must not permanently block the slot for future guests.
-  const { data: conflicts, error: conflictErr } = await admin
+  let conflictQuery = admin
     .from("bookings")
     .select("id")
     .eq("room_id", body.room_id)
     .not("status", "in", "(cancelled,payment_failed)")
     .lt("start_time", end.toISOString())
-    .gt("end_time", start.toISOString())
-    .limit(1);
+    .gt("end_time", start.toISOString());
+  // Never let a booking conflict with ITSELF (retry / double-submit of the same id).
+  if (body.id && UUID_RE.test(body.id)) conflictQuery = conflictQuery.neq("id", body.id);
+  const { data: conflicts, error: conflictErr } = await conflictQuery.limit(1);
 
   if (conflictErr) throw conflictErr;
   if (conflicts && conflicts.length > 0) {
@@ -251,12 +253,14 @@ async function ensureSlotAvailable(
     }))
     .filter((c: any) => !isNaN(c.start) && !isNaN(c.end));
   if (capWindows.length > 0) {
-    const { data: overlapping, error: ovErr } = await admin
+    let overlapQuery = admin
       .from("bookings")
       .select("start_time, end_time, offsite_location")
       .not("status", "in", "(cancelled,payment_failed)")
       .lt("start_time", end.toISOString())
       .gt("end_time", start.toISOString());
+    if (body.id && UUID_RE.test(body.id)) overlapQuery = overlapQuery.neq("id", body.id);
+    const { data: overlapping, error: ovErr } = await overlapQuery;
     if (ovErr) throw ovErr;
     // Room-pinned internal calendar entries (manual/admin bookings) tie up a
     // therapist too. Off-site periods tie up a therapist for their duration plus
@@ -326,6 +330,28 @@ Deno.serve(async (req) => {
       const todayCr = new Date(Date.now() - 6 * 3600_000).toISOString().slice(0, 10);
       if (inRange(body.booking_date) || inRange(todayCr)) {
         return json({ ok: false, reason: "vacation_mode", message: "Online booking is paused for these dates while we're on vacation. Please contact us on WhatsApp." }, 409);
+      }
+    }
+
+    // Idempotency: if this exact booking id was already created (e.g. the guest
+    // double-clicked "Authorize", the card step was retried, or the network
+    // retried a request that already succeeded), return it as success instead of
+    // re-running the slot check and failing with a bogus "time already taken".
+    if (body.id && UUID_RE.test(body.id)) {
+      const { data: existing } = await admin
+        .from("bookings")
+        .select("id, status, total_price")
+        .eq("id", body.id)
+        .maybeSingle();
+      if (existing && existing.status !== "cancelled" && existing.status !== "payment_failed") {
+        return json({
+          ok: true,
+          bookingId: existing.id,
+          status: existing.status,
+          depositRequired: existing.status === "pending_payment",
+          totalPrice: Number(existing.total_price ?? 0),
+          idempotent: true,
+        });
       }
     }
 
@@ -408,7 +434,14 @@ Deno.serve(async (req) => {
 
     const { error: insertErr } = await admin.from("bookings").insert(bookingsToInsert);
 
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      // If the row already exists (unique id) treat as idempotent success —
+      // a concurrent retry of the SAME booking must not surface an error.
+      if (String((insertErr as any).code) === "23505") {
+        return json({ ok: true, bookingId, status, depositRequired, totalPrice, idempotent: true });
+      }
+      throw insertErr;
+    }
 
     // Staff push notification — best effort, never blocks the checkout result.
     try {

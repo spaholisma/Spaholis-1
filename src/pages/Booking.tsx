@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCRC } from "@/lib/currency";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -144,6 +144,12 @@ const BookingPage = () => {
   const [selectedService, setSelectedService] = useState(preselected && preselected !== "consultation" ? preselected : "");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  // Stable booking id for the CURRENT attempt so a retry / double-click of
+  // "Authorize" reuses the same booking instead of creating a second one that
+  // conflicts with itself ("time already taken"). Reset whenever the chosen
+  // service/date/slot changes (i.e. a genuinely different booking).
+  const bookingIdRef = useRef<string | null>(null);
+  useEffect(() => { bookingIdRef.current = null; }, [selectedService, selectedDate, selectedSlot]);
   // `?location=1` (e.g. from the homepage "we come to you" banner) pre-selects
   // the at-your-location visit option so the guest lands straight on it.
   const [locationVisit, setLocationVisit] = useState(searchParams.get("location") === "1");
@@ -374,10 +380,11 @@ const BookingPage = () => {
     // Generate id client-side so we don't need INSERT ... RETURNING, which
     // would be blocked by the SELECT RLS policy for anonymous guest bookings
     // (user_id IS NULL never matches auth.uid() = user_id).
-    const newBookingId =
-      (typeof crypto !== "undefined" && "randomUUID" in crypto)
-        ? crypto.randomUUID()
-        : (undefined as unknown as string);
+    // Reuse the same id across retries of THIS attempt (idempotent create).
+    if (!bookingIdRef.current && typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      bookingIdRef.current = crypto.randomUUID();
+    }
+    const newBookingId = (bookingIdRef.current ?? undefined) as unknown as string;
 
     const bookingData: Record<string, any> = {
       id: newBookingId,
