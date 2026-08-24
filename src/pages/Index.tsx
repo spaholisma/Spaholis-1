@@ -57,7 +57,6 @@ const Index = () => {
           src={hero.backgroundImage}
           alt={hero.backgroundAlt}
           className="absolute inset-0 w-full h-full object-cover"
-          fetchPriority="high"
           width={1920}
           height={1080}
         />
