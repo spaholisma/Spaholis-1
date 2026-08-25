@@ -40,6 +40,76 @@ const fullTitle = (title) => (title.includes(SITE_NAME) ? title : `${title} | ${
  */
 const REDIRECT_ONLY = new Set(["/wellness"]);
 
+/** Read VITE_* vars from the environment, falling back to a local .env file. */
+async function readEnv() {
+  const env = { ...process.env };
+  for (const f of [".env.local", ".env"]) {
+    try {
+      const txt = await readFile(join(ROOT, f), "utf8");
+      for (const line of txt.split(/\r?\n/)) {
+        const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
+        if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+      }
+    } catch { /* optional */ }
+  }
+  return env;
+}
+
+/**
+ * Content-driven pages (blog posts, individual retreats) live in the database,
+ * not in `seo`. Without this they fall through to the SPA rewrite and inherit
+ * the homepage canonical — the "canonical to another page" bucket in Search
+ * Console. Fetch their real titles so each gets a self-referencing canonical.
+ * Never throws: the build must not depend on the database being reachable.
+ */
+async function fetchContentRoutes(env) {
+  const url = env.VITE_SUPABASE_URL?.replace(/\/+$/, "");
+  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) {
+    console.warn("[prerender-seo] no Supabase env — falling back to sitemap slugs");
+    return [];
+  }
+  const get = async (path) => {
+    const res = await fetch(`${url}/rest/v1/${path}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
+    return res.json();
+  };
+  try {
+    const [posts, retreats] = await Promise.all([
+      get("blog_posts?select=slug,title,seo_title,seo_description,excerpt&status=eq.published"),
+      get("retreats?select=slug,title,short_description&is_active=eq.true"),
+    ]);
+    const out = [];
+    for (const p of posts ?? []) {
+      if (!p.slug) continue;
+      out.push({
+        path: `/blog/${p.slug}`,
+        title: fullTitle(p.seo_title || p.title || "Blog"),
+        description: (p.seo_description || p.excerpt || "").slice(0, 160),
+      });
+    }
+    for (const r of retreats ?? []) {
+      if (!r.slug) continue;
+      out.push({
+        path: `/retreats/${r.slug}`,
+        title: fullTitle(r.title || "Retreat"),
+        description: (r.short_description || "").slice(0, 160),
+      });
+    }
+    console.log(`[prerender-seo] content routes from DB: ${out.length}`);
+    return out;
+  } catch (err) {
+    console.warn(`[prerender-seo] DB fetch failed (${err.message}) — falling back to sitemap slugs`);
+    return [];
+  }
+}
+
+/** Turn "/blog/my-post-title" into a readable "My Post Title" fallback. */
+const titleFromSlug = (p) =>
+  p.split("/").filter(Boolean).pop().replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 /** Load the `seo` object out of the TS source (single source of truth). */
 async function loadSeo() {
   const tmp = join(ROOT, "node_modules", ".cache", "seo-bundle.mjs");
@@ -122,21 +192,25 @@ async function emit(routePath, html) {
  * Content-driven routes (blog posts, individual retreats) are preserved from
  * the curated public/sitemap.xml, since they don't live in `seo`.
  */
-async function writeSitemap(routePaths) {
-  let dynamic = [];
+/**
+ * Paths curated by hand in public/sitemap.xml. Everything that isn't produced
+ * from `seo` (blog posts, individual retreats, /faqs, /terms, /privacy,
+ * /classes/schedule …) lives there, so the sitemap can only ever grow.
+ */
+async function curatedPaths() {
   try {
     const existing = await readFile(join(ROOT, "public", "sitemap.xml"), "utf8");
-    // Keep every curated url that isn't already produced from `seo` (blog posts,
-    // individual retreats, /faqs, /terms, /privacy, /classes/schedule …) so the
-    // sitemap can only ever grow, never silently drop pages.
-    dynamic = [...existing.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)]
+    return [...existing.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)]
       .map((m) => m[1].replace(BASE_URL, ""))
       .map((p) => (p === "" ? "/" : p))
       .filter((p) => p.startsWith("/") && !p.startsWith("/es/"));
   } catch {
-    /* first run / no curated sitemap — fine */
+    return []; // first run / no curated sitemap — fine
   }
+}
 
+async function writeSitemap(routePaths) {
+  const dynamic = await curatedPaths();
   const all = [...routePaths, ...dynamic];
   const seen = new Set();
   const paths = all.filter((p) => (seen.has(p) ? false : (seen.add(p), true)));
@@ -175,12 +249,29 @@ async function main() {
     .filter((s) => s && typeof s.canonical === "string" && !REDIRECT_ONLY.has(s.canonical))
     .map((s) => ({ path: s.canonical, title: fullTitle(s.title), description: s.description }));
 
-  // De-duplicate by path (defensive).
+  // Content-driven pages (blog posts, retreats) — real titles from the DB when
+  // reachable, otherwise derived from the slugs curated in public/sitemap.xml so
+  // they still get a self-referencing canonical instead of the homepage one.
+  const env = await readEnv();
+  let contentRoutes = await fetchContentRoutes(env);
+  if (contentRoutes.length === 0) {
+    contentRoutes = (await curatedPaths())
+      .filter((p) => p.startsWith("/blog/") || p.startsWith("/retreats/"))
+      .map((p) => ({ path: p, title: fullTitle(titleFromSlug(p)), description: "" }));
+  }
+
+  // De-duplicate by path — `seo` routes win over content routes.
   const seen = new Set();
-  const unique = routes.filter((r) => (seen.has(r.path) ? false : (seen.add(r.path), true)));
+  const unique = [...routes, ...contentRoutes].filter((r) =>
+    seen.has(r.path) ? false : (seen.add(r.path), true),
+  );
+
+  // A page must never ship an empty description — fall back to the site default.
+  const FALLBACK_DESC = seo.home?.description ?? "";
 
   let count = 0;
   for (const r of unique) {
+    r.description = r.description?.trim() || FALLBACK_DESC;
     const enUrl = `${BASE_URL}${r.path === "/" ? "/" : r.path}`;
     const esPath = r.path === "/" ? "/es" : `/es${r.path}`;
     const esUrl = `${BASE_URL}${esPath}`;
