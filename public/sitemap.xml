@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SOURCE FILE — not the sitemap that ships.
+
+  `scripts/prerender-seo.mjs` runs after `vite build` and writes the real
+  dist/sitemap.xml by combining:
+    1. every route in `seo` (src/data/content.ts) — added automatically, and
+    2. the content-driven urls listed HERE (blog posts, individual retreats),
+       which don't live in `seo`.
+  It also adds the EN/ES hreflang pairs.
+
+  So: add new BLOG POSTS / RETREATS here; page routes come from `seo` on
+  their own. Never hand-edit dist/sitemap.xml.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://www.spaholis.com/</loc>

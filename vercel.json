@@ -1,5 +1,37 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    { "source": "/home", "destination": "/", "permanent": true },
+    { "source": "/index.php", "destination": "/", "permanent": true },
+
+    { "source": "/spa", "destination": "/treatments-therapies", "permanent": true },
+    { "source": "/spa-2", "destination": "/treatments-therapies", "permanent": true },
+    { "source": "/holiswellnesscenter/spa", "destination": "/treatments-therapies", "permanent": true },
+    { "source": "/holiswellnesscenter/:path*", "destination": "/", "permanent": true },
+
+    { "source": "/about-us", "destination": "/about", "permanent": true },
+    { "source": "/studio", "destination": "/studio-rental", "permanent": true },
+    { "source": "/retreats-experiences", "destination": "/retreats", "permanent": true },
+    { "source": "/therapists-instructors", "destination": "/sas-practitioners", "permanent": true },
+    { "source": "/wellness-retreats-manuel-antonio", "destination": "/retreats", "permanent": true },
+    { "source": "/retreat-partners", "destination": "/retreats", "permanent": true },
+    { "source": "/partners-in-stays", "destination": "/retreats", "permanent": true },
+    { "source": "/testimonials", "destination": "/about", "permanent": true },
+    { "source": "/ytt", "destination": "/education", "permanent": true },
+
+    { "source": "/services", "destination": "/treatments-therapies", "permanent": true },
+    { "source": "/treatments", "destination": "/treatments-therapies", "permanent": true },
+    { "source": "/faq", "destination": "/faqs", "permanent": true },
+    { "source": "/educational", "destination": "/education", "permanent": true },
+    { "source": "/certified-practitioners", "destination": "/sas-practitioners", "permanent": true },
+    { "source": "/private-classes", "destination": "/private-sessions", "permanent": true },
+    { "source": "/classes/calendar", "destination": "/classes/schedule", "permanent": true },
+    { "source": "/booking", "destination": "/book", "permanent": true },
+    { "source": "/wellness", "destination": "/#wellness", "permanent": true },
+    { "source": "/buy", "destination": "/classes#buy", "permanent": true },
+    { "source": "/memberships", "destination": "/classes#buy", "permanent": true },
+    { "source": "/passes", "destination": "/classes#buy", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
