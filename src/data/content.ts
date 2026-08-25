@@ -92,23 +92,23 @@ export const seo = {
     canonical: "/custom-retreat",
   },
   sasPractitioners: {
-    title: "SAS Certified Practitioners Directory",
+    title: "SAS Certified Practitioners | Holis Wellness Center",
     description: "Find certified Somato Awareness System practitioners trained at Holis Wellness Center.",
     canonical: "/sas-practitioners",
   },
   craniosacral: {
-    title: "Craniosacral Therapy in Manuel Antonio, Costa Rica",
+    title: "Craniosacral Therapy Manuel Antonio | Holis Wellness Center",
     description: "Experience a gentle, restorative Craniosacral Therapy session with Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/craniosacral-therapy-manuel-antonio",
   },
   gyrotonic: {
-    title: "Private GYROTONIC® Sessions in Manuel Antonio, Costa Rica | Holis",
+    title: "Private GYROTONIC® Manuel Antonio | Holis Wellness Center",
     description: "Discover the GYROTONIC® Method with a private session led by Evelina Bolognini at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/private-gyrotonic-manuel-antonio",
   },
   kinesiology: {
-    title: "Integrative Kinesiology Course | Professional Bodywork Training | Holis",
-    description: "Professional Integrative Kinesiology training created by Evelina Bolognini. Learn to use the Myofascial Tissue Reflex to assess priorities and personalize bodywork sessions.",
+    title: "Integrative Kinesiology Course | Holis Wellness Center",
+    description: "Professional Integrative Kinesiology training by Evelina Bolognini. Use the Myofascial Tissue Reflex to assess priorities and personalize bodywork sessions.",
     canonical: "/integrative-kinesiology-course",
   },
 } as const;
