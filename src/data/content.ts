@@ -285,6 +285,8 @@ export const content = {
       { label: "Class Schedule", to: "/classes" },
       { label: "Book Now", to: "/book" },
       { label: "FAQs", to: "/faqs" },
+      { label: "Google Reviews", to: "/#google-reviews" },
+      { label: "Tripadvisor Reviews", to: "/#tripadvisor-reviews" },
       { label: "My Account", to: "/dashboard" },
     ],
     contactTitle: "Contact",

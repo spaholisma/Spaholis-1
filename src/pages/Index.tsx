@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/ui/rich-text";
 import { cmsEditProps } from "@/lib/cmsEdit";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, Quote, ArrowRight, Home, MapPin } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
@@ -28,6 +29,7 @@ const fadeIn = {
 
 const Index = () => {
   const { t } = useTranslation();
+  const { hash } = useLocation();
   const { data: content } = useSiteContent();
   const { data: seoData } = useSiteSeo();
   const c = content || defaultContent;
@@ -40,6 +42,27 @@ const Index = () => {
     (googleReviews?.reviews || []).filter((r: any) => r?.text?.trim());
   const showGoogle = googleReviews?.enabled && googleReviewsList.length > 0;
   const seo = seoData || { home: { title: "", description: "", canonical: "/" } };
+
+  // Scroll to #tripadvisor-reviews / #google-reviews when linked from the footer
+  // Quick Links. Reviews load async, so retry until the target settles.
+  useEffect(() => {
+    const id = hash.replace("#", "");
+    if (!id) return;
+    let tries = 0;
+    const timers: number[] = [];
+    const go = () => {
+      const el = document.getElementById(id);
+      if (el) {
+        // Stop retrying once the section is in place, so the retries cannot
+        // yank the page back if the visitor starts scrolling themselves.
+        if (Math.abs(el.getBoundingClientRect().top) < 80) return;
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+      if (tries++ < 6) timers.push(window.setTimeout(go, 250));
+    };
+    timers.push(window.setTimeout(go, 120));
+    return () => timers.forEach(clearTimeout);
+  }, [hash, content]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -227,7 +250,7 @@ const Index = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="bg-muted">
+      <section id="tripadvisor-reviews" className="bg-muted scroll-mt-20">
         <div className="spa-section">
           <motion.div {...fadeIn} className="text-center mb-4">
             <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{testimonialsContent.eyebrow}</p>
@@ -278,7 +301,7 @@ const Index = () => {
 
       {/* Google Reviews */}
       {showGoogle && (
-        <section className="bg-background">
+        <section id="google-reviews" className="bg-background scroll-mt-20">
           <div className="spa-section">
             <motion.div {...fadeIn} className="text-center mb-4">
               <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">{googleReviews.eyebrow}</p>
