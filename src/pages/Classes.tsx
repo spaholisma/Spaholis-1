@@ -11,7 +11,7 @@ import { EventCard } from "@/components/EventCard";
 import { ClassTypeCard } from "@/components/ClassTypeCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
 import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
@@ -35,15 +35,31 @@ const ClassesPage = () => {
   const { data: tokenOffering } = useTokenOffering();
   const cls = siteContent?.classes || defaults.classes;
   const seo = seoData || seoDefaults;
+  const { hash } = useLocation();
 
-  // When arriving with #buy (e.g. the "Renew now" email button), scroll to the
-  // memberships & passes section once the page content has rendered.
+  // Scroll to the memberships & passes section when arriving with #buy (the
+  // "Passes & Memberships" menu item, or the "Renew now" email button).
+  //
+  // Keyed off the ROUTER hash, not window.location: clicking the menu item
+  // while already on /classes changes the hash without remounting the page, so
+  // an effect that only depended on isLoading never re-ran and the link
+  // appeared to do nothing. Retries because the list renders asynchronously.
   useEffect(() => {
     if (isLoading) return;
-    if (window.location.hash !== "#buy") return;
-    const el = document.getElementById("buy");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  }, [isLoading]);
+    if (hash !== "#buy") return;
+    let tries = 0;
+    const timers: number[] = [];
+    const go = () => {
+      const el = document.getElementById("buy");
+      if (el) {
+        if (Math.abs(el.getBoundingClientRect().top) < 80) return;
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+      if (tries++ < 8) timers.push(window.setTimeout(go, 250));
+    };
+    timers.push(window.setTimeout(go, 120));
+    return () => timers.forEach(clearTimeout);
+  }, [isLoading, hash]);
 
   // One-off events (workshops, special events, etc.) vs regular weekly classes.
   const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
