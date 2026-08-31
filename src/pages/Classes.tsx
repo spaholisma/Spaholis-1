@@ -8,6 +8,7 @@ import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
 import { useUpcomingEvents } from "@/hooks/useClasses";
 import { EventCard } from "@/components/EventCard";
+import { ClassTypeCard } from "@/components/ClassTypeCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -48,6 +49,16 @@ const ClassesPage = () => {
   const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
   const specialEvents = events?.filter((e) => EVENT_CATEGORIES.has(e.classes.category)) ?? [];
   const regularEvents = events?.filter((e) => !EVENT_CATEGORIES.has(e.classes.category)) ?? [];
+
+  // Weekly Classes lists one card per CLASS TYPE, not per session: the same
+  // class runs several times a week, so rendering every session repeated the
+  // same card with a different date. Exact dates stay in the Class Schedule.
+  const regularClassTypes = Object.values(
+    regularEvents.reduce<Record<string, typeof regularEvents>>((acc, e) => {
+      (acc[e.class_id] ??= []).push(e);
+      return acc;
+    }, {}),
+  ).sort((a, b) => a[0].classes.title.localeCompare(b[0].classes.title));
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,8 +197,8 @@ const ClassesPage = () => {
                   </Link>
                 </div>
                 <div className="space-y-8">
-                  {regularEvents.map((event) => (
-                    <EventCard key={event.id} event={event} />
+                  {regularClassTypes.map((sessions) => (
+                    <ClassTypeCard key={sessions[0].class_id} sessions={sessions} />
                   ))}
                 </div>
               </motion.div>
