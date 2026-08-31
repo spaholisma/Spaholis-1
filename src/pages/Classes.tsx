@@ -10,7 +10,7 @@ import { useUpcomingEvents } from "@/hooks/useClasses";
 import { EventCard } from "@/components/EventCard";
 import { ClassTypeCard } from "@/components/ClassTypeCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, ShoppingBag } from "lucide-react";
+import { CalendarDays, ShoppingBag , Ticket } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
@@ -149,13 +149,30 @@ const ClassesPage = () => {
           </div>
         )}
 
-        <motion.div {...fadeIn} className="mt-6 text-center">
-          <a
-            href="#buy"
-            className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
+        {/* Passes & memberships live near the bottom of this page (~74% down),
+            so surface them here as a compact banner. Uses <Link> rather than a
+            bare #buy anchor so the router hash updates and the scroll effect
+            above runs, giving a smooth jump instead of an instant one. */}
+        <motion.div {...fadeIn} className="mt-6">
+          <Link
+            to="#buy"
+            className="group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 rounded-2xl border border-spa-sage/30 bg-spa-sage/10 px-4 py-3 sm:px-5 sm:py-4 hover:bg-spa-sage/20 transition-colors"
           >
-            {cls.buyMemberships}
-          </a>
+            <span className="flex items-start sm:items-center gap-3 min-w-0">
+              <Ticket className="h-5 w-5 text-spa-sage shrink-0 mt-0.5 sm:mt-0" />
+              <span className="min-w-0 text-left">
+                <span className="block font-heading text-sm font-semibold text-foreground">
+                  {(cls as any).passesBannerTitle || "Coming more than once?"}
+                </span>
+                <span className="block font-body text-xs text-muted-foreground line-clamp-2">
+                  {(cls as any).passesBannerText}
+                </span>
+              </span>
+            </span>
+            <span className="shrink-0 self-start sm:self-auto pl-8 sm:pl-0 font-body text-xs font-semibold uppercase tracking-wider text-spa-sage group-hover:underline whitespace-nowrap">
+              {(cls as any).passesBannerCta || cls.buyMemberships} →
+            </span>
+          </Link>
         </motion.div>
 
         {/* Always-visible link to the Education page (courses, workshops, SAS
