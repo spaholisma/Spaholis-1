@@ -6,11 +6,12 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
-  Save, CreditCard, ShieldAlert,
+  Save, CreditCard, ShieldAlert, UserPlus,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
@@ -33,6 +34,7 @@ interface Attendee {
   id: string; schedule_id: string; guest_name: string | null; guest_email: string | null;
   guest_phone: string | null; status: string; payment_status: string | null;
   payment_method: string | null; total_price: number | null; user_offering_id: string | null;
+  source: string | null; attended: boolean | null;
 }
 
 /** A session's teacher: the per-session name wins, else the class template's. */
@@ -63,6 +65,10 @@ export default function TeacherPanel() {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [payDraft, setPayDraft] = useState("");
   const [savingPay, setSavingPay] = useState(false);
+  // Manually adding a walk-in student (vs. those who booked on the site).
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", pay: "cash" });
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
 
@@ -109,10 +115,47 @@ export default function TeacherPanel() {
   const openAttendees = async (s: Session) => {
     setOpenSession(s); setLoadingAttendees(true);
     const { data } = await sb.from("class_bookings")
-      .select("id, schedule_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, user_offering_id")
+      .select("id, schedule_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, user_offering_id, source, attended")
       .eq("schedule_id", s.id).order("created_at");
     setAttendees(((data as any) ?? []) as Attendee[]);
     setLoadingAttendees(false);
+  };
+
+  /** Walk-in: the teacher adds someone who turned up without booking online. */
+  const addStudent = async () => {
+    if (!openSession) return;
+    const name = newStudent.name.trim();
+    if (!name) { toast.error("Name is required"); return; }
+    setAddingStudent(true);
+    const { error } = await sb.from("class_bookings").insert({
+      schedule_id: openSession.id,
+      guest_name: name,
+      guest_email: newStudent.email.trim() || null,
+      guest_phone: newStudent.phone.trim() || null,
+      status: "booked",
+      // She collects the money herself, so nothing here is a Holis payment.
+      payment_method: newStudent.pay,
+      payment_status: newStudent.pay === "free" ? "not_required" : "pending",
+      source: "teacher",
+    });
+    if (error) { toast.error(error.message); setAddingStudent(false); return; }
+    toast.success(`${name} added`);
+    setNewStudent({ name: "", email: "", phone: "", pay: "cash" });
+    setShowAddForm(false);
+    setAddingStudent(false);
+    await openAttendees(openSession);   // refresh the list
+    load();                             // refresh the per-class counter
+  };
+
+  /** Attendance toggle: null -> attended -> no-show -> null. */
+  const cycleAttendance = async (a: Attendee) => {
+    const next = a.attended === null || a.attended === undefined ? true : a.attended ? false : null;
+    setAttendees((prev) => prev.map((x) => (x.id === a.id ? { ...x, attended: next } : x)));
+    const { error } = await sb.from("class_bookings").update({ attended: next }).eq("id", a.id);
+    if (error) {
+      toast.error(error.message);
+      setAttendees((prev) => prev.map((x) => (x.id === a.id ? { ...x, attended: a.attended } : x)));
+    }
   };
 
   const savePayment = async () => {
@@ -263,15 +306,55 @@ export default function TeacherPanel() {
               </span>
             </DialogTitle>
           </DialogHeader>
+          {/* Add a walk-in. Students who booked on the site appear on their own. */}
+          <div className="mb-3">
+            {showAddForm ? (
+              <div className="rounded-lg border border-spa-sage/40 bg-spa-sage/5 p-3 space-y-2">
+                <p className="font-body text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add a student</p>
+                <Input autoFocus placeholder="Name *" value={newStudent.name}
+                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && addStudent()} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input placeholder="Email (optional)" value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })} />
+                  <Input placeholder="Phone (optional)" value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })} />
+                </div>
+                <select
+                  value={newStudent.pay}
+                  onChange={(e) => setNewStudent({ ...newStudent, pay: e.target.value })}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  <option value="cash">Pays me (cash / SINPE)</option>
+                  <option value="membership">Has a membership / pass</option>
+                  <option value="free">Free / guest</option>
+                </select>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)} disabled={addingStudent}>Cancel</Button>
+                  <Button size="sm" onClick={addStudent} disabled={addingStudent || !newStudent.name.trim()}>
+                    {addingStudent ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />} Add
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="w-full" onClick={() => setShowAddForm(true)}>
+                <UserPlus className="h-4 w-4 mr-1" /> Add a student manually
+              </Button>
+            )}
+          </div>
+
           {loadingAttendees ? (
             <div className="py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></div>
           ) : attendees.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Nobody signed up yet.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nobody signed up yet. Students who book on spaholis.com show up here automatically.
+            </p>
           ) : (
             <div className="space-y-2">
               {attendees.map((a) => {
                 const lbl = payLabel(a);
                 const cancelled = a.status === "cancelled";
+                const byTeacher = a.source === "teacher";
                 return (
                   <div key={a.id} className={cn("rounded-lg border border-border p-3", cancelled && "opacity-50")}>
                     <div className="flex items-start justify-between gap-3">
@@ -282,10 +365,30 @@ export default function TeacherPanel() {
                         </p>
                         {a.guest_email && <p className="font-body text-xs text-muted-foreground truncate">{a.guest_email}</p>}
                         {a.guest_phone && <p className="font-body text-xs text-muted-foreground">{a.guest_phone}</p>}
+                        {/* Where the signup came from */}
+                        <span className="mt-1 inline-block font-body text-[11px] text-muted-foreground">
+                          {byTeacher ? "Added by you" : "Booked online"}
+                        </span>
                       </div>
-                      <span className={cn("shrink-0 rounded-full px-2 py-1 text-[11px] font-medium", lbl.tone)}>
-                        {lbl.text}
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span className={cn("rounded-full px-2 py-1 text-[11px] font-medium", lbl.tone)}>
+                          {lbl.text}
+                        </span>
+                        {!cancelled && (
+                          <button
+                            onClick={() => cycleAttendance(a)}
+                            title="Tap to change: not marked / came / no-show"
+                            className={cn(
+                              "rounded-full px-2 py-1 text-[11px] font-medium border transition-colors",
+                              a.attended === true && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
+                              a.attended === false && "bg-destructive/10 text-destructive border-destructive/40",
+                              (a.attended === null || a.attended === undefined) && "bg-muted text-muted-foreground border-border hover:bg-border",
+                            )}
+                          >
+                            {a.attended === true ? "Came ✓" : a.attended === false ? "No-show" : "Mark attendance"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
