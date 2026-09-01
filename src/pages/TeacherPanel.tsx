@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
-  Save, CreditCard, ShieldAlert, UserPlus,
+  Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
@@ -29,6 +29,10 @@ interface Session {
   id: string; class_id: string; start_time: string; end_time: string;
   spots_remaining: number; is_cancelled: boolean; instructor: string | null;
   classes: { title: string | null; instructor: string | null; max_capacity: number | null; location: string | null } | null;
+}
+interface Coupon {
+  id: string; code: string; description: string | null;
+  discount_type: string; discount_value: number; is_active: boolean;
 }
 interface Attendee {
   id: string; schedule_id: string; guest_name: string | null; guest_email: string | null;
@@ -69,6 +73,10 @@ export default function TeacherPanel() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", pay: "cash" });
+  // Her own coupons — a record of the price she agreed with a student.
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [savingCoupon, setSavingCoupon] = useState(false);
+  const [newCoupon, setNewCoupon] = useState({ code: "", description: "", type: "percentage", value: "" });
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
 
@@ -111,6 +119,7 @@ export default function TeacherPanel() {
     setLoading(false);
   }, [teacher, month]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadCoupons(); }, [loadCoupons]);
 
   const openAttendees = async (s: Session) => {
     setOpenSession(s); setLoadingAttendees(true);
@@ -145,6 +154,49 @@ export default function TeacherPanel() {
     setAddingStudent(false);
     await openAttendees(openSession);   // refresh the list
     load();                             // refresh the per-class counter
+  };
+
+  const loadCoupons = useCallback(async () => {
+    if (!teacher) return;
+    const { data } = await sb.from("teacher_coupons").select("*")
+      .eq("teacher_id", teacher.id).order("created_at", { ascending: false });
+    setCoupons((data ?? []) as Coupon[]);
+  }, [teacher]);
+
+  const addCoupon = async () => {
+    if (!teacher) return;
+    const code = newCoupon.code.trim().toUpperCase();
+    if (!code) { toast.error("Code is required"); return; }
+    const value = Number(newCoupon.value);
+    if (!Number.isFinite(value) || value <= 0) { toast.error("Enter a discount amount"); return; }
+    setSavingCoupon(true);
+    const { error } = await sb.from("teacher_coupons").insert({
+      teacher_id: teacher.id,
+      code,
+      description: newCoupon.description.trim() || null,
+      discount_type: newCoupon.type,
+      discount_value: value,
+      is_active: true,
+    });
+    if (error) {
+      toast.error(error.message.toLowerCase().includes("duplicate") ? "That code already exists" : error.message);
+    } else {
+      toast.success(`Coupon ${code} created`);
+      setNewCoupon({ code: "", description: "", type: "percentage", value: "" });
+      loadCoupons();
+    }
+    setSavingCoupon(false);
+  };
+
+  const toggleCoupon = async (c: Coupon) => {
+    const { error } = await sb.from("teacher_coupons").update({ is_active: !c.is_active }).eq("id", c.id);
+    if (error) toast.error(error.message); else loadCoupons();
+  };
+
+  const deleteCoupon = async (c: Coupon) => {
+    if (!confirm(`Delete coupon ${c.code}?`)) return;
+    const { error } = await sb.from("teacher_coupons").delete().eq("id", c.id);
+    if (error) toast.error(error.message); else { toast.success("Deleted"); loadCoupons(); }
   };
 
   /** Attendance toggle: null -> attended -> no-show -> null. */
@@ -269,6 +321,67 @@ export default function TeacherPanel() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </Card>
+
+        {/* Her own coupons */}
+        <Card className="p-4 mb-8">
+          <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+            <Ticket className="h-4 w-4" /> Your coupons
+          </h3>
+          <p className="font-body text-xs text-muted-foreground mb-3">
+            A record of a price you agreed with a student — you apply it when they pay you.
+            These never change what Holis charges.
+          </p>
+
+          {/* New coupon */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
+            <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
+              onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
+            <select value={newCoupon.type}
+              onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+              <option value="percentage">% off</option>
+              <option value="fixed">$ off</option>
+            </select>
+            <Input type="number" placeholder={newCoupon.type === "percentage" ? "20" : "5"}
+              value={newCoupon.value}
+              onChange={(e) => setNewCoupon({ ...newCoupon, value: e.target.value })} className="h-9 w-24" />
+            <Button size="sm" className="h-9" onClick={addCoupon} disabled={savingCoupon}>
+              {savingCoupon ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
+            </Button>
+          </div>
+          <Input placeholder="What it is for (optional)" value={newCoupon.description}
+            onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })} className="h-9 mb-4" />
+
+          {coupons.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">No coupons yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {coupons.map((c) => (
+                <div key={c.id} className={cn("flex items-center justify-between gap-3 rounded-lg border border-border p-3", !c.is_active && "opacity-60")}>
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-semibold text-foreground">
+                      {c.code}
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        {c.discount_type === "percentage" ? `${c.discount_value}% off` : `${usd(Number(c.discount_value))} off`}
+                      </span>
+                    </p>
+                    {c.description && <p className="font-body text-xs text-muted-foreground truncate">{c.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => toggleCoupon(c)}
+                      className={cn("text-xs px-2 py-1 rounded-full font-medium",
+                        c.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                      {c.is_active ? "Active" : "Off"}
+                    </button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteCoupon(c)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>
