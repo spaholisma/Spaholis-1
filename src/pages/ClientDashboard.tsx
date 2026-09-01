@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Calendar, Clock, User, Gift, ShieldCheck, ChevronRight } from "lucide-react";
+import { Calendar, Clock, User, Gift, ShieldCheck, ChevronRight, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { isAdminEmail } from "@/lib/adminEmails";
@@ -25,6 +25,9 @@ const ClientDashboard = () => {
   // Staff role, so a coordinator/viewer/admin sees the calendar shortcut here in
   // My Account instead of having to type the /admin URL by hand.
   const [staffRole, setStaffRole] = useState<"admin" | "coordinator" | "viewer" | null>(null);
+  // Teachers rent the studio and run their own classes, so they get their own
+  // panel rather than the Spaholis admin.
+  const [isTeacher, setIsTeacher] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +51,7 @@ const ClientDashboard = () => {
       setRewards(rewardsRes.data ?? []);
       setLoyaltySettings(loyaltyRes.data);
       const roles = (rolesRes.data ?? []).map((r: any) => r.role);
+      setIsTeacher(roles.includes("teacher"));
       setStaffRole(
         roles.includes("super_admin") || roles.includes("manager")
           ? "admin"
@@ -132,6 +136,27 @@ const ClientDashboard = () => {
             </Link>
           );
         })()}
+
+        {/* Teacher entry point. Teachers sign in through the normal site and
+            reach their panel from here, the same way staff reach /admin. The
+            /teacher route re-checks the role, this is only the doorway. */}
+        {isTeacher && (
+          <Link
+            to="/teacher"
+            className="mb-8 flex items-center gap-4 bg-spa-sage/10 border border-spa-sage/30 rounded-2xl p-5 hover:bg-spa-sage/15 transition-colors"
+          >
+            <div className="h-11 w-11 rounded-xl bg-spa-sage/20 flex items-center justify-center shrink-0">
+              <GraduationCap className="h-5 w-5 text-spa-sage" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-heading text-base font-medium text-foreground">Teacher Admin Panel</h3>
+              <p className="font-body text-xs text-muted-foreground mt-0.5">
+                Your classes, who is coming, and what you owe for the studio
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+        )}
 
         {/* Quick Actions. Book Treatment navigates; the rest jump to a section
             on this page. Notifications was removed — there is no such feature. */}

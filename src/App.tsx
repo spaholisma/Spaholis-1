@@ -18,6 +18,7 @@ import Educational from "./pages/Educational";
 import GiftCards from "./pages/GiftCards";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
+import TeacherPanel from "./pages/TeacherPanel";
 import CardAuthorizationArchive from "./pages/CardAuthorizationArchive";
 import ClientDashboard from "./pages/ClientDashboard";
 import NotFound from "./pages/NotFound";
@@ -100,6 +101,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/admin", element: <AdminDashboard /> },
   { path: "/admin/card-authorization-archive", element: <CardAuthorizationArchive /> },
   { path: "/dashboard", element: <ClientDashboard /> },
+  { path: "/teacher", element: <TeacherPanel /> },
   { path: "/booking", element: <RedirectPreserve to="/book" /> },
   { path: "/services", element: <Navigate to="/treatments-therapies" replace /> },
   { path: "/treatments", element: <Navigate to="/treatments-therapies" replace /> },
