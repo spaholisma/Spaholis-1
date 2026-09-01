@@ -119,7 +119,6 @@ export default function TeacherPanel() {
     setLoading(false);
   }, [teacher, month]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadCoupons(); }, [loadCoupons]);
 
   const openAttendees = async (s: Session) => {
     setOpenSession(s); setLoadingAttendees(true);
@@ -162,6 +161,10 @@ export default function TeacherPanel() {
       .eq("teacher_id", teacher.id).order("created_at", { ascending: false });
     setCoupons((data ?? []) as Coupon[]);
   }, [teacher]);
+  // Declared after loadCoupons on purpose: a dependency array is evaluated
+  // during render, so referencing it earlier threw "cannot access before
+  // initialization" and blanked the whole page.
+  useEffect(() => { loadCoupons(); }, [loadCoupons]);
 
   const addCoupon = async () => {
     if (!teacher) return;
