@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { TeacherSchedule, teacherOf, type SchedSession } from "@/components/teacher/TeacherSchedule";
 import { TeacherStudents } from "@/components/teacher/TeacherStudents";
 import { TeacherNotes } from "@/components/teacher/TeacherNotes";
+import { useConfirm } from "@/components/teacher/useConfirm";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -88,6 +89,7 @@ export default function TeacherPanel() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [teacher, setTeacher] = useState<TeacherRow | null>(null);
   const [denied, setDenied] = useState(false);
@@ -189,10 +191,15 @@ export default function TeacherPanel() {
     const n = counts[s.id] ?? 0;
     const msg = cancel
       ? n > 0
-        ? `Cancel this class? The ${n} student${n === 1 ? "" : "s"} signed up will be emailed.`
-        : "Cancel this class? Nobody has signed up, so no one will be emailed."
-      : "Put this class back on the schedule?";
-    if (!confirm(msg)) return;
+        ? `The ${n} student${n === 1 ? "" : "s"} signed up will be emailed.`
+        : "Nobody has signed up, so no one will be emailed."
+      : "It goes back on the schedule and students can book it again.";
+    if (!(await confirm({
+      title: cancel ? "Cancel this class?" : "Put this class back?",
+      description: msg,
+      confirmLabel: cancel ? "Cancel the class" : "Put it back",
+      destructive: cancel,
+    }))) return;
     setCancelling(s.id);
     const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
     if (error) { toast.error(error.message); setCancelling(null); return; }
@@ -225,7 +232,12 @@ export default function TeacherPanel() {
 
   /** Remove a student from the class entirely. */
   const removeStudent = async (a: Attendee) => {
-    if (!confirm(`Remove ${a.guest_name || "this student"} from the class?`)) return;
+    if (!(await confirm({
+      title: `Remove ${a.guest_name || "this student"}?`,
+      description: "They come off this class's list. This cannot be undone.",
+      confirmLabel: "Remove",
+      destructive: true,
+    }))) return;
     const { error } = await sb.from("class_bookings").delete().eq("id", a.id);
     if (error) { toast.error(error.message); return; }
     toast.success("Student removed");
@@ -302,7 +314,11 @@ export default function TeacherPanel() {
   };
 
   const deleteCoupon = async (c: Coupon) => {
-    if (!confirm(`Delete coupon ${c.code}?`)) return;
+    if (!(await confirm({
+      title: `Delete coupon ${c.code}?`,
+      confirmLabel: "Delete",
+      destructive: true,
+    }))) return;
     const { error } = await sb.from("teacher_coupons").delete().eq("id", c.id);
     if (error) toast.error(error.message); else { toast.success("Deleted"); loadCoupons(); }
   };
@@ -749,6 +765,7 @@ export default function TeacherPanel() {
         </DialogContent>
       </Dialog>
 
+      {confirmDialog}
       <Footer />
     </div>
   );

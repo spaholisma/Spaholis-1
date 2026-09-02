@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Trash2, Save, NotebookPen, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/teacher/useConfirm";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -42,6 +43,7 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState(blankRow());
   const [filter, setFilter] = useState<"all" | "unpaid">("all");
+  const { confirm, confirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +101,11 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
   };
 
   const remove = async (n: Note) => {
-    if (!confirm("Delete this line?")) return;
+    if (!(await confirm({
+      title: "Delete this line?",
+      confirmLabel: "Delete",
+      destructive: true,
+    }))) return;
     const { error } = await sb.from("teacher_notes").delete().eq("id", n.id);
     if (error) toast.error(error.message); else load();
   };
@@ -261,6 +267,7 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
           </table>
         </div>
       )}
+      {confirmDialog}
     </Card>
   );
 }

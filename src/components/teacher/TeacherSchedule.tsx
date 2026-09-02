@@ -13,6 +13,7 @@ import {
 import { formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/teacher/useConfirm";
 
 const sb = supabase as any;
 
@@ -23,7 +24,8 @@ export interface SchedSession {
              location: string | null; duration_minutes: number | null } | null;
 }
 interface ClassType {
-  id: string; title: string | null; duration_minutes: number | null; max_capacity: number | null;
+  id: string; title: string | null; duration_minutes: number | null;
+  max_capacity: number | null; is_active: boolean | null;
 }
 
 export const teacherOf = (s: SchedSession) =>
@@ -55,11 +57,10 @@ const blankForm = () => ({ id: "", class_id: "", instructor: "", day: "", start:
  * classes she teaches; the rest are there to be looked at.
  */
 export function TeacherSchedule({
-  teacherName, onStudents, refreshKey,
+  teacherName, onStudents,
 }: {
   teacherName: string;
   onStudents: (s: SchedSession) => void;
-  refreshKey?: number;
 }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [sessions, setSessions] = useState<SchedSession[]>([]);
@@ -70,6 +71,7 @@ export function TeacherSchedule({
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const mine = (s: SchedSession) => teacherOf(s) === teacherName.trim().toLowerCase();
 
@@ -84,11 +86,13 @@ export function TeacherSchedule({
     setSessions(((data ?? []) as SchedSession[]));
     setLoading(false);
   }, [weekStart]);
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    sb.from("classes").select("id, title, duration_minutes, max_capacity")
-      .eq("is_active", true).order("title")
+    // Teachers see the whole catalogue, including class types Holis keeps off
+    // the website — a trial class still has to be schedulable.
+    sb.from("classes").select("id, title, duration_minutes, max_capacity, is_active")
+      .order("title")
       .then(({ data }: any) => setClassTypes((data ?? []) as ClassType[]));
     sb.rpc("list_active_teachers").then(({ data }: any) =>
       setColleagues(((data ?? []) as any[]).map((t) => t.display_name)));
@@ -140,9 +144,14 @@ export function TeacherSchedule({
   const save = async () => {
     const startIso = crToUtc(form.day, form.start);
     if (!form.class_id || !startIso) { toast.error("Pick a class, a day and a time"); return; }
-    if (clash && !confirm(
-      `${clash.classes?.title ?? "Another class"} is already on at that time ` +
-      `(${formatSpaTime(clash.start_time)}). Add yours anyway?`)) return;
+    if (clash && !(await confirm({
+      title: "That slot is taken",
+      description:
+        `${clash.classes?.title ?? "Another class"} is already on at ` +
+        `${formatSpaTime(clash.start_time)} with ` +
+        `${clash.instructor?.trim() || clash.classes?.instructor?.trim() || "no teacher"}.`,
+      confirmLabel: "Add mine anyway",
+    }))) return;
 
     const endIso = new Date(new Date(startIso).getTime() + (Number(form.minutes) || 60) * 60000).toISOString();
     setSaving(true);
@@ -166,9 +175,14 @@ export function TeacherSchedule({
   };
 
   const setCancelled = async (s: SchedSession, cancel: boolean) => {
-    if (!confirm(cancel
-      ? "Cancel this class? Anyone signed up will be emailed."
-      : "Put this class back on the schedule?")) return;
+    if (!(await confirm({
+      title: cancel ? "Cancel this class?" : "Put this class back?",
+      description: cancel
+        ? "Anyone signed up will be emailed."
+        : "It goes back on the schedule and students can book it again.",
+      confirmLabel: cancel ? "Cancel the class" : "Put it back",
+      destructive: cancel,
+    }))) return;
     setBusyId(s.id);
     const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
     if (error) toast.error(error.message);
@@ -300,7 +314,11 @@ export function TeacherSchedule({
                 disabled={!!form.id}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
               >
-                {classTypes.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                {classTypes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}{c.is_active === false ? " (not on the website)" : ""}
+                  </option>
+                ))}
               </select>
               {form.id && (
                 <p className="font-body text-[11px] text-muted-foreground mt-1">
@@ -363,6 +381,7 @@ export function TeacherSchedule({
           </div>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </Card>
   );
 }
