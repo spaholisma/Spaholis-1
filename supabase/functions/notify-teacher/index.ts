@@ -70,7 +70,8 @@ const row = (k: string, v: string) => `
 type Event =
   | "student_added" | "student_updated" | "student_removed"
   | "booking_created" | "booking_cancelled"
-  | "class_cancelled" | "class_reactivated";
+  | "class_cancelled" | "class_reactivated"
+  | "class_rescheduled" | "class_reassigned";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -127,6 +128,8 @@ Deno.serve(async (req) => {
         booking_cancelled: { subject: `Cancellation — ${title}`,        intro: `A student cancelled their spot in your class.` },
         class_cancelled:   { subject: `Class cancelled — ${title}`,     intro: `Your class was cancelled. Anyone who had signed up has been notified.` },
         class_reactivated: { subject: `Class reactivated — ${title}`,   intro: `Your class is back on the schedule.` },
+        class_rescheduled: { subject: `New time — ${title}`,            intro: `Your class moved. Anyone who had signed up has been told the new time.` },
+        class_reassigned:  { subject: `You have a class — ${title}`,    intro: `This class is now yours to teach.` },
       };
       const c = copy[event] ?? { subject: `Update — ${title}`, intro: "Your class was updated." };
 
@@ -149,24 +152,31 @@ Deno.serve(async (req) => {
       console.warn("[notify-teacher] no teacher email for session", scheduleId, "instructor:", who);
     }
 
-    // ── 2. A cancelled class must reach the students who signed up ──
-    if (event === "class_cancelled") {
+    // ── 2. A cancelled or moved class must reach the students who signed up ──
+    if (event === "class_cancelled" || event === "class_rescheduled") {
       const { data: students } = await admin.from("class_bookings")
         .select("guest_name, guest_email, status").eq("schedule_id", scheduleId);
       const recipients = ((students as any[]) ?? [])
         .filter((s) => s.status !== "cancelled" && s.guest_email);
 
+      const moved = event === "class_rescheduled";
       for (const s of recipients) {
         const html = shell(
-          "Your class has been cancelled",
-          `We are sorry — <strong>${esc(title)}</strong> on ${esc(when)} has been cancelled.`,
-          [row("Class", title), row("When", when)],
+          moved ? "Your class has a new time" : "Your class has been cancelled",
+          moved
+            ? `<strong>${esc(title)}</strong> has moved. The new time is ${esc(when)}.`
+            : `We are sorry — <strong>${esc(title)}</strong> on ${esc(when)} has been cancelled.`,
+          [row("Class", title), row(moved ? "New time" : "When", when)],
           `<p style="color:#6b6b6b;font-size:13px;line-height:1.5;margin-top:16px">
-             If you already paid, please contact your teacher directly. You can see other
-             classes on the <a href="${SITE}/classes/schedule" style="color:#7b9d87">class schedule</a>.
+             ${moved
+               ? "If the new time does not work for you, please let your teacher know."
+               : "If you already paid, please contact your teacher directly."}
+             You can see every class on the
+             <a href="${SITE}/classes/schedule" style="color:#7b9d87">class schedule</a>.
            </p>`,
         );
-        const r = await sendEmail(s.guest_email, `Cancelled: ${title} — ${when}`, html);
+        const r = await sendEmail(s.guest_email,
+          moved ? `New time: ${title} — ${when}` : `Cancelled: ${title} — ${when}`, html);
         if (r.ok) results.studentsEmailed = (results.studentsEmailed as number) + 1;
         else console.error("[notify-teacher] student email failed", r.error);
       }

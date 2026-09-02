@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
@@ -9,14 +9,19 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
   Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
+  NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TeacherSchedule, teacherOf, type SchedSession } from "@/components/teacher/TeacherSchedule";
+import { TeacherStudents } from "@/components/teacher/TeacherStudents";
+import { TeacherNotes } from "@/components/teacher/TeacherNotes";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -25,11 +30,7 @@ interface TeacherRow {
   id: string; display_name: string; email: string;
   payment_instructions: string | null; studio_rate: number; active: boolean;
 }
-interface Session {
-  id: string; class_id: string; start_time: string; end_time: string;
-  spots_remaining: number; is_cancelled: boolean; instructor: string | null;
-  classes: { title: string | null; instructor: string | null; max_capacity: number | null; location: string | null } | null;
-}
+type Session = SchedSession;
 interface Coupon {
   id: string; code: string; description: string | null;
   discount_type: string; discount_value: number; is_active: boolean;
@@ -41,9 +42,14 @@ interface Attendee {
   source: string | null; attended: boolean | null; client_type: string | null;
 }
 
-/** A session's teacher: the per-session name wins, else the class template's. */
-const teacherOf = (s: Session) =>
-  (s.instructor?.trim() || s.classes?.instructor?.trim() || "").toLowerCase();
+const TABS = [
+  { value: "calendar", label: "Calendar", icon: CalendarRange },
+  { value: "classes", label: "My classes", icon: ListChecks },
+  { value: "students", label: "Students", icon: Users },
+  { value: "notes", label: "Notebook", icon: NotebookPen },
+  { value: "coupons", label: "Coupons", icon: Ticket },
+  { value: "settings", label: "Settings", icon: SettingsIcon },
+];
 
 /**
  * Derive a payment method from the student category, so the teacher only has to
@@ -81,6 +87,7 @@ function payLabel(a: Attendee): { text: string; tone: string } {
 export default function TeacherPanel() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
 
   const [teacher, setTeacher] = useState<TeacherRow | null>(null);
   const [denied, setDenied] = useState(false);
@@ -93,7 +100,9 @@ export default function TeacherPanel() {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [payDraft, setPayDraft] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
   const [savingPay, setSavingPay] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   // Manually adding a walk-in student (vs. those who booked on the site).
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
@@ -108,6 +117,10 @@ export default function TeacherPanel() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [newCoupon, setNewCoupon] = useState({ code: "", description: "", type: "percentage", value: "" });
+
+  const tabParam = params.get("tab");
+  const tab = TABS.some((t) => t.value === tabParam) ? (tabParam as string) : "calendar";
+  const setTab = (v: string) => setParams(v === "calendar" ? {} : { tab: v }, { replace: true });
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
 
@@ -125,6 +138,7 @@ export default function TeacherPanel() {
       if (!data) { setDenied(true); setLoading(false); return; }
       setTeacher(data as TeacherRow);
       setPayDraft((data as TeacherRow).payment_instructions ?? "");
+      setNameDraft((data as TeacherRow).display_name);
     })();
   }, [user]);
 
@@ -135,7 +149,7 @@ export default function TeacherPanel() {
     const to = format(endOfMonth(month), "yyyy-MM-dd");
     const { data } = await sb
       .from("class_schedule")
-      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, location)")
+      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, location, duration_minutes)")
       .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
       .order("start_time");
     const mine = (((data as any) ?? []) as Session[])
@@ -167,9 +181,9 @@ export default function TeacherPanel() {
   };
 
   /**
-   * Call off a class, or put it back. Only `is_cancelled` can change here — a
-   * database trigger pins the date, time and capacity to their old values, so
-   * a teacher can never quietly move a class on the studio calendar.
+   * Call off a class, or put it back. Only `is_cancelled` changes here — a
+   * database trigger keeps the class type, the spot count and the money as they
+   * were, and another one emails the students.
    */
   const setCancelled = async (s: Session, cancel: boolean) => {
     const n = counts[s.id] ?? 0;
@@ -313,6 +327,21 @@ export default function TeacherPanel() {
     setSavingPay(false);
   };
 
+  /** Renaming carries her classes with her — a database trigger moves them. */
+  const saveName = async () => {
+    if (!teacher) return;
+    const name = nameDraft.trim();
+    if (!name) { toast.error("Your name cannot be empty"); return; }
+    setSavingName(true);
+    const { error } = await sb.from("teachers").update({ display_name: name }).eq("id", teacher.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Name saved — your classes moved with it");
+      setTeacher({ ...teacher, display_name: name });
+    }
+    setSavingName(false);
+  };
+
   // Studio rent counts only classes that actually happened (past, not cancelled).
   const stats = useMemo(() => {
     const now = new Date();
@@ -354,163 +383,221 @@ export default function TeacherPanel() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
-        <div className="mb-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
+        <div className="mb-6">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">Teacher Panel</p>
           <h1 className="spa-heading-lg text-foreground">{teacher?.display_name}</h1>
           <p className="spa-body mt-2">Your classes, who is coming, and what you owe for the studio.</p>
         </div>
 
-        {/* Month navigation */}
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-          <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-          <h2 className="font-heading text-lg font-semibold min-w-[160px] text-center">{format(month, "MMMM yyyy")}</h2>
-          <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
-          {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
-        </div>
-
-        {/* Summary */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <Stat icon={CalendarDays} label="Classes given" value={String(stats.given)} sub="this month" />
-          <Stat icon={CalendarDays} label="Upcoming" value={String(stats.upcoming)} sub="still to come" />
-          <Stat icon={Users} label="Students" value={String(stats.students)} sub="signed up" />
-          <Stat icon={Wallet} label="Studio rent" value={usd(stats.owed)} sub={`${stats.given} x ${usd(stats.rate)}`} accent />
-        </div>
-
-        {/* Classes */}
-        <Card className="p-4 mb-8">
-          <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            Your classes ({sessions.length})
-          </h3>
-          {loading ? (
-            <div className="py-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
-          ) : sessions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No classes assigned to you this month.</p>
-          ) : (
-            <div className="space-y-2">
-              {sessions.map((s) => {
-                const past = parseISO(s.start_time) < new Date();
-                const n = counts[s.id] ?? 0;
-                return (
-                  <div key={s.id} className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border border-border p-3",
-                    s.is_cancelled && "opacity-60",
-                  )}>
-                    <div className="min-w-0">
-                      <p className="font-body text-sm font-medium text-foreground truncate">
-                        {s.classes?.title ?? "Class"}
-                        {s.is_cancelled && <span className="ml-2 text-xs text-destructive">(Cancelled)</span>}
-                      </p>
-                      <p className="font-body text-xs text-muted-foreground">
-                        {formatSpaDate(s.start_time)} · {formatSpaTime(s.start_time)}
-                        {past && !s.is_cancelled && <span className="ml-2 text-spa-sage">· given</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-body text-xs text-muted-foreground whitespace-nowrap">
-                        <Users className="h-3 w-3 inline mr-1" />{n}
-                      </span>
-                      <Button variant="outline" size="sm" onClick={() => openAttendees(s)}>Students</Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn("h-8 w-8", !s.is_cancelled && "text-destructive")}
-                        title={s.is_cancelled ? "Put this class back on the schedule" : "Cancel this class"}
-                        disabled={cancelling === s.id}
-                        onClick={() => setCancelled(s, !s.is_cancelled)}
-                      >
-                        {cancelling === s.id ? <Loader2 className="h-4 w-4 animate-spin" />
-                          : s.is_cancelled ? <Undo2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Her own coupons */}
-        <Card className="p-4 mb-8">
-          <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-            <Ticket className="h-4 w-4" /> Your coupons
-          </h3>
-          <p className="font-body text-xs text-muted-foreground mb-3">
-            A record of a price you agreed with a student — you apply it when they pay you.
-            These never change what Holis charges.
-          </p>
-
-          {/* New coupon */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
-            <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
-              onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
-            <select value={newCoupon.type}
-              onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-              <option value="percentage">% off</option>
-              <option value="fixed">$ off</option>
-            </select>
-            <Input type="number" placeholder={newCoupon.type === "percentage" ? "20" : "5"}
-              value={newCoupon.value}
-              onChange={(e) => setNewCoupon({ ...newCoupon, value: e.target.value })} className="h-9 w-24" />
-            <Button size="sm" className="h-9" onClick={addCoupon} disabled={savingCoupon}>
-              {savingCoupon ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
-            </Button>
-          </div>
-          <Input placeholder="What it is for (optional)" value={newCoupon.description}
-            onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })} className="h-9 mb-4" />
-
-          {coupons.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No coupons yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {coupons.map((c) => (
-                <div key={c.id} className={cn("flex items-center justify-between gap-3 rounded-lg border border-border p-3", !c.is_active && "opacity-60")}>
-                  <div className="min-w-0">
-                    <p className="font-body text-sm font-semibold text-foreground">
-                      {c.code}
-                      <span className="ml-2 font-normal text-muted-foreground">
-                        {c.discount_type === "percentage" ? `${c.discount_value}% off` : `${usd(Number(c.discount_value))} off`}
-                      </span>
-                    </p>
-                    {c.description && <p className="font-body text-xs text-muted-foreground truncate">{c.description}</p>}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => toggleCoupon(c)}
-                      className={cn("text-xs px-2 py-1 rounded-full font-medium",
-                        c.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
-                      {c.is_active ? "Active" : "Off"}
-                    </button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteCoupon(c)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
+        <Tabs value={tab} onValueChange={setTab}>
+          {/* Horizontal tabs; on a phone they scroll sideways rather than wrap. */}
+          <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto mb-6">
+            <TabsList className="inline-flex w-auto">
+              {TABS.map(({ value, label, icon: Icon }) => (
+                <TabsTrigger key={value} value={value} className="whitespace-nowrap">
+                  <Icon className="h-4 w-4 mr-1.5" />{label}
+                </TabsTrigger>
               ))}
-            </div>
-          )}
-        </Card>
-
-        {/* How students pay her */}
-        <Card className="p-4">
-          <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-            <CreditCard className="h-4 w-4" /> How your students pay you
-          </h3>
-          <p className="font-body text-xs text-muted-foreground mb-3">
-            Shown to students when they reserve a spot. Holis does not process this money — they pay you directly.
-          </p>
-          <Textarea
-            value={payDraft}
-            onChange={(e) => setPayDraft(e.target.value)}
-            rows={3}
-            placeholder="e.g. SINPE Movil 8888-8888 · or cash at the studio"
-          />
-          <div className="mt-3 flex justify-end">
-            <Button size="sm" onClick={savePayment} disabled={savingPay || payDraft === (teacher?.payment_instructions ?? "")}>
-              {savingPay ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
-            </Button>
+            </TabsList>
           </div>
-        </Card>
+
+          {/* ── Calendar: the whole studio, and where she adds classes ── */}
+          <TabsContent value="calendar" className="mt-0">
+            {teacher && (
+              <TeacherSchedule
+                teacherName={teacher.display_name}
+                onStudents={(s) => openAttendees(s)}
+              />
+            )}
+          </TabsContent>
+
+          {/* ── My classes: her month, and what it costs her ── */}
+          <TabsContent value="classes" className="mt-0">
+            <div className="flex items-center gap-2 mb-6 flex-wrap">
+              <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <h2 className="font-heading text-lg font-semibold min-w-[160px] text-center">{format(month, "MMMM yyyy")}</h2>
+              <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
+              {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <Stat icon={CalendarDays} label="Classes given" value={String(stats.given)} sub="this month" />
+              <Stat icon={CalendarDays} label="Upcoming" value={String(stats.upcoming)} sub="still to come" />
+              <Stat icon={Users} label="Students" value={String(stats.students)} sub="signed up" />
+              <Stat icon={Wallet} label="Studio rent" value={usd(stats.owed)} sub={`${stats.given} x ${usd(stats.rate)}`} accent />
+            </div>
+
+            <Card className="p-4">
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                Your classes ({sessions.length})
+              </h3>
+              {loading ? (
+                <div className="py-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+              ) : sessions.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No classes assigned to you this month.</p>
+              ) : (
+                <div className="space-y-2">
+                  {sessions.map((s) => {
+                    const past = parseISO(s.start_time) < new Date();
+                    const n = counts[s.id] ?? 0;
+                    return (
+                      <div key={s.id} className={cn(
+                        "flex items-center justify-between gap-3 rounded-xl border border-border p-3",
+                        s.is_cancelled && "opacity-60",
+                      )}>
+                        <div className="min-w-0">
+                          <p className="font-body text-sm font-medium text-foreground truncate">
+                            {s.classes?.title ?? "Class"}
+                            {s.is_cancelled && <span className="ml-2 text-xs text-destructive">(Cancelled)</span>}
+                          </p>
+                          <p className="font-body text-xs text-muted-foreground">
+                            {formatSpaDate(s.start_time)} · {formatSpaTime(s.start_time)}
+                            {past && !s.is_cancelled && <span className="ml-2 text-spa-sage">· given</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-body text-xs text-muted-foreground whitespace-nowrap">
+                            <Users className="h-3 w-3 inline mr-1" />{n}
+                          </span>
+                          <Button variant="outline" size="sm" onClick={() => openAttendees(s)}>Students</Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-8 w-8", !s.is_cancelled && "text-destructive")}
+                            title={s.is_cancelled ? "Put this class back on the schedule" : "Cancel this class"}
+                            disabled={cancelling === s.id}
+                            onClick={() => setCancelled(s, !s.is_cancelled)}
+                          >
+                            {cancelling === s.id ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : s.is_cancelled ? <Undo2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          {/* ── Students ── */}
+          <TabsContent value="students" className="mt-0">
+            <TeacherStudents />
+          </TabsContent>
+
+          {/* ── Notebook ── */}
+          <TabsContent value="notes" className="mt-0">
+            {teacher && <TeacherNotes teacherId={teacher.id} />}
+          </TabsContent>
+
+          {/* ── Coupons ── */}
+          <TabsContent value="coupons" className="mt-0">
+            <Card className="p-4">
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                <Ticket className="h-4 w-4" /> Your coupons
+              </h3>
+              <p className="font-body text-xs text-muted-foreground mb-3">
+                A record of a price you agreed with a student — you apply it when they pay you.
+                These never change what Holis charges. The passes and memberships your students
+                already hold are shown beside their name under{" "}
+                <button className="underline" onClick={() => setTab("students")}>Students</button>.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
+                <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
+                <select value={newCoupon.type}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                  <option value="percentage">% off</option>
+                  <option value="fixed">$ off</option>
+                </select>
+                <Input type="number" placeholder={newCoupon.type === "percentage" ? "20" : "5"}
+                  value={newCoupon.value}
+                  onChange={(e) => setNewCoupon({ ...newCoupon, value: e.target.value })} className="h-9 w-24" />
+                <Button size="sm" className="h-9" onClick={addCoupon} disabled={savingCoupon}>
+                  {savingCoupon ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
+                </Button>
+              </div>
+              <Input placeholder="What it is for (optional)" value={newCoupon.description}
+                onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })} className="h-9 mb-4" />
+
+              {coupons.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No coupons yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {coupons.map((c) => (
+                    <div key={c.id} className={cn("flex items-center justify-between gap-3 rounded-lg border border-border p-3", !c.is_active && "opacity-60")}>
+                      <div className="min-w-0">
+                        <p className="font-body text-sm font-semibold text-foreground">
+                          {c.code}
+                          <span className="ml-2 font-normal text-muted-foreground">
+                            {c.discount_type === "percentage" ? `${c.discount_value}% off` : `${usd(Number(c.discount_value))} off`}
+                          </span>
+                        </p>
+                        {c.description && <p className="font-body text-xs text-muted-foreground truncate">{c.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => toggleCoupon(c)}
+                          className={cn("text-xs px-2 py-1 rounded-full font-medium",
+                            c.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                          {c.is_active ? "Active" : "Off"}
+                        </button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteCoupon(c)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          {/* ── Settings ── */}
+          <TabsContent value="settings" className="mt-0 space-y-4">
+            <Card className="p-4">
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                <SettingsIcon className="h-4 w-4" /> Your details
+              </h3>
+              <p className="font-body text-xs text-muted-foreground mb-3">
+                Your name is what students see on the schedule. Changing it moves your classes with it.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Your name" />
+                <Button size="sm" onClick={saveName}
+                  disabled={savingName || !nameDraft.trim() || nameDraft.trim() === teacher?.display_name}>
+                  {savingName ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
+                </Button>
+              </div>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <ReadOnly label="Email" value={teacher?.email ?? "—"} note="Ask Holis to change this" />
+                <ReadOnly label="Studio rent per class" value={usd(Number(teacher?.studio_rate ?? 35))} note="Set by Holis" />
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                <CreditCard className="h-4 w-4" /> How your students pay you
+              </h3>
+              <p className="font-body text-xs text-muted-foreground mb-3">
+                Shown to students when they reserve a spot. Holis does not process this money — they pay you directly.
+              </p>
+              <Textarea
+                value={payDraft}
+                onChange={(e) => setPayDraft(e.target.value)}
+                rows={3}
+                placeholder="e.g. SINPE Movil 8888-8888 · or cash at the studio"
+              />
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" onClick={savePayment} disabled={savingPay || payDraft === (teacher?.payment_instructions ?? "")}>
+                  {savingPay ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Attendees */}
@@ -677,5 +764,15 @@ function Stat({ icon: Icon, label, value, sub, accent }: { icon: any; label: str
       <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </Card>
+  );
+}
+
+function ReadOnly({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+      <p className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="font-body text-sm text-foreground">{value}</p>
+      {note && <p className="font-body text-[11px] text-muted-foreground mt-0.5">{note}</p>}
+    </div>
   );
 }
