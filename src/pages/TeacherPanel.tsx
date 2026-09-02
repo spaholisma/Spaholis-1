@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
-  Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2,
+  Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
@@ -38,15 +38,39 @@ interface Attendee {
   id: string; schedule_id: string; guest_name: string | null; guest_email: string | null;
   guest_phone: string | null; status: string; payment_status: string | null;
   payment_method: string | null; total_price: number | null; user_offering_id: string | null;
-  source: string | null; attended: boolean | null;
+  source: string | null; attended: boolean | null; client_type: string | null;
 }
 
 /** A session's teacher: the per-session name wins, else the class template's. */
 const teacherOf = (s: Session) =>
   (s.instructor?.trim() || s.classes?.instructor?.trim() || "").toLowerCase();
 
+/**
+ * Derive a payment method from the student category, so the teacher only has to
+ * pick one thing. Passes/memberships are prepaid, staff and buddy passes are
+ * free, everything else is collected by her.
+ */
+function payMethodFor(clientType: string): string {
+  const t = (clientType || "").toLowerCase();
+  if (!t) return "cash";
+  if (t.includes("pass") && !t.includes("buddy")) return "membership";
+  if (t.includes("membership") || t.includes("unlimited")) return "membership";
+  if (t.includes("free") || t.includes("staff") || t.includes("buddy")) return "free";
+  return "cash";
+}
+
 /** How this student is paying — drives the badge the teacher sees. */
 function payLabel(a: Attendee): { text: string; tone: string } {
+  // A category chosen by the teacher/Holis is the most specific thing we know.
+  if (a.client_type) {
+    const m = payMethodFor(a.client_type);
+    return {
+      text: a.client_type,
+      tone: m === "membership" ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
+        : m === "free" ? "bg-muted text-muted-foreground"
+        : "bg-amber-500/15 text-amber-700 dark:text-amber-500",
+    };
+  }
   if (a.user_offering_id) return { text: "Membership / pass", tone: "bg-sky-500/15 text-sky-700 dark:text-sky-400" };
   if (a.payment_method === "free" || a.payment_status === "not_required")
     return { text: "Free", tone: "bg-muted text-muted-foreground" };
@@ -65,6 +89,7 @@ export default function TeacherPanel() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [openSession, setOpenSession] = useState<Session | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [payDraft, setPayDraft] = useState("");
@@ -72,13 +97,25 @@ export default function TeacherPanel() {
   // Manually adding a walk-in student (vs. those who booked on the site).
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", pay: "cash" });
+  const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", client_type: "" });
+  // Inline editing of an existing student.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "", client_type: "" });
+  const [savingStudent, setSavingStudent] = useState(false);
+  // Student categories, shared with Class Finances so Holis edits them once.
+  const [clientTypes, setClientTypes] = useState<string[]>([]);
   // Her own coupons — a record of the price she agreed with a student.
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [newCoupon, setNewCoupon] = useState({ code: "", description: "", type: "percentage", value: "" });
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    sb.from("class_finance_options").select("label").eq("kind", "client_type")
+      .order("sort_order")
+      .then(({ data }: any) => setClientTypes(((data ?? []) as any[]).map((o) => o.label)));
+  }, []);
 
   // Who am I? The row also carries the studio rate and the payment instructions.
   useEffect(() => {
@@ -123,10 +160,63 @@ export default function TeacherPanel() {
   const openAttendees = async (s: Session) => {
     setOpenSession(s); setLoadingAttendees(true);
     const { data } = await sb.from("class_bookings")
-      .select("id, schedule_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, user_offering_id, source, attended")
+      .select("id, schedule_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, user_offering_id, source, attended, client_type")
       .eq("schedule_id", s.id).order("created_at");
     setAttendees(((data as any) ?? []) as Attendee[]);
     setLoadingAttendees(false);
+  };
+
+  /**
+   * Call off a class, or put it back. Only `is_cancelled` can change here — a
+   * database trigger pins the date, time and capacity to their old values, so
+   * a teacher can never quietly move a class on the studio calendar.
+   */
+  const setCancelled = async (s: Session, cancel: boolean) => {
+    const n = counts[s.id] ?? 0;
+    const msg = cancel
+      ? n > 0
+        ? `Cancel this class? The ${n} student${n === 1 ? "" : "s"} signed up will be emailed.`
+        : "Cancel this class? Nobody has signed up, so no one will be emailed."
+      : "Put this class back on the schedule?";
+    if (!confirm(msg)) return;
+    setCancelling(s.id);
+    const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
+    if (error) { toast.error(error.message); setCancelling(null); return; }
+    setSessions((prev) => prev.map((x) => (x.id === s.id ? { ...x, is_cancelled: cancel } : x)));
+    toast.success(cancel
+      ? n > 0 ? `Class cancelled — ${n} student${n === 1 ? "" : "s"} notified` : "Class cancelled"
+      : "Class is back on the schedule");
+    setCancelling(null);
+  };
+
+  /** Save edits to an existing student (name/contact/type). */
+  const saveStudent = async (a: Attendee) => {
+    const name = editDraft.name.trim();
+    if (!name) { toast.error("Name is required"); return; }
+    setSavingStudent(true);
+    const { error } = await sb.from("class_bookings").update({
+      guest_name: name,
+      guest_email: editDraft.email.trim() || null,
+      guest_phone: editDraft.phone.trim() || null,
+      client_type: editDraft.client_type || null,
+    }).eq("id", a.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Student updated");
+      setEditingId(null);
+      if (openSession) await openAttendees(openSession);
+    }
+    setSavingStudent(false);
+  };
+
+  /** Remove a student from the class entirely. */
+  const removeStudent = async (a: Attendee) => {
+    if (!confirm(`Remove ${a.guest_name || "this student"} from the class?`)) return;
+    const { error } = await sb.from("class_bookings").delete().eq("id", a.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Student removed");
+    if (openSession) await openAttendees(openSession);
+    load();
   };
 
   /** Walk-in: the teacher adds someone who turned up without booking online. */
@@ -142,13 +232,14 @@ export default function TeacherPanel() {
       guest_phone: newStudent.phone.trim() || null,
       status: "booked",
       // She collects the money herself, so nothing here is a Holis payment.
-      payment_method: newStudent.pay,
-      payment_status: newStudent.pay === "free" ? "not_required" : "pending",
+      client_type: newStudent.client_type || null,
+      payment_method: payMethodFor(newStudent.client_type),
+      payment_status: payMethodFor(newStudent.client_type) === "free" ? "not_required" : "pending",
       source: "teacher",
     });
     if (error) { toast.error(error.message); setAddingStudent(false); return; }
     toast.success(`${name} added`);
-    setNewStudent({ name: "", email: "", phone: "", pay: "cash" });
+    setNewStudent({ name: "", email: "", phone: "", client_type: "" });
     setShowAddForm(false);
     setAddingStudent(false);
     await openAttendees(openSession);   // refresh the list
@@ -315,11 +406,22 @@ export default function TeacherPanel() {
                         {past && !s.is_cancelled && <span className="ml-2 text-spa-sage">· given</span>}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="font-body text-xs text-muted-foreground whitespace-nowrap">
                         <Users className="h-3 w-3 inline mr-1" />{n}
                       </span>
                       <Button variant="outline" size="sm" onClick={() => openAttendees(s)}>Students</Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-8 w-8", !s.is_cancelled && "text-destructive")}
+                        title={s.is_cancelled ? "Put this class back on the schedule" : "Cancel this class"}
+                        disabled={cancelling === s.id}
+                        onClick={() => setCancelled(s, !s.is_cancelled)}
+                      >
+                        {cancelling === s.id ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : s.is_cancelled ? <Undo2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                      </Button>
                     </div>
                   </div>
                 );
@@ -437,13 +539,12 @@ export default function TeacherPanel() {
                     onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })} />
                 </div>
                 <select
-                  value={newStudent.pay}
-                  onChange={(e) => setNewStudent({ ...newStudent, pay: e.target.value })}
+                  value={newStudent.client_type}
+                  onChange={(e) => setNewStudent({ ...newStudent, client_type: e.target.value })}
                   className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                 >
-                  <option value="cash">Pays me (cash / SINPE)</option>
-                  <option value="membership">Has a membership / pass</option>
-                  <option value="free">Free / guest</option>
+                  <option value="">Student type…</option>
+                  {clientTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)} disabled={addingStudent}>Cancel</Button>
@@ -471,41 +572,88 @@ export default function TeacherPanel() {
                 const lbl = payLabel(a);
                 const cancelled = a.status === "cancelled";
                 const byTeacher = a.source === "teacher";
+                const isEditing = editingId === a.id;
                 return (
                   <div key={a.id} className={cn("rounded-lg border border-border p-3", cancelled && "opacity-50")}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-body text-sm font-medium text-foreground truncate">
-                          {a.guest_name || "Guest"}
-                          {cancelled && <span className="ml-2 text-xs text-destructive">(cancelled)</span>}
-                        </p>
-                        {a.guest_email && <p className="font-body text-xs text-muted-foreground truncate">{a.guest_email}</p>}
-                        {a.guest_phone && <p className="font-body text-xs text-muted-foreground">{a.guest_phone}</p>}
-                        {/* Where the signup came from */}
-                        <span className="mt-1 inline-block font-body text-[11px] text-muted-foreground">
-                          {byTeacher ? "Added by you" : "Booked online"}
-                        </span>
+                    {isEditing ? (
+                      /* Inline edit — name, contact and student type */
+                      <div className="space-y-2">
+                        <Input value={editDraft.name} placeholder="Name *"
+                          onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Input value={editDraft.email} placeholder="Email (optional)"
+                            onChange={(e) => setEditDraft({ ...editDraft, email: e.target.value })} />
+                          <Input value={editDraft.phone} placeholder="Phone (optional)"
+                            onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })} />
+                        </div>
+                        <select value={editDraft.client_type}
+                          onChange={(e) => setEditDraft({ ...editDraft, client_type: e.target.value })}
+                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+                          <option value="">Student type…</option>
+                          {clientTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={savingStudent}>Cancel</Button>
+                          <Button size="sm" onClick={() => saveStudent(a)} disabled={savingStudent || !editDraft.name.trim()}>
+                            {savingStudent ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className={cn("rounded-full px-2 py-1 text-[11px] font-medium", lbl.tone)}>
-                          {lbl.text}
-                        </span>
-                        {!cancelled && (
-                          <button
-                            onClick={() => cycleAttendance(a)}
-                            title="Tap to change: not marked / came / no-show"
-                            className={cn(
-                              "rounded-full px-2 py-1 text-[11px] font-medium border transition-colors",
-                              a.attended === true && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
-                              a.attended === false && "bg-destructive/10 text-destructive border-destructive/40",
-                              (a.attended === null || a.attended === undefined) && "bg-muted text-muted-foreground border-border hover:bg-border",
-                            )}
-                          >
-                            {a.attended === true ? "Came ✓" : a.attended === false ? "No-show" : "Mark attendance"}
-                          </button>
-                        )}
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-body text-sm font-medium text-foreground truncate">
+                            {a.guest_name || "Guest"}
+                            {cancelled && <span className="ml-2 text-xs text-destructive">(cancelled)</span>}
+                          </p>
+                          {a.guest_email && <p className="font-body text-xs text-muted-foreground truncate">{a.guest_email}</p>}
+                          {a.guest_phone && <p className="font-body text-xs text-muted-foreground">{a.guest_phone}</p>}
+                          <span className="mt-1 inline-block font-body text-[11px] text-muted-foreground">
+                            {byTeacher ? "Added by you" : "Booked online"}
+                          </span>
+                          {/* Edit / remove */}
+                          <span className="mt-1 flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingId(a.id);
+                                setEditDraft({
+                                  name: a.guest_name ?? "", email: a.guest_email ?? "",
+                                  phone: a.guest_phone ?? "", client_type: a.client_type ?? "",
+                                });
+                              }}
+                              className="font-body text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removeStudent(a)}
+                              className="font-body text-[11px] font-semibold uppercase tracking-wider text-destructive hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <span className={cn("rounded-full px-2 py-1 text-[11px] font-medium", lbl.tone)}>
+                            {lbl.text}
+                          </span>
+                          {!cancelled && (
+                            <button
+                              onClick={() => cycleAttendance(a)}
+                              title="Tap to change: not marked / came / no-show"
+                              className={cn(
+                                "rounded-full px-2 py-1 text-[11px] font-medium border transition-colors",
+                                a.attended === true && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
+                                a.attended === false && "bg-destructive/10 text-destructive border-destructive/40",
+                                (a.attended === null || a.attended === undefined) && "bg-muted text-muted-foreground border-border hover:bg-border",
+                              )}
+                            >
+                              {a.attended === true ? "Came ✓" : a.attended === false ? "No-show" : "Mark attendance"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
