@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,13 +32,26 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
   const [draft, setDraft] = useState(blank());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState(blank());
+  const seeded = useRef(false);
   const { confirm, confirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await sb.from("teacher_memberships").select("*")
+    let { data, error } = await sb.from("teacher_memberships").select("*")
       .eq("teacher_id", teacherId).order("created_at", { ascending: false });
     if (error) toast.error(error.message);
+
+    // First time in, she starts with copies of the passes Holis already
+    // sells, so nobody has to type them out. Once only — deleting one must
+    // not bring it back on the next visit.
+    if (!error && (data ?? []).length === 0 && !seeded.current) {
+      seeded.current = true;
+      const { data: n } = await sb.rpc("seed_teacher_memberships");
+      if (Number(n) > 0) {
+        ({ data } = await sb.from("teacher_memberships").select("*")
+          .eq("teacher_id", teacherId).order("created_at", { ascending: false }));
+      }
+    }
     setItems((data ?? []) as Membership[]);
     setLoading(false);
   }, [teacherId]);
@@ -113,8 +126,9 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
         <BadgeCheck className="h-4 w-4" /> Your memberships & passes
       </h3>
       <p className="font-body text-xs text-muted-foreground mb-4">
-        Yours alone — what you offer your own students and what you charge for it. Another teacher's
-        list is separate from this one, and nothing here changes what Holis sells.
+        Yours alone — what you offer your own students and what you charge for it. It starts as a
+        copy of the passes Holis sells; change the prices, add your own, remove what you do not use.
+        Another teacher's list is separate from this one, even when a pass has the same name.
         Leave <strong>Classes</strong> empty for unlimited, and <strong>Days</strong> empty if it never expires.
       </p>
 
