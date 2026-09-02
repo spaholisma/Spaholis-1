@@ -243,7 +243,7 @@ export default function ClassDetail() {
                     <div className="border-t border-border bg-muted/30 px-5 py-4">
                       <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                         <Ticket className="h-3.5 w-3.5" />
-                        Passes with {teacherName.split(/\s+/)[0]}
+                        Only with {teacherName.split(/\s+/)[0]}
                       </p>
                       <ul className="space-y-1.5">
                         {passes.map((p) => (
@@ -274,20 +274,20 @@ export default function ClassDetail() {
               </motion.div>
             )}
 
-            {/* No teacher named yet: the studio's own passes belong here instead */}
-            {!teacherName && (
-              <Card className="p-5">
-                <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <Ticket className="h-3.5 w-3.5" /> Passes & memberships
-                </p>
-                <p className="spa-body-sm mb-3">
-                  Coming more than once? A pass works out cheaper than paying per class.
-                </p>
-                <Button variant="outline" size="sm" className="rounded-full" asChild>
-                  <Link to="/memberships">See passes & memberships</Link>
-                </Button>
-              </Card>
-            )}
+            {/* The studio's passes work in every class and are the same whoever
+                teaches, so they are named once here and bought on their own page. */}
+            <Card className="p-5">
+              <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Ticket className="h-3.5 w-3.5" /> Passes & memberships
+              </p>
+              <p className="spa-body-sm mb-3">
+                Coming more than once? A class pass or a monthly works out cheaper than
+                paying per class, and it can be used in any class.
+              </p>
+              <Button variant="outline" size="sm" className="rounded-full" asChild>
+                <Link to="/memberships">See passes & memberships</Link>
+              </Button>
+            </Card>
           </aside>
         </div>
       </div>

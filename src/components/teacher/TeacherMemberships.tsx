@@ -14,6 +14,8 @@ const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractio
 interface Membership {
   id: string; name: string; price: number | null; classes_included: number | null;
   valid_days: number | null; description: string | null; is_active: boolean;
+  /** "holis" = copied from the studio list, "own" = she made it. */
+  source: string;
 }
 
 const blank = () => ({ name: "", price: "", classes_included: "", valid_days: "", description: "" });
@@ -69,7 +71,7 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
     if (!draft.name.trim()) { toast.error("Give it a name"); return; }
     setSaving(true);
     const { error } = await sb.from("teacher_memberships")
-      .insert({ teacher_id: teacherId, ...asPayload(draft), is_active: true });
+      .insert({ teacher_id: teacherId, ...asPayload(draft), is_active: true, source: "own" });
     if (error) toast.error(error.message);
     else { toast.success(`${draft.name.trim()} added`); setDraft(blank()); load(); }
     setSaving(false);
@@ -78,9 +80,12 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
   const saveEdit = async (id: string) => {
     if (!editDraft.name.trim()) { toast.error("Give it a name"); return; }
     setSaving(true);
-    const { error } = await sb.from("teacher_memberships").update(asPayload(editDraft)).eq("id", id);
+    // Changing a copied pass makes it hers — otherwise the website would
+    // advertise the studio price while she charges another.
+    const { error } = await sb.from("teacher_memberships")
+      .update({ ...asPayload(editDraft), source: "own" }).eq("id", id);
     if (error) toast.error(error.message);
-    else { toast.success("Saved"); setEditingId(null); load(); }
+    else { toast.success("Saved — this one is now yours"); setEditingId(null); load(); }
     setSaving(false);
   };
 
@@ -126,11 +131,19 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
         <BadgeCheck className="h-4 w-4" /> Your memberships & passes
       </h3>
       <p className="font-body text-xs text-muted-foreground mb-4">
-        Yours alone — what you offer your own students and what you charge for it. It starts as a
-        copy of the passes Holis sells; change the prices, add your own, remove what you do not use.
+        Yours alone — what you offer your own students and what you charge for it.
         Another teacher's list is separate from this one, even when a pass has the same name.
         Leave <strong>Classes</strong> empty for unlimited, and <strong>Days</strong> empty if it never expires.
       </p>
+
+      <div className="rounded-lg border border-border bg-muted/30 p-3 mb-4">
+        <p className="font-body text-xs text-muted-foreground mb-2">
+          The four <strong>General</strong> passes are the studio's and are the same for everyone —
+          students see those on the Passes &amp; Memberships page. Anything you add here, or any
+          general one whose price you change, becomes <strong>yours</strong> and appears on the
+          website beside your name.
+        </p>
+      </div>
 
       <div className="rounded-lg border border-spa-sage/40 bg-spa-sage/5 p-3 mb-4">
         {fields(draft, setDraft)}
@@ -179,6 +192,16 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
                       {m.description && <p className="font-body text-xs text-muted-foreground mt-0.5">{m.description}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap",
+                        m.source === "own"
+                          ? "bg-spa-sage/20 text-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )} title={m.source === "own"
+                        ? "Shown on the website next to your name"
+                        : "The studio's pass, shown on the Passes & Memberships page"}>
+                        {m.source === "own" ? "Yours" : "General"}
+                      </span>
                       <button onClick={() => toggle(m)}
                         className={cn("text-xs px-2 py-1 rounded-full font-medium",
                           m.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
