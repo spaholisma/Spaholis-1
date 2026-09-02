@@ -42,7 +42,7 @@ const MENU: NavEntry[] = [
     children: [
       { labelKey: "nav.subSchedule", label: "Class Schedule", to: "/classes/schedule" },
       { labelKey: "nav.subPrivate", label: "Private Classes", to: "/private-sessions" },
-      { labelKey: "nav.subPasses", label: "Passes & Memberships", to: "/classes#buy" },
+      { labelKey: "nav.subPasses", label: "Passes & Memberships", to: "/memberships" },
       { labelKey: "nav.subTraining", label: "Professional Training & Workshops", to: "/education" },
       { labelKey: "nav.subKinesiology", label: "Integrative Kinesiology Course", to: "/integrative-kinesiology-course" },
       { labelKey: "nav.subRental", label: "Studio Rental", to: "/studio-rental" },

@@ -18,6 +18,7 @@ interface Pass {
   teacher_name: string; membership_name: string; price: number | null;
   classes_included: number | null; valid_days: number | null; description: string | null;
 }
+interface TeacherRow { display_name: string; photo_url: string | null; bio: string | null }
 interface ClassBlock {
   cls: ScheduleRow["classes"];
   bookable?: ScheduleRow;
@@ -30,6 +31,9 @@ interface Portfolio {
   title: string;
   subtitle: string;
   image: string | null;
+  /** True when the image is the teacher herself, not one of her classes. */
+  portrait: boolean;
+  bio: string | null;
   classes: ClassBlock[];
   passes: Pass[];
 }
@@ -75,9 +79,11 @@ const byClass = (rows: ScheduleRow[]) =>
  */
 export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
   const [passes, setPasses] = useState<Pass[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
 
   useEffect(() => {
     sb.rpc("public_teacher_portfolios").then(({ data }: any) => setPasses((data ?? []) as Pass[]));
+    sb.rpc("public_teachers").then(({ data }: any) => setTeachers((data ?? []) as TeacherRow[]));
   }, []);
 
   const portfolios: Portfolio[] = useMemo(() => {
@@ -92,17 +98,21 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
       .filter(([name]) => name)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, rows]) => {
+        const key = name.trim().toLowerCase();
         const classes = byClass(rows).map(toBlock)
           .sort((a, b) => a.cls.title.localeCompare(b.cls.title));
+        const row = teachers.find((t) => t.display_name.trim().toLowerCase() === key);
         return {
           key: `teacher:${name}`,
           teacher: name,
           title: name,
           subtitle: `${classes.length} class${classes.length === 1 ? "" : "es"}`,
-          image: classes.find((c) => c.cls.image_url)?.cls.image_url ?? null,
+          // Her own photo first; a class picture stands in until she sends one.
+          image: row?.photo_url || classes.find((c) => c.cls.image_url)?.cls.image_url || null,
+          portrait: !!row?.photo_url,
+          bio: row?.bio ?? null,
           classes,
-          passes: passes.filter(
-            (p) => p.teacher_name.trim().toLowerCase() === name.trim().toLowerCase()),
+          passes: passes.filter((p) => p.teacher_name.trim().toLowerCase() === key),
         };
       });
 
@@ -116,12 +126,14 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
         title: block.cls.title,
         subtitle: "Holis Wellness Center",
         image: block.cls.image_url || null,
+        portrait: false,
+        bio: null,
         classes: [block],
         passes: [],
       }));
 
     return [...teacherCards, ...orphanCards];
-  }, [sessions, passes]);
+  }, [sessions, passes, teachers]);
 
   if (portfolios.length === 0) return null;
 
@@ -140,14 +152,17 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
             className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow duration-300 hover:shadow-xl"
           >
             {/* Header: the class photo, dimmed, with the name over it */}
-            <div className="relative h-40 overflow-hidden bg-spa-sage/15">
+            <div className={cn("relative overflow-hidden bg-spa-sage/15", p.portrait ? "h-56" : "h-40")}>
               {p.image && (
                 <img
                   src={p.image}
                   alt=""
                   aria-hidden
                   loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  className={cn(
+                    "absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105",
+                    p.portrait && "object-top",
+                  )}
                   onError={(e) => {
                     const el = e.currentTarget as HTMLImageElement;
                     if (!el.src.endsWith(fallbackImg)) el.src = fallbackImg;
@@ -197,6 +212,9 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
 
             {/* Her classes */}
             <div className="flex flex-1 flex-col gap-4 px-6 py-5">
+              {p.bio && (
+                <p className="spa-body-sm line-clamp-3 whitespace-pre-line">{p.bio}</p>
+              )}
               {p.classes.map(({ cls, bookable, when }) => (
                 <div key={cls.id} className="border-b border-border/60 pb-4 last:border-0 last:pb-0">
                   {isTeacher && (
@@ -213,11 +231,11 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                   <div className="mt-3">
                     {bookable ? (
                       <Button size="sm" variant="outline" className="rounded-full" asChild>
-                        <Link to={`/class-booking?class=${bookable.id}`}>Reserve</Link>
+                        <Link to={`/classes/${cls.id}`}>Reserve</Link>
                       </Button>
                     ) : (
                       <Link
-                        to="/classes/schedule"
+                        to={`/classes/${cls.id}`}
                         className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
                       >
                         Full — see other dates

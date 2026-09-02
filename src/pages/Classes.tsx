@@ -11,7 +11,7 @@ import { EventCard } from "@/components/EventCard";
 import { TeacherPortfolios } from "@/components/TeacherPortfolios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag , Ticket } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
 import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorkshop";
@@ -37,29 +37,13 @@ const ClassesPage = () => {
   const seo = seoData || seoDefaults;
   const { hash } = useLocation();
 
-  // Scroll to the memberships & passes section when arriving with #buy (the
-  // "Passes & Memberships" menu item, or the "Renew now" email button).
-  //
-  // Keyed off the ROUTER hash, not window.location: clicking the menu item
-  // while already on /classes changes the hash without remounting the page, so
-  // an effect that only depended on isLoading never re-ran and the link
-  // appeared to do nothing. Retries because the list renders asynchronously.
+  // Passes moved to their own page. Old links still point here with #buy —
+  // the menu item, the "Renew now" button in emails, printed cards — so send
+  // them on rather than dropping them on a page with nothing to buy.
+  const navigate = useNavigate();
   useEffect(() => {
-    if (isLoading) return;
-    if (hash !== "#buy") return;
-    let tries = 0;
-    const timers: number[] = [];
-    const go = () => {
-      const el = document.getElementById("buy");
-      if (el) {
-        if (Math.abs(el.getBoundingClientRect().top) < 80) return;
-        el.scrollIntoView({ behavior: "smooth" });
-      }
-      if (tries++ < 8) timers.push(window.setTimeout(go, 250));
-    };
-    timers.push(window.setTimeout(go, 120));
-    return () => timers.forEach(clearTimeout);
-  }, [isLoading, hash]);
+    if (hash === "#buy") navigate("/memberships", { replace: true });
+  }, [hash, navigate]);
 
   // One-off events (workshops, special events, etc.) vs regular weekly classes.
   const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
@@ -140,13 +124,10 @@ const ClassesPage = () => {
           </div>
         )}
 
-        {/* Passes & memberships live near the bottom of this page (~74% down),
-            so surface them here as a compact banner. Uses <Link> rather than a
-            bare #buy anchor so the router hash updates and the scroll effect
-            above runs, giving a smooth jump instead of an instant one. */}
+        {/* Passes have a page of their own; this banner is the way in. */}
         <motion.div {...fadeIn} className="mt-6">
           <Link
-            to="#buy"
+            to="/memberships"
             className="group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 rounded-2xl border border-spa-sage/30 bg-spa-sage/10 px-4 py-3 sm:px-5 sm:py-4 hover:bg-spa-sage/20 transition-colors"
           >
             <span className="flex items-start sm:items-center gap-3 min-w-0">
@@ -228,19 +209,18 @@ const ClassesPage = () => {
           </>
         )}
 
-        {/* Buy Memberships, Class Passes & Drop-ins */}
-        <motion.section {...fadeIn} id="buy" className="mt-24 scroll-mt-24">
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 mb-3 text-spa-sage">
-              <ShoppingBag className="h-4 w-4" />
-              <p {...cmsEditProps("classes.purchaseEyebrow")} className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{cls.purchaseEyebrow}</p>
-            </div>
-            <h2 {...cmsEditProps("classes.membershipsTitle")} className="spa-heading-lg text-foreground">{cls.membershipsTitle}</h2>
-            <p {...cmsEditProps("classes.membershipsSubtitle")} className="spa-body mt-3 max-w-xl mx-auto">
-              {cls.membershipsSubtitle}
-            </p>
+        {/* Passes live on their own page now — a teacher's own passes are shown
+            on her class page instead, next to her. */}
+        <motion.section {...fadeIn} className="mt-24 text-center">
+          <div className="inline-flex items-center gap-2 mb-3 text-spa-sage">
+            <ShoppingBag className="h-4 w-4" />
+            <p className="font-body text-xs font-semibold uppercase tracking-[0.2em]">{cls.purchaseEyebrow}</p>
           </div>
-          <OfferingsPurchaseSection redirectAfterPurchase="/dashboard" />
+          <h2 className="spa-heading-lg text-foreground">{cls.membershipsTitle}</h2>
+          <p className="spa-body mt-3 max-w-xl mx-auto">{cls.membershipsSubtitle}</p>
+          <Button size="lg" className="mt-6 rounded-full" asChild>
+            <Link to="/memberships">See passes & memberships</Link>
+          </Button>
         </motion.section>
       </div>
       <Footer />

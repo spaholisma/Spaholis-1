@@ -28,6 +28,7 @@ import { TeacherStudents } from "@/components/teacher/TeacherStudents";
 import { TeacherNotes } from "@/components/teacher/TeacherNotes";
 import { TeacherMemberships } from "@/components/teacher/TeacherMemberships";
 import { ClassFormDialog } from "@/components/teacher/ClassFormDialog";
+import { TeacherProfileCard } from "@/components/teacher/TeacherProfileCard";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -36,6 +37,7 @@ const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractio
 interface TeacherRow {
   id: string; display_name: string; email: string;
   payment_instructions: string | null; studio_rate: number; active: boolean;
+  photo_url: string | null; bio: string | null;
 }
 type Session = SchedSession;
 interface Coupon {
@@ -680,6 +682,15 @@ export default function TeacherPanel() {
                 {/* ── Settings ── */}
                 {tab === "settings" && (
                   <div className="space-y-4">
+                    {teacher && (
+                      <TeacherProfileCard
+                        teacherId={teacher.id}
+                        displayName={teacher.display_name}
+                        photoUrl={teacher.photo_url}
+                        bio={teacher.bio}
+                        onSaved={(patch) => setTeacher({ ...teacher, ...patch } as TeacherRow)}
+                      />
+                    )}
                     <Card className="p-4">
                       <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
                         <SettingsIcon className="h-4 w-4" /> Your details

@@ -12,6 +12,8 @@ import Booking from "./pages/Booking";
 import BookingReturn from "./pages/BookingReturn";
 import Classes from "./pages/Classes";
 import ClassesCalendar from "./pages/ClassesCalendar";
+import ClassDetail from "./pages/ClassDetail";
+import MembershipsPage from "./pages/Memberships";
 import PrivateClasses from "./pages/PrivateClasses";
 import ClassBooking from "./pages/ClassBooking";
 import Educational from "./pages/Educational";
@@ -69,6 +71,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/booking/return", element: <BookingReturn /> },
   { path: "/classes", element: <Classes /> },
   { path: "/classes/schedule", element: <ClassesCalendar /> },
+  { path: "/classes/:classId", element: <ClassDetail /> },
   { path: "/private-sessions", element: <PrivateClasses /> },
   { path: "/class-booking", element: <ClassBooking /> },
   { path: "/education", element: <Educational /> },
@@ -93,9 +96,9 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/certified-practitioners", element: <Navigate to="/sas-practitioners" replace /> },
   { path: "/practitioner/:slug", element: <PractitionerProfile /> },
   { path: "/faq", element: <Navigate to="/faqs" replace /> },
-  { path: "/buy", element: <Navigate to="/classes#buy" replace /> },
-  { path: "/memberships", element: <Navigate to="/classes#buy" replace /> },
-  { path: "/passes", element: <Navigate to="/classes#buy" replace /> },
+  { path: "/memberships", element: <MembershipsPage /> },
+  { path: "/buy", element: <Navigate to="/memberships" replace /> },
+  { path: "/passes", element: <Navigate to="/memberships" replace /> },
   { path: "/auth", element: <Auth /> },
   { path: "/reset-password", element: <ResetPassword /> },
   { path: "/admin", element: <AdminDashboard /> },
