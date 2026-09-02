@@ -14,6 +14,7 @@ import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
   Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
   NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks, BadgeCheck, HandCoins,
+  ClipboardList,
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, parseISO, isSameMonth,
@@ -29,6 +30,7 @@ import { TeacherNotes } from "@/components/teacher/TeacherNotes";
 import { TeacherMemberships } from "@/components/teacher/TeacherMemberships";
 import { ClassFormDialog } from "@/components/teacher/ClassFormDialog";
 import { TeacherProfileCard } from "@/components/teacher/TeacherProfileCard";
+import { TeacherMonthRecord } from "@/components/teacher/TeacherMonthRecord";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -57,6 +59,7 @@ interface Attendee {
 const TABS = [
   { value: "calendar", label: "Calendar", icon: CalendarRange },
   { value: "classes", label: "My classes", icon: ListChecks },
+  { value: "record", label: "My month", icon: ClipboardList },
   { value: "students", label: "Students", icon: Users },
   { value: "notes", label: "Notebook", icon: NotebookPen },
   { value: "memberships", label: "Memberships", icon: BadgeCheck },
@@ -609,6 +612,19 @@ export default function TeacherPanel() {
                       )}
                     </Card>
                   </>
+                )}
+
+                {/* Everything about the month added up, so she keeps no tally of
+                    her own on paper. */}
+                {tab === "record" && teacher && (
+                  <TeacherMonthRecord
+                    teacher={teacher}
+                    month={month}
+                    onMonthChange={setMonth}
+                    sessions={sessions}
+                    counts={counts}
+                    payments={payments}
+                  />
                 )}
 
                 {tab === "students" && <TeacherStudents />}
