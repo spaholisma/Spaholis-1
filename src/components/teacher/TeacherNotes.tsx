@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Trash2, Save, NotebookPen, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/teacher/useConfirm";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

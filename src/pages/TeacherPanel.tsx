@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
@@ -9,20 +10,25 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
   Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
-  NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks,
+  NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks, BadgeCheck, HandCoins,
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from "date-fns";
-import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
+import {
+  format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, parseISO, isSameMonth,
+} from "date-fns";
+import { formatSpaDate, formatSpaTime, spaMonthKey } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { TeacherSchedule, teacherOf, type SchedSession } from "@/components/teacher/TeacherSchedule";
+import {
+  TeacherSchedule, teacherOf, SESSION_SELECT, type SchedSession,
+} from "@/components/teacher/TeacherSchedule";
 import { TeacherStudents } from "@/components/teacher/TeacherStudents";
 import { TeacherNotes } from "@/components/teacher/TeacherNotes";
-import { useConfirm } from "@/components/teacher/useConfirm";
+import { TeacherMemberships } from "@/components/teacher/TeacherMemberships";
+import { ClassFormDialog } from "@/components/teacher/ClassFormDialog";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -36,6 +42,9 @@ interface Coupon {
   id: string; code: string; description: string | null;
   discount_type: string; discount_value: number; is_active: boolean;
 }
+interface Payment {
+  id: string; amount: number; paid_on: string; method: string | null; note: string | null;
+}
 interface Attendee {
   id: string; schedule_id: string; guest_name: string | null; guest_email: string | null;
   guest_phone: string | null; status: string; payment_status: string | null;
@@ -48,6 +57,7 @@ const TABS = [
   { value: "classes", label: "My classes", icon: ListChecks },
   { value: "students", label: "Students", icon: Users },
   { value: "notes", label: "Notebook", icon: NotebookPen },
+  { value: "memberships", label: "Memberships", icon: BadgeCheck },
   { value: "coupons", label: "Coupons", icon: Ticket },
   { value: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -90,6 +100,7 @@ export default function TeacherPanel() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { confirm, confirmDialog } = useConfirm();
+  const reduceMotion = useReducedMotion();
 
   const [teacher, setTeacher] = useState<TeacherRow | null>(null);
   const [denied, setDenied] = useState(false);
@@ -97,6 +108,7 @@ export default function TeacherPanel() {
   const [month, setMonth] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [openSession, setOpenSession] = useState<Session | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -105,6 +117,9 @@ export default function TeacherPanel() {
   const [nameDraft, setNameDraft] = useState("");
   const [savingPay, setSavingPay] = useState(false);
   const [savingName, setSavingName] = useState(false);
+  // Adding / editing one of her classes from the list.
+  const [classFormOpen, setClassFormOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
   // Manually adding a walk-in student (vs. those who booked on the site).
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
@@ -147,16 +162,25 @@ export default function TeacherPanel() {
   const load = useCallback(async () => {
     if (!teacher) return;
     setLoading(true);
-    const from = format(startOfMonth(month), "yyyy-MM-dd");
-    const to = format(endOfMonth(month), "yyyy-MM-dd");
-    const { data } = await sb
-      .from("class_schedule")
-      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, location, duration_minutes)")
-      .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
-      .order("start_time");
+    // A day either side, because the studio is six hours behind UTC: an
+    // evening class on the 31st is already the 1st in UTC.
+    const ym = format(month, "yyyy-MM");
+    const from = format(subDays(startOfMonth(month), 1), "yyyy-MM-dd");
+    const to = format(addDays(endOfMonth(month), 1), "yyyy-MM-dd");
+    const [{ data }, { data: pay }] = await Promise.all([
+      sb.from("class_schedule").select(SESSION_SELECT)
+        .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
+        .order("start_time"),
+      // What Holis has recorded as received from her this month.
+      sb.from("teacher_payments").select("id, amount, paid_on, method, note")
+        .eq("teacher_id", teacher.id).eq("ym", ym)
+        .order("paid_on", { ascending: false }),
+    ]);
     const mine = (((data as any) ?? []) as Session[])
+      .filter((s) => spaMonthKey(s.start_time) === ym)
       .filter((s) => teacherOf(s) === teacher.display_name.trim().toLowerCase());
     setSessions(mine);
+    setPayments((pay ?? []) as Payment[]);
 
     // Attendee counts. RLS only returns bookings belonging to her own classes.
     if (mine.length) {
@@ -358,15 +382,25 @@ export default function TeacherPanel() {
     setSavingName(false);
   };
 
-  // Studio rent counts only classes that actually happened (past, not cancelled).
+  /**
+   * The month's money. Rent is only counted for classes that actually happened,
+   * so early in the month "due now" is small on purpose — "by month end" is what
+   * it grows to if every class on the calendar goes ahead.
+   */
   const stats = useMemo(() => {
     const now = new Date();
     const given = sessions.filter((s) => !s.is_cancelled && parseISO(s.start_time) < now);
     const upcoming = sessions.filter((s) => !s.is_cancelled && parseISO(s.start_time) >= now);
     const students = sessions.reduce((n, s) => n + (counts[s.id] ?? 0), 0);
     const rate = Number(teacher?.studio_rate ?? 35);
-    return { given: given.length, upcoming: upcoming.length, students, owed: given.length * rate, rate };
-  }, [sessions, counts, teacher]);
+    const paid = payments.reduce((n, p) => n + Number(p.amount || 0), 0);
+    const owed = given.length * rate;
+    return {
+      given: given.length, upcoming: upcoming.length, students, rate,
+      owed, paid, balance: owed - paid,
+      expected: (given.length + upcoming.length) * rate,
+    };
+  }, [sessions, counts, teacher, payments]);
 
   if (authLoading || (loading && !teacher && !denied)) {
     return (
@@ -406,215 +440,303 @@ export default function TeacherPanel() {
           <p className="spa-body mt-2">Your classes, who is coming, and what you owe for the studio.</p>
         </div>
 
-        <Tabs value={tab} onValueChange={setTab}>
-          {/* Horizontal tabs; on a phone they scroll sideways rather than wrap. */}
-          <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto mb-6">
-            <TabsList className="inline-flex w-auto">
-              {TABS.map(({ value, label, icon: Icon }) => (
-                <TabsTrigger key={value} value={value} className="whitespace-nowrap">
-                  <Icon className="h-4 w-4 mr-1.5" />{label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
-          {/* ── Calendar: the whole studio, and where she adds classes ── */}
-          <TabsContent value="calendar" className="mt-0">
-            {teacher && (
-              <TeacherSchedule
-                teacherName={teacher.display_name}
-                onStudents={(s) => openAttendees(s)}
-              />
-            )}
-          </TabsContent>
-
-          {/* ── My classes: her month, and what it costs her ── */}
-          <TabsContent value="classes" className="mt-0">
-            <div className="flex items-center gap-2 mb-6 flex-wrap">
-              <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-              <h2 className="font-heading text-lg font-semibold min-w-[160px] text-center">{format(month, "MMMM yyyy")}</h2>
-              <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
-              {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Side rail. On a phone it lies down and scrolls sideways instead. */}
+          <nav className="lg:w-52 shrink-0">
+            <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0">
+              {TABS.map(({ value, label, icon: Icon }) => {
+                const active = tab === value;
+                return (
+                  <button
+                    key={value}
+                    onClick={() => setTab(value)}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "relative flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm whitespace-nowrap",
+                      "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="teacher-tab-pill"
+                        className="absolute inset-0 rounded-xl border border-spa-sage/40 bg-spa-sage/10"
+                        transition={reduceMotion
+                          ? { duration: 0 }
+                          : { type: "spring", stiffness: 420, damping: 34 }}
+                      />
+                    )}
+                    <Icon className={cn("relative h-4 w-4 shrink-0", active && "text-spa-sage")} />
+                    <span className="relative font-medium">{label}</span>
+                  </button>
+                );
+              })}
             </div>
+          </nav>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              <Stat icon={CalendarDays} label="Classes given" value={String(stats.given)} sub="this month" />
-              <Stat icon={CalendarDays} label="Upcoming" value={String(stats.upcoming)} sub="still to come" />
-              <Stat icon={Users} label="Students" value={String(stats.students)} sub="signed up" />
-              <Stat icon={Wallet} label="Studio rent" value={usd(stats.owed)} sub={`${stats.given} x ${usd(stats.rate)}`} accent />
-            </div>
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={tab}
+                initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -6 }}
+                transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+              >
+                {/* ── Calendar: the whole studio, and where she adds classes ── */}
+                {tab === "calendar" && teacher && (
+                  <TeacherSchedule
+                    teacherName={teacher.display_name}
+                    onStudents={(s) => openAttendees(s)}
+                    onChanged={load}
+                  />
+                )}
 
-            <Card className="p-4">
-              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Your classes ({sessions.length})
-              </h3>
-              {loading ? (
-                <div className="py-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
-              ) : sessions.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No classes assigned to you this month.</p>
-              ) : (
-                <div className="space-y-2">
-                  {sessions.map((s) => {
-                    const past = parseISO(s.start_time) < new Date();
-                    const n = counts[s.id] ?? 0;
-                    return (
-                      <div key={s.id} className={cn(
-                        "flex items-center justify-between gap-3 rounded-xl border border-border p-3",
-                        s.is_cancelled && "opacity-60",
-                      )}>
-                        <div className="min-w-0">
-                          <p className="font-body text-sm font-medium text-foreground truncate">
-                            {s.classes?.title ?? "Class"}
-                            {s.is_cancelled && <span className="ml-2 text-xs text-destructive">(Cancelled)</span>}
-                          </p>
-                          <p className="font-body text-xs text-muted-foreground">
-                            {formatSpaDate(s.start_time)} · {formatSpaTime(s.start_time)}
-                            {past && !s.is_cancelled && <span className="ml-2 text-spa-sage">· given</span>}
+                {/* ── My classes: her month, what it costs her, and editing ── */}
+                {tab === "classes" && (
+                  <>
+                    <div className="flex items-center gap-2 mb-6 flex-wrap">
+                      <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+                      <h2 className="font-heading text-lg font-semibold min-w-[160px] text-center">{format(month, "MMMM yyyy")}</h2>
+                      <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
+                      {!isSameMonth(month, new Date()) && <Button variant="ghost" size="sm" onClick={() => setMonth(new Date())}>This month</Button>}
+                      <Button size="sm" className="ml-auto"
+                        onClick={() => { setEditingSession(null); setClassFormOpen(true); }}>
+                        <Plus className="h-4 w-4 mr-1" /> Add a class
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                      <Stat icon={CalendarDays} label="Classes given" value={String(stats.given)} sub="this month" />
+                      <Stat icon={CalendarDays} label="Upcoming" value={String(stats.upcoming)} sub="still to come" />
+                      <Stat icon={Users} label="Students" value={String(stats.students)} sub="signed up" />
+                      <Stat icon={Wallet} label="Studio rent due" value={usd(stats.owed)}
+                        sub={`${stats.given} × ${usd(stats.rate)}`} accent />
+                    </div>
+
+                    {/* What she owes vs. what Holis has recorded receiving. */}
+                    <Card className="p-4 mb-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <HandCoins className="h-4 w-4 text-muted-foreground" />
+                          <p className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                            Studio rent — {format(month, "MMMM")}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-body text-xs text-muted-foreground whitespace-nowrap">
-                            <Users className="h-3 w-3 inline mr-1" />{n}
+                        <div className="flex flex-wrap gap-5 text-sm">
+                          <span className="text-muted-foreground">Due now <strong className="text-foreground">{usd(stats.owed)}</strong></span>
+                          <span className="text-muted-foreground">Paid <strong className="text-foreground">{usd(stats.paid)}</strong></span>
+                          <span className="text-muted-foreground">
+                            {stats.balance > 0 ? "You still owe" : stats.balance < 0 ? "Paid ahead" : "Balance"}{" "}
+                            <strong className={cn(stats.balance > 0 ? "text-foreground" : "text-emerald-600 dark:text-emerald-400")}>
+                              {usd(Math.abs(stats.balance))}
+                            </strong>
                           </span>
-                          <Button variant="outline" size="sm" onClick={() => openAttendees(s)}>Students</Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={cn("h-8 w-8", !s.is_cancelled && "text-destructive")}
-                            title={s.is_cancelled ? "Put this class back on the schedule" : "Cancel this class"}
-                            disabled={cancelling === s.id}
-                            onClick={() => setCancelled(s, !s.is_cancelled)}
-                          >
-                            {cancelling === s.id ? <Loader2 className="h-4 w-4 animate-spin" />
-                              : s.is_cancelled ? <Undo2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-                          </Button>
+                          <span className="text-muted-foreground">By month end <strong className="text-foreground">{usd(stats.expected)}</strong></span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-          </TabsContent>
+                      {payments.length > 0 && (
+                        <div className="mt-3 border-t border-border pt-2 space-y-1">
+                          {payments.map((p) => (
+                            <p key={p.id} className="font-body text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">{usd(Number(p.amount))}</span>
+                              {" · "}{p.paid_on}{p.method ? ` · ${p.method}` : ""}{p.note ? ` · ${p.note}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      <p className="font-body text-[11px] text-muted-foreground mt-2">
+                        Rent counts only classes already given, so this grows through the month. Payments are
+                        recorded by Holis when you settle up.
+                      </p>
+                    </Card>
 
-          {/* ── Students ── */}
-          <TabsContent value="students" className="mt-0">
-            <TeacherStudents />
-          </TabsContent>
+                    <Card className="p-4">
+                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                        Your classes ({sessions.length})
+                      </h3>
+                      {loading ? (
+                        <div className="py-10 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+                      ) : sessions.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">No classes assigned to you this month.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {sessions.map((s) => {
+                            const past = parseISO(s.start_time) < new Date();
+                            const n = counts[s.id] ?? 0;
+                            return (
+                              <div key={s.id} className={cn(
+                                "flex items-center justify-between gap-3 rounded-xl border border-border p-3",
+                                s.is_cancelled && "opacity-60",
+                              )}>
+                                <div className="min-w-0">
+                                  <p className="font-body text-sm font-medium text-foreground truncate">
+                                    {s.classes?.title ?? "Class"}
+                                    {s.is_cancelled && <span className="ml-2 text-xs text-destructive">(Cancelled)</span>}
+                                  </p>
+                                  <p className="font-body text-xs text-muted-foreground">
+                                    {formatSpaDate(s.start_time)} · {formatSpaTime(s.start_time)}
+                                    {past && !s.is_cancelled && <span className="ml-2 text-spa-sage">· given</span>}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="font-body text-xs text-muted-foreground whitespace-nowrap mr-1">
+                                    <Users className="h-3 w-3 inline mr-1" />{n}
+                                  </span>
+                                  <Button variant="outline" size="sm" onClick={() => openAttendees(s)}>Students</Button>
+                                  <Button variant="ghost" size="sm"
+                                    onClick={() => { setEditingSession(s); setClassFormOpen(true); }}>
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn("h-8 w-8", !s.is_cancelled && "text-destructive")}
+                                    title={s.is_cancelled ? "Put this class back on the schedule" : "Cancel this class"}
+                                    disabled={cancelling === s.id}
+                                    onClick={() => setCancelled(s, !s.is_cancelled)}
+                                  >
+                                    {cancelling === s.id ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : s.is_cancelled ? <Undo2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  </>
+                )}
 
-          {/* ── Notebook ── */}
-          <TabsContent value="notes" className="mt-0">
-            {teacher && <TeacherNotes teacherId={teacher.id} />}
-          </TabsContent>
+                {tab === "students" && <TeacherStudents />}
 
-          {/* ── Coupons ── */}
-          <TabsContent value="coupons" className="mt-0">
-            <Card className="p-4">
-              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-                <Ticket className="h-4 w-4" /> Your coupons
-              </h3>
-              <p className="font-body text-xs text-muted-foreground mb-3">
-                A record of a price you agreed with a student — you apply it when they pay you.
-                These never change what Holis charges. The passes and memberships your students
-                already hold are shown beside their name under{" "}
-                <button className="underline" onClick={() => setTab("students")}>Students</button>.
-              </p>
+                {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}
 
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
-                <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
-                  onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
-                <select value={newCoupon.type}
-                  onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-                  <option value="percentage">% off</option>
-                  <option value="fixed">$ off</option>
-                </select>
-                <Input type="number" placeholder={newCoupon.type === "percentage" ? "20" : "5"}
-                  value={newCoupon.value}
-                  onChange={(e) => setNewCoupon({ ...newCoupon, value: e.target.value })} className="h-9 w-24" />
-                <Button size="sm" className="h-9" onClick={addCoupon} disabled={savingCoupon}>
-                  {savingCoupon ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
-                </Button>
-              </div>
-              <Input placeholder="What it is for (optional)" value={newCoupon.description}
-                onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })} className="h-9 mb-4" />
+                {tab === "memberships" && teacher && <TeacherMemberships teacherId={teacher.id} />}
 
-              {coupons.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">No coupons yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {coupons.map((c) => (
-                    <div key={c.id} className={cn("flex items-center justify-between gap-3 rounded-lg border border-border p-3", !c.is_active && "opacity-60")}>
-                      <div className="min-w-0">
-                        <p className="font-body text-sm font-semibold text-foreground">
-                          {c.code}
-                          <span className="ml-2 font-normal text-muted-foreground">
-                            {c.discount_type === "percentage" ? `${c.discount_value}% off` : `${usd(Number(c.discount_value))} off`}
-                          </span>
-                        </p>
-                        {c.description && <p className="font-body text-xs text-muted-foreground truncate">{c.description}</p>}
+                {/* ── Coupons ── */}
+                {tab === "coupons" && (
+                  <Card className="p-4">
+                    <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                      <Ticket className="h-4 w-4" /> Your coupons
+                    </h3>
+                    <p className="font-body text-xs text-muted-foreground mb-3">
+                      A record of a price you agreed with a student — you apply it when they pay you.
+                      These never change what Holis charges, and they are yours alone.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
+                      <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
+                        onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
+                      <select value={newCoupon.type}
+                        onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}
+                        className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                        <option value="percentage">% off</option>
+                        <option value="fixed">$ off</option>
+                      </select>
+                      <Input type="number" placeholder={newCoupon.type === "percentage" ? "20" : "5"}
+                        value={newCoupon.value}
+                        onChange={(e) => setNewCoupon({ ...newCoupon, value: e.target.value })} className="h-9 w-24" />
+                      <Button size="sm" className="h-9" onClick={addCoupon} disabled={savingCoupon}>
+                        {savingCoupon ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
+                      </Button>
+                    </div>
+                    <Input placeholder="What it is for (optional)" value={newCoupon.description}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })} className="h-9 mb-4" />
+
+                    {coupons.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">No coupons yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {coupons.map((c) => (
+                          <div key={c.id} className={cn("flex items-center justify-between gap-3 rounded-lg border border-border p-3", !c.is_active && "opacity-60")}>
+                            <div className="min-w-0">
+                              <p className="font-body text-sm font-semibold text-foreground">
+                                {c.code}
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  {c.discount_type === "percentage" ? `${c.discount_value}% off` : `${usd(Number(c.discount_value))} off`}
+                                </span>
+                              </p>
+                              {c.description && <p className="font-body text-xs text-muted-foreground truncate">{c.description}</p>}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button onClick={() => toggleCoupon(c)}
+                                className={cn("text-xs px-2 py-1 rounded-full font-medium",
+                                  c.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                                {c.is_active ? "Active" : "Off"}
+                              </button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteCoupon(c)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => toggleCoupon(c)}
-                          className={cn("text-xs px-2 py-1 rounded-full font-medium",
-                            c.is_active ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
-                          {c.is_active ? "Active" : "Off"}
-                        </button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteCoupon(c)}>
-                          <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Card>
+                )}
+
+                {/* ── Settings ── */}
+                {tab === "settings" && (
+                  <div className="space-y-4">
+                    <Card className="p-4">
+                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                        <SettingsIcon className="h-4 w-4" /> Your details
+                      </h3>
+                      <p className="font-body text-xs text-muted-foreground mb-3">
+                        Your name is what students see on the schedule. Changing it moves your classes with it.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                        <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Your name" />
+                        <Button size="sm" onClick={saveName}
+                          disabled={savingName || !nameDraft.trim() || nameDraft.trim() === teacher?.display_name}>
+                          {savingName ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
                         </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </TabsContent>
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <ReadOnly label="Email" value={teacher?.email ?? "—"} note="Ask Holis to change this" />
+                        <ReadOnly label="Studio rent per class" value={usd(Number(teacher?.studio_rate ?? 35))} note="Set by Holis" />
+                      </div>
+                    </Card>
 
-          {/* ── Settings ── */}
-          <TabsContent value="settings" className="mt-0 space-y-4">
-            <Card className="p-4">
-              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-                <SettingsIcon className="h-4 w-4" /> Your details
-              </h3>
-              <p className="font-body text-xs text-muted-foreground mb-3">
-                Your name is what students see on the schedule. Changing it moves your classes with it.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-                <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Your name" />
-                <Button size="sm" onClick={saveName}
-                  disabled={savingName || !nameDraft.trim() || nameDraft.trim() === teacher?.display_name}>
-                  {savingName ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
-                </Button>
-              </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <ReadOnly label="Email" value={teacher?.email ?? "—"} note="Ask Holis to change this" />
-                <ReadOnly label="Studio rent per class" value={usd(Number(teacher?.studio_rate ?? 35))} note="Set by Holis" />
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-                <CreditCard className="h-4 w-4" /> How your students pay you
-              </h3>
-              <p className="font-body text-xs text-muted-foreground mb-3">
-                Shown to students when they reserve a spot. Holis does not process this money — they pay you directly.
-              </p>
-              <Textarea
-                value={payDraft}
-                onChange={(e) => setPayDraft(e.target.value)}
-                rows={3}
-                placeholder="e.g. SINPE Movil 8888-8888 · or cash at the studio"
-              />
-              <div className="mt-3 flex justify-end">
-                <Button size="sm" onClick={savePayment} disabled={savingPay || payDraft === (teacher?.payment_instructions ?? "")}>
-                  {savingPay ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
-                </Button>
-              </div>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    <Card className="p-4">
+                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" /> How your students pay you
+                      </h3>
+                      <p className="font-body text-xs text-muted-foreground mb-3">
+                        Shown to students when they reserve a spot. Holis does not process this money — they pay you directly.
+                      </p>
+                      <Textarea
+                        value={payDraft}
+                        onChange={(e) => setPayDraft(e.target.value)}
+                        rows={3}
+                        placeholder="e.g. SINPE Movil 8888-8888 · or cash at the studio"
+                      />
+                      <div className="mt-3 flex justify-end">
+                        <Button size="sm" onClick={savePayment} disabled={savingPay || payDraft === (teacher?.payment_instructions ?? "")}>
+                          {savingPay ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
+                        </Button>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
+
+      {/* Add / edit one of her classes, from the list */}
+      {teacher && (
+        <ClassFormDialog
+          open={classFormOpen}
+          onOpenChange={setClassFormOpen}
+          teacherName={teacher.display_name}
+          session={editingSession}
+          onSaved={load}
+        />
+      )}
 
       {/* Attendees */}
       <Dialog open={!!openSession} onOpenChange={(o) => { if (!o) { setOpenSession(null); setAttendees([]); } }}>

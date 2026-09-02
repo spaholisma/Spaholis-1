@@ -2,18 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2 } from "lucide-react";
 import {
-  ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Save, AlertTriangle,
-} from "lucide-react";
-import {
-  format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay, parseISO,
+  format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay,
 } from "date-fns";
 import { formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/teacher/useConfirm";
+import { useConfirm } from "@/hooks/useConfirm";
+import { ClassFormDialog, utcToCr } from "@/components/teacher/ClassFormDialog";
 
 const sb = supabase as any;
 
@@ -23,31 +20,13 @@ export interface SchedSession {
   classes: { title: string | null; instructor: string | null; max_capacity: number | null;
              location: string | null; duration_minutes: number | null } | null;
 }
-interface ClassType {
-  id: string; title: string | null; duration_minutes: number | null;
-  max_capacity: number | null; is_active: boolean | null;
-}
 
 export const teacherOf = (s: SchedSession) =>
   (s.instructor?.trim() || s.classes?.instructor?.trim() || "").toLowerCase();
 
-/** Costa Rica is UTC-6 all year, so local wall-clock maths needs no DST care. */
-const CR_OFFSET_MIN = -360;
-/** "2026-09-04" + "17:30" (studio time) -> the matching UTC instant. */
-function crToUtc(day: string, time: string): string | null {
-  if (!day || !time) return null;
-  const [y, m, d] = day.split("-").map(Number);
-  const [hh, mm] = time.split(":").map(Number);
-  if ([y, m, d, hh, mm].some((n) => !Number.isFinite(n))) return null;
-  return new Date(Date.UTC(y, m - 1, d, hh, mm) - CR_OFFSET_MIN * 60000).toISOString();
-}
-/** The studio-time date and time of an instant, for filling the form back in. */
-function utcToCr(iso: string): { day: string; time: string } {
-  const d = new Date(new Date(iso).getTime() + CR_OFFSET_MIN * 60000);
-  return { day: d.toISOString().slice(0, 10), time: d.toISOString().slice(11, 16) };
-}
-
-const blankForm = () => ({ id: "", class_id: "", instructor: "", day: "", start: "", minutes: "60" });
+export const SESSION_SELECT =
+  "id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, " +
+  "classes(title, instructor, max_capacity, location, duration_minutes)";
 
 /**
  * The whole studio's week, not just hers.
@@ -57,30 +36,30 @@ const blankForm = () => ({ id: "", class_id: "", instructor: "", day: "", start:
  * classes she teaches; the rest are there to be looked at.
  */
 export function TeacherSchedule({
-  teacherName, onStudents,
+  teacherName, onStudents, onChanged,
 }: {
   teacherName: string;
   onStudents: (s: SchedSession) => void;
+  onChanged?: () => void;
 }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [sessions, setSessions] = useState<SchedSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [classTypes, setClassTypes] = useState<ClassType[]>([]);
-  const [colleagues, setColleagues] = useState<string[]>([]);
-  const [form, setForm] = useState(blankForm());
-  const [formOpen, setFormOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<SchedSession | null>(null);
+  const [formDay, setFormDay] = useState<string | undefined>();
   const { confirm, confirmDialog } = useConfirm();
 
   const mine = (s: SchedSession) => teacherOf(s) === teacherName.trim().toLowerCase();
 
   const load = useCallback(async () => {
     setLoading(true);
-    const from = format(weekStart, "yyyy-MM-dd");
-    const to = format(endOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
-    const { data } = await sb.from("class_schedule")
-      .select("id, class_id, start_time, end_time, spots_remaining, is_cancelled, instructor, classes(title, instructor, max_capacity, location, duration_minutes)")
+    // A day either side: the studio is six hours behind UTC, so Sunday
+    // evening here is already Monday in UTC.
+    const from = format(addDays(weekStart, -1), "yyyy-MM-dd");
+    const to = format(addDays(endOfWeek(weekStart, { weekStartsOn: 1 }), 1), "yyyy-MM-dd");
+    const { data } = await sb.from("class_schedule").select(SESSION_SELECT)
       .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
       .order("start_time");
     setSessions(((data ?? []) as SchedSession[]));
@@ -88,91 +67,17 @@ export function TeacherSchedule({
   }, [weekStart]);
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    // Teachers see the whole catalogue, including class types Holis keeps off
-    // the website — a trial class still has to be schedulable.
-    sb.from("classes").select("id, title, duration_minutes, max_capacity, is_active")
-      .order("title")
-      .then(({ data }: any) => setClassTypes((data ?? []) as ClassType[]));
-    sb.rpc("list_active_teachers").then(({ data }: any) =>
-      setColleagues(((data ?? []) as any[]).map((t) => t.display_name)));
-  }, []);
-
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
 
-  /** Anything already booked into the same hour, so she does not double-book the studio. */
-  const clash = useMemo(() => {
-    const startIso = crToUtc(form.day, form.start);
-    if (!startIso) return null;
-    const s = new Date(startIso).getTime();
-    const e = s + (Number(form.minutes) || 60) * 60000;
-    return sessions.find((x) => {
-      if (x.id === form.id || x.is_cancelled) return false;
-      const xs = new Date(x.start_time).getTime();
-      const xe = new Date(x.end_time).getTime();
-      return s < xe && xs < e;
-    }) ?? null;
-  }, [sessions, form]);
-
   const openNew = (day?: Date) => {
-    const t = classTypes[0];
-    setForm({
-      id: "",
-      class_id: t?.id ?? "",
-      instructor: teacherName,
-      day: format(day ?? new Date(), "yyyy-MM-dd"),
-      start: "09:00",
-      minutes: String(t?.duration_minutes ?? 60),
-    });
+    setEditing(null);
+    setFormDay(day ? format(day, "yyyy-MM-dd") : undefined);
     setFormOpen(true);
   };
-
-  const openEdit = (s: SchedSession) => {
-    const { day, time } = utcToCr(s.start_time);
-    const mins = Math.max(15, Math.round(
-      (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 60000));
-    setForm({
-      id: s.id, class_id: s.class_id, instructor: s.instructor?.trim() || s.classes?.instructor?.trim() || teacherName,
-      day, start: time, minutes: String(mins),
-    });
-    setFormOpen(true);
-  };
-
-  const save = async () => {
-    const startIso = crToUtc(form.day, form.start);
-    if (!form.class_id || !startIso) { toast.error("Pick a class, a day and a time"); return; }
-    if (clash && !(await confirm({
-      title: "That slot is taken",
-      description:
-        `${clash.classes?.title ?? "Another class"} is already on at ` +
-        `${formatSpaTime(clash.start_time)} with ` +
-        `${clash.instructor?.trim() || clash.classes?.instructor?.trim() || "no teacher"}.`,
-      confirmLabel: "Add mine anyway",
-    }))) return;
-
-    const endIso = new Date(new Date(startIso).getTime() + (Number(form.minutes) || 60) * 60000).toISOString();
-    setSaving(true);
-    const payload = {
-      class_id: form.class_id,
-      start_time: startIso,
-      end_time: endIso,
-      instructor: form.instructor.trim(),
-    };
-    const { error } = form.id
-      ? await sb.from("class_schedule").update(payload).eq("id", form.id)
-      // spots_remaining is set from the class capacity by a database trigger.
-      : await sb.from("class_schedule").insert({ ...payload, spots_remaining: 0, is_cancelled: false });
-    if (error) toast.error(error.message);
-    else {
-      toast.success(form.id ? "Class updated" : "Class added");
-      setFormOpen(false);
-      load();
-    }
-    setSaving(false);
-  };
+  const openEdit = (s: SchedSession) => { setEditing(s); setFormOpen(true); };
 
   const setCancelled = async (s: SchedSession, cancel: boolean) => {
     if (!(await confirm({
@@ -186,7 +91,7 @@ export function TeacherSchedule({
     setBusyId(s.id);
     const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
     if (error) toast.error(error.message);
-    else { toast.success(cancel ? "Class cancelled" : "Class is back on"); load(); }
+    else { toast.success(cancel ? "Class cancelled" : "Class is back on"); load(); onChanged?.(); }
     setBusyId(null);
   };
 
@@ -220,7 +125,7 @@ export function TeacherSchedule({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
           {days.map((d) => {
-            const list = sessions.filter((s) => isSameDay(parseISO(s.start_time), d));
+            const list = sessions.filter((s) => utcToCr(s.start_time).day === format(d, "yyyy-MM-dd"));
             const today = isSameDay(d, new Date());
             return (
               <div key={d.toISOString()} className={cn(
@@ -293,94 +198,14 @@ export function TeacherSchedule({
         </div>
       )}
 
-      {/* Add / edit a class */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{form.id ? "Edit class" : "Add a class"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <label className="font-body text-xs text-muted-foreground">Class</label>
-              <select
-                value={form.class_id}
-                onChange={(e) => {
-                  const t = classTypes.find((c) => c.id === e.target.value);
-                  setForm({
-                    ...form, class_id: e.target.value,
-                    minutes: form.id ? form.minutes : String(t?.duration_minutes ?? 60),
-                  });
-                }}
-                disabled={!!form.id}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-60"
-              >
-                {classTypes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}{c.is_active === false ? " (not on the website)" : ""}
-                  </option>
-                ))}
-              </select>
-              {form.id && (
-                <p className="font-body text-[11px] text-muted-foreground mt-1">
-                  To run a different class, cancel this one and add it. Ask Holis for a brand new class type.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="font-body text-xs text-muted-foreground">Teacher</label>
-              <select value={form.instructor}
-                onChange={(e) => setForm({ ...form, instructor: e.target.value })}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
-                {(colleagues.length ? colleagues : [teacherName]).map((t) => (
-                  <option key={t} value={t}>{t}{t === teacherName ? " (you)" : ""}</option>
-                ))}
-              </select>
-              <p className="font-body text-[11px] text-muted-foreground mt-1">
-                Whoever is named here teaches the class — and is the one Holis charges the studio rent to.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <label className="font-body text-xs text-muted-foreground">Day</label>
-                <Input type="date" value={form.day} className="h-9"
-                  onChange={(e) => setForm({ ...form, day: e.target.value })} />
-              </div>
-              <div>
-                <label className="font-body text-xs text-muted-foreground">Time</label>
-                <Input type="time" value={form.start} className="h-9"
-                  onChange={(e) => setForm({ ...form, start: e.target.value })} />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-body text-xs text-muted-foreground">Length (minutes)</label>
-              <Input type="number" min={15} step={15} value={form.minutes} className="h-9"
-                onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
-            </div>
-
-            {clash && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                <p className="font-body text-xs text-amber-800 dark:text-amber-400">
-                  <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                  <strong>{clash.classes?.title ?? "Another class"}</strong> is already on at{" "}
-                  {formatSpaTime(clash.start_time)} with{" "}
-                  {clash.instructor?.trim() || clash.classes?.instructor?.trim() || "no teacher"}.
-                </p>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" size="sm" onClick={() => setFormOpen(false)} disabled={saving}>Cancel</Button>
-              <Button size="sm" onClick={save} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                {form.id ? "Save changes" : "Add class"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ClassFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        teacherName={teacherName}
+        session={editing}
+        defaultDay={formDay}
+        onSaved={() => { load(); onChanged?.(); }}
+      />
       {confirmDialog}
     </Card>
   );

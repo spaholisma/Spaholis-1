@@ -57,6 +57,17 @@ export function spaLocalToInstant(
   return new Date(Date.UTC(year, month0, day, hour, minute, 0, 0) - SPA_UTC_OFFSET_MIN * 60_000);
 }
 
+/**
+ * The month a moment falls in, in studio time: "2026-09".
+ *
+ * Bucketing by the UTC timestamp puts an 8pm class on the last day of the
+ * month into the next one, which would bill it to the wrong month.
+ */
+export function spaMonthKey(d: Date | string | number): string {
+  const p = spaLocalParts(new Date(d));
+  return `${p.year}-${String(p.month0 + 1).padStart(2, "0")}`;
+}
+
 export type BusinessHours = {
   startHour: number;
   startMinute: number;
