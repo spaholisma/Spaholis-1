@@ -41,7 +41,7 @@ interface ClassOption {
  * class you want it for — that names the teacher — and then shows how to pay
  * her. The request lands in her panel so she knows who to expect.
  */
-export function PassChooser() {
+export function PassChooser({ compact = false }: { compact?: boolean }) {
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [teacherPasses, setTeacherPasses] = useState<TeacherPass[]>([]);
@@ -155,7 +155,7 @@ export function PassChooser() {
 
   return (
     <>
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+      <div className={cn("grid gap-5", !compact && "md:grid-cols-2 lg:grid-cols-3")}>
         {offerings.map((o, i) => (
           <motion.div
             key={o.id}
@@ -163,7 +163,7 @@ export function PassChooser() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: Math.min(i * 0.06, 0.3), ease: "easeOut" }}
           >
-            <Card className="flex h-full flex-col p-5">
+            <Card className={cn("flex h-full flex-col", compact ? "p-4" : "p-5")}>
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-heading text-lg font-medium text-foreground">{o.name}</h3>
                 {o.is_unlimited && (
@@ -193,10 +193,12 @@ export function PassChooser() {
         ))}
       </div>
 
-      <p className="spa-body-sm text-center mt-8 max-w-2xl mx-auto">
-        These are the usual studio prices. Every pass is with a teacher and paid to her directly —
-        pick one and we will show you who teaches what, and how to pay her.
-      </p>
+      {!compact && (
+        <p className="spa-body-sm text-center mt-8 max-w-2xl mx-auto">
+          These are the usual studio prices. Every pass is with a teacher and paid to her directly —
+          pick one and we will show you who teaches what, and how to pay her.
+        </p>
+      )}
 
       <Dialog open={!!picked} onOpenChange={(o) => !o && setPicked(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">

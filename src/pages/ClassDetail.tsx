@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RichText } from "@/components/ui/rich-text";
 import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
+import { PassChooser } from "@/components/PassChooser";
 import { Loader2, ArrowLeft, MapPin, Clock, CalendarDays, Ticket } from "lucide-react";
 import { formatSpaDate, formatSpaTime, spaLocalParts } from "@/lib/businessHours";
 import { localizeRow } from "@/lib/localizeRow";
@@ -248,42 +249,49 @@ export default function ClassDetail() {
                         <Ticket className="h-3.5 w-3.5" />
                         Passes with {teacherName.split(/\s+/)[0]}
                       </p>
-                      <ul className="space-y-2">
+                      {/* A card each, so the price and what you get are read at a
+                          glance instead of hunted for on another page. */}
+                      <div className="space-y-2">
                         {passes.map((p) => (
-                          <li key={p.membership_id} className="flex items-center justify-between gap-3">
-                            <span className="min-w-0">
-                              <span className="font-body text-sm text-foreground">{p.membership_name}</span>
-                              <span className="block font-body text-[11px] text-muted-foreground">
-                                {p.classes_included == null
-                                  ? "unlimited"
-                                  : `${p.classes_included} class${p.classes_included === 1 ? "" : "es"}`}
-                                {p.valid_days != null && ` · ${p.valid_days} days`}
-                              </span>
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0">
+                          <div key={p.membership_id} className="rounded-xl border border-border bg-card p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-heading text-sm font-medium text-foreground">{p.membership_name}</p>
+                                <p className="font-body text-[11px] text-muted-foreground">
+                                  {p.classes_included == null
+                                    ? "Unlimited classes"
+                                    : `${p.classes_included} class${p.classes_included === 1 ? "" : "es"}`}
+                                  {p.valid_days != null && ` · ${p.valid_days} days`}
+                                </p>
+                              </div>
                               {p.price != null && (
-                                <span className="font-heading text-sm font-semibold text-foreground">{usd(p.price)}</span>
+                                <p className="font-heading text-lg font-semibold text-foreground leading-none whitespace-nowrap">
+                                  {usd(p.price)}
+                                </p>
                               )}
-                              {teacher?.id && (
-                                <Button size="sm" variant="outline" className="h-7 rounded-full text-xs"
-                                  onClick={() => setPick({
-                                    teacherId: teacher.id,
-                                    teacherName: teacherName,
-                                    membershipId: p.membership_id,
-                                    membershipName: p.membership_name,
-                                    price: p.price,
-                                    paymentNote: p.payment_note ?? p.teacher_payment_instructions,
-                                    paymentLink: p.payment_link,
-                                    classId: cls.id,
-                                    classTitle: cls.title,
-                                  })}>
-                                  Get it
-                                </Button>
-                              )}
-                            </span>
-                          </li>
+                            </div>
+                            {p.description && (
+                              <p className="font-body text-[11px] text-muted-foreground mt-1">{p.description}</p>
+                            )}
+                            {teacher?.id && (
+                              <Button size="sm" variant="outline" className="w-full rounded-full mt-2"
+                                onClick={() => setPick({
+                                  teacherId: teacher.id,
+                                  teacherName: teacherName,
+                                  membershipId: p.membership_id,
+                                  membershipName: p.membership_name,
+                                  price: p.price,
+                                  paymentNote: p.payment_note ?? p.teacher_payment_instructions,
+                                  paymentLink: p.payment_link,
+                                  classId: cls.id,
+                                  classTitle: cls.title,
+                                })}>
+                                Get it
+                              </Button>
+                            )}
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                       {/* How she is paid: whatever she wrote on a pass wins, else her
                           general details. Holis never takes this money. */}
                       <p className="font-body text-[11px] text-muted-foreground mt-3 whitespace-pre-line">
@@ -308,21 +316,19 @@ export default function ClassDetail() {
               </motion.div>
             )}
 
-            {/* Only when nobody is named on the class: otherwise her own passes
-                above are the ones that apply. */}
+            {/* Nobody named on this class yet, so the studio's own prices go here
+                in full — picking one asks which teacher you want it with. */}
             {!teacherName && (
-            <Card className="p-5">
-              <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                <Ticket className="h-3.5 w-3.5" /> Passes & memberships
-              </p>
-              <p className="spa-body-sm mb-3">
-                Coming more than once? A class pass or a monthly works out cheaper than
-                paying per class, and it can be used in any class.
-              </p>
-              <Button variant="outline" size="sm" className="rounded-full" asChild>
-                <Link to="/memberships">See passes & memberships</Link>
-              </Button>
-            </Card>
+              <div>
+                <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Ticket className="h-3.5 w-3.5" /> Passes & memberships
+                </p>
+                <p className="spa-body-sm mb-3">
+                  Coming more than once? A pass works out cheaper than paying per class,
+                  and it can be used in any class.
+                </p>
+                <PassChooser compact />
+              </div>
             )}
           </aside>
         </div>
