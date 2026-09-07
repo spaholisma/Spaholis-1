@@ -7,6 +7,7 @@ import { RichText } from "@/components/ui/rich-text";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "@/hooks/useClasses";
+import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -15,10 +16,12 @@ const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 interface Pass {
-  teacher_name: string; membership_name: string; price: number | null;
+  membership_id: string; teacher_name: string; membership_name: string; price: number | null;
   classes_included: number | null; valid_days: number | null; description: string | null;
+  payment_link: string | null; payment_note: string | null;
+  teacher_payment_instructions: string | null;
 }
-interface TeacherRow { display_name: string; photo_url: string | null; bio: string | null }
+interface TeacherRow { id: string; display_name: string; photo_url: string | null; bio: string | null }
 interface ClassBlock {
   cls: ScheduleRow["classes"];
   bookable?: ScheduleRow;
@@ -34,6 +37,7 @@ interface Portfolio {
   /** True when the image is the teacher herself, not one of her classes. */
   portrait: boolean;
   bio: string | null;
+  teacherId: string | null;
   classes: ClassBlock[];
   passes: Pass[];
 }
@@ -78,6 +82,7 @@ const byClass = (rows: ScheduleRow[]) =>
  * are still being assigned to sessions.
  */
 export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
+  const [pick, setPick] = useState<PassPick | null>(null);
   const [passes, setPasses] = useState<Pass[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
 
@@ -111,6 +116,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
           image: row?.photo_url || classes.find((c) => c.cls.image_url)?.cls.image_url || null,
           portrait: !!row?.photo_url,
           bio: row?.bio ?? null,
+          teacherId: row?.id ?? null,
           classes,
           passes: passes.filter((p) => p.teacher_name.trim().toLowerCase() === key),
         };
@@ -128,6 +134,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
         image: block.cls.image_url || null,
         portrait: false,
         bio: null,
+        teacherId: null,
         classes: [block],
         passes: [],
       }));
@@ -252,19 +259,36 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                   Passes with {p.teacher.split(/\s+/)[0]}
                 </p>
-                <ul className="flex flex-wrap gap-1.5">
+                <ul className="space-y-1.5">
                   {p.passes.map((pass) => (
-                    <li
-                      key={`${pass.teacher_name}-${pass.membership_name}`}
-                      className="rounded-full border border-border bg-card px-3 py-1 font-body text-xs text-foreground"
-                      title={pass.description ?? undefined}
-                    >
-                      {pass.membership_name}
-                      {pass.price != null && <span className="ml-1.5 font-semibold">{usd(pass.price)}</span>}
-                      <span className="ml-1 text-muted-foreground">
-                        · {pass.classes_included == null
+                    <li key={pass.membership_id} className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="font-body text-sm text-foreground">{pass.membership_name}</span>
+                        <span className="block font-body text-[11px] text-muted-foreground">
+                          {pass.classes_included == null
                             ? "unlimited"
                             : `${pass.classes_included} class${pass.classes_included === 1 ? "" : "es"}`}
+                          {pass.valid_days != null && ` · ${pass.valid_days} days`}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        {pass.price != null && (
+                          <span className="font-heading text-sm font-semibold text-foreground">{usd(pass.price)}</span>
+                        )}
+                        {p.teacherId && (
+                          <Button size="sm" variant="outline" className="h-7 rounded-full text-xs"
+                            onClick={() => setPick({
+                              teacherId: p.teacherId!,
+                              teacherName: p.teacher,
+                              membershipId: pass.membership_id,
+                              membershipName: pass.membership_name,
+                              price: pass.price,
+                              paymentNote: pass.payment_note ?? pass.teacher_payment_instructions,
+                              paymentLink: pass.payment_link,
+                            })}>
+                            Get it
+                          </Button>
+                        )}
                       </span>
                     </li>
                   ))}
@@ -277,6 +301,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
           </motion.article>
         );
       })}
+      <PassRequestDialog pick={pick} onOpenChange={(o) => !o && setPick(null)} />
     </div>
   );
 }

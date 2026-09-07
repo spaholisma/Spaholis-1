@@ -8,7 +8,7 @@ import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RichText } from "@/components/ui/rich-text";
-import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
+import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
 import { Loader2, ArrowLeft, MapPin, Clock, CalendarDays, Ticket } from "lucide-react";
 import { formatSpaDate, formatSpaTime, spaLocalParts } from "@/lib/businessHours";
 import { localizeRow } from "@/lib/localizeRow";
@@ -30,9 +30,9 @@ interface Cls {
 interface Session {
   id: string; start_time: string; spots_remaining: number; instructor: string | null;
 }
-interface Teacher { display_name: string; photo_url: string | null; bio: string | null }
+interface Teacher { id: string; display_name: string; photo_url: string | null; bio: string | null }
 interface Pass {
-  teacher_name: string; membership_name: string; price: number | null;
+  membership_id: string; teacher_name: string; membership_name: string; price: number | null;
   classes_included: number | null; valid_days: number | null; description: string | null;
   payment_link: string | null; payment_note: string | null;
   teacher_payment_instructions: string | null;
@@ -56,6 +56,7 @@ export default function ClassDetail() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [passes, setPasses] = useState<Pass[]>([]);
+  const [pick, setPick] = useState<PassPick | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -247,23 +248,39 @@ export default function ClassDetail() {
                         <Ticket className="h-3.5 w-3.5" />
                         Passes with {teacherName.split(/\s+/)[0]}
                       </p>
-                      <ul className="space-y-1.5">
+                      <ul className="space-y-2">
                         {passes.map((p) => (
-                          <li key={p.membership_name} className="flex items-baseline justify-between gap-3">
-                            <span className="font-body text-sm text-foreground">
-                              {p.membership_name}
-                              <span className="ml-1.5 text-xs text-muted-foreground">
+                          <li key={p.membership_id} className="flex items-center justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="font-body text-sm text-foreground">{p.membership_name}</span>
+                              <span className="block font-body text-[11px] text-muted-foreground">
                                 {p.classes_included == null
                                   ? "unlimited"
                                   : `${p.classes_included} class${p.classes_included === 1 ? "" : "es"}`}
                                 {p.valid_days != null && ` · ${p.valid_days} days`}
                               </span>
                             </span>
-                            {p.price != null && (
-                              <span className="font-heading text-sm font-semibold text-foreground whitespace-nowrap">
-                                {usd(p.price)}
-                              </span>
-                            )}
+                            <span className="flex items-center gap-2 shrink-0">
+                              {p.price != null && (
+                                <span className="font-heading text-sm font-semibold text-foreground">{usd(p.price)}</span>
+                              )}
+                              {teacher?.id && (
+                                <Button size="sm" variant="outline" className="h-7 rounded-full text-xs"
+                                  onClick={() => setPick({
+                                    teacherId: teacher.id,
+                                    teacherName: teacherName,
+                                    membershipId: p.membership_id,
+                                    membershipName: p.membership_name,
+                                    price: p.price,
+                                    paymentNote: p.payment_note ?? p.teacher_payment_instructions,
+                                    paymentLink: p.payment_link,
+                                    classId: cls.id,
+                                    classTitle: cls.title,
+                                  })}>
+                                  Get it
+                                </Button>
+                              )}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -291,8 +308,9 @@ export default function ClassDetail() {
               </motion.div>
             )}
 
-            {/* The studio's passes work in every class and are the same whoever
-                teaches, so they are named once here and bought on their own page. */}
+            {/* Only when nobody is named on the class: otherwise her own passes
+                above are the ones that apply. */}
+            {!teacherName && (
             <Card className="p-5">
               <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Ticket className="h-3.5 w-3.5" /> Passes & memberships
@@ -305,6 +323,7 @@ export default function ClassDetail() {
                 <Link to="/memberships">See passes & memberships</Link>
               </Button>
             </Card>
+            )}
           </aside>
         </div>
       </div>
@@ -337,6 +356,7 @@ export default function ClassDetail() {
         </div>
       </div>
 
+      <PassRequestDialog pick={pick} onOpenChange={(o) => !o && setPick(null)} />
       <Footer />
     </div>
   );

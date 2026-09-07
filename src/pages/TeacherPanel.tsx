@@ -32,6 +32,7 @@ import { ClassFormDialog } from "@/components/teacher/ClassFormDialog";
 import { TeacherProfileCard } from "@/components/teacher/TeacherProfileCard";
 import { TeacherMonthRecord } from "@/components/teacher/TeacherMonthRecord";
 import { TeacherPassRequests } from "@/components/teacher/TeacherPassRequests";
+import { TeacherMembers } from "@/components/teacher/TeacherMembers";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -639,7 +640,12 @@ export default function TeacherPanel() {
 
                 {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}
 
-                {tab === "memberships" && teacher && <TeacherMemberships teacherId={teacher.id} />}
+                {tab === "memberships" && teacher && (
+                  <div className="space-y-4">
+                    <TeacherMemberships teacherId={teacher.id} />
+                    <TeacherMembers teacherId={teacher.id} teacherName={teacher.display_name} />
+                  </div>
+                )}
 
                 {/* ── Coupons ── */}
                 {tab === "coupons" && (
