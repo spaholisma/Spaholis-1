@@ -250,8 +250,10 @@ export default function ClassDetail() {
                         Passes with {teacherName.split(/\s+/)[0]}
                       </p>
                       {/* A card each, so the price and what you get are read at a
-                          glance instead of hunted for on another page. */}
-                      <div className="space-y-2">
+                          glance instead of hunted for on another page. The list
+                          scrolls inside itself: a teacher with eight passes should
+                          not push everything below her off the screen. */}
+                      <div className="max-h-[22rem] overflow-y-auto space-y-2 pr-1 -mr-1">
                         {passes.map((p) => (
                           <div key={p.membership_id} className="rounded-xl border border-border bg-card p-3">
                             <div className="flex items-start justify-between gap-2">
@@ -327,10 +329,12 @@ export default function ClassDetail() {
                   Coming more than once? A pass works out cheaper than paying per class,
                   and it can be used in any class.
                 </p>
-                <PassChooser
-                  compact
-                  forClass={{ class_id: cls.id, title: cls.title, teacher: teacherName, when }}
-                />
+                <div className="max-h-[26rem] overflow-y-auto pr-1 -mr-1">
+                  <PassChooser
+                    compact
+                    forClass={{ class_id: cls.id, title: cls.title, teacher: teacherName, when }}
+                  />
+                </div>
               </div>
             )}
           </aside>
