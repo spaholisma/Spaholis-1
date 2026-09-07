@@ -634,7 +634,11 @@ export default function TeacherPanel() {
                     {/* Whoever asked for a pass with her comes first: they are
                         waiting on her, not the other way round. */}
                     {teacher && <TeacherPassRequests teacherId={teacher.id} />}
-                    <TeacherStudents />
+                    <TeacherStudents
+                      teacherId={teacher!.id}
+                      teacherName={teacher!.display_name}
+                      clientTypes={clientTypes}
+                    />
                   </>
                 )}
 
