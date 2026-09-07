@@ -16,9 +16,13 @@ interface Membership {
   valid_days: number | null; description: string | null; is_active: boolean;
   /** "holis" = copied from the studio list, "own" = she made it. */
   source: string;
+  payment_link: string | null; payment_note: string | null;
 }
 
-const blank = () => ({ name: "", price: "", classes_included: "", valid_days: "", description: "" });
+const blank = () => ({
+  name: "", price: "", classes_included: "", valid_days: "",
+  description: "", payment_link: "", payment_note: "",
+});
 
 /**
  * Each teacher's own memberships and passes.
@@ -65,6 +69,8 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
     classes_included: d.classes_included === "" ? null : Number(d.classes_included),
     valid_days: d.valid_days === "" ? null : Number(d.valid_days),
     description: d.description.trim() || null,
+    payment_link: d.payment_link.trim() || null,
+    payment_note: d.payment_note.trim() || null,
   });
 
   const add = async () => {
@@ -122,6 +128,12 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
       </div>
       <Input placeholder="Anything to remember about it (optional)" value={d.description} className="h-9 mt-2"
         onChange={(e) => set({ ...d, description: e.target.value })} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+        <Input placeholder="Your payment link (optional)" value={d.payment_link} className="h-9"
+          onChange={(e) => set({ ...d, payment_link: e.target.value })} />
+        <Input placeholder="Or how to pay you — e.g. SINPE 8888-8888" value={d.payment_note} className="h-9"
+          onChange={(e) => set({ ...d, payment_note: e.target.value })} />
+      </div>
     </>
   );
 
@@ -138,10 +150,10 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
 
       <div className="rounded-lg border border-border bg-muted/30 p-3 mb-4">
         <p className="font-body text-xs text-muted-foreground mb-2">
-          The four <strong>General</strong> passes are the studio's and are the same for everyone —
-          students see those on the Passes &amp; Memberships page. Anything you add here, or any
-          general one whose price you change, becomes <strong>yours</strong> and appears on the
-          website beside your name.
+          Every pass here shows on the website beside your name, with your price and your way of
+          being paid — students pay <strong>you</strong>, never Holis. The ones marked
+          <strong> General</strong> started as copies of the studio list; change the price and
+          they are yours like any other.
         </p>
       </div>
 
@@ -190,6 +202,17 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
                         {m.valid_days != null && ` · valid ${m.valid_days} days`}
                       </p>
                       {m.description && <p className="font-body text-xs text-muted-foreground mt-0.5">{m.description}</p>}
+                      <p className="font-body text-[11px] mt-1">
+                        {m.payment_link || m.payment_note ? (
+                          <span className="text-muted-foreground">
+                            Students pay you: {m.payment_note || m.payment_link}
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 dark:text-amber-500">
+                            No payment details — students will be shown the ones in Settings
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={cn(
@@ -217,6 +240,8 @@ export function TeacherMemberships({ teacherId }: { teacherId: string }) {
                             classes_included: m.classes_included == null ? "" : String(m.classes_included),
                             valid_days: m.valid_days == null ? "" : String(m.valid_days),
                             description: m.description ?? "",
+                            payment_link: m.payment_link ?? "",
+                            payment_note: m.payment_note ?? "",
                           });
                         }}
                         className="font-body text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline">

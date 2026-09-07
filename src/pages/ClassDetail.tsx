@@ -34,6 +34,8 @@ interface Teacher { display_name: string; photo_url: string | null; bio: string 
 interface Pass {
   teacher_name: string; membership_name: string; price: number | null;
   classes_included: number | null; valid_days: number | null; description: string | null;
+  payment_link: string | null; payment_note: string | null;
+  teacher_payment_instructions: string | null;
 }
 
 const initials = (name: string) =>
@@ -243,7 +245,7 @@ export default function ClassDetail() {
                     <div className="border-t border-border bg-muted/30 px-5 py-4">
                       <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                         <Ticket className="h-3.5 w-3.5" />
-                        Only with {teacherName.split(/\s+/)[0]}
+                        Passes with {teacherName.split(/\s+/)[0]}
                       </p>
                       <ul className="space-y-1.5">
                         {passes.map((p) => (
@@ -265,9 +267,24 @@ export default function ClassDetail() {
                           </li>
                         ))}
                       </ul>
-                      <p className="font-body text-[11px] text-muted-foreground mt-3">
-                        Paid directly to {teacherName.split(/\s+/)[0]} — ask her at the studio.
+                      {/* How she is paid: whatever she wrote on a pass wins, else her
+                          general details. Holis never takes this money. */}
+                      <p className="font-body text-[11px] text-muted-foreground mt-3 whitespace-pre-line">
+                        Paid directly to {teacherName.split(/\s+/)[0]}
+                        {(() => {
+                          const how = passes.find((p) => p.payment_note)?.payment_note
+                            ?? passes[0]?.teacher_payment_instructions;
+                          return how ? ` — ${how}` : " — ask her at the studio.";
+                        })()}
                       </p>
+                      {passes.find((p) => p.payment_link) && (
+                        <Button size="sm" variant="outline" className="rounded-full mt-2" asChild>
+                          <a href={passes.find((p) => p.payment_link)!.payment_link!}
+                             target="_blank" rel="noopener noreferrer">
+                            Pay {teacherName.split(/\s+/)[0]}
+                          </a>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </Card>

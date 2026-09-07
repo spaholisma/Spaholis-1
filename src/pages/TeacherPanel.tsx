@@ -31,6 +31,7 @@ import { TeacherMemberships } from "@/components/teacher/TeacherMemberships";
 import { ClassFormDialog } from "@/components/teacher/ClassFormDialog";
 import { TeacherProfileCard } from "@/components/teacher/TeacherProfileCard";
 import { TeacherMonthRecord } from "@/components/teacher/TeacherMonthRecord";
+import { TeacherPassRequests } from "@/components/teacher/TeacherPassRequests";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -627,7 +628,14 @@ export default function TeacherPanel() {
                   />
                 )}
 
-                {tab === "students" && <TeacherStudents />}
+                {tab === "students" && (
+                  <>
+                    {/* Whoever asked for a pass with her comes first: they are
+                        waiting on her, not the other way round. */}
+                    {teacher && <TeacherPassRequests teacherId={teacher.id} />}
+                    <TeacherStudents />
+                  </>
+                )}
 
                 {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}
 

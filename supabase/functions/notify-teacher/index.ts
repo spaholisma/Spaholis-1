@@ -71,7 +71,8 @@ type Event =
   | "student_added" | "student_updated" | "student_removed"
   | "booking_created" | "booking_cancelled"
   | "class_cancelled" | "class_reactivated"
-  | "class_rescheduled" | "class_reassigned";
+  | "class_rescheduled" | "class_reassigned"
+  | "pass_requested";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -82,8 +83,10 @@ Deno.serve(async (req) => {
 
   const event: Event = body?.event;
   const scheduleId: string = body?.scheduleId;
+  const teacherId: string = body?.teacherId;
   const studentName: string = (body?.studentName ?? "").toString().slice(0, 120);
-  if (!event || !scheduleId) return json({ ok: false, reason: "missing_fields" }, 400);
+  // A pass request belongs to a teacher, not to a class on the calendar.
+  if (!event || (!scheduleId && !teacherId)) return json({ ok: false, reason: "missing_fields" }, 400);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -97,6 +100,34 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // ── Someone asked a teacher for a pass ──
+    if (event === "pass_requested") {
+      const { data: t } = await admin.from("teachers")
+        .select("display_name, email").eq("id", teacherId).maybeSingle();
+      if (!(t as any)?.email) return json({ ok: true, teacherEmailed: false, reason: "no_teacher_email" });
+
+      const rows = [
+        row("Pass", body?.passName ?? "Pass"),
+        ...(body?.price ? [row("Price", "$" + body.price)] : []),
+        ...(body?.className ? [row("For the class", body.className)] : []),
+        row("Student", studentName || "Someone"),
+        ...(body?.studentEmail ? [row("Email", body.studentEmail)] : []),
+        ...(body?.studentPhone ? [row("Phone", body.studentPhone)] : []),
+      ];
+      const res = await sendEmail(
+        (t as any).email,
+        `${studentName || "Someone"} wants a pass with you`,
+        shell(
+          "Someone wants a pass with you",
+          "They picked you on spaholis.com. Nothing has been paid — they pay you directly. " +
+          "The request is waiting in your Teacher Panel under Students.",
+          rows,
+        ),
+      );
+      if (!res.ok) console.error("[notify-teacher] pass request email failed", res.error);
+      return json({ ok: true, event, teacherEmailed: res.ok });
+    }
+
     const { data: sched } = await admin
       .from("class_schedule")
       .select("id, start_time, is_cancelled, instructor, classes(title, instructor, location)")
@@ -120,7 +151,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Tell the teacher what happened to her class ──
     if (teacherEmail) {
-      const copy: Record<Event, { subject: string; intro: string }> = {
+      const copy: Record<string, { subject: string; intro: string }> = {
         student_added:     { subject: `New student in ${title}`,        intro: `A student was added to your class.` },
         student_updated:   { subject: `Student updated — ${title}`,     intro: `A student's details were updated.` },
         student_removed:   { subject: `Student removed — ${title}`,     intro: `A student was removed from your class.` },

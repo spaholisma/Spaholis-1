@@ -4,7 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
-import { OfferingsPurchaseSection } from "@/components/OfferingsPurchaseSection";
+import { PassChooser } from "@/components/PassChooser";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
@@ -60,11 +60,10 @@ export default function MembershipsPage() {
             </Link>
           </div>
 
-          <OfferingsPurchaseSection redirectAfterPurchase="/dashboard" />
+          <PassChooser />
 
           <p className="spa-body-sm text-center mt-10 max-w-xl mx-auto">
-            Teachers who rent the studio set their own passes — those are shown on each class page,
-            and paid to the teacher directly.{" "}
+            Each teacher sets her own prices for these, shown on her class page.{" "}
             <Link to="/classes" className="text-primary hover:underline">See who teaches what</Link>.
           </p>
         </motion.div>
