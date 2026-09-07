@@ -29,7 +29,7 @@ interface TeacherPass {
   teacher_payment_instructions: string | null;
 }
 interface Teacher { id: string; display_name: string }
-interface ClassOption {
+export interface ClassOption {
   class_id: string; title: string; teacher: string; when: string;
 }
 
@@ -41,7 +41,13 @@ interface ClassOption {
  * class you want it for — that names the teacher — and then shows how to pay
  * her. The request lands in her panel so she knows who to expect.
  */
-export function PassChooser({ compact = false }: { compact?: boolean }) {
+export function PassChooser({
+  compact = false, forClass,
+}: {
+  compact?: boolean;
+  /** Set when the chooser sits on a class page: skip straight to paying. */
+  forClass?: ClassOption;
+}) {
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [teacherPasses, setTeacherPasses] = useState<TeacherPass[]>([]);
@@ -96,9 +102,9 @@ export function PassChooser({ compact = false }: { compact?: boolean }) {
 
   const open = (o: Offering) => {
     setPicked(o);
-    setChosenClass(null);
+    setChosenClass(forClass ?? null);
     setForm({ name: "", email: "", phone: "" });
-    setStep("class");
+    setStep(forClass ? "pay" : "class");
   };
 
   /** Her version of the pass, if she keeps one by that name — else the studio price. */
@@ -245,20 +251,22 @@ export function PassChooser({ compact = false }: { compact?: boolean }) {
           {/* 2. Her price and how she is paid, then leave her your name. */}
           {step === "pay" && chosenClass && (
             <div className="space-y-4">
-              <button
-                onClick={() => setStep("class")}
-                className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
-              >
-                <ArrowLeft className="h-3.5 w-3.5 inline mr-1" />Another class
-              </button>
+              {!forClass && (
+                <button
+                  onClick={() => setStep("class")}
+                  className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 inline mr-1" />Another class
+                </button>
+              )}
 
               <div className="rounded-xl border border-spa-sage/40 bg-spa-sage/5 p-4">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {picked?.name} with
+                  {picked?.name}{chosenClass.teacher ? " with" : ""}
                 </p>
-                <p className="font-heading text-lg font-medium text-foreground">
-                  {chosenClass.teacher || "the studio"}
-                </p>
+                {chosenClass.teacher && (
+                  <p className="font-heading text-lg font-medium text-foreground">{chosenClass.teacher}</p>
+                )}
                 <p className="font-body text-xs text-muted-foreground">{chosenClass.title} · {chosenClass.when}</p>
                 {price != null && (
                   <p className="font-heading text-2xl font-semibold text-foreground mt-2">{usd(price)}</p>
@@ -293,11 +301,13 @@ export function PassChooser({ compact = false }: { compact?: boolean }) {
                   </p>
                 </div>
               ) : (
-                <p className="spa-body-sm">
-                  That class has no teacher named yet — write to us on WhatsApp and we will sort it out.
+                <p className="spa-body-sm rounded-xl border border-border p-4">
+                  No teacher is named on this class yet, so there is nobody to hand the pass over.
+                  Write to us on WhatsApp and we will sort it out.
                 </p>
               )}
 
+              {chosenClass.teacher && (
               <div className="space-y-2">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Let her know you are coming
@@ -311,14 +321,15 @@ export function PassChooser({ compact = false }: { compact?: boolean }) {
                     onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </div>
                 <Button className="w-full rounded-full" onClick={send}
-                  disabled={saving || !form.name.trim() || !chosenClass.teacher}>
+                  disabled={saving || !form.name.trim()}>
                   {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Ticket className="h-4 w-4 mr-1" />}
-                  Tell {chosenClass.teacher ? chosenClass.teacher.split(/\s+/)[0] : "the studio"}
+                  Tell {chosenClass.teacher.split(/\s+/)[0]}
                 </Button>
                 <p className="font-body text-[11px] text-muted-foreground text-center">
                   Nothing is charged here. She gets your name and gives you the pass when you pay her.
                 </p>
               </div>
+              )}
             </div>
           )}
 

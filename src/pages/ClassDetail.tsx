@@ -327,7 +327,10 @@ export default function ClassDetail() {
                   Coming more than once? A pass works out cheaper than paying per class,
                   and it can be used in any class.
                 </p>
-                <PassChooser compact />
+                <PassChooser
+                  compact
+                  forClass={{ class_id: cls.id, title: cls.title, teacher: teacherName, when }}
+                />
               </div>
             )}
           </aside>
