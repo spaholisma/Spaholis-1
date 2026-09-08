@@ -149,24 +149,27 @@ export function TeacherSchedule({
       {loading ? (
         <div className="py-12 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2.5">
           {days.map((d) => {
             const list = sessions.filter((s) => utcToCr(s.start_time).day === format(d, "yyyy-MM-dd"));
             const today = isSameDay(d, new Date());
             return (
               <div key={d.toISOString()} className={cn(
-                "rounded-xl border border-border p-2 min-h-[120px]",
+                "rounded-xl border border-border p-2.5 min-h-[140px]",
                 today && "border-spa-sage/60 bg-spa-sage/5",
               )}>
                 <button
                   onClick={() => openNew(d)}
-                  className="w-full text-left mb-2 group"
+                  className="w-full flex items-center justify-between mb-2 group"
                   title="Add a class on this day"
                 >
-                  <span className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className={cn(
+                    "font-body text-sm font-semibold uppercase tracking-wider",
+                    today ? "text-foreground" : "text-muted-foreground",
+                  )}>
                     {format(d, "EEE d")}
                   </span>
-                  <Plus className="h-3 w-3 inline ml-1 opacity-0 group-hover:opacity-60" />
+                  <Plus className="h-3.5 w-3.5 text-muted-foreground opacity-40 group-hover:opacity-100" />
                 </button>
                 <div className="space-y-1.5">
                   {list.length === 0 && (
@@ -176,52 +179,56 @@ export function TeacherSchedule({
                     const isMine = mine(s);
                     return (
                       <div key={s.id} className={cn(
-                        "rounded-lg border p-2",
-                        isMine ? "border-spa-sage/50 bg-spa-sage/10" : "border-border bg-muted/40",
-                        s.is_cancelled && "opacity-50",
+                        "rounded-lg border p-2.5",
+                        isMine ? "border-spa-sage/60 bg-spa-sage/15" : "border-border bg-muted/40",
+                        s.is_cancelled && "opacity-70",
                       )}>
                         <p className={cn(
-                          "font-body text-[11px] font-semibold",
-                          s.is_cancelled && "line-through",
+                          "font-body text-xs font-semibold",
+                          s.is_cancelled ? "line-through text-muted-foreground" : "text-spa-sage",
                         )}>
                           {formatSpaTime(s.start_time)}
                         </p>
-                        <p className="font-body text-xs text-foreground leading-tight">
+                        <p className="font-body text-sm font-medium text-foreground leading-snug">
                           {s.classes?.title ?? "Class"}
                         </p>
-                        <p className="font-body text-[11px] text-muted-foreground truncate">
+                        <p className="font-body text-xs text-muted-foreground truncate">
                           {s.instructor?.trim() || s.classes?.instructor?.trim() || "No teacher"}
                         </p>
                         {isMine && !s.is_cancelled && (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                            <button onClick={() => onStudents(s)}
-                              className="font-body text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
-                              <Users className="h-3 w-3 inline mr-0.5" />Students
-                            </button>
-                            <button onClick={() => openEdit(s)}
-                              className="font-body text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
+                          <div className="mt-2 flex flex-wrap items-center gap-1">
+                            <Button size="sm" variant="secondary" className="h-7 px-2 text-xs"
+                              onClick={() => onStudents(s)}>
+                              <Users className="h-3.5 w-3.5 mr-1" />Students
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                              onClick={() => openEdit(s)}>
                               Edit
-                            </button>
-                            <button onClick={() => setCancelled(s, true)} disabled={busyId === s.id}
-                              className="font-body text-[10px] font-semibold uppercase tracking-wider text-destructive hover:underline">
-                              {busyId === s.id ? "…" : <><Ban className="h-3 w-3 inline mr-0.5" />Cancel</>}
-                            </button>
+                            </Button>
+                            <Button size="sm" variant="ghost" disabled={busyId === s.id}
+                              className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                              title="Cancel this class"
+                              onClick={() => setCancelled(s, true)}>
+                              {busyId === s.id ? "…" : <Ban className="h-3.5 w-3.5" />}
+                            </Button>
                           </div>
                         )}
                         {!isMine && !s.is_cancelled && (
-                          <button onClick={() => claim(s)} disabled={busyId === s.id}
-                            className="mt-1.5 font-body text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
+                          <Button size="sm" variant="outline" disabled={busyId === s.id}
+                            className="mt-2 h-7 w-full px-2 text-xs border-spa-sage/50 text-foreground hover:bg-spa-sage/15"
+                            onClick={() => claim(s)}>
                             {busyId === s.id ? "…" : (
-                              <><Hand className="h-3 w-3 inline mr-0.5" />
+                              <><Hand className="h-3.5 w-3.5 mr-1" />
                               {s.instructor?.trim() || s.classes?.instructor?.trim() ? "I cover it" : "I teach it"}</>
                             )}
-                          </button>
+                          </Button>
                         )}
                         {isMine && s.is_cancelled && (
-                          <button onClick={() => setCancelled(s, false)} disabled={busyId === s.id}
-                            className="mt-1.5 font-body text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
-                            <Undo2 className="h-3 w-3 inline mr-0.5" />Put back
-                          </button>
+                          <Button size="sm" variant="outline" disabled={busyId === s.id}
+                            className="mt-2 h-7 w-full px-2 text-xs"
+                            onClick={() => setCancelled(s, false)}>
+                            <Undo2 className="h-3.5 w-3.5 mr-1" />Put back
+                          </Button>
                         )}
                       </div>
                     );

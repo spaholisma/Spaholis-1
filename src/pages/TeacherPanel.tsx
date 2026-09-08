@@ -440,7 +440,12 @@ export default function TeacherPanel() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
+      {/* The week needs seven columns of room; every other tab reads better
+          at a normal page width. */}
+      <div className={cn(
+        "mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20",
+        tab === "calendar" ? "max-w-[100rem]" : "max-w-6xl",
+      )}>
         <div className="mb-6">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">Teacher Panel</p>
           <h1 className="spa-heading-lg text-foreground">{teacher?.display_name}</h1>
