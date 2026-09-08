@@ -164,7 +164,67 @@ export function TeacherMembers({ teacherId, teacherName }: { teacherId: string; 
           Nobody yet. When a student pays you for a pass, add the order and the system does the rest.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phone: one card per member instead of a sideways table */}
+        <div className="space-y-2 md:hidden">
+          {members.map((m) => {
+            const days = m.expires_at ? differenceInCalendarDays(parseISO(m.expires_at), new Date()) : null;
+            return (
+              <div key={m.id} className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-medium text-foreground truncate">{m.guest_name || "Guest"}</p>
+                    {m.guest_email && <p className="font-body text-xs text-muted-foreground truncate">{m.guest_email}</p>}
+                    <p className="font-body text-xs text-muted-foreground mt-0.5">
+                      {m.name_snapshot}
+                      {" · "}
+                      {m.is_unlimited ? "unlimited" : `${m.credits_remaining ?? 0}/${m.credits_total ?? 0} left`}
+                    </p>
+                    <p className="font-body text-xs text-muted-foreground">
+                      {m.status === "frozen" ? "Paused"
+                        : m.expires_at
+                          ? `${format(parseISO(m.expires_at), "d MMM yyyy")}${days != null ? ` · ${days < 0 ? `${-days}d ago` : `${days}d left`}` : ""}`
+                          : "No expiry"}
+                    </p>
+                    {m.code && <p className="font-body text-xs text-muted-foreground">Code {m.code}</p>}
+                  </div>
+                  <span className={cn("rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap",
+                    STATUS_TONE[m.status] ?? "bg-muted text-muted-foreground")}>
+                    {m.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {m.status === "cancelled" ? (
+                    <Button size="sm" variant="outline" className="h-9" onClick={() => patch(m, { status: "active" }, "Back on")}>
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reactivate
+                    </Button>
+                  ) : (
+                    <>
+                      {m.status === "frozen" ? (
+                        <Button size="sm" variant="outline" className="h-9" onClick={() => unfreeze(m)}>
+                          <Play className="h-3.5 w-3.5 mr-1" /> Unfreeze
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" className="h-9" onClick={() => freeze(m)}>
+                          <Snowflake className="h-3.5 w-3.5 mr-1" /> Freeze
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className="h-9"
+                        onClick={() => { setExtending(m); setExtendDays("30"); }}>
+                        <CalendarPlus className="h-3.5 w-3.5 mr-1" /> Extend
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-9 text-destructive ml-auto" onClick={() => cancel(m)}>
+                        <Ban className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
@@ -242,6 +302,7 @@ export function TeacherMembers({ teacherId, teacherName }: { teacherId: string; 
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* New order */}

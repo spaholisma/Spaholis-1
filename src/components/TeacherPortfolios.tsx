@@ -276,7 +276,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                           <span className="font-heading text-sm font-semibold text-foreground">{usd(pass.price)}</span>
                         )}
                         {p.teacherId && (
-                          <Button size="sm" variant="outline" className="h-7 rounded-full text-xs"
+                          <Button size="sm" variant="outline" className="h-9 sm:h-7 rounded-full text-xs"
                             onClick={() => setPick({
                               teacherId: p.teacherId!,
                               teacherName: p.teacher,

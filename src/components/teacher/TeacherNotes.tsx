@@ -166,7 +166,7 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
 
       {/* New line */}
       <div className="rounded-lg border border-spa-sage/40 bg-spa-sage/5 p-3 mb-4">
-        <div className="grid grid-cols-2 lg:grid-cols-[130px_1fr_1fr_100px_auto] gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-[130px_1fr_1fr_100px] gap-2">
           <Input type="date" value={draft.entry_date} className="h-9"
             onChange={(e) => setDraft({ ...draft, entry_date: e.target.value })} />
           <Input placeholder="Student" value={draft.student_name} className="h-9"
@@ -175,14 +175,19 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
             onChange={(e) => setDraft({ ...draft, class_label: e.target.value })} />
           <Input type="number" placeholder="$" value={draft.amount} className="h-9"
             onChange={(e) => setDraft({ ...draft, amount: e.target.value })} />
-          <Button size="sm" className="h-9" onClick={add} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          </Button>
         </div>
         <Input placeholder="Note — e.g. pays me next class, Ana covered for me" value={draft.note}
           className="h-9 mt-2"
           onKeyDown={(e) => e.key === "Enter" && add()}
           onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+        {/* Full width on a phone: a thumb should not have to find a small
+            square wedged between two inputs. */}
+        <Button size="sm" className="h-10 sm:h-9 w-full sm:w-auto mt-2 sm:float-right"
+          onClick={add} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+          Add line
+        </Button>
+        <div className="clear-both" />
       </div>
 
       {loading ? (
@@ -192,7 +197,73 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
           {filter === "unpaid" ? "Nothing outstanding." : "Nothing written down yet."}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phone: one card per line, so nothing has to be scrolled sideways */}
+        <div className="space-y-2 md:hidden">
+          {shown.map((n) => editingId === n.id ? (
+            <div key={n.id} className="rounded-lg border border-spa-sage/40 bg-spa-sage/5 p-3 space-y-2">
+              <Input type="date" value={editDraft.entry_date} className="h-10"
+                onChange={(e) => setEditDraft({ ...editDraft, entry_date: e.target.value })} />
+              <Input placeholder="Student" value={editDraft.student_name} className="h-10"
+                onChange={(e) => setEditDraft({ ...editDraft, student_name: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Class" value={editDraft.class_label} className="h-10"
+                  onChange={(e) => setEditDraft({ ...editDraft, class_label: e.target.value })} />
+                <Input type="number" placeholder="$" value={editDraft.amount} className="h-10"
+                  onChange={(e) => setEditDraft({ ...editDraft, amount: e.target.value })} />
+              </div>
+              <Input placeholder="Note" value={editDraft.note} className="h-10"
+                onChange={(e) => setEditDraft({ ...editDraft, note: e.target.value })} />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" className="h-10" onClick={() => setEditingId(null)}>Cancel</Button>
+                <Button size="sm" className="h-10" onClick={() => saveEdit(n.id)} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div key={n.id} className={cn("rounded-lg border border-border p-3", n.paid && "opacity-60")}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-body text-sm font-medium text-foreground">{n.student_name || "—"}</p>
+                  <p className="font-body text-xs text-muted-foreground">
+                    {n.entry_date}{n.class_label ? ` · ${n.class_label}` : ""}
+                  </p>
+                  {n.note && <p className="font-body text-xs text-muted-foreground mt-1">{n.note}</p>}
+                </div>
+                <p className="font-heading text-base font-semibold text-foreground whitespace-nowrap">
+                  {n.amount == null ? "—" : usd(Number(n.amount))}
+                </p>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <button onClick={() => togglePaid(n)}
+                  className={cn("rounded-full px-3 py-1.5 text-xs font-medium border",
+                    n.paid
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-500 border-amber-500/40")}>
+                  {n.paid ? "Paid" : "Owes"}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingId(n.id);
+                    setEditDraft({
+                      entry_date: n.entry_date, student_name: n.student_name ?? "",
+                      class_label: n.class_label ?? "", amount: n.amount == null ? "" : String(n.amount),
+                      note: n.note ?? "",
+                    });
+                  }}
+                  className="font-body text-xs font-semibold uppercase tracking-wider text-primary">
+                  Edit
+                </button>
+                <button onClick={() => remove(n)} className="ml-auto text-destructive p-1.5">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
@@ -266,6 +337,7 @@ export function TeacherNotes({ teacherId }: { teacherId: string }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
       {confirmDialog}
     </Card>

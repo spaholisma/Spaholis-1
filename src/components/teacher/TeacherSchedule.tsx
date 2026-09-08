@@ -134,7 +134,7 @@ export function TeacherSchedule({
         <Button variant="ghost" size="sm" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
           This week
         </Button>
-        <Button size="sm" className="ml-auto" onClick={() => openNew()}>
+        <Button size="sm" className="w-full sm:w-auto sm:ml-auto" onClick={() => openNew()}>
           <Plus className="h-4 w-4 mr-1" /> Add a class
         </Button>
       </div>
@@ -155,8 +155,11 @@ export function TeacherSchedule({
             const today = isSameDay(d, new Date());
             return (
               <div key={d.toISOString()} className={cn(
-                "rounded-xl border border-border p-2.5 min-h-[140px]",
+                "rounded-xl border border-border p-2.5 md:min-h-[140px]",
                 today && "border-spa-sage/60 bg-spa-sage/5",
+                // An empty day is worth a column on a wide screen and worth
+                // nothing on a phone, where it is just scrolling.
+                list.length === 0 && "hidden md:block",
               )}>
                 <button
                   onClick={() => openNew(d)}
@@ -197,16 +200,16 @@ export function TeacherSchedule({
                         </p>
                         {isMine && !s.is_cancelled && (
                           <div className="mt-2 flex flex-wrap items-center gap-1">
-                            <Button size="sm" variant="secondary" className="h-7 px-2 text-xs"
+                            <Button size="sm" variant="secondary" className="h-9 md:h-7 px-2.5 text-xs"
                               onClick={() => onStudents(s)}>
                               <Users className="h-3.5 w-3.5 mr-1" />Students
                             </Button>
-                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                            <Button size="sm" variant="outline" className="h-9 md:h-7 px-2.5 text-xs"
                               onClick={() => openEdit(s)}>
                               Edit
                             </Button>
                             <Button size="sm" variant="ghost" disabled={busyId === s.id}
-                              className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                              className="h-9 w-9 md:h-7 md:w-7 p-0 text-destructive hover:bg-destructive/10"
                               title="Cancel this class"
                               onClick={() => setCancelled(s, true)}>
                               {busyId === s.id ? "…" : <Ban className="h-3.5 w-3.5" />}
@@ -215,7 +218,7 @@ export function TeacherSchedule({
                         )}
                         {!isMine && !s.is_cancelled && (
                           <Button size="sm" variant="outline" disabled={busyId === s.id}
-                            className="mt-2 h-7 w-full px-2 text-xs border-spa-sage/50 text-foreground hover:bg-spa-sage/15"
+                            className="mt-2 h-9 md:h-7 w-full px-2 text-xs border-spa-sage/50 text-foreground hover:bg-spa-sage/15"
                             onClick={() => claim(s)}>
                             {busyId === s.id ? "…" : (
                               <><Hand className="h-3.5 w-3.5 mr-1" />
@@ -225,7 +228,7 @@ export function TeacherSchedule({
                         )}
                         {isMine && s.is_cancelled && (
                           <Button size="sm" variant="outline" disabled={busyId === s.id}
-                            className="mt-2 h-7 w-full px-2 text-xs"
+                            className="mt-2 h-9 md:h-7 w-full px-2 text-xs"
                             onClick={() => setCancelled(s, false)}>
                             <Undo2 className="h-3.5 w-3.5 mr-1" />Put back
                           </Button>
