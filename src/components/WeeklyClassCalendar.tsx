@@ -4,6 +4,10 @@ import { Clock, MapPin, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+
+/** The teacher on a session: the one named on the day wins over the class's. */
+const teacherOf = (e: ScheduleRow) =>
+  ((e as any).instructor?.trim() || e.classes.instructor?.trim() || "");
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
 
@@ -199,6 +203,9 @@ function MobileClassCard({ event }: { event: ScheduleRow }) {
       <h4 className="font-heading text-lg text-foreground leading-tight mb-1 group-hover:text-spa-sage transition-colors">
         {cls.title}
       </h4>
+      {teacherOf(event) && (
+        <p className="font-body text-xs text-muted-foreground mb-1">with {teacherOf(event)}</p>
+      )}
       <div className="flex items-center gap-2">
         <ClassEligibilityBadge classId={cls.id} size="sm" />
       </div>
@@ -232,6 +239,12 @@ function ClassSlot({ event }: { event: ScheduleRow }) {
         {cls.title}
       </p>
 
+      {/* Who teaches it */}
+      {teacherOf(event) && (
+        <p className="font-body text-[10px] text-muted-foreground leading-tight truncate">
+          with {teacherOf(event)}
+        </p>
+      )}
 
       {/* Eligibility */}
       <div className="mt-1">

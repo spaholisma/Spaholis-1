@@ -72,9 +72,9 @@ export function EventCard({ event }: { event: ScheduleRow }) {
         )}
 
         {/* Instructor */}
-        {cls.instructor && (
+        {((event as any).instructor?.trim() || cls.instructor) && (
           <p className="font-body text-xs text-muted-foreground">
-            with <span className="font-medium text-foreground">{cls.instructor}</span>
+            with <span className="font-medium text-foreground">{(event as any).instructor?.trim() || cls.instructor}</span>
           </p>
         )}
 
