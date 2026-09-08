@@ -214,6 +214,29 @@ Deno.serve(async (req) => {
       // No signups → nobody is emailed, which is the desired behaviour.
     }
 
+    // ── A class that changed hands: the teacher losing it has to know ──
+    if (event === "class_reassigned" && body?.previousTeacher) {
+      const prev = String(body.previousTeacher).trim();
+      if (prev && prev.toLowerCase() !== who.toLowerCase()) {
+        const { data: p } = await admin.from("teachers")
+          .select("email").ilike("display_name", prev).maybeSingle();
+        if ((p as any)?.email) {
+          const r = await sendEmail(
+            (p as any).email,
+            `${who || "Another teacher"} is taking ${title}`,
+            shell(
+              "Your class changed hands",
+              `<strong>${esc(who || "Another teacher")}</strong> put their name on this class, so you are ` +
+              "not expected to teach it. If that is wrong, put your name back on it in your panel.",
+              [row("Class", title), row("When", when), row("Now taught by", who || "—")],
+            ),
+          );
+          results.previousTeacherEmailed = r.ok;
+          if (!r.ok) console.error("[notify-teacher] previous teacher email failed", r.error);
+        }
+      }
+    }
+
     return json({ ok: true, ...results });
   } catch (err) {
     console.error("[notify-teacher] failed", { message: (err as Error).message });

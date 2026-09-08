@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Hand } from "lucide-react";
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay,
 } from "date-fns";
@@ -79,6 +79,30 @@ export function TeacherSchedule({
   };
   const openEdit = (s: SchedSession) => { setEditing(s); setFormOpen(true); };
 
+  /**
+   * Take a class: one with nobody on it, or a colleague's when she is the one
+   * actually teaching it. Whoever is named teaches it and is the one Holis
+   * charges, so this is said out loud before it happens.
+   */
+  const claim = async (s: SchedSession) => {
+    const held = s.instructor?.trim() || s.classes?.instructor?.trim() || "";
+    if (!(await confirm({
+      title: held ? `Take this class from ${held}?` : "Put your name on this class?",
+      description: held
+        ? `You become the teacher for ${s.classes?.title ?? "this class"} on this day, ` +
+          `${held} is told, and the studio rent for it is yours.`
+        : `You become the teacher for ${s.classes?.title ?? "this class"} on this day, ` +
+          "and the studio rent for it is yours.",
+      confirmLabel: held ? "Take it over" : "It is mine",
+    }))) return;
+    setBusyId(s.id);
+    const { error } = await sb.from("class_schedule")
+      .update({ instructor: teacherName }).eq("id", s.id);
+    if (error) toast.error(error.message);
+    else { toast.success("It is yours now"); load(); onChanged?.(); }
+    setBusyId(null);
+  };
+
   const setCancelled = async (s: SchedSession, cancel: boolean) => {
     if (!(await confirm({
       title: cancel ? "Cancel this class?" : "Put this class back?",
@@ -117,7 +141,9 @@ export function TeacherSchedule({
 
       <p className="font-body text-xs text-muted-foreground mb-3">
         Every class in the studio this week. Yours are in green — the others are here so you can
-        find a free slot without landing on a colleague.
+        find a free slot without landing on a colleague. Teaching one that is not yours?
+        Put your name on it with <strong>I teach it</strong> — that is what tells the website,
+        your students and Holis who is in front of the class.
       </p>
 
       {loading ? (
@@ -181,6 +207,15 @@ export function TeacherSchedule({
                               {busyId === s.id ? "…" : <><Ban className="h-3 w-3 inline mr-0.5" />Cancel</>}
                             </button>
                           </div>
+                        )}
+                        {!isMine && !s.is_cancelled && (
+                          <button onClick={() => claim(s)} disabled={busyId === s.id}
+                            className="mt-1.5 font-body text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
+                            {busyId === s.id ? "…" : (
+                              <><Hand className="h-3 w-3 inline mr-0.5" />
+                              {s.instructor?.trim() || s.classes?.instructor?.trim() ? "I cover it" : "I teach it"}</>
+                            )}
+                          </button>
                         )}
                         {isMine && s.is_cancelled && (
                           <button onClick={() => setCancelled(s, false)} disabled={busyId === s.id}
