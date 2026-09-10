@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -160,7 +161,7 @@ function InquiryForm({ retreatId, retreatTitle }: { retreatId: string; retreatTi
 
       <div>
         <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{t("form.phone")}</label>
-        <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 (555) 123-4567" />
+        <PhoneField value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
       </div>
 
       {/* Date picker */}

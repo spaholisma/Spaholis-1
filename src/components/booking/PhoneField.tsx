@@ -1,6 +1,7 @@
 import PhoneInput, { isValidPhoneNumber, isPossiblePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
+import { CountrySelect } from "@/components/booking/CountrySelect";
 
 // Re-export validators so forms can gate on them.
 export { isValidPhoneNumber, isPossiblePhoneNumber };
@@ -19,7 +20,10 @@ interface PhoneFieldProps {
 /**
  * Phone input with a country-code dropdown (flags + dial codes) and E.164
  * validation, styled to match the site's inputs. Defaults to Costa Rica.
- * Used across the booking forms so every reservation collects a valid number.
+ *
+ * The country picker is our own: the library ships a plain <select>, which is
+ * a wheel of 240 entries on a phone and has no search on a desktop. Ours lets
+ * someone type "Costa" or "506" and land on their country.
  */
 export function PhoneField({ value, onChange, placeholder, className, id, invalid }: PhoneFieldProps) {
   return (
@@ -30,6 +34,7 @@ export function PhoneField({ value, onChange, placeholder, className, id, invali
       countryCallingCodeEditable={false}
       value={value || undefined}
       onChange={(v) => onChange(v || "")}
+      countrySelectComponent={CountrySelect}
       placeholder={placeholder}
       className={cn("holis-phone-input", invalid && "holis-phone-input--invalid", className)}
     />

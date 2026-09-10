@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Check } from "lucide-react";
@@ -185,7 +186,7 @@ const StudioRentalPage = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="font-body text-sm">{f.phoneLabel} *</Label>
-                  <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} maxLength={40} required />
+                  <PhoneField value={form.phone} onChange={(v) => set("phone", v)} />
                 </div>
               </div>
               <div className="space-y-1.5">

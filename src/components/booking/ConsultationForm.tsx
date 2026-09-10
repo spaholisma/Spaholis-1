@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+import { PhoneField } from "@/components/booking/PhoneField";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -217,13 +218,11 @@ export const ConsultationForm = () => {
                 <Label htmlFor="phone" className="font-body text-sm">
                   {t("consultation.phone")} <span className="text-muted-foreground">{t("consultation.phoneRecommended")}</span>
                 </Label>
-                <Input
+                <PhoneField
                   id="phone"
-                  type="tel"
                   placeholder={t("consultation.phonePlaceholder")}
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  maxLength={30}
+                  onChange={(v) => setForm({ ...form, phone: v })}
                 />
               </div>
 

@@ -3,6 +3,7 @@ import { formatCRC } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -273,7 +274,7 @@ function ProfileSection({ profile, email, onSaved }: { profile: any; email?: str
         </div>
         <div>
           <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Phone</label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+506 ..." />
+          <PhoneField value={phone} onChange={setPhone} />
         </div>
         <div className="sm:col-span-2">
           <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Email</label>

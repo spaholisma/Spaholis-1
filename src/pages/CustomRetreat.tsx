@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { Textarea } from "@/components/ui/textarea";
 import { ChevronLeft, Check, Sparkles, Heart, CalendarDays, Pen } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -274,9 +275,9 @@ function StepBasicInfo({ form, update, c }: { form: any; update: (k: string, v: 
         </div>
         <div>
           <label className="font-body text-sm font-medium text-foreground mb-1.5 block">{s.phoneLabel}</label>
-          <Input
+          <PhoneField
             value={form.phone}
-            onChange={(e) => update("phone", e.target.value)}
+            onChange={(v) => update("phone", v)}
             placeholder={s.phonePlaceholder}
             className="h-12 rounded-xl"
           />
