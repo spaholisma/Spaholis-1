@@ -552,9 +552,12 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
 // same way handleByBookingId does for treatments.
 // -----------------------------------------------------------------------------
 
-// Canonical WhatsApp number for the Holis team. Kept in sync with
-// src/data/contact.ts:HOLIS_PHONE_E164_DIGITS.
-export const HOLIS_WHATSAPP_DIGITS = "50685912066";
+// Canonical WhatsApp number for the Holis team. Deno cannot import from src/,
+// so this is a copy of src/data/contact.ts:HOLIS_PHONE_E164_DIGITS — and it had
+// silently drifted to an old number, sending every class guest who tapped
+// "Message us on WhatsApp" to a chat nobody reads. src/test/whatsapp-number.test.ts
+// now compares the two files so it cannot drift again.
+export const HOLIS_WHATSAPP_DIGITS = "50688146760";
 
 /** Build the class-booking WhatsApp CTA URL used in the customer email.
  *  Exported so tests can assert USD amount encoding for every payment path. */
