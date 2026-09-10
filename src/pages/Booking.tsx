@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { validateCoupon } from "@/lib/coupons";
+import { CANCELLATION_POLICY } from "@/lib/cancellationPolicy";
 import { useTranslation } from "react-i18next";
 import { useRoomAvailability, type TimeSlot } from "@/hooks/useRoomAvailability";
 import { AddOnTreatments, type AddonItem } from "@/components/booking/AddOnTreatments";
@@ -100,7 +101,8 @@ function translateCategory(t: (k: string, opts?: any) => string, cat: string): s
 }
 
 // Cancellation policy the customer accepts when leaving a card on file.
-const CANCELLATION_POLICY = "Cancellations or changes must be made 24 hours before the appointment, or a 50% charge will apply. The no-show fee is 100% of the total amount of your appointment or class. By filling out this form, there is no charge in advance for the treatment. This form will be used for further reservations during your visit if necessary.";
+// Lives in src/lib/cancellationPolicy.ts so the emails and the cancel
+// dialog quote the same sentence the guest signed here.
 const CARD_AUTHORIZATION_LABEL = "I hereby authorize Holis Wellness Center to use the information provided in accordance with the cancellation policy above. My card information is stored securely and will only be charged in accordance with these policies.";
 
 /** Luhn check so an obviously invalid number is caught before submitting. */

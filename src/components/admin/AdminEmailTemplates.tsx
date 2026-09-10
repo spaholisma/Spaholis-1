@@ -47,8 +47,8 @@ const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
 const CATEGORY_VARS: Record<string, string[]> = {
-  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "total", "payment_status", "details"],
-  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "payment_status", "details", "button"],
+  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "service_price", "coupon_code", "discount", "total", "payment_status", "details"],
+  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "class_price", "coupon_code", "discount", "total", "payment_status", "details", "button"],
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button", "loyalty"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button", "loyalty"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
@@ -91,22 +91,27 @@ function sampleVars(category: string): Record<string, string> {
   if (category === "treatment") {
     const details = table([
       row("Reservation ID", "A1B2C3D4"), row("Service", "Relaxing Massage"), row("Therapist", "Maria"),
-      row("Date", "Monday, July 20, 2026"), row("Time", "10:00"), row("Payment Status", "Confirmed"), row("Total", "$80.00"),
+      row("Date", "Monday, July 20, 2026"), row("Time", "10:00"), row("Payment Status", "Confirmed"),
+      row("Service Price", "$80.00"), row("Coupon", "WELCOME10"), row("Discount", "-$8.00"), row("Total", "$72.00"),
     ]);
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", service_name: "Relaxing Massage", therapist: "Maria",
-      date: "Monday, July 20, 2026", time: "10:00", total: "$80.00", payment_status: "Confirmed", details, button: "",
+      date: "Monday, July 20, 2026", time: "10:00", service_price: "$80.00", coupon_code: "WELCOME10",
+      discount: "-$8.00", total: "$72.00", payment_status: "Confirmed", details, button: "",
     };
   }
   if (category === "class") {
     const details = table([
       row("Reservation ID", "A1B2C3D4"), row("Class", "Vinyasa Flow"), row("Instructor", "Luis"),
-      row("When", "Monday, July 20, 2026, 8:00 AM"), row("Location", "Studio A"), row("Payment Status", "Paid"), row("Amount Paid", "$12.00"),
+      row("When", "Monday, July 20, 2026, 8:00 AM"), row("Location", "Studio A"), row("Payment Status", "Paid"),
+      row("Class Price", "$12.00"), row("Coupon", "None used"), row("Amount Paid", "$12.00"),
     ]);
     const button = `<p style="margin:0;"><a href="#" style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">Message us on WhatsApp</a></p>`;
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", class_title: "Vinyasa Flow", instructor: "Luis",
-      when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", payment_status: "Paid", details, button, whatsapp_url: "#",
+      when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", class_price: "$12.00",
+      coupon_code: "None used", discount: "", total: "$12.00",
+      payment_status: "Paid", details, button, whatsapp_url: "#",
     };
   }
   if (category === "offering_expired") {

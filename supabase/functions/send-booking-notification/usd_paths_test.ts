@@ -96,6 +96,8 @@ Deno.test("USD renders correctly in all confirmation surfaces × payment paths �
         scheduleLabel: "Monday, July 6, 2026 at 9:00 AM",
         location: "Studio A",
         totalPrice: totalUsd,
+        couponCode: null,
+        discountAmount: null,
         paymentStatus,
         whatsappUrl: waUrl,
       });
@@ -184,4 +186,49 @@ Deno.test("WhatsApp CTA payment-path shape: only card/membership/credits carry a
   assert(!decodeURIComponent(url0).includes("$"), "zero-total WhatsApp CTA must omit $");
   assert(!decodeURIComponent(urlN).includes("$"), "null-total WhatsApp CTA must omit $");
   assertStringIncludes(decodeURIComponent(urlCard), "($23.00)");
+});
+
+// Two guests booked a $131 treatment with a 15% coupon and their confirmation
+// showed only "$111.35" — no price, no coupon, nothing to explain the gap, so
+// it read like a billing error. Every confirmation must now carry the whole
+// sum, and must say so even when no coupon was used.
+Deno.test("confirmation emails spell out price, coupon and discount", () => {
+  const discounted = buildClassCustomerHtml({
+    reservationId: "R1", className: "Vinyasa",
+    instructor: null, guestName: "Leena",
+    scheduleLabel: "Saturday, September 13, 2026 at 2:00 PM",
+    location: null,
+    totalPrice: 111.35, couponCode: "MAXWELLNESS", discountAmount: 19.65,
+    paymentStatus: "Paid", whatsappUrl: "https://wa.me/1",
+  });
+  // The price before the coupon is rebuilt from total + discount, so it is the
+  // price of the day rather than today's list price.
+  assertStringIncludes(discounted, "$131.00");
+  assertStringIncludes(discounted, "MAXWELLNESS");
+  assertStringIncludes(discounted, "-$19.65");
+  assertStringIncludes(discounted, "$111.35");
+
+  const plain = buildClassCustomerHtml({
+    reservationId: "R2", className: "Vinyasa",
+    instructor: null, guestName: "Ana",
+    scheduleLabel: "Saturday, September 13, 2026 at 2:00 PM",
+    location: null,
+    totalPrice: 131, couponCode: null, discountAmount: null,
+    paymentStatus: "Paid", whatsappUrl: "https://wa.me/1",
+  });
+  assertStringIncludes(plain, "None used");
+  assert(!plain.includes("Discount"), "no-coupon email must not show a discount row");
+
+  // A party books as several rows; the internal copy shows the summed figures.
+  const admin = buildClassAdminHtml({
+    reservationId: "R3", className: "Vinyasa",
+    instructor: null, guestName: "Leena", guestEmail: "l@example.com",
+    scheduleLabel: "Saturday, September 13, 2026 at 2:00 PM",
+    location: null,
+    totalPrice: 222.7, paymentStatus: "Paid", paymentMethod: "card",
+    paymentId: null, couponCode: "MAXWELLNESS", discountAmount: 39.3,
+  });
+  assertStringIncludes(admin, "$262.00");
+  assertStringIncludes(admin, "-$39.30");
+  assertStringIncludes(admin, "$222.70");
 });

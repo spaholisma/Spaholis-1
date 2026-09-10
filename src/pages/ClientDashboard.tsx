@@ -15,6 +15,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
+import { CancelAppointmentDialog } from "@/components/booking/CancelAppointmentDialog";
+import { HOLIS_WHATSAPP_URL } from "@/data/contact";
+import { MessageCircle, Mail } from "lucide-react";
+
+// Shown to guests who want to move an appointment: changes go through a
+// person, never through the site, so the room schedule is never reshuffled
+// unattended.
+const CONTACT_EMAIL = "spaholisma@gmail.com";
 
 const ClientDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -194,8 +202,29 @@ const ClientDashboard = () => {
                   )}>
                     {apt.status}
                   </span>
+                  <CancelAppointmentDialog
+                    booking={apt}
+                    onCancelled={(id) =>
+                      setBookings((prev) =>
+                        prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b)),
+                      )
+                    }
+                  />
                 </div>
               ))}
+
+              <p className="font-body text-xs text-muted-foreground leading-relaxed px-1">
+                Need to change the treatment, the date or the time? Message us on{" "}
+                <a href={HOLIS_WHATSAPP_URL} target="_blank" rel="noreferrer"
+                   className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
+                  <MessageCircle className="h-3 w-3" /> WhatsApp
+                </a>{" "}or at{" "}
+                <a href={`mailto:${CONTACT_EMAIL}`}
+                   className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
+                  <Mail className="h-3 w-3" /> {CONTACT_EMAIL}
+                </a>{" "}and we'll move it for you. Cancelling within 24 hours of your
+                appointment carries a 50% charge; not showing up is charged in full.
+              </p>
             </div>
           )}
         </div>
