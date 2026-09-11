@@ -8,14 +8,13 @@ import { toast } from "sonner";
 import { Mail, Copy, AlertTriangle } from "lucide-react";
 import { formatUsd } from "@/lib/currency";
 import {
-  AFTER_WINDOW_PERCENT, CANCELLATION_EMAIL, POLICY_LINES, WITHIN_WINDOW_PERCENT,
-  buildCancellationMailto, cancellationFee, cancellationWindow, reservationCode,
+  BEFORE_WINDOW_PERCENT, CANCELLATION_EMAIL, FULL_CHARGE_WINDOW_HOURS, POLICY_LINES, WITHIN_WINDOW_PERCENT,
+  appointmentStart, buildCancellationMailto, cancellationFee, cancellationWindow, reservationCode,
 } from "@/lib/cancellationPolicy";
 
 interface Props {
   booking: {
     id: string;
-    created_at: string;
     start_time?: string | null;
     booking_date: string;
     booking_time?: string | null;
@@ -34,15 +33,16 @@ const spaTime = (d: Date) =>
 /**
  * Cancelling happens by email, never online: the button opens a message
  * already addressed to the studio with the appointment filled in, so the guest
- * only adds a line. Reception reads the time it arrived against the "Booked on"
- * line of their own booking email and charges 50% or 100% from there.
+ * only adds a line. Reception reads the time it arrived against the
+ * appointment and charges 50% or 100% from there.
  */
 export function CancelAppointmentDialog({ booking }: Props) {
   const [open, setOpen] = useState(false);
 
   const serviceName = booking.services?.title || "Appointment";
-  const charge = cancellationWindow(booking.created_at, booking.start_time);
-  const feeNow = cancellationFee(booking.total_price, charge.percent);
+  const charge = cancellationWindow(appointmentStart(booking));
+  const halfFee = cancellationFee(booking.total_price, BEFORE_WINDOW_PERCENT);
+  const fullFee = cancellationFee(booking.total_price, WITHIN_WINDOW_PERCENT);
 
   const mailto = buildCancellationMailto({
     serviceName,
@@ -77,7 +77,8 @@ export function CancelAppointmentDialog({ booking }: Props) {
               <div className="space-y-3 text-left">
                 <p className="text-sm">
                   Cancellations are made by email. The button below opens one already addressed to us with
-                  your appointment details — just add a line and send it.
+                  your appointment details — just add a line and send it. The time your email reaches us is
+                  the time of your cancellation.
                 </p>
 
                 <div className="flex gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
@@ -85,15 +86,16 @@ export function CancelAppointmentDialog({ booking }: Props) {
                   <p className="text-sm text-foreground">
                     {charge.withinWindow ? (
                       <>
-                        If your email reaches us before <strong>{spaTime(charge.endsAt)}</strong> (Costa Rica
-                        time), <strong>{WITHIN_WINDOW_PERCENT}%</strong>{feeNow > 0 ? ` (${formatUsd(feeNow)})` : ""} of
-                        the total is charged. After that, {AFTER_WINDOW_PERCENT}%.
+                        Your appointment is less than {FULL_CHARGE_WINDOW_HOURS} hours away, so a cancellation is
+                        charged <strong>{WITHIN_WINDOW_PERCENT}%</strong>{fullFee > 0 ? ` (${formatUsd(fullFee)})` : ""} of
+                        the total.
                       </>
                     ) : (
                       <>
-                        The first 24 hours after booking have passed, so a cancellation is charged{" "}
-                        <strong>{AFTER_WINDOW_PERCENT}%</strong>{feeNow > 0 ? ` (${formatUsd(feeNow)})` : ""} of
-                        the total.
+                        If your email reaches us before <strong>{spaTime(charge.fullChargeFrom)}</strong> (Costa
+                        Rica time) — {FULL_CHARGE_WINDOW_HOURS} hours before your appointment —{" "}
+                        <strong>{BEFORE_WINDOW_PERCENT}%</strong>{halfFee > 0 ? ` (${formatUsd(halfFee)})` : ""} of the
+                        total is charged. After that, {WITHIN_WINDOW_PERCENT}%{fullFee > 0 ? ` (${formatUsd(fullFee)})` : ""}.
                       </>
                     )}
                   </p>

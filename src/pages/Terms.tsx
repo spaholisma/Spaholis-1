@@ -31,12 +31,13 @@ export default function Terms() {
 
           <h2 className="font-heading text-2xl mt-8">2. Cancellations &amp; No-Shows</h2>
           <p>
-            Treatment cancellations made within 24 hours of placing the booking
-            are charged 50% of the total to the card on file. After those first
-            24 hours, cancellations and no-shows are charged 100% of the total.
-            To cancel, email us at spaholisma@gmail.com; the time your email
-            reaches us is the time of the cancellation. Changes to the
-            treatment, date or time are arranged by WhatsApp or email.
+            Treatment cancellations made more than 48 hours before the
+            appointment are charged 50% of the total to the card on file.
+            Cancellations within the 48 hours before the appointment, and
+            no-shows, are charged 100% of the total. To cancel, email us at
+            spaholisma@gmail.com; the time your email reaches us is the time of
+            the cancellation. Changes to the treatment, date or time are
+            arranged by WhatsApp or email.
           </p>
 
           <h2 className="font-heading text-2xl mt-8">3. Health &amp; Safety</h2>

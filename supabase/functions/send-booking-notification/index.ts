@@ -68,19 +68,20 @@ function tableRow(label: string, value: string) {
 // the two must be changed together — this is the text the guest accepted when
 // they left a card on file, and it has to read the same in the email.
 //
-// The clock starts when the booking is PLACED: 50% inside the first 24 hours,
-// 100% after, and never free. Nothing is cancelled online — guests email the
-// studio, and reception picks the fee when cancelling in the calendar.
+// The clock runs against the APPOINTMENT: cancelling more than 48 hours before
+// it costs 50%, inside those 48 hours or not coming costs 100%, and it is never
+// free. Nothing is cancelled online — guests email the studio, and reception
+// picks the fee when cancelling in the calendar.
 // CANCELLATION_EMAIL copies src/data/contact.ts:HOLIS_EMAIL;
 // src/test/email-contact-details.test.ts checks the two agree.
 const CANCELLATION_EMAIL = "spaholisma@gmail.com";
-const HALF_CHARGE_WINDOW_HOURS = 24;
-const POLICY_LINES = [
-  `Cancel within ${HALF_CHARGE_WINDOW_HOURS} hours of making your booking — 50% of the total is charged to the card on file.`,
-  `Cancel after those first ${HALF_CHARGE_WINDOW_HOURS} hours, or not show up — 100% of the total is charged to the card on file.`,
-  `To cancel, email us at ${CANCELLATION_EMAIL}. The time your email reaches us is the time of the cancellation.`,
-  "To change the treatment, the date or the time, contact us on WhatsApp or by email.",
+const FULL_CHARGE_WINDOW_HOURS = 48;
+const RULE_LINES = [
+  `Cancel more than ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment — 50% of the total is charged to the card on file.`,
+  `Cancel within the ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment, or not show up — 100% of the total is charged to the card on file.`,
 ];
+// How to cancel is explained in full, with the button, in policyBlock().
+const CHANGES_LINE = "To change the treatment, the date or the time, contact us on WhatsApp or by email.";
 // Classes follow the rule on the Refund page, not the treatment one.
 const CLASS_POLICY_LINES = [
   "Single class bookings may be cancelled up to 4 hours before the class.",
@@ -93,11 +94,25 @@ const spaDateTime = (d: Date) =>
     hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
   });
 
-/** Until when a cancellation costs half: 24 hours after booking, but never
- *  past the start of the appointment — after that it is a no-show. */
-function halfChargeEnds(bookedAt: Date, startsAt: Date | null): Date {
-  const end = bookedAt.getTime() + HALF_CHARGE_WINDOW_HOURS * 3600000;
-  return new Date(startsAt ? Math.min(end, startsAt.getTime()) : end);
+/** The appointment instant: start_time when there is one, otherwise the date
+ *  and wall clock, stored in spa time (Costa Rica is UTC-6 all year). */
+function appointmentStart(b: { start_time?: string | null; booking_date: string; booking_time?: string | null }): Date {
+  if (b.start_time) return new Date(b.start_time);
+  return new Date(`${b.booking_date}T${(b.booking_time || "00:00:00").slice(0, 8)}-06:00`);
+}
+
+/** 48 hours before the appointment: a cancellation email that arrives before
+ *  this is charged 50%, one that arrives after it is charged 100%. */
+function fullChargeFrom(startsAt: Date): Date {
+  return new Date(startsAt.getTime() - FULL_CHARGE_WINDOW_HOURS * 3600000);
+}
+
+/** The line that tells one guest their own deadline — the policy in general
+ *  terms is easy to misread; a date and a time are not. */
+function deadlineHtml(fullFrom: Date, insideWindow: boolean): string {
+  return insideWindow
+    ? `Your appointment is less than ${FULL_CHARGE_WINDOW_HOURS} hours away, so a cancellation — or not coming — is charged <strong>100%</strong> of the total.`
+    : `For this appointment: cancel before <strong>${escHtml(spaDateTime(fullFrom))}</strong> (Costa Rica time) and <strong>50%</strong> of the total is charged. After that — within the ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment — or if you do not come, <strong>100%</strong> is charged.`;
 }
 
 /** Mirror of buildCancellationMailto() in src/lib/cancellationPolicy.ts: an
@@ -126,19 +141,26 @@ function buildCancellationMailto(b: {
 /**
  * Every guest-facing email carries the policy, because the only other place
  * it appears is the card form at the end of the booking flow — by the time a
- * guest needs to cancel, that page is long gone. Treatment confirmations also
- * carry the Cancel link, which opens the cancellation email for them.
+ * guest needs to cancel, that page is long gone.
+ *
+ * A treatment confirmation opens with the guest's own deadline, then the rule,
+ * then how cancelling works: the button opens an email to the studio that is
+ * already written, and the time it arrives is what counts.
  */
-function policyBlock(lines: string[], cancelHref?: string): string {
+function policyBlock(lines: string[], opts: { cancelHref?: string; deadline?: string } = {}): string {
   const items = lines
     .map((line) => `<li style="margin:0 0 6px;">${escHtml(line)}</li>`)
     .join("");
-  const button = cancelHref
-    ? `<p style="margin:14px 0 0;"><a href="${cancelHref.replace(/&/g, "&amp;")}" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+  const deadline = opts.deadline
+    ? `<p style="margin:0 0 12px;padding:12px 14px;background:#ffffff;border-left:3px solid #7a2e2e;border-radius:6px;font-size:14px;line-height:1.6;color:#2F2F2F;">${opts.deadline}</p>`
+    : "";
+  const howTo = opts.cancelHref
+    ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:#555;"><strong style="color:#2F2F2F;">How to cancel:</strong> tap the button below. It opens an email to us that is already addressed and filled in with your appointment — just add a line if you like, and send it. The time your email reaches us is the time of your cancellation. If the button does not open your email app, write to ${CANCELLATION_EMAIL} and include your reservation number.</p>
+       <p style="margin:12px 0 0;"><a href="${opts.cancelHref.replace(/&/g, "&amp;")}" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
     : "";
   return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;">
-    <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>
-    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${button}
+    <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>
+    ${deadline}<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${howTo}
   </div>`;
 }
 
@@ -348,6 +370,7 @@ function buildCustomerHtml(ctx: {
   remainingBalance: number | null;
   paymentStatus: string;
   cancelHref: string;
+  deadline: string;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -380,7 +403,7 @@ function buildCustomerHtml(ctx: {
         <p style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
           We look forward to welcoming you. Please arrive 10 minutes early to settle in.
         </p>
-        ${policyBlock(POLICY_LINES, ctx.cancelHref)}
+        ${policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref: ctx.cancelHref, deadline: ctx.deadline })}
       </div>
       <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
         Holis Wellness Center · spaholis.com
@@ -502,9 +525,10 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
   const bookingTime = (booking.booking_time || "").slice(0, 5) || "TBD";
 
   const bookedAt = booking.created_at ? new Date(booking.created_at) : null;
-  const halfUntil = bookedAt
-    ? halfChargeEnds(bookedAt, booking.start_time ? new Date(booking.start_time) : null)
-    : null;
+  const fullFrom = fullChargeFrom(appointmentStart(booking));
+  // Booked less than 48 hours ahead: inside the window from the moment of booking.
+  const bookedInside = (bookedAt ?? new Date()).getTime() >= fullFrom.getTime();
+  const deadline = deadlineHtml(fullFrom, bookedInside);
   const cancelHref = buildCancellationMailto({
     serviceName, date: bookingDate, time: bookingTime, reservationId, guestName: booking.guest_name,
   });
@@ -528,7 +552,9 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
     notes: booking.notes ?? null,
     intakeHtml: buildIntakeHtml(booking.intake_form),
     bookedAt: bookedAt ? `${spaDateTime(bookedAt)} (Costa Rica time)` : null,
-    halfChargeUntil: halfUntil ? `${spaDateTime(halfUntil)} — after that, 100%` : null,
+    halfChargeUntil: bookedInside
+      ? "None — booked less than 48 hours before the appointment, so any cancellation is 100%"
+      : `${spaDateTime(fullFrom)} — after that, 100%`,
   });
 
   const adminSubj = `New Reservation — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
@@ -573,7 +599,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
           discount: discountUsd && discountUsd > 0 ? `-${formatCRC(discountUsd)}` : "",
           total: totalUsd != null ? formatCRC(totalUsd) : "",
         },
-        { details: detailsTable(rows), button: "", policy: policyBlock(POLICY_LINES, cancelHref) },
+        { details: detailsTable(rows), button: "", policy: policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref, deadline }) },
       );
       subject = built.subject;
       customerHtml = built.html;
@@ -593,6 +619,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
         remainingBalance: remaining,
         paymentStatus: paymentStatusLabel,
         cancelHref,
+        deadline,
       });
     }
     customerRes = await sendEmail(booking.guest_email, subject, customerHtml);
@@ -967,7 +994,7 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     .select(`
       id, status, guest_name, guest_email, guest_phone, booking_date, booking_time,
       start_time, total_price, created_at, cancelled_at, cancellation_fee_percent,
-      notification_sent_at,
+      cancellation_requested_at, notification_sent_at,
       service:services(id, title, category)
     `)
     .eq("id", bookingId)
@@ -996,16 +1023,28 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     : 0;
 
   const bookedAt = booking.created_at ? new Date(booking.created_at) : null;
-  const halfUntil = bookedAt
-    ? halfChargeEnds(bookedAt, booking.start_time ? new Date(booking.start_time) : null)
-    : null;
+  const fullFrom = fullChargeFrom(appointmentStart(booking));
+  const bookedInside = (bookedAt ?? new Date()).getTime() >= fullFrom.getTime();
+  // When the request reached the studio — given by reception, or the moment
+  // of cancelling when they did not say.
+  const requestedAt = booking.cancellation_requested_at
+    ? new Date(booking.cancellation_requested_at)
+    : booking.cancelled_at ? new Date(booking.cancelled_at) : null;
+  const requestInside = requestedAt ? requestedAt.getTime() >= fullFrom.getTime() : null;
+  const policyPercent = requestInside == null ? null : requestInside ? 100 : 50;
 
   const feeLabel = feePercent == null ? null
     : feePercent > 0 ? `${feePercent}% — ${formatCRC(feeUsd)}`
     : "None";
+  // Facts first (when the request arrived, against the 48 hours), then the fee.
+  // Kept as two statements so they stay true even when reception waived or
+  // changed the fee the policy would give.
+  const whenSentence = requestedAt
+    ? `Your cancellation request reached us on <strong>${escHtml(spaDateTime(requestedAt))}</strong> (Costa Rica time) — ${requestInside ? `within the ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment` : `more than ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment`}.`
+    : "";
   const feeSentence = feePercent == null ? ""
     : feePercent > 0
-      ? `In line with our cancellation policy, ${feePercent}% of the total${feeUsd > 0 ? ` (${formatCRC(feeUsd)})` : ""} will be charged to the card on file.`
+      ? `${feePercent}% of the total${feeUsd > 0 ? ` (${formatCRC(feeUsd)})` : ""} will be charged to the card on file.`
       : "No cancellation fee will be charged.";
 
   const guestRows = [
@@ -1022,6 +1061,9 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     : feePercent > 0
       ? `<p style="margin:18px 0 0;padding:14px;background:#fdf0f0;border-radius:8px;font-size:14px;color:#7a2e2e;"><strong>Charge the card on file ${formatCRC(feeUsd)}</strong> (${feePercent}% cancellation fee).</p>`
       : `<p style="margin:18px 0 0;font-size:14px;color:#555;">No charge — the slot is free again.</p>`;
+  const overrideNote = feePercent != null && policyPercent != null && feePercent !== policyPercent
+    ? `<p style="margin:10px 0 0;font-size:13px;color:#92400e;">The fee chosen (${feePercent}%) differs from what the policy gives for this request time (${policyPercent}%).</p>`
+    : "";
   const guestNotice = booking.notification_sent_at && booking.guest_email
     ? `The guest has been emailed this cancellation.`
     : `The guest was not emailed — they never received a confirmation email for this booking.`;
@@ -1039,10 +1081,12 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
           ${tableRow("Email", escHtml(booking.guest_email || "N/A"))}
           ${tableRow("Phone", escHtml(booking.guest_phone || "Not provided"))}
           ${bookedAt ? tableRow("Booked on", `${spaDateTime(bookedAt)} (Costa Rica time)`) : ""}
-          ${halfUntil ? tableRow("50% cancellation until", spaDateTime(halfUntil)) : ""}
+          ${tableRow("50% cancellation until", bookedInside ? "None — booked less than 48 hours before the appointment" : `${spaDateTime(fullFrom)} — after that, 100%`)}
+          ${requestedAt ? tableRow("Request received", `${spaDateTime(requestedAt)} — ${requestInside ? "within the 48 hours" : "more than 48 hours before"} (policy: ${policyPercent}%)`) : ""}
           ${booking.cancelled_at ? tableRow("Cancelled on", spaDateTime(new Date(booking.cancelled_at))) : ""}
         </table>
         ${chargeNote}
+        ${overrideNote}
         <p style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>
       </div>
     </div>
@@ -1064,11 +1108,11 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
         Your appointment has been cancelled. Here is what was cancelled:
       </p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${guestRows.join("")}</table>
-      ${feeSentence ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${escHtml(feeSentence)}</p>` : ""}
+      ${whenSentence || feeSentence ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${whenSentence}${whenSentence && feeSentence ? " " : ""}${escHtml(feeSentence)}</p>` : ""}
       <p style="font-size:13px;line-height:1.6;margin:18px 0 0;color:#555;">
         We would love to see you another time — reply to this email or message us on WhatsApp and we will find you a new slot.
       </p>
-      ${policyBlock(POLICY_LINES)}`;
+      ${policyBlock([...RULE_LINES, CHANGES_LINE])}`;
     customerRes = await sendEmail(
       booking.guest_email,
       `Your Holis Wellness appointment was cancelled (${reservationId})`,

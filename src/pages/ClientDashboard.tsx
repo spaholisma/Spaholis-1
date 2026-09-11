@@ -210,8 +210,8 @@ const ClientDashboard = () => {
                 <a href={`mailto:${HOLIS_EMAIL}`}
                    className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
                   <Mail className="h-3 w-3" /> {HOLIS_EMAIL}
-                </a>{" "}and we'll move it for you. Cancelling within 24 hours of making your
-                booking is charged 50%; after that, and for a no-show, 100%.
+                </a>{" "}and we'll move it for you. Cancelling more than 48 hours before your
+                appointment is charged 50%; within those 48 hours, or not showing up, 100%.
               </p>
             </div>
           )}

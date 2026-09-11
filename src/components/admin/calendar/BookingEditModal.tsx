@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,15 +8,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy } from "lucide-react";
+import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarBooking } from "./calendarUtils";
 import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
-import { spaLocalToInstant } from "@/lib/businessHours";
+import { spaLocalToInstant, spaLocalParts } from "@/lib/businessHours";
 // Two decimals, like the cancellation email reception will get: $65.50, not $66.
 import { formatUsd } from "@/lib/currency";
-import { cancellationFee, cancellationWindow } from "@/lib/cancellationPolicy";
+import { appointmentStart, cancellationFee, cancellationWindow } from "@/lib/cancellationPolicy";
+
+/** A datetime-local value ("YYYY-MM-DDTHH:mm") in Costa Rica time, whatever
+ *  the browser's own timezone — and back. */
+const toSpaInput = (d: Date) => {
+  const p = spaLocalParts(d);
+  return `${p.year}-${String(p.month0 + 1).padStart(2, "0")}-${String(p.day).padStart(2, "0")}T${p.hhmm}`;
+};
+const fromSpaInput = (v: string): Date | null => {
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  return m ? spaLocalToInstant(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+};
 
 const spaDateTime = (iso: string | Date) =>
   new Date(iso).toLocaleString("en-US", {
@@ -174,37 +185,73 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   // Card on file — masked by default; the full number is fetched on demand
   // through an admin-only, audited RPC.
   const [card, setCard] = useState<CardOnFile | null>(null);
-  // When the guest placed the booking decides the cancellation fee (50% inside
-  // the first 24 hours, 100% after), and only reception knows when their
-  // cancellation email arrived — so the fee is chosen here, not computed.
+  // The fee depends on when the guest's cancellation request arrived, measured
+  // against the appointment: more than 48 hours before it is 50%, inside those
+  // 48 hours 100%. Reception may process a request later than it came in, so
+  // they give the time it arrived and the fee is computed from that — then
+  // they can still change it (a cancellation on our side, say).
   const [timing, setTiming] = useState<{
     created_at: string;
     start_time: string | null;
     notification_sent_at: string | null;
     cancelled_at: string | null;
     cancellation_fee_percent: number | null;
+    cancellation_requested_at: string | null;
   } | null>(null);
   const [feePercent, setFeePercent] = useState<string>("");
+  // Set once reception picks a fee by hand; until then it follows the policy.
+  const [feeTouched, setFeeTouched] = useState(false);
+  const [requestedAt, setRequestedAt] = useState<string>("");
+  const [tab, setTab] = useState("details");
+  const cancelPanelRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
 
   useEffect(() => {
     setTiming(null);
     setFeePercent("");
+    setFeeTouched(false);
+    setRequestedAt("");
+    setTab("details");
     if (!booking) return;
     // The calendar loads bookings through several different queries; asking
     // for these few columns here keeps every one of them working unchanged.
     supabase
       .from("bookings")
-      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent" as any)
+      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at" as any)
       .eq("id", booking.id)
       .maybeSingle()
       .then(({ data }) => {
         const t = (data as any) ?? null;
         setTiming(t);
-        if (t?.cancellation_fee_percent != null) setFeePercent(String(t.cancellation_fee_percent));
+        if (t?.cancellation_fee_percent != null) {
+          setFeePercent(String(t.cancellation_fee_percent));
+          setFeeTouched(true);
+        }
+        if (t?.cancellation_requested_at) setRequestedAt(toSpaInput(new Date(t.cancellation_requested_at)));
       });
   }, [booking]);
+
+  // What the policy says for a request received at `requestedAt`.
+  const startsAt = booking
+    ? appointmentStart({ start_time: timing?.start_time ?? null, booking_date: booking.booking_date, booking_time: booking.booking_time })
+    : null;
+  const policy = startsAt ? cancellationWindow(startsAt, fromSpaInput(requestedAt) ?? new Date()) : null;
+  const cancellingNow = !!booking && form.status === "cancelled" && booking.status !== "cancelled";
+
+  // Opening a cancellation: the request time starts at now, and the fee
+  // follows the policy for that time until reception picks one by hand.
+  useEffect(() => {
+    if (!cancellingNow) return;
+    if (!requestedAt) { setRequestedAt(toSpaInput(new Date())); return; }
+    if (!feeTouched && policy) setFeePercent(String(policy.percent));
+  }, [cancellingNow, requestedAt, feeTouched, policy?.percent]);
+
+  const startCancellation = () => {
+    setForm((f) => ({ ...f, status: "cancelled" }));
+    setTab("details");
+    requestAnimationFrame(() => cancelPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
 
   useEffect(() => {
     setCard(null);
@@ -277,6 +324,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
       toast.error("Choose the cancellation fee: 50%, 100% or no charge.");
       return;
     }
+    const requestInstant = fromSpaInput(requestedAt);
+    if (cancelling && (!requestInstant || requestInstant.getTime() > Date.now() + 5 * 60_000)) {
+      toast.error("Enter when the cancellation request was received — it cannot be in the future.");
+      return;
+    }
     setSaving(true);
     const selectedService = services.find((s) => s.id === form.service_id);
     // Keep the timestamptz slot in sync with the edited start/end times, so
@@ -315,7 +367,10 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         // sends on that change already knows what to tell the guest. (Cast: the
         // generated types predate the column.)
         ...(form.status === "cancelled" && feePercent !== ""
-          ? ({ cancellation_fee_percent: Number(feePercent) } as any)
+          ? ({
+              cancellation_fee_percent: Number(feePercent),
+              ...(requestInstant ? { cancellation_requested_at: requestInstant.toISOString() } : {}),
+            } as any)
           : {}),
       })
       .eq("id", booking.id);
@@ -323,7 +378,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     if (error) {
       toast.error(error.message || "Failed to update booking");
     } else {
-      toast.success("Booking updated");
+      toast.success(cancelling ? "Appointment cancelled — the cancellation emails are on their way." : "Booking updated");
       onOpenChange(false);
       onSaved();
     }
@@ -372,7 +427,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-3">
-          <Tabs defaultValue="details" className="w-full">
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="details" className="text-xs gap-1"><CalendarDays className="h-3 w-3" /> Details</TabsTrigger>
               <TabsTrigger value="intake" className="text-xs gap-1"><ClipboardList className="h-3 w-3" /> Intake form</TabsTrigger>
@@ -464,27 +519,54 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               {form.status === "cancelled" && booking && (() => {
                 const total = form.total_price ? parseFloat(form.total_price) : booking.total_price;
                 const already = booking.status === "cancelled";
-                const charge = timing ? cancellationWindow(timing.created_at, timing.start_time) : null;
                 // Mirrors the database trigger: the team hears about every real
                 // booking; the guest only if they were emailed a confirmation.
                 const emailsTeam = ["confirmed", "paid"].includes(booking.status) || !!timing?.notification_sent_at;
                 const emailsGuest = !!timing?.notification_sent_at && !!form.guest_email;
+                const overridden = !!policy && feePercent !== "" && Number(feePercent) !== policy.percent;
                 return (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-foreground">Cancellation</p>
-                    {timing && charge ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Booked on <strong className="text-foreground">{spaDateTime(timing.created_at)}</strong>.
-                        {" "}A cancellation email that reached you before{" "}
-                        <strong className="text-foreground">{spaDateTime(charge.endsAt)}</strong> is 50%; after that, 100%.
-                        {already && timing.cancelled_at && <> Cancelled on {spaDateTime(timing.cancelled_at)}.</>}
-                      </p>
+                  <div ref={cancelPanelRef} className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2.5">
+                    <p className="text-xs font-semibold text-foreground">{already ? "Cancelled" : "Cancel this appointment"}</p>
+                    {timing && startsAt && policy ? (
+                      <div className="text-xs text-muted-foreground leading-relaxed space-y-0.5">
+                        <p>Booked on <strong className="text-foreground">{spaDateTime(timing.created_at)}</strong></p>
+                        <p>Appointment <strong className="text-foreground">{spaDateTime(startsAt)}</strong></p>
+                        <p>
+                          48-hour mark <strong className="text-foreground">{spaDateTime(policy.fullChargeFrom)}</strong>
+                          {" "}— a request received before it is 50%, from it on 100%.
+                        </p>
+                        {already && timing.cancellation_requested_at && (
+                          <p>Request received {spaDateTime(timing.cancellation_requested_at)}</p>
+                        )}
+                        {already && timing.cancelled_at && <p>Cancelled on {spaDateTime(timing.cancelled_at)}</p>}
+                      </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">Loading booking times…</p>
                     )}
+                    {!already && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Cancellation request received (Costa Rica time) *</Label>
+                        <Input
+                          type="datetime-local"
+                          value={requestedAt}
+                          onChange={(e) => setRequestedAt(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          When the guest's email or message reached you. Leave it as now if they are cancelling right now.
+                        </p>
+                      </div>
+                    )}
+                    {!already && policy && (
+                      <p className="text-xs text-foreground">
+                        {policy.withinWindow
+                          ? <>Received within the 48 hours before the appointment → policy: <strong>100% ({formatUsd(cancellationFee(total, 100))})</strong></>
+                          : <>Received more than 48 hours before the appointment → policy: <strong>50% ({formatUsd(cancellationFee(total, 50))})</strong></>}
+                      </p>
+                    )}
                     <div className="space-y-1.5">
                       <Label className="text-xs">Cancellation fee {already ? "" : "*"}</Label>
-                      <Select value={feePercent} onValueChange={setFeePercent}>
+                      <Select value={feePercent} onValueChange={(v) => { setFeePercent(v); setFeeTouched(true); }}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choose the fee" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="50">50% — {formatUsd(cancellationFee(total, 50))}</SelectItem>
@@ -492,11 +574,23 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                           <SelectItem value="0">No charge</SelectItem>
                         </SelectContent>
                       </Select>
+                      {!already && overridden && (
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          This is not what the policy gives ({policy!.percent}%). Fine if the cancellation is on our side
+                          or you agreed otherwise with the guest.{" "}
+                          <button type="button" className="underline underline-offset-2" onClick={() => setFeeTouched(false)}>
+                            Use the policy
+                          </button>
+                        </p>
+                      )}
+                      {already && (
+                        <p className="text-[11px] text-muted-foreground">Changing the fee now does not send a new email.</p>
+                      )}
                     </div>
                     {!already && (
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
                         {emailsTeam
-                          ? <>Saving emails the cancellation {emailsGuest ? "to the guest and " : ""}to the team{!emailsGuest && " (the guest never received a confirmation email, so they are not emailed)"}.</>
+                          ? <>Confirming emails the cancellation {emailsGuest ? "to the guest and " : ""}to the team{!emailsGuest && " (the guest never received a confirmation email, so they are not emailed)"}.</>
                           : <>No email is sent for this booking — it was never confirmed.</>}
                         {" "}To remove a duplicate or test booking without emailing anyone, use Delete instead.
                       </p>
@@ -633,11 +727,18 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
             <Button variant="ghost" size="sm" onClick={handleDuplicate} disabled={saving} className="gap-1" title="Create a copy for the same guest">
               <Copy className="h-3.5 w-3.5" /> Duplicate
             </Button>
+            {booking && booking.status !== "cancelled" && form.status !== "cancelled" && (
+              <Button variant="outline" size="sm" onClick={startCancellation} disabled={saving}
+                className="gap-1 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive">
+                <Ban className="h-3.5 w-3.5" /> Cancel appointment
+              </Button>
+            )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}
+              className={cancellingNow ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}>
+              {saving ? "Saving..." : cancellingNow ? "Confirm cancellation" : "Save Changes"}
             </Button>
           </div>
         </DialogFooter>

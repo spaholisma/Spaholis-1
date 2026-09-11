@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  appointmentStart,
   cancellationWindow,
   cancellationFee,
   buildCancellationMailto,
@@ -7,53 +8,61 @@ import {
   CANCELLATION_EMAIL,
   CANCELLATION_POLICY,
   POLICY_LINES,
+  RULE_LINES,
   CLASS_POLICY_LINES,
+  BEFORE_WINDOW_PERCENT,
   WITHIN_WINDOW_PERCENT,
-  AFTER_WINDOW_PERCENT,
 } from "@/lib/cancellationPolicy";
 
 // This decides whether a card is charged half or in full, so the edges are
-// pinned down. The clock starts when the booking is PLACED: 50% inside the
-// first 24 hours, 100% after — and never a free cancellation.
+// pinned down. The clock runs against the APPOINTMENT: more than 48 hours
+// before it costs 50%, inside those 48 hours (or not coming) costs 100%, and
+// it is never free.
 describe("cancellation window", () => {
-  // Booked Monday 10am (Costa Rica) for Friday 10am — the example the owner
-  // used to choose this rule.
-  const booked = new Date("2026-09-14T10:00:00-06:00");
+  // Friday 10am — the example the owner confirmed the rule with. The 48 hours
+  // begin on Wednesday at 10am.
   const appointment = new Date("2026-09-18T10:00:00-06:00");
   const at = (iso: string) => new Date(iso);
 
-  it("charges half the same evening", () => {
-    const w = cancellationWindow(booked, appointment, at("2026-09-14T20:00:00-06:00"));
+  it("charges half on Tuesday", () => {
+    const w = cancellationWindow(appointment, at("2026-09-15T15:00:00-06:00"));
+    expect(w.withinWindow).toBe(false);
+    expect(w.percent).toBe(BEFORE_WINDOW_PERCENT);
+  });
+
+  it("charges in full on Thursday", () => {
+    const w = cancellationWindow(appointment, at("2026-09-17T09:00:00-06:00"));
     expect(w.withinWindow).toBe(true);
     expect(w.percent).toBe(WITHIN_WINDOW_PERCENT);
   });
 
-  it("charges in full on Wednesday", () => {
-    const w = cancellationWindow(booked, appointment, at("2026-09-16T09:00:00-06:00"));
-    expect(w.withinWindow).toBe(false);
-    expect(w.percent).toBe(AFTER_WINDOW_PERCENT);
+  it("switches exactly 48 hours before the appointment", () => {
+    const w = cancellationWindow(appointment);
+    expect(w.fullChargeFrom.toISOString()).toBe(new Date("2026-09-16T10:00:00-06:00").toISOString());
+    expect(cancellationWindow(appointment, at("2026-09-16T09:59:00-06:00")).percent).toBe(50);
+    expect(cancellationWindow(appointment, at("2026-09-16T10:00:00-06:00")).percent).toBe(100);
   });
 
-  it("ends exactly 24 hours after booking", () => {
-    const w = cancellationWindow(booked, appointment);
-    expect(w.endsAt.toISOString()).toBe(new Date("2026-09-15T10:00:00-06:00").toISOString());
-    expect(cancellationWindow(booked, appointment, at("2026-09-15T09:59:00-06:00")).percent).toBe(50);
-    expect(cancellationWindow(booked, appointment, at("2026-09-15T10:00:00-06:00")).percent).toBe(100);
+  it("is never free, however far ahead", () => {
+    expect(cancellationWindow(appointment, at("2026-06-01T10:00:00-06:00")).percent).toBe(50);
   });
 
-  // Booked at 9am for 2pm the same day: at 5pm the guest did not cancel "inside
-  // their 24 hours", they simply did not come — a no-show, charged in full.
-  it("never runs past the start of the appointment", () => {
-    const b = new Date("2026-09-14T09:00:00-06:00");
-    const start = new Date("2026-09-14T14:00:00-06:00");
-    const w = cancellationWindow(b, start);
-    expect(w.endsAt.toISOString()).toBe(start.toISOString());
-    expect(cancellationWindow(b, start, at("2026-09-14T13:00:00-06:00")).percent).toBe(50);
-    expect(cancellationWindow(b, start, at("2026-09-14T17:00:00-06:00")).percent).toBe(100);
+  // Booked on Thursday for Friday: already inside the 48 hours when booked.
+  it("puts a booking made less than 48 hours ahead at 100% straight away", () => {
+    expect(cancellationWindow(appointment, at("2026-09-17T08:00:00-06:00")).percent).toBe(100);
+  });
+});
+
+describe("appointment start", () => {
+  it("uses start_time when there is one", () => {
+    expect(appointmentStart({ start_time: "2026-09-18T16:00:00Z", booking_date: "2026-01-01" }).toISOString())
+      .toBe("2026-09-18T16:00:00.000Z");
   });
 
-  it("works without an appointment time (at-location visits)", () => {
-    expect(cancellationWindow(booked, null, at("2026-09-14T12:00:00-06:00")).percent).toBe(50);
+  // At-location visits have no start_time; date and time are spa-local (UTC-6).
+  it("falls back to the date and wall clock in Costa Rica time", () => {
+    expect(appointmentStart({ booking_date: "2026-09-18", booking_time: "10:00:00" }).toISOString())
+      .toBe("2026-09-18T16:00:00.000Z");
   });
 });
 
@@ -121,21 +130,28 @@ describe("policy wording", () => {
   // the same rule, or a guest gets two answers.
   it("agrees with the paragraph the guest signs", () => {
     for (const text of [CANCELLATION_POLICY, POLICY_LINES.join(" ")]) {
-      expect(text).toContain("24 hours");
+      expect(text).toContain("48 hours before");
       expect(text).toContain("50%");
       expect(text).toContain("100%");
       expect(text).toContain(CANCELLATION_EMAIL);
     }
   });
 
-  it("counts from the booking, not the appointment", () => {
-    expect(CANCELLATION_POLICY).toMatch(/within 24 hours of placing this booking/);
-    expect(CANCELLATION_POLICY).not.toMatch(/before the appointment/);
+  it("counts back from the appointment, never from the booking", () => {
+    for (const text of [CANCELLATION_POLICY, POLICY_LINES.join(" ")]) {
+      expect(text).not.toMatch(/24 hours/);
+      expect(text).not.toMatch(/placing|making your booking/);
+      expect(text).not.toMatch(/free/i);
+    }
+    // The card form does say there is "no charge in advance" — that is about
+    // booking, not cancelling. No cancellation line may promise it.
     expect(POLICY_LINES.join(" ")).not.toMatch(/no charge/i);
+    expect(RULE_LINES[0]).toMatch(/more than 48 hours before your appointment — 50%/);
+    expect(RULE_LINES[1]).toMatch(/within the 48 hours before your appointment, or not show up — 100%/);
   });
 
   it("gives classes their own rule from the Refund page", () => {
     expect(CLASS_POLICY_LINES.join(" ")).toContain("4 hours before the class");
-    expect(CLASS_POLICY_LINES.join(" ")).not.toContain("24 hours");
+    expect(CLASS_POLICY_LINES.join(" ")).not.toContain("48 hours");
   });
 });

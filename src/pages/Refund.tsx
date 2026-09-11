@@ -21,11 +21,12 @@ export default function Refund() {
           <h2 className="font-heading text-2xl mt-8">Treatments &amp; Private Sessions</h2>
           <p>
             Nothing is charged in advance: we keep a card on file. A treatment
-            cancelled within 24 hours of placing the booking is charged 50% of
-            the total; after those first 24 hours, a cancellation or a no-show is
-            charged 100%. To cancel, email us at spaholisma@gmail.com — the
-            Cancel link in your confirmation email opens one for you — and the
-            time your email reaches us is the time of the cancellation.
+            cancelled more than 48 hours before the appointment is charged 50% of
+            the total; within the 48 hours before the appointment, a cancellation
+            or a no-show is charged 100%. To cancel, email us at
+            spaholisma@gmail.com — the Cancel link in your confirmation email
+            opens one for you — and the time your email reaches us is the time
+            of the cancellation.
           </p>
 
           <h2 className="font-heading text-2xl mt-8">Classes &amp; Passes</h2>

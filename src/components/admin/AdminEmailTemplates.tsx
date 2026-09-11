@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { POLICY_LINES, CLASS_POLICY_LINES } from "@/lib/cancellationPolicy";
+import { RULE_LINES, CHANGES_LINE, CLASS_POLICY_LINES, CANCELLATION_EMAIL } from "@/lib/cancellationPolicy";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -187,12 +187,18 @@ function sampleVars(category: string): Record<string, string> {
 
 /** Same block the edge function appends — see policyBlock() there. */
 function samplePolicy(category: string): string {
-  const lines = category === "class" ? CLASS_POLICY_LINES : POLICY_LINES;
+  const treatment = category === "treatment";
+  const lines = treatment ? [...RULE_LINES, CHANGES_LINE] : CLASS_POLICY_LINES;
   const items = lines.map((l) => `<li style="margin:0 0 6px;">${escHtml(l)}</li>`).join("");
-  const button = category === "treatment"
-    ? `<p style="margin:14px 0 0;"><a href="#" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+  // A treatment confirmation opens with the guest's own deadline (48 hours
+  // before their appointment) and ends with how the Cancel button works.
+  const deadline = treatment
+    ? `<p style="margin:0 0 12px;padding:12px 14px;background:#ffffff;border-left:3px solid #7a2e2e;border-radius:6px;font-size:14px;line-height:1.6;color:#2F2F2F;">For this appointment: cancel before <strong>Saturday, July 18, 2026 at 10:00 AM</strong> (Costa Rica time) and <strong>50%</strong> of the total is charged. After that — within the 48 hours before your appointment — or if you do not come, <strong>100%</strong> is charged.</p>`
     : "";
-  return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;"><p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${button}</div>`;
+  const howTo = treatment
+    ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:#555;"><strong style="color:#2F2F2F;">How to cancel:</strong> tap the button below. It opens an email to us that is already addressed and filled in with your appointment — just add a line if you like, and send it. The time your email reaches us is the time of your cancellation. If the button does not open your email app, write to ${CANCELLATION_EMAIL} and include your reservation number.</p><p style="margin:12px 0 0;"><a href="#" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+    : "";
+  return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;"><p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>${deadline}<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${howTo}</div>`;
 }
 
 function buildPreview(tpl: { heading: string; body_html: string }, category: string): string {

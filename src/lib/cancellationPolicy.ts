@@ -1,4 +1,5 @@
 import { HOLIS_EMAIL } from "@/data/contact";
+import { spaLocalToInstant } from "@/lib/businessHours";
 
 /**
  * The cancellation policy, in one place.
@@ -6,47 +7,55 @@ import { HOLIS_EMAIL } from "@/data/contact";
  * This is the same text the guest accepts when they hand over a card at the end
  * of the booking flow, so it must not drift: what they signed and what the email
  * later tells them have to be the same sentence. `supabase/functions/
- * send-booking-notification/index.ts` keeps a mirror of POLICY_LINES and of the
- * cancellation email for the emails — Deno cannot import from src/, so change
- * both together.
+ * send-booking-notification/index.ts` keeps a mirror of these lines and of the
+ * cancellation email — Deno cannot import from src/, so change both together.
  *
- * The clock starts when the booking is PLACED, not at the appointment: a guest
- * has 24 hours from booking in which a cancellation costs half, and after that
- * it costs the full amount. There is no free cancellation.
+ * The clock runs against the APPOINTMENT: cancelling more than 48 hours before
+ * it costs half, and inside those 48 hours — or not coming — costs the full
+ * amount. There is no free cancellation. A guest who books less than 48 hours
+ * ahead is inside the window from the moment they book.
  *
  * Nothing is cancelled online. A guest cancels by emailing the studio, and the
  * time that email arrives is the time of the cancellation — reception reads it
- * against the "Booked on" line of their own booking email and charges from
- * there.
+ * against the appointment and picks the fee in the calendar.
  */
 
 /** Where cancellation emails go. */
 export const CANCELLATION_EMAIL = HOLIS_EMAIL;
 
-/** Hours after placing a booking during which a cancellation costs half. */
-export const HALF_CHARGE_WINDOW_HOURS = 24;
+/** Hours before the appointment from which a cancellation costs the full amount. */
+export const FULL_CHARGE_WINDOW_HOURS = 48;
 
-/** Charged for a cancellation inside the first 24 hours. */
-export const WITHIN_WINDOW_PERCENT = 50;
+/** Charged for a cancellation made more than 48 hours before the appointment. */
+export const BEFORE_WINDOW_PERCENT = 50;
 
-/** Charged for a cancellation after that, and for a no-show. */
-export const AFTER_WINDOW_PERCENT = 100;
+/** Charged inside the 48 hours before the appointment, and for a no-show. */
+export const WITHIN_WINDOW_PERCENT = 100;
 
 /** The full paragraph shown on — and stored with — the card authorization. */
 export const CANCELLATION_POLICY =
-  "Cancellations made within 24 hours of placing this booking are charged 50% of the total. " +
-  "After those first 24 hours, cancellations and no-shows are charged 100% of the total amount of your appointment. " +
-  `To cancel, email us at ${CANCELLATION_EMAIL}; the time your email reaches us is the time of the cancellation. ` +
+  "Cancellations made more than 48 hours before the appointment are charged 50% of the total. " +
+  "Cancellations within the 48 hours before the appointment, and no-shows, are charged 100% of the total amount of your appointment. " +
+  `To cancel, email us at ${CANCELLATION_EMAIL} — your confirmation email has a button that writes it for you — ` +
+  "and the time your email reaches us is the time of the cancellation. " +
   "By filling out this form, there is no charge in advance for the treatment. " +
   "This form will be used for further reservations during your visit if necessary.";
 
-/** The same policy broken into the bullets the emails and the dashboard render. */
-export const POLICY_LINES = [
-  `Cancel within ${HALF_CHARGE_WINDOW_HOURS} hours of making your booking — ${WITHIN_WINDOW_PERCENT}% of the total is charged to the card on file.`,
-  `Cancel after those first ${HALF_CHARGE_WINDOW_HOURS} hours, or not show up — ${AFTER_WINDOW_PERCENT}% of the total is charged to the card on file.`,
-  `To cancel, email us at ${CANCELLATION_EMAIL}. The time your email reaches us is the time of the cancellation.`,
-  "To change the treatment, the date or the time, contact us on WhatsApp or by email.",
+/** What each cancellation costs. */
+export const RULE_LINES = [
+  `Cancel more than ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment — ${BEFORE_WINDOW_PERCENT}% of the total is charged to the card on file.`,
+  `Cancel within the ${FULL_CHARGE_WINDOW_HOURS} hours before your appointment, or not show up — ${WITHIN_WINDOW_PERCENT}% of the total is charged to the card on file.`,
 ];
+
+/** How to cancel. */
+export const HOW_TO_CANCEL_LINE =
+  `To cancel, email us at ${CANCELLATION_EMAIL}. The time your email reaches us is the time of the cancellation.`;
+
+/** How to change instead. */
+export const CHANGES_LINE = "To change the treatment, the date or the time, contact us on WhatsApp or by email.";
+
+/** The whole policy as the bullets the emails and the dashboard render. */
+export const POLICY_LINES = [...RULE_LINES, HOW_TO_CANCEL_LINE, CHANGES_LINE];
 
 /** Classes follow the rule published on the Refund page, not the treatment one. */
 export const CLASS_POLICY_LINES = [
@@ -54,28 +63,36 @@ export const CLASS_POLICY_LINES = [
   "Class passes and memberships are non-refundable once activated, but remain valid for their original duration.",
 ];
 
+/** The appointment instant: start_time when there is one, otherwise the date
+ *  and wall clock, which are stored in spa-local time (at-location visits). */
+export function appointmentStart(b: {
+  start_time?: string | null;
+  booking_date: string;
+  booking_time?: string | null;
+}): Date {
+  if (b.start_time) return new Date(b.start_time);
+  const [y, m, d] = b.booking_date.split("-").map(Number);
+  const [h, min] = (b.booking_time || "00:00").split(":").map(Number);
+  return spaLocalToInstant(y, m - 1, d, h || 0, min || 0);
+}
+
 /**
- * Until when a cancellation costs half.
+ * What a cancellation sent right now would cost.
  *
- * The window is 24 hours from the moment the booking was placed — but never
- * past the start of the appointment itself. Someone who books at 9am for 2pm
- * the same day cannot "cancel at 50%" at 5pm: by then they simply did not come,
- * which is a no-show and costs the full amount.
+ * `fullChargeFrom` is 48 hours before the appointment: an email that reaches
+ * the studio before then is charged half, one that arrives after it — or no
+ * email at all and no guest — the full amount.
  */
-export function cancellationWindow(
-  bookedAt: Date | string | number,
-  startsAt?: Date | string | number | null,
-  now: Date = new Date(),
-) {
-  const booked = new Date(bookedAt).getTime();
-  let endsAt = booked + HALF_CHARGE_WINDOW_HOURS * 3_600_000;
-  if (startsAt != null) endsAt = Math.min(endsAt, new Date(startsAt).getTime());
-  const withinWindow = now.getTime() < endsAt;
+export function cancellationWindow(startsAt: Date | string | number, now: Date = new Date()) {
+  const start = new Date(startsAt).getTime();
+  const fullChargeFrom = new Date(start - FULL_CHARGE_WINDOW_HOURS * 3_600_000);
+  const withinWindow = now.getTime() >= fullChargeFrom.getTime();
   return {
-    endsAt: new Date(endsAt),
+    fullChargeFrom,
+    /** True once the 48 hours before the appointment have begun. */
     withinWindow,
     /** Percentage a cancellation sent right now would be charged. */
-    percent: withinWindow ? WITHIN_WINDOW_PERCENT : AFTER_WINDOW_PERCENT,
+    percent: withinWindow ? WITHIN_WINDOW_PERCENT : BEFORE_WINDOW_PERCENT,
   };
 }
 
