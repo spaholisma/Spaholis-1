@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { POLICY_LINES, CLASS_POLICY_LINES } from "@/lib/cancellationPolicy";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,8 +48,8 @@ const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
 const CATEGORY_VARS: Record<string, string[]> = {
-  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "service_price", "coupon_code", "discount", "total", "payment_status", "details"],
-  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "class_price", "coupon_code", "discount", "total", "payment_status", "details", "button"],
+  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "service_price", "coupon_code", "discount", "total", "payment_status", "details", "policy"],
+  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "class_price", "coupon_code", "discount", "total", "payment_status", "details", "button", "policy"],
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button", "loyalty"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button", "loyalty"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
@@ -184,12 +185,28 @@ function sampleVars(category: string): Record<string, string> {
   };
 }
 
+/** Same block the edge function appends — see policyBlock() there. */
+function samplePolicy(category: string): string {
+  const lines = category === "class" ? CLASS_POLICY_LINES : POLICY_LINES;
+  const items = lines.map((l) => `<li style="margin:0 0 6px;">${escHtml(l)}</li>`).join("");
+  const button = category === "treatment"
+    ? `<p style="margin:14px 0 0;"><a href="#" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+    : "";
+  return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;"><p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${button}</div>`;
+}
+
 function buildPreview(tpl: { heading: string; body_html: string }, category: string): string {
   const raw = sampleVars(category);
+  const hasPolicy = category === "treatment" || category === "class";
+  if (hasPolicy) raw.policy = samplePolicy(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty"].includes(k) ? v : escHtml(v);
-  return renderShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars));
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty", "policy"].includes(k) ? v : escHtml(v);
+  const body = interpolate(tpl.body_html, vars);
+  // Booking emails always carry the policy; a template that does not place
+  // {{policy}} gets it at the end, exactly as the server sends it.
+  const placesPolicy = /\{\{\s*policy\s*\}\}/.test(tpl.body_html || "");
+  return renderShell(interpolate(tpl.heading, vars), hasPolicy && !placesPolicy ? body + vars.policy : body);
 }
 
 export function AdminEmailTemplates() {
@@ -411,6 +428,11 @@ export function AdminEmailTemplates() {
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-mono">{`{{details}}`}</span> and <span className="font-mono">{`{{button}}`}</span> expand
                     to the booking details table and the action button automatically.
+                    {(editing.category === "treatment" || editing.category === "class") && (
+                      <> <span className="font-mono">{`{{policy}}`}</span> is the cancellation policy
+                      {editing.category === "treatment" ? " with the Cancel my appointment link" : ""} — it is
+                      added at the end of the email if you do not place it yourself.</>
+                    )}
                   </p>
                 </div>
               </div>

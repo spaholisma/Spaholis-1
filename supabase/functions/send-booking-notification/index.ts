@@ -26,7 +26,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-notify-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -64,31 +64,81 @@ function tableRow(label: string, value: string) {
   return `<tr><td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;width:40%;">${label}</td><td style="padding:6px 10px;border:1px solid #ddd;">${value}</td></tr>`;
 }
 
-// Mirror of POLICY_LINES in src/lib/cancellationPolicy.ts. Deno cannot import
-// from src/, so the two must be changed together — this is the text the guest
-// already accepted when they left a card on file, and it has to read the same
-// in the email as it did on the form.
-const FREE_CANCELLATION_HOURS = 24;
-const LATE_CANCELLATION_PERCENT = 50;
+// Mirror of src/lib/cancellationPolicy.ts. Deno cannot import from src/, so
+// the two must be changed together — this is the text the guest accepted when
+// they left a card on file, and it has to read the same in the email.
+//
+// The clock starts when the booking is PLACED: 50% inside the first 24 hours,
+// 100% after, and never free. Nothing is cancelled online — guests email the
+// studio, and reception picks the fee when cancelling in the calendar.
+// CANCELLATION_EMAIL copies src/data/contact.ts:HOLIS_EMAIL;
+// src/test/email-contact-details.test.ts checks the two agree.
+const CANCELLATION_EMAIL = "spaholisma@gmail.com";
+const HALF_CHARGE_WINDOW_HOURS = 24;
 const POLICY_LINES = [
-  `Cancel more than ${FREE_CANCELLATION_HOURS} hours before your appointment — no charge.`,
-  `Cancel within ${FREE_CANCELLATION_HOURS} hours of your appointment — ${LATE_CANCELLATION_PERCENT}% of the total is charged to the card on file.`,
-  "Not showing up — 100% of the total is charged to the card on file.",
-  "To change the treatment, the date or the time, contact us on WhatsApp or by email — changes are not made online.",
+  `Cancel within ${HALF_CHARGE_WINDOW_HOURS} hours of making your booking — 50% of the total is charged to the card on file.`,
+  `Cancel after those first ${HALF_CHARGE_WINDOW_HOURS} hours, or not show up — 100% of the total is charged to the card on file.`,
+  `To cancel, email us at ${CANCELLATION_EMAIL}. The time your email reaches us is the time of the cancellation.`,
+  "To change the treatment, the date or the time, contact us on WhatsApp or by email.",
 ];
+// Classes follow the rule on the Refund page, not the treatment one.
+const CLASS_POLICY_LINES = [
+  "Single class bookings may be cancelled up to 4 hours before the class.",
+  "Class passes and memberships are non-refundable once activated, but remain valid for their original duration.",
+];
+
+const spaDateTime = (d: Date) =>
+  d.toLocaleString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
+  });
+
+/** Until when a cancellation costs half: 24 hours after booking, but never
+ *  past the start of the appointment — after that it is a no-show. */
+function halfChargeEnds(bookedAt: Date, startsAt: Date | null): Date {
+  const end = bookedAt.getTime() + HALF_CHARGE_WINDOW_HOURS * 3600000;
+  return new Date(startsAt ? Math.min(end, startsAt.getTime()) : end);
+}
+
+/** Mirror of buildCancellationMailto() in src/lib/cancellationPolicy.ts: an
+ *  email already addressed to the studio with the appointment filled in. */
+function buildCancellationMailto(b: {
+  serviceName: string; date: string; time: string; reservationId: string; guestName?: string | null;
+}): string {
+  const subject = `Cancellation request — ${b.serviceName} — ${b.reservationId}`;
+  const body = [
+    "Hello Holis team,",
+    "",
+    "I would like to cancel my appointment.",
+    "",
+    `Service: ${b.serviceName}`,
+    `Date: ${b.date}`,
+    `Time: ${b.time}`,
+    `Reservation: ${b.reservationId}`,
+    ...(b.guestName ? [`Name: ${b.guestName}`] : []),
+    "",
+    "My message:",
+    "",
+  ].join("\r\n");
+  return `mailto:${CANCELLATION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 /**
  * Every guest-facing email carries the policy, because the only other place
  * it appears is the card form at the end of the booking flow — by the time a
- * guest needs to cancel, that page is long gone.
+ * guest needs to cancel, that page is long gone. Treatment confirmations also
+ * carry the Cancel link, which opens the cancellation email for them.
  */
-function policyBlock(): string {
-  const items = POLICY_LINES
+function policyBlock(lines: string[], cancelHref?: string): string {
+  const items = lines
     .map((line) => `<li style="margin:0 0 6px;">${escHtml(line)}</li>`)
     .join("");
+  const button = cancelHref
+    ? `<p style="margin:14px 0 0;"><a href="${cancelHref.replace(/&/g, "&amp;")}" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+    : "";
   return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;">
     <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>
-    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${button}
   </div>`;
 }
 
@@ -209,7 +259,7 @@ function buildFromTemplate(
     subject: interpolate(tpl.subject, vars),
     html: renderShell(
       interpolate(tpl.heading, vars),
-      mentionsPolicy ? body : body + policyBlock(),
+      mentionsPolicy ? body : body + (rawVars.policy ?? ""),
     ),
   };
 }
@@ -240,6 +290,10 @@ function buildAdminHtml(ctx: {
   paymentId: string | null;
   notes: string | null;
   intakeHtml: string;
+  /** When the guest placed the booking, and until when a cancellation costs
+   *  half — what reception reads a cancellation email against. */
+  bookedAt: string | null;
+  halfChargeUntil: string | null;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -250,6 +304,8 @@ function buildAdminHtml(ctx: {
   rows.push(tableRow("Phone", ctx.guestPhone || "Not provided"));
   rows.push(tableRow("Date", ctx.bookingDate));
   rows.push(tableRow("Time", ctx.bookingTime));
+  if (ctx.bookedAt) rows.push(tableRow("Booked on", ctx.bookedAt));
+  if (ctx.halfChargeUntil) rows.push(tableRow("50% cancellation until", ctx.halfChargeUntil));
   rows.push(tableRow("Payment Status", ctx.paymentStatus));
   rows.push(...priceRows({
     total: ctx.totalPrice, discount: ctx.discountAmount, couponCode: ctx.couponCode,
@@ -291,6 +347,7 @@ function buildCustomerHtml(ctx: {
   depositPaid: number | null;
   remainingBalance: number | null;
   paymentStatus: string;
+  cancelHref: string;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -323,7 +380,7 @@ function buildCustomerHtml(ctx: {
         <p style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
           We look forward to welcoming you. Please arrive 10 minutes early to settle in.
         </p>
-        ${policyBlock()}
+        ${policyBlock(POLICY_LINES, ctx.cancelHref)}
       </div>
       <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
         Holis Wellness Center · spaholis.com
@@ -372,6 +429,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
     .select(`
       id, status, guest_name, guest_email, guest_phone, booking_date, booking_time,
       notes, total_price, coupon_code, discount_amount, payment_id, notification_sent_at, intake_form,
+      created_at, start_time,
       service:services(id, title, category),
       staff:staff(id, name)
     `)
@@ -443,6 +501,14 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
   });
   const bookingTime = (booking.booking_time || "").slice(0, 5) || "TBD";
 
+  const bookedAt = booking.created_at ? new Date(booking.created_at) : null;
+  const halfUntil = bookedAt
+    ? halfChargeEnds(bookedAt, booking.start_time ? new Date(booking.start_time) : null)
+    : null;
+  const cancelHref = buildCancellationMailto({
+    serviceName, date: bookingDate, time: bookingTime, reservationId, guestName: booking.guest_name,
+  });
+
   const adminHtml = buildAdminHtml({
     reservationId,
     serviceName,
@@ -461,6 +527,8 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
     paymentId: booking.payment_id ?? null,
     notes: booking.notes ?? null,
     intakeHtml: buildIntakeHtml(booking.intake_form),
+    bookedAt: bookedAt ? `${spaDateTime(bookedAt)} (Costa Rica time)` : null,
+    halfChargeUntil: halfUntil ? `${spaDateTime(halfUntil)} — after that, 100%` : null,
   });
 
   const adminSubj = `New Reservation — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
@@ -505,7 +573,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
           discount: discountUsd && discountUsd > 0 ? `-${formatCRC(discountUsd)}` : "",
           total: totalUsd != null ? formatCRC(totalUsd) : "",
         },
-        { details: detailsTable(rows), button: "", policy: policyBlock() },
+        { details: detailsTable(rows), button: "", policy: policyBlock(POLICY_LINES, cancelHref) },
       );
       subject = built.subject;
       customerHtml = built.html;
@@ -524,6 +592,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
         depositPaid,
         remainingBalance: remaining,
         paymentStatus: paymentStatusLabel,
+        cancelHref,
       });
     }
     customerRes = await sendEmail(booking.guest_email, subject, customerHtml);
@@ -555,7 +624,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
 // Canonical WhatsApp number for the Holis team. Deno cannot import from src/,
 // so this is a copy of src/data/contact.ts:HOLIS_PHONE_E164_DIGITS — and it had
 // silently drifted to an old number, sending every class guest who tapped
-// "Message us on WhatsApp" to a chat nobody reads. src/test/whatsapp-number.test.ts
+// "Message us on WhatsApp" to a chat nobody reads. src/test/email-contact-details.test.ts
 // now compares the two files so it cannot drift again.
 export const HOLIS_WHATSAPP_DIGITS = "50688146760";
 
@@ -622,7 +691,7 @@ export function buildClassCustomerHtml(ctx: {
             Message us on WhatsApp
           </a>
         </p>
-        ${policyBlock()}
+        ${policyBlock(CLASS_POLICY_LINES)}
       </div>
       <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
         Holis Wellness Center · spaholis.com
@@ -645,6 +714,7 @@ export function buildClassAdminHtml(ctx: {
   paymentId: string | null;
   couponCode: string | null;
   discountAmount: number | null;
+  bookedAt?: string | null;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -653,6 +723,7 @@ export function buildClassAdminHtml(ctx: {
   rows.push(tableRow("Client Name", ctx.guestName));
   rows.push(tableRow("Email", ctx.guestEmail));
   rows.push(tableRow("When", ctx.scheduleLabel));
+  if (ctx.bookedAt) rows.push(tableRow("Booked on", ctx.bookedAt));
   if (ctx.location) rows.push(tableRow("Location", ctx.location));
   rows.push(tableRow("Payment Status", ctx.paymentStatus));
   if (ctx.paymentMethod) rows.push(tableRow("Payment Method", ctx.paymentMethod));
@@ -685,7 +756,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     .select(`
       id, status, payment_status, payment_method, payment_id,
       guest_name, guest_email, coupon_code, discount_amount, total_price,
-      notification_sent_at, booking_group_id,
+      notification_sent_at, booking_group_id, created_at,
       schedule:class_schedule(
         id, start_time, end_time,
         class:classes(id, title, instructor, location, price, requires_payment)
@@ -792,6 +863,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     paymentId: booking.payment_id ?? null,
     couponCode,
     discountAmount: discountUsd,
+    bookedAt: booking.created_at ? `${spaDateTime(new Date(booking.created_at))} (Costa Rica time)` : null,
   });
 
   const adminSubj = `New Class Booking — ${className} — ${partyLine ? `${party.length} spots (${booking.guest_name || "Guest"})` : (booking.guest_name || "Guest")} (${reservationId})`;
@@ -836,7 +908,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
           discount: discountUsd && discountUsd > 0 ? `-${formatCRC(discountUsd)}` : "",
           total: totalUsd != null ? formatCRC(totalUsd) : "",
         },
-        { details: detailsTable(rows), button: whatsappButton(whatsappUrl), whatsapp_url: whatsappUrl, policy: policyBlock() },
+        { details: detailsTable(rows), button: whatsappButton(whatsappUrl), whatsapp_url: whatsappUrl, policy: policyBlock(CLASS_POLICY_LINES) },
       );
       subject = built.subject;
       customerHtml = built.html;
@@ -873,12 +945,17 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
 }
 
 // -----------------------------------------------------------------------------
-// Cancellations made by the guest from their dashboard.
+// Cancellations.
 //
-// Both sides need this in writing: the guest needs proof of what they will be
-// charged, and reception needs to know a card has to be charged 50% before the
-// slot is given away. cancel_own_booking() has already decided the band on the
-// server clock; this recomputes it the same way purely to render it.
+// Guests cancel by email; reception then cancels the booking in the calendar
+// and picks the fee there, because only they know when the guest's email
+// arrived. The database calls this the moment a booking turns cancelled —
+// whatever screen did it — so both sides always get it in writing: the guest
+// sees what will be charged, and the team's subject line carries the amount.
+//
+// The guest is emailed only if they were emailed a confirmation in the first
+// place; the team hears about every real booking. The trigger authenticates
+// with a secret, since this function runs without a JWT.
 // -----------------------------------------------------------------------------
 
 async function handleCancellation(bookingId: string, supabase: any): Promise<Response> {
@@ -889,7 +966,8 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     .from("bookings")
     .select(`
       id, status, guest_name, guest_email, guest_phone, booking_date, booking_time,
-      start_time, total_price, notes, updated_at,
+      start_time, total_price, created_at, cancelled_at, cancellation_fee_percent,
+      notification_sent_at,
       service:services(id, title, category)
     `)
     .eq("id", bookingId)
@@ -901,15 +979,6 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
   if (booking.status !== "cancelled") {
     return json({ ok: true, skipped: "not_cancelled", status: booking.status });
   }
-  // This function runs without a JWT so the browser can call it the moment
-  // cancel_own_booking() returns. That also means anyone holding a booking id
-  // could ask for the email again, so only a fresh cancellation is announced —
-  // the real call arrives within seconds.
-  const cancelledAt = booking.updated_at ? new Date(booking.updated_at).getTime() : 0;
-  if (Date.now() - cancelledAt > 30 * 60 * 1000) {
-    console.log(`[send-booking-notification] stale cancellation ${bookingId}, not re-sending`);
-    return json({ ok: true, skipped: "stale_cancellation" });
-  }
 
   const serviceName = booking.service?.title || "Reservation";
   const reservationId = booking.id.slice(0, 8).toUpperCase();
@@ -917,57 +986,69 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
   const bookingTime = (booking.booking_time || "").slice(0, 5) || "TBD";
-
-  // Costa Rica is UTC-6 all year, so the wall clock fallback needs no DST care.
-  const startsAt = booking.start_time
-    ? new Date(booking.start_time)
-    : new Date(`${booking.booking_date}T${(booking.booking_time || "00:00:00").slice(0, 8)}-06:00`);
-  const hoursUntil = (startsAt.getTime() - Date.now()) / 3600000;
-  const feePercent = hoursUntil < FREE_CANCELLATION_HOURS ? LATE_CANCELLATION_PERCENT : 0;
   const totalUsd = booking.total_price != null ? Number(booking.total_price) : null;
-  const feeUsd = totalUsd != null && feePercent > 0
+
+  // Chosen by reception in the calendar. Null when the booking was cancelled
+  // somewhere that does not ask (a payment problem, say): then no fee is stated.
+  const feePercent: number | null = booking.cancellation_fee_percent ?? null;
+  const feeUsd = totalUsd != null && feePercent != null && feePercent > 0
     ? Math.round(totalUsd * (feePercent / 100) * 100) / 100
     : 0;
 
-  const feeSentence = feePercent > 0
-    ? `Because this cancellation is within ${FREE_CANCELLATION_HOURS} hours of the appointment, ${feePercent}% of the total${feeUsd > 0 ? ` (${formatCRC(feeUsd)})` : ""} will be charged to the card on file.`
-    : "This cancellation was made more than 24 hours ahead, so there is no charge.";
+  const bookedAt = booking.created_at ? new Date(booking.created_at) : null;
+  const halfUntil = bookedAt
+    ? halfChargeEnds(bookedAt, booking.start_time ? new Date(booking.start_time) : null)
+    : null;
 
-  const detailRows = [
+  const feeLabel = feePercent == null ? null
+    : feePercent > 0 ? `${feePercent}% — ${formatCRC(feeUsd)}`
+    : "None";
+  const feeSentence = feePercent == null ? ""
+    : feePercent > 0
+      ? `In line with our cancellation policy, ${feePercent}% of the total${feeUsd > 0 ? ` (${formatCRC(feeUsd)})` : ""} will be charged to the card on file.`
+      : "No cancellation fee will be charged.";
+
+  const guestRows = [
     tableRow("Reservation ID", escHtml(reservationId)),
     tableRow("Service", escHtml(serviceName)),
     tableRow("Was booked for", `${escHtml(bookingDate)} at ${escHtml(bookingTime)}`),
     ...(totalUsd != null ? [tableRow("Booking total", formatCRC(totalUsd))] : []),
-    tableRow("Cancellation fee", feePercent > 0 ? `${feePercent}% — ${formatCRC(feeUsd)}` : "None"),
+    ...(feeLabel ? [tableRow("Cancellation fee", feeLabel)] : []),
   ];
 
   // ---- The team ----
-  const chargeNote = feePercent > 0
-    ? `<p style="margin:18px 0 0;padding:14px;background:#fdf0f0;border-radius:8px;font-size:14px;color:#7a2e2e;"><strong>Charge the card on file ${formatCRC(feeUsd)}</strong> (${feePercent}% late-cancellation fee).</p>`
-    : `<p style="margin:18px 0 0;font-size:14px;color:#555;">Cancelled more than 24 hours ahead — nothing to charge. The slot is free again.</p>`;
+  const chargeNote = feePercent == null
+    ? `<p style="margin:18px 0 0;font-size:14px;color:#555;">No cancellation fee was chosen for this booking.</p>`
+    : feePercent > 0
+      ? `<p style="margin:18px 0 0;padding:14px;background:#fdf0f0;border-radius:8px;font-size:14px;color:#7a2e2e;"><strong>Charge the card on file ${formatCRC(feeUsd)}</strong> (${feePercent}% cancellation fee).</p>`
+      : `<p style="margin:18px 0 0;font-size:14px;color:#555;">No charge — the slot is free again.</p>`;
+  const guestNotice = booking.notification_sent_at && booking.guest_email
+    ? `The guest has been emailed this cancellation.`
+    : `The guest was not emailed — they never received a confirmation email for this booking.`;
 
   const adminHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
   <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
     <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
       <div style="background:#7a2e2e;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Booking Cancelled by the Guest</h1>
+        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Booking Cancelled</h1>
       </div>
       <div style="padding:24px;">
-        <p style="font-size:14px;margin:0 0 14px;color:#2F2F2F;">
-          ${escHtml(booking.guest_name || "A guest")} cancelled this appointment from My Account.
-        </p>
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
-          ${detailRows.join("")}
+          ${guestRows.join("")}
           ${tableRow("Client", escHtml(booking.guest_name || "Guest"))}
           ${tableRow("Email", escHtml(booking.guest_email || "N/A"))}
           ${tableRow("Phone", escHtml(booking.guest_phone || "Not provided"))}
+          ${bookedAt ? tableRow("Booked on", `${spaDateTime(bookedAt)} (Costa Rica time)`) : ""}
+          ${halfUntil ? tableRow("50% cancellation until", spaDateTime(halfUntil)) : ""}
+          ${booking.cancelled_at ? tableRow("Cancelled on", spaDateTime(new Date(booking.cancelled_at))) : ""}
         </table>
         ${chargeNote}
+        <p style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>
       </div>
     </div>
   </body></html>`;
 
-  const adminSubj = feePercent > 0
+  const adminSubj = feePercent != null && feePercent > 0
     ? `Cancelled (charge ${formatCRC(feeUsd)}) — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`
     : `Cancelled — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
@@ -976,18 +1057,18 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
 
   // ---- The guest ----
   let customerRes: { ok: boolean; error?: string } = { ok: true };
-  if (booking.guest_email) {
+  if (booking.guest_email && booking.notification_sent_at) {
     const inner = `
       <p style="font-size:15px;margin:0 0 16px;">Dear ${escHtml(booking.guest_name || "Guest")},</p>
       <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
         Your appointment has been cancelled. Here is what was cancelled:
       </p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">${detailRows.join("")}</table>
-      <p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${escHtml(feeSentence)}</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">${guestRows.join("")}</table>
+      ${feeSentence ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${escHtml(feeSentence)}</p>` : ""}
       <p style="font-size:13px;line-height:1.6;margin:18px 0 0;color:#555;">
         We would love to see you another time — reply to this email or message us on WhatsApp and we will find you a new slot.
       </p>
-      ${policyBlock()}`;
+      ${policyBlock(POLICY_LINES)}`;
     customerRes = await sendEmail(
       booking.guest_email,
       `Your Holis Wellness appointment was cancelled (${reservationId})`,
@@ -1061,6 +1142,15 @@ Deno.serve(async (req) => {
       return await handleByClassBookingId(body.classBookingId, supabase);
     }
     if (typeof body.cancelledBookingId === "string" && UUID_RE.test(body.cancelledBookingId)) {
+      // Sent by the bookings_notify_cancelled trigger, which signs the call with
+      // a secret only the database holds.
+      const { data: secret } = await supabase
+        .from("internal_secrets").select("value").eq("name", "booking_notify").maybeSingle();
+      if (!secret?.value || req.headers.get("x-notify-secret") !== secret.value) {
+        return new Response(JSON.stringify({ ok: false, reason: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return await handleCancellation(body.cancelledBookingId, supabase);
     }
     return await handleLegacyPayload(body);

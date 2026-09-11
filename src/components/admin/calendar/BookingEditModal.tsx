@@ -14,6 +14,15 @@ import { toast } from "sonner";
 import type { CalendarBooking } from "./calendarUtils";
 import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
 import { spaLocalToInstant } from "@/lib/businessHours";
+// Two decimals, like the cancellation email reception will get: $65.50, not $66.
+import { formatUsd } from "@/lib/currency";
+import { cancellationFee, cancellationWindow } from "@/lib/cancellationPolicy";
+
+const spaDateTime = (iso: string | Date) =>
+  new Date(iso).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit", timeZone: "America/Costa_Rica",
+  });
 
 type CardOnFile = { card_brand: string | null; card_last4: string | null; card_expiry: string | null; cardholder_name: string | null };
 
@@ -165,8 +174,37 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   // Card on file — masked by default; the full number is fetched on demand
   // through an admin-only, audited RPC.
   const [card, setCard] = useState<CardOnFile | null>(null);
+  // When the guest placed the booking decides the cancellation fee (50% inside
+  // the first 24 hours, 100% after), and only reception knows when their
+  // cancellation email arrived — so the fee is chosen here, not computed.
+  const [timing, setTiming] = useState<{
+    created_at: string;
+    start_time: string | null;
+    notification_sent_at: string | null;
+    cancelled_at: string | null;
+    cancellation_fee_percent: number | null;
+  } | null>(null);
+  const [feePercent, setFeePercent] = useState<string>("");
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
+
+  useEffect(() => {
+    setTiming(null);
+    setFeePercent("");
+    if (!booking) return;
+    // The calendar loads bookings through several different queries; asking
+    // for these few columns here keeps every one of them working unchanged.
+    supabase
+      .from("bookings")
+      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent" as any)
+      .eq("id", booking.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const t = (data as any) ?? null;
+        setTiming(t);
+        if (t?.cancellation_fee_percent != null) setFeePercent(String(t.cancellation_fee_percent));
+      });
+  }, [booking]);
 
   useEffect(() => {
     setCard(null);
@@ -234,6 +272,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
       toast.error("End time must be after the start time.");
       return;
     }
+    const cancelling = form.status === "cancelled" && booking.status !== "cancelled";
+    if (cancelling && feePercent === "") {
+      toast.error("Choose the cancellation fee: 50%, 100% or no charge.");
+      return;
+    }
     setSaving(true);
     const selectedService = services.find((s) => s.id === form.service_id);
     // Keep the timestamptz slot in sync with the edited start/end times, so
@@ -268,6 +311,12 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         group_id: form.group_id || null,
         start_time,
         end_time,
+        // Saved with the status change, so the cancellation email the database
+        // sends on that change already knows what to tell the guest. (Cast: the
+        // generated types predate the column.)
+        ...(form.status === "cancelled" && feePercent !== ""
+          ? ({ cancellation_fee_percent: Number(feePercent) } as any)
+          : {}),
       })
       .eq("id", booking.id);
     setSaving(false);
@@ -412,6 +461,49 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   <Input type="number" value={form.total_price} onChange={(e) => update("total_price", e.target.value)} className="h-9 text-sm" />
                 </div>
               </div>
+              {form.status === "cancelled" && booking && (() => {
+                const total = form.total_price ? parseFloat(form.total_price) : booking.total_price;
+                const already = booking.status === "cancelled";
+                const charge = timing ? cancellationWindow(timing.created_at, timing.start_time) : null;
+                // Mirrors the database trigger: the team hears about every real
+                // booking; the guest only if they were emailed a confirmation.
+                const emailsTeam = ["confirmed", "paid"].includes(booking.status) || !!timing?.notification_sent_at;
+                const emailsGuest = !!timing?.notification_sent_at && !!form.guest_email;
+                return (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-foreground">Cancellation</p>
+                    {timing && charge ? (
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Booked on <strong className="text-foreground">{spaDateTime(timing.created_at)}</strong>.
+                        {" "}A cancellation email that reached you before{" "}
+                        <strong className="text-foreground">{spaDateTime(charge.endsAt)}</strong> is 50%; after that, 100%.
+                        {already && timing.cancelled_at && <> Cancelled on {spaDateTime(timing.cancelled_at)}.</>}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Loading booking times…</p>
+                    )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Cancellation fee {already ? "" : "*"}</Label>
+                      <Select value={feePercent} onValueChange={setFeePercent}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choose the fee" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="50">50% — {formatUsd(cancellationFee(total, 50))}</SelectItem>
+                          <SelectItem value="100">100% — {formatUsd(cancellationFee(total, 100))}</SelectItem>
+                          <SelectItem value="0">No charge</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {!already && (
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {emailsTeam
+                          ? <>Saving emails the cancellation {emailsGuest ? "to the guest and " : ""}to the team{!emailsGuest && " (the guest never received a confirmation email, so they are not emailed)"}.</>
+                          : <>No email is sent for this booking — it was never confirmed.</>}
+                        {" "}To remove a duplicate or test booking without emailing anyone, use Delete instead.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Room</Label>

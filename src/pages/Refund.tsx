@@ -16,13 +16,16 @@ export default function Refund() {
           Refund Policy
         </h1>
         <div className="space-y-6 font-body text-foreground/90 leading-relaxed">
-          <p>Last updated: May 2026.</p>
+          <p>Last updated: September 2026.</p>
 
           <h2 className="font-heading text-2xl mt-8">Treatments &amp; Private Sessions</h2>
           <p>
-            Full refund if cancelled at least 24 hours before the scheduled
-            appointment. Within 24 hours, sessions are non-refundable but may be
-            rescheduled once at our discretion.
+            Nothing is charged in advance: we keep a card on file. A treatment
+            cancelled within 24 hours of placing the booking is charged 50% of
+            the total; after those first 24 hours, a cancellation or a no-show is
+            charged 100%. To cancel, email us at spaholisma@gmail.com — the
+            Cancel link in your confirmation email opens one for you — and the
+            time your email reaches us is the time of the cancellation.
           </p>
 
           <h2 className="font-heading text-2xl mt-8">Classes &amp; Passes</h2>

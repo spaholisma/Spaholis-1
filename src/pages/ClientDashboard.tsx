@@ -16,13 +16,8 @@ import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { CancelAppointmentDialog } from "@/components/booking/CancelAppointmentDialog";
-import { HOLIS_WHATSAPP_URL } from "@/data/contact";
+import { HOLIS_WHATSAPP_URL, HOLIS_EMAIL } from "@/data/contact";
 import { MessageCircle, Mail } from "lucide-react";
-
-// Shown to guests who want to move an appointment: changes go through a
-// person, never through the site, so the room schedule is never reshuffled
-// unattended.
-const CONTACT_EMAIL = "spaholisma@gmail.com";
 
 const ClientDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -202,14 +197,7 @@ const ClientDashboard = () => {
                   )}>
                     {apt.status}
                   </span>
-                  <CancelAppointmentDialog
-                    booking={apt}
-                    onCancelled={(id) =>
-                      setBookings((prev) =>
-                        prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b)),
-                      )
-                    }
-                  />
+                  <CancelAppointmentDialog booking={apt} />
                 </div>
               ))}
 
@@ -219,11 +207,11 @@ const ClientDashboard = () => {
                    className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
                   <MessageCircle className="h-3 w-3" /> WhatsApp
                 </a>{" "}or at{" "}
-                <a href={`mailto:${CONTACT_EMAIL}`}
+                <a href={`mailto:${HOLIS_EMAIL}`}
                    className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
-                  <Mail className="h-3 w-3" /> {CONTACT_EMAIL}
-                </a>{" "}and we'll move it for you. Cancelling within 24 hours of your
-                appointment carries a 50% charge; not showing up is charged in full.
+                  <Mail className="h-3 w-3" /> {HOLIS_EMAIL}
+                </a>{" "}and we'll move it for you. Cancelling within 24 hours of making your
+                booking is charged 50%; after that, and for a no-show, 100%.
               </p>
             </div>
           )}

@@ -23,6 +23,11 @@ export const HOLIS_WHATSAPP_URL = `https://wa.me/${HOLIS_PHONE_E164_DIGITS}`;
 /** Alias — the WhatsApp number is the same as the business phone. */
 export const HOLIS_WHATSAPP_NUMBER = HOLIS_PHONE_E164_DIGITS;
 
+/** The inbox guests write to — cancellations included. The edge function
+ *  send-booking-notification keeps a copy (Deno cannot import from src/), and
+ *  src/test/email-contact-details.test.ts checks the two agree. */
+export const HOLIS_EMAIL = "spaholisma@gmail.com";
+
 export const contact = {
   phoneDigits: HOLIS_PHONE_E164_DIGITS,
   phoneDisplay: HOLIS_PHONE_DISPLAY,
