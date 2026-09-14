@@ -7,6 +7,7 @@ import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
+import { WellnessProgramsSection } from "@/components/WellnessProgramsSection";
 
 const fade = {
   initial: { opacity: 0, y: 24 } as const,
@@ -147,8 +148,11 @@ const SignatureTreatments = () => {
         </div>
       </section>
 
+      {/* Wellness Programs (same programs as /wellness-programs) */}
+      <WellnessProgramsSection />
+
       {/* CTA */}
-      <section className="bg-card border-y border-border">
+      <section className="border-b border-border">
         <div className="px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto py-20 text-center">
           <motion.div {...fade} className="space-y-6">
             <h2 className="font-heading text-3xl sm:text-4xl font-light text-foreground">

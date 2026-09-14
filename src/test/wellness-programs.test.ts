@@ -49,6 +49,13 @@ describe("wellness programs page wiring", () => {
     expect(read("src/components/Navbar.tsx").split('to: "/wellness-programs"').length - 1).toBe(2);
   });
 
+  it("also shows the programs on the Signature Experiences page", () => {
+    expect(read("src/pages/SignatureTreatments.tsx")).toContain("<WellnessProgramsSection />");
+    const section = read("src/components/WellnessProgramsSection.tsx");
+    expect(section).toContain("/book?service=${program.id}");
+    expect(section).toContain("WELLNESS_PROGRAMS_PATH");
+  });
+
   it("sends Request to the program's booking flow and offers a consultation", () => {
     const page = read("src/pages/WellnessPrograms.tsx");
     expect(page).toContain("/book?service=${program.id}");

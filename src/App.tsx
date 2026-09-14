@@ -44,6 +44,7 @@ import PractitionerProfile from "./pages/PractitionerProfile";
 import TestPayment from "./pages/TestPayment";
 import TestPaymentReturn from "./pages/TestPaymentReturn";
 import { WhatsAppButton } from "./components/WhatsAppButton";
+import { PromoPopup } from "./components/PromoPopup";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
 const queryClient = new QueryClient();
@@ -124,6 +125,7 @@ const App = () => (
           <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />
+          <PromoPopup />
           <Routes>
             {routeDefs.map((r) => (
               <Route key={`en${r.path}`} path={r.path} element={r.element} />

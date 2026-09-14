@@ -935,6 +935,21 @@ export const content = {
     ctaWhatsapp: "Message us on WhatsApp",
   },
 
+  // ── Promo popup (src/components/PromoPopup.tsx) ──
+  // Opens when the site is opened or refreshed. Set enabled: false to turn it off.
+  promoPopup: {
+    enabled: true,
+    delaySeconds: 2.5,
+    image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/d89fc404-0b7a-42f9-bd05-21136e5dafd6/045A5408.jpg?format=1500w",
+    badge: "New",
+    eyebrow: "Wellness Programs",
+    title: "Awaken. Integrate. Manifest.",
+    text: "Our 90-minute programs pair a movement class with hands-on bodywork — a complete reset for body and mind.",
+    imageCaption: "Movement + bodywork · 90 min",
+    ctaText: "Discover the programs",
+    dismissText: "Maybe later",
+  },
+
   // ── Location & Contact Page ──
   contact: {
     heroEyebrow: "Location & Contact",
