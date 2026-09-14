@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchClosedClassDays, spaDateKey } from "@/lib/classClosures";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, RefreshCw, Save } from "lucide-react";
@@ -149,6 +150,11 @@ export function AdminWeeklySchedule() {
         if (error) throw error;
       }
 
+      // Days the studio is closed for classes: the database refuses a session
+      // on them, so leave them out rather than fail the whole batch.
+      const closedDays = await fetchClosedClassDays();
+      let skippedClosed = 0;
+
       // 4. Build the new rows, skipping any that would duplicate a protected (booked) session.
       const rows: { class_id: string; start_time: string; end_time: string; spots_remaining: number; instructor: string | null }[] = [];
       for (let w = 0; w < weeks; w++) {
@@ -158,6 +164,7 @@ export function AdminWeeklySchedule() {
           const [h, m] = s.start_time.split(":").map(Number);
           d.setHours(h, m, 0, 0);
           if (protectedKeys.has(`${s.class_id}|${d.getTime()}`)) continue; // keep the booked one
+          if (closedDays.has(spaDateKey(d))) { skippedClosed++; continue; }
           const end = new Date(d.getTime() + s.duration_minutes * 60000);
           rows.push({
             class_id: s.class_id,
@@ -175,7 +182,7 @@ export function AdminWeeklySchedule() {
         if (error) throw error;
       }
       const kept = protectedKeys.size;
-      toast.success(`Generated ${rows.length} sessions across ${weeks} weeks${kept ? ` · kept ${kept} booked session(s)` : ""}`);
+      toast.success(`Generated ${rows.length} sessions across ${weeks} weeks${kept ? ` · kept ${kept} booked session(s)` : ""}${skippedClosed ? ` · skipped ${skippedClosed} on closed days` : ""}`);
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
     } finally {

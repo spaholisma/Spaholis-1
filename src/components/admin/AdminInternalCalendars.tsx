@@ -583,7 +583,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   // opens the calendar-entry form.
   const [editBooking, setEditBooking] = useState<CalendarBooking | null>(null);
   const [bookingEditOpen, setBookingEditOpen] = useState(false);
-  // Read-only detail card for the viewer role (safe operational fields only).
+  // Read-only detail card for the viewer role, for manual calendar entries.
   const [viewerDetail, setViewerDetail] = useState<CalendarEntry | null>(null);
   const [servicesForEdit, setServicesForEdit] = useState<any[]>([]);
   useEffect(() => {
@@ -611,13 +611,40 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       offsite_location: b.offsite_location ?? null, blocks_availability: b.blocks_availability ?? false,
       group_id: b.group_id ?? null,
     });
+    setBookingDetail(null);
+    setBookingEditOpen(true);
+  };
+
+  // The viewer (holisdevices) sees every detail of a treatment booking — the
+  // same modal an admin uses, locked. The card arrives masked.
+  const [bookingDetail, setBookingDetail] = useState<any>(null);
+  const openBookingForViewer = async (bookingId: string) => {
+    const { data, error } = await supabase.rpc("get_treatment_booking_detail" as any, { _booking_id: bookingId });
+    const b: any = data;
+    if (error || !b) { toast.error("Booking not found"); return; }
+    setEditBooking({
+      id: b.id, title: b.title ?? null, guest_name: b.guest_name, guest_email: b.guest_email, guest_phone: b.guest_phone,
+      booking_date: b.booking_date, booking_time: b.booking_time, status: b.status,
+      total_price: b.total_price, notes: b.notes, service_id: b.service_id,
+      service_title: b.service?.title ?? null, service_category: b.service?.category ?? null,
+      service_type: b.service?.type ?? null, duration_minutes: b.service?.duration_minutes ?? 60,
+      intake_form: b.intake_form, card_authorization: null,
+      staff_id: b.staff_id, room_id: b.room_id, payment_id: b.payment_id,
+      offsite_location: b.offsite_location ?? null, blocks_availability: b.blocks_availability ?? false,
+      group_id: b.group_id ?? null,
+    });
+    setBookingDetail(b);
     setBookingEditOpen(true);
   };
 
   const openItem = (entry: CalendarEntry, fromDay?: Date | null) => {
-    // Viewers get a read-only detail card (safe fields only) instead of the
-    // edit modals — their data never included contact/card/health anyway.
-    if (readOnly) { setViewerDetail(entry); return; }
+    // Viewers see everything, but edit nothing: a booking opens the full modal
+    // locked; a manual entry opens the read-only detail card.
+    if (readOnly) {
+      if (entry.booking) { setDayViewDate(null); openBookingForViewer(entry.booking.id); return; }
+      setViewerDetail(entry);
+      return;
+    }
     if (entry.booking) { setDayViewDate(null); openBookingForEdit(entry.booking.id); return; }
     if (fromDay !== undefined) setReturnToDay(fromDay);
     setDayViewDate(null);
@@ -1427,6 +1454,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         onSaved={() => { loadBookings(); loadEntries(); }}
         services={servicesForEdit}
         onDuplicated={(newId) => openBookingForEdit(newId)}
+        readOnly={readOnly}
+        detail={readOnly ? bookingDetail : null}
       />
 
       {/* Delete scope for a recurring entry (Google-Calendar style). */}
@@ -1453,8 +1482,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
         </DialogContent>
       </Dialog>
 
-      {/* Viewer role: read-only detail card — safe operational fields only
-          (never contact, card or health data; the viewer's feed excludes them). */}
+      {/* Viewer role: read-only detail card for a manual calendar entry. */}
       <Dialog open={!!viewerDetail} onOpenChange={(o) => { if (!o) setViewerDetail(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1479,8 +1507,27 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                     <p><span className="text-muted-foreground">Status:</span> <span className="font-medium capitalize">{viewerDetail.booking.status}</span></p>
                   </>
                 )}
+                {!viewerDetail.booking && (viewerDetail as any).client_name && (
+                  <p><span className="text-muted-foreground">Client:</span> <span className="font-medium">{(viewerDetail as any).client_name}</span></p>
+                )}
+                {!viewerDetail.booking && (viewerDetail as any).client_email && (
+                  <p><span className="text-muted-foreground">Email:</span> <span className="font-medium">{(viewerDetail as any).client_email}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.therapist_count != null && (
+                  <p><span className="text-muted-foreground">Therapists on site:</span> <span className="font-medium">{viewerDetail.therapist_count}</span></p>
+                )}
+                {!viewerDetail.booking && (viewerDetail.therapist_shifts ?? []).length > 0 && (
+                  <div>
+                    <span className="text-muted-foreground">Shifts:</span>
+                    <ul className="mt-1 space-y-0.5">
+                      {(viewerDetail.therapist_shifts ?? []).map((sh, i) => (
+                        <li key={i} className="font-medium">{sh.name} · {sh.start}–{sh.end}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {!viewerDetail.booking && viewerDetail.notes && (
-                  <p><span className="text-muted-foreground">Notes:</span> {viewerDetail.notes}</p>
+                  <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Notes:</span> {viewerDetail.notes}</p>
                 )}
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground pt-1">View only</p>
               </div>

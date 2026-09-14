@@ -25,6 +25,7 @@ import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleF
 import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
+import { useClassClosures, spaDateKey } from "@/lib/classClosures";
 
 function useScheduleEvent(scheduleId: string | null) {
   return useQuery({
@@ -51,6 +52,8 @@ const ClassBookingPage = () => {
   const scheduleId = searchParams.get("class");
   const { user } = useAuth();
   const { data: event, isLoading } = useScheduleEvent(scheduleId);
+  const { data: closures = [] } = useClassClosures();
+  const closure = event ? closures.find((c) => c.closed_date === spaDateKey(event.start_time)) : undefined;
   const { data: myOfferings = [] } = useMyOfferings();
   const { data: eligibilityMap = {} } = useOfferingEligibilityMap();
   const tokenQuery = useTokenOffering();
@@ -372,6 +375,23 @@ const ClassBookingPage = () => {
           <h1 className="spa-heading-lg text-foreground mb-4">Class Not Found</h1>
           <p className="spa-body mb-8">This class may no longer be available.</p>
           <Button asChild><Link to="/classes">Back to Classes</Link></Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // The studio is closed that day (the DB also refuses the booking).
+  if (closure) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
+          <h1 className="spa-heading-lg text-foreground mb-4">We are closed on this day</h1>
+          <p className="spa-body mb-8">
+            There are no classes on {new Date(event.start_time).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Costa_Rica" })}. Browse our upcoming classes instead.
+          </p>
+          <Button asChild><Link to="/classes">See upcoming classes</Link></Button>
         </div>
         <Footer />
       </div>

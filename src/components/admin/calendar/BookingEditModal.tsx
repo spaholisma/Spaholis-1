@@ -146,9 +146,14 @@ interface BookingEditModalProps {
   services: { id: string; title: string; category: string; type: string | null; duration_minutes: number; price: number }[];
   /** Called with the new booking's id after Duplicate, so the caller can open it. */
   onDuplicated?: (newBookingId: string) => void;
+  /** View-only (the viewer role): every field shown, nothing editable. */
+  readOnly?: boolean;
+  /** The whole booking from get_treatment_booking_detail, for a viewer who
+   *  cannot read the bookings or card tables directly. */
+  detail?: any;
 }
 
-export function BookingEditModal({ booking, open, onOpenChange, onSaved, services, onDuplicated }: BookingEditModalProps) {
+export function BookingEditModal({ booking, open, onOpenChange, onSaved, services, onDuplicated, readOnly = false, detail = null }: BookingEditModalProps) {
   const [form, setForm] = useState({
     title: "",
     guest_name: "",
@@ -207,6 +212,27 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
 
+  // Who is looking. A coordinator may reschedule and cancel; the
+  // treatment_admin role (Susana) also lets them change service, room and
+  // price, reveal the card and duplicate, as an admin does. The database
+  // enforces the same split; this only keeps the form honest about it.
+  const [myRoles, setMyRoles] = useState<string[] | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!uid) { setMyRoles([]); return; }
+      supabase.from("user_roles").select("role").eq("user_id", uid)
+        .then(({ data: rows }) => setMyRoles(((rows as any[]) ?? []).map((r) => String(r.role))));
+    });
+  }, []);
+  const fullAdmin = !!myRoles?.some((r) => r === "super_admin" || r === "manager");
+  const treatmentAdmin = !!myRoles?.includes("treatment_admin");
+  // Until the roles load, assume the form is editable rather than flash it
+  // disabled for an admin; a coordinator sees the limits a moment later.
+  const canEditAll = !readOnly && (myRoles === null || fullAdmin || treatmentAdmin);
+  const canRevealCard = !readOnly && (fullAdmin || treatmentAdmin);
+  const canDuplicate = !readOnly && (fullAdmin || treatmentAdmin);
+
   useEffect(() => {
     setTiming(null);
     setFeePercent("");
@@ -214,6 +240,9 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     setRequestedAt("");
     setTab("details");
     if (!booking) return;
+    // A viewer cannot read the bookings table; the calendar hands over the
+    // whole row from get_treatment_booking_detail instead.
+    if (detail) { setTiming(detail as any); return; }
     // The calendar loads bookings through several different queries; asking
     // for these few columns here keeps every one of them working unchanged.
     supabase
@@ -230,7 +259,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         }
         if (t?.cancellation_requested_at) setRequestedAt(toSpaInput(new Date(t.cancellation_requested_at)));
       });
-  }, [booking]);
+  }, [booking, detail]);
 
   // What the policy says for a request received at `requestedAt`.
   const startsAt = booking
@@ -257,13 +286,14 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     setCard(null);
     setRevealed(null);
     if (!booking) return;
+    if (detail) { setCard((detail.card as CardOnFile) ?? null); return; }
     supabase
       .from("booking_card_authorizations")
       .select("card_brand, card_last4, card_expiry, cardholder_name")
       .eq("booking_id", booking.id)
       .maybeSingle()
       .then(({ data }) => setCard((data as CardOnFile) ?? null));
-  }, [booking]);
+  }, [booking, detail]);
 
   const revealCard = async () => {
     if (!booking) return;
@@ -423,7 +453,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
       <DialogContent className="max-w-lg max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
-            <Pencil className="h-4 w-4" /> Edit Booking
+            {readOnly ? <><Eye className="h-4 w-4" /> Booking details</> : <><Pencil className="h-4 w-4" /> Edit Booking</>}
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-3">
@@ -433,7 +463,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               <TabsTrigger value="intake" className="text-xs gap-1"><ClipboardList className="h-3 w-3" /> Intake form</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="details" className="space-y-3 mt-4">
+            <TabsContent value="details" className="mt-4">
+              <fieldset disabled={readOnly} className="space-y-3 min-w-0 border-0 p-0 m-0">
               <div className="space-y-1.5">
                 <Label className="text-xs">Title <span className="text-muted-foreground">(optional — shown on the calendar)</span></Label>
                 <Input
@@ -468,7 +499,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Service</Label>
-                <Select value={form.service_id} onValueChange={(v) => update("service_id", v)}>
+                <Select value={form.service_id} onValueChange={(v) => update("service_id", v)} disabled={!canEditAll}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select service" /></SelectTrigger>
                   <SelectContent>
                     {services.map((s) => (
@@ -476,6 +507,9 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                     ))}
                   </SelectContent>
                 </Select>
+                {!readOnly && !canEditAll && (
+                  <p className="text-[11px] text-muted-foreground">Service, room and price can only be changed by an admin.</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -513,7 +547,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Price ($)</Label>
-                  <Input type="number" value={form.total_price} onChange={(e) => update("total_price", e.target.value)} className="h-9 text-sm" />
+                  <Input type="number" value={form.total_price} onChange={(e) => update("total_price", e.target.value)} disabled={!canEditAll} className="h-9 text-sm" />
                 </div>
               </div>
               {form.status === "cancelled" && booking && (() => {
@@ -601,7 +635,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Room</Label>
-                  <Select value={form.room_id || "none"} onValueChange={(v) => update("room_id", v === "none" ? "" : v)}>
+                  <Select value={form.room_id || "none"} onValueChange={(v) => update("room_id", v === "none" ? "" : v)} disabled={!canEditAll}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="No room" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No room / off-site</SelectItem>
@@ -684,6 +718,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   {card.cardholder_name && (
                     <p className="text-xs text-muted-foreground">{card.cardholder_name}</p>
                   )}
+                  {canRevealCard && (
                   <Button
                     type="button"
                     size="sm"
@@ -694,9 +729,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   >
                     {revealed ? (<><EyeOff className="h-3 w-3 mr-1" /> Hide</>) : (<><Eye className="h-3 w-3 mr-1" /> {revealing ? "Revealing…" : "Reveal card"}</>)}
                   </Button>
+                  )}
                   <p className="text-[10px] text-muted-foreground">Charge via your terminal per the cancellation policy. Revealing is logged. CVV is never stored.</p>
                 </div>
               )}
+              </fieldset>
             </TabsContent>
 
             <TabsContent value="intake" className="space-y-3 mt-4">
@@ -719,14 +756,22 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
             </TabsContent>
           </Tabs>
         </ScrollArea>
+        {readOnly ? (
+        <DialogFooter className="flex-row sm:flex-row items-center justify-end gap-2 sm:space-x-0 border-t border-border pt-3">
+          <span className="mr-auto text-[11px] uppercase tracking-wide text-muted-foreground">View only</span>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+        ) : (
         <DialogFooter className="flex-row sm:flex-row flex-wrap items-center justify-between gap-2 sm:space-x-0 border-t border-border pt-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="destructive" size="sm" onClick={handleDelete} className="gap-1">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
+            {canDuplicate && (
             <Button variant="ghost" size="sm" onClick={handleDuplicate} disabled={saving} className="gap-1" title="Create a copy for the same guest">
               <Copy className="h-3.5 w-3.5" /> Duplicate
             </Button>
+            )}
             {booking && booking.status !== "cancelled" && form.status !== "cancelled" && (
               <Button variant="outline" size="sm" onClick={startCancellation} disabled={saving}
                 className="gap-1 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive">
@@ -742,6 +787,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
             </Button>
           </div>
         </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

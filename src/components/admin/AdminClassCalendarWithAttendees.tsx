@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pencil, Ban, RotateCcw, Trash2, Search, Loader2, DollarSign } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pencil, Ban, RotateCcw, Trash2, Search, Loader2, DollarSign, CalendarOff } from "lucide-react";
+import { ClassClosuresDialog } from "@/components/admin/ClassClosuresDialog";
+import { useClassClosures } from "@/lib/classClosures";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO,
@@ -143,10 +145,12 @@ function ClassTimeline({
   days,
   sessions,
   onOpen,
+  closedDays,
 }: {
   days: Date[];
   sessions: ScheduledClass[];
   onOpen: (sc: ScheduledClass) => void;
+  closedDays?: Set<string>;
 }) {
   const hours = Array.from({ length: TL_HOUR_END - TL_HOUR_START }, (_, i) => TL_HOUR_START + i);
   return (
@@ -174,8 +178,10 @@ function ClassTimeline({
           const isToday = isSameDay(day, new Date());
           return (
             <div key={day.toISOString()} className="flex-1 min-w-[84px] border-r border-border last:border-r-0">
-              <div className={cn("h-9 border-b border-border flex flex-col items-center justify-center", isToday && "bg-primary/10")}>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{format(day, "EEE")}</span>
+              <div className={cn("h-9 border-b border-border flex flex-col items-center justify-center", isToday && "bg-primary/10", closedDays?.has(format(day, "yyyy-MM-dd")) && "bg-destructive/10")}>
+                <span className={cn("text-[10px] uppercase tracking-wide", closedDays?.has(format(day, "yyyy-MM-dd")) ? "text-destructive font-semibold" : "text-muted-foreground")}>
+                  {closedDays?.has(format(day, "yyyy-MM-dd")) ? "Closed" : format(day, "EEE")}
+                </span>
                 <span className={cn("text-xs font-semibold leading-none", isToday && "text-primary")}>{format(day, "d")}</span>
               </div>
               <div className="relative" style={{ height: TL_HEIGHT }}>
@@ -241,6 +247,10 @@ type ClassViewMode = "month" | "week" | "day";
 export function AdminClassCalendarWithAttendees() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ClassViewMode>("week");
+  // Days the studio is closed for classes (no bookings, no sessions).
+  const { data: closures = [], refetch: refetchClosures } = useClassClosures();
+  const closedDays = new Set(closures.map((c) => c.closed_date));
+  const [closuresOpen, setClosuresOpen] = useState(false);
   const [scheduled, setScheduled] = useState<ScheduledClass[]>([]);
   const [selected, setSelected] = useState<ScheduledClass | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -875,6 +885,9 @@ export function AdminClassCalendarWithAttendees() {
             {showCancelled ? <Ban className="h-4 w-4 mr-1" /> : <Ban className="h-4 w-4 mr-1 opacity-60" />}
             {showCancelled ? "Hide cancelled" : `Show cancelled${cancelledCount ? ` (${cancelledCount})` : ""}`}
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setClosuresOpen(true)} title="Days the studio is closed for classes">
+            <CalendarOff className="h-4 w-4 mr-1" /> Closed days
+          </Button>
           <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new CustomEvent("admin-tab", { detail: "class-finances" }))} title="Open Class Finances">
             <DollarSign className="h-4 w-4 mr-1" /> Finances
           </Button>
@@ -886,6 +899,13 @@ export function AdminClassCalendarWithAttendees() {
           </Button>
         </div>
       </div>
+
+      <ClassClosuresDialog
+        open={closuresOpen}
+        onOpenChange={setClosuresOpen}
+        closures={closures}
+        onChanged={() => { refetchClosures(); }}
+      />
 
       {viewMode === "month" ? (
       <div className="border border-border rounded-xl overflow-hidden">
@@ -906,14 +926,20 @@ export function AdminClassCalendarWithAttendees() {
                 key={day.toISOString()}
                 className={cn(
                   "min-h-[110px] border-b border-r border-border p-1.5",
-                  !inMonth && "opacity-40 bg-muted/10"
+                  !inMonth && "opacity-40 bg-muted/10",
+                  closedDays.has(format(day, "yyyy-MM-dd")) && "bg-destructive/5"
                 )}
               >
-                <div className={cn(
-                  "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
-                  isToday && "bg-primary text-primary-foreground"
-                )}>
-                  {format(day, "d")}
+                <div className="flex items-center gap-1 mb-1">
+                  <div className={cn(
+                    "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full",
+                    isToday && "bg-primary text-primary-foreground"
+                  )}>
+                    {format(day, "d")}
+                  </div>
+                  {closedDays.has(format(day, "yyyy-MM-dd")) && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-destructive">Closed</span>
+                  )}
                 </div>
                 <div className="space-y-0.5">
                   {dayClasses.slice(0, 4).map((sc) => {
@@ -947,6 +973,7 @@ export function AdminClassCalendarWithAttendees() {
           days={viewMode === "week" ? weekDays : [currentDate]}
           sessions={visibleScheduled}
           onOpen={openClass}
+          closedDays={closedDays}
         />
       )}
 
