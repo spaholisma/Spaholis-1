@@ -9,14 +9,14 @@ import { useServicesByCategory } from "@/hooks/useServices";
 import { content as defaults } from "@/data/content";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { formatCRCWithUsd } from "@/lib/currency";
-import { shouldShowPromo } from "@/lib/promoPopup";
+import { markPromoSeen, promoSeenThisVisit, shouldShowPromo } from "@/lib/promoPopup";
 import { programDuration, WELLNESS_PROGRAMS_CATEGORY, WELLNESS_PROGRAMS_PATH } from "@/lib/wellnessPrograms";
 
 /**
  * Promo window for the Wellness Programs. Opens a moment after the site is
- * opened or refreshed (not on every in-app page change), never on booking,
- * checkout, sign-in or admin pages, and closes with the X, "Maybe later",
- * Escape or a click outside.
+ * opened, once per visit (a refresh or a new page in the same tab doesn't
+ * bring it back), never on booking, checkout, sign-in or admin pages, and
+ * closes with the X, "Maybe later", Escape or a click outside.
  */
 export function PromoPopup() {
   const { pathname } = useLocation();
@@ -36,8 +36,12 @@ export function PromoPopup() {
     // Not inside the admin's content-editor preview frame.
     if (typeof window === "undefined" || window.self !== window.top) return;
     scheduled.current = true;
+    if (promoSeenThisVisit()) return;
     const t = window.setTimeout(() => {
-      if (shouldShowPromo(pathRef.current)) setOpen(true);
+      if (shouldShowPromo(pathRef.current)) {
+        markPromoSeen();
+        setOpen(true);
+      }
     }, Math.max(0, Number(c.delaySeconds) || 0) * 1000);
     return () => window.clearTimeout(t);
   }, [isLoading, programs.length, c.enabled, c.delaySeconds]);

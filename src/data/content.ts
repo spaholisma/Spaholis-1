@@ -936,7 +936,7 @@ export const content = {
   },
 
   // ── Promo popup (src/components/PromoPopup.tsx) ──
-  // Opens when the site is opened or refreshed. Set enabled: false to turn it off.
+  // Opens once per visit (not on every refresh). Set enabled: false to turn it off.
   promoPopup: {
     enabled: true,
     delaySeconds: 2.5,

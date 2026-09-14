@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { shouldShowPromo } from "@/lib/promoPopup";
+import { markPromoSeen, promoSeenThisVisit, shouldShowPromo } from "@/lib/promoPopup";
 import { content } from "@/data/content";
 
 // The Wellness Programs promo window.
@@ -19,6 +19,16 @@ describe("promo popup", () => {
     for (const p of ["/book", "/booking/return", "/class-booking", "/experience-booking", "/auth", "/admin", "/dashboard", "/wellness-programs", "/es/book", "/es/wellness-programs"]) {
       expect(shouldShowPromo(p)).toBe(false);
     }
+  });
+
+  it("shows once per visit, not on every refresh", () => {
+    window.sessionStorage.clear();
+    expect(promoSeenThisVisit()).toBe(false);
+    markPromoSeen();
+    expect(promoSeenThisVisit()).toBe(true);
+    const popup = read("src/components/PromoPopup.tsx");
+    expect(popup.indexOf("if (promoSeenThisVisit()) return;")).toBeGreaterThan(-1);
+    expect(popup.indexOf("markPromoSeen();")).toBeGreaterThan(popup.indexOf("if (promoSeenThisVisit()) return;"));
   });
 
   it("is mounted once for the whole site and can be switched off", () => {
