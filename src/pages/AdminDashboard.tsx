@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Receipt, ClipboardList, Paintbrush,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Tent, Receipt, ClipboardList, Paintbrush,
   GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ import { AdminInternalCalendars } from "@/components/admin/AdminInternalCalendar
 import { AdminWellnessOrganizer } from "@/components/admin/AdminWellnessOrganizer";
 import { AdminSpaPackagesManager } from "@/components/admin/AdminSpaPackagesManager";
 import { AdminCustomRetreats } from "@/components/admin/AdminCustomRetreats";
+import { AdminRetreatsManager } from "@/components/admin/AdminRetreatsManager";
 import { AdminHomeLists } from "@/components/admin/AdminHomeLists";
 import { AdminIntakeQuestions } from "@/components/admin/AdminIntakeQuestions";
 import { AdminTheme } from "@/components/admin/AdminTheme";
@@ -70,6 +71,7 @@ const sidebarLinks = [
   { label: "Calendars", icon: CalendarDays, id: "calendars" },
   { label: "Wellness", icon: Heart, id: "wellness" },
   { label: "Spa Packages", icon: Package, id: "spa-packages" },
+  { label: "Retreats", icon: Tent, id: "retreats" },
   { label: "Custom Retreats", icon: Sparkles, id: "custom-retreats" },
   { label: "Practitioners", icon: UserCircle, id: "practitioners" },
   { label: "Experiences", icon: CalendarDays, id: "experiences" },
@@ -332,6 +334,7 @@ const AdminDashboard = () => {
           {activeTab === "calendars" && canRender("calendars") && <AdminInternalCalendars restrictToTreatment={isCoordinator || isViewer} readOnly={isViewer} />}
           {activeTab === "wellness" && <AdminWellnessOrganizer />}
           {activeTab === "spa-packages" && <AdminSpaPackagesManager />}
+          {activeTab === "retreats" && <AdminRetreatsManager />}
           {activeTab === "custom-retreats" && <AdminCustomRetreats />}
           {activeTab === "practitioners" && <AdminPractitioners />}
           {activeTab === "experiences" && <AdminExperiencesManager />}
