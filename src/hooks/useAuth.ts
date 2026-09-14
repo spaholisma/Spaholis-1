@@ -35,8 +35,13 @@ export function useAuth() {
     return supabase.auth.signInWithPassword({ email, password });
   };
 
+  // Signs out THIS device only. supabase-js defaults to scope "global", which
+  // revokes every session of the account — so pressing Sign Out on a phone
+  // kicked the same account off every laptop still using it (seen on 11
+  // September: a logout on an iPhone, then "Refresh Token Not Found" on a
+  // laptop an hour later).
   const signOut = async () => {
-    return supabase.auth.signOut();
+    return supabase.auth.signOut({ scope: "local" });
   };
 
   return { user, session, loading, signUp, signIn, signOut };
