@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { formatCRC } from "@/lib/currency";
+import { formatCRC, formatPrice } from "@/lib/currency";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Check, ChevronLeft, CreditCard, CalendarDays, Clock, MapPin, Users, Tic
 import { cn } from "@/lib/utils";
 import { formatSpaDateLong, formatSpaTime } from "@/lib/businessHours";
 import { toast } from "sonner";
-import { validateCoupon } from "@/lib/coupons";
+import { validateCoupon, describeCouponDiscount } from "@/lib/coupons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { ScheduleRow } from "@/hooks/useClasses";
@@ -65,7 +65,7 @@ const ClassBookingPage = () => {
   // True when paying with the membership behind the emailed link (no login).
   const [useLinkMembership, setUseLinkMembership] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   // How many spots to book at once (e.g. bringing friends). Multi-spot always
   // pays by card — memberships/credits are personal and stay at one spot.
@@ -670,8 +670,9 @@ const ClassBookingPage = () => {
                                   const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
                                   setValidatingCoupon(false);
                                   if (!res.valid) { toast.error(res.reason || "Invalid coupon"); return; }
-                                  setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0 });
-                                  toast.success(`Coupon applied: -${formatCRC(res.discountAmount ?? 0)}`);
+                                  const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
+                                  setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
+                                  toast.success(`Coupon applied: ${label}`);
                                 }}
                               >
                                 {validatingCoupon ? "Checking…" : "Apply"}
@@ -679,7 +680,7 @@ const ClassBookingPage = () => {
                             )}
                           </div>
                           {appliedCoupon && (
-                            <p className="text-xs text-spa-sage font-body">{appliedCoupon.code} applied — {formatCRC(appliedCoupon.discount)} off</p>
+                            <p className="text-xs text-spa-sage font-body">{appliedCoupon.code} applied — {appliedCoupon.label}</p>
                           )}
                         </div>
                       )}
@@ -698,14 +699,14 @@ const ClassBookingPage = () => {
                         {payMethod === "card" && appliedCoupon && (
                           <div className="flex justify-between text-sm font-body text-spa-sage mb-2">
                             <span>Coupon ({appliedCoupon.code})</span>
-                            <span>-{formatCRC(appliedCoupon.discount)}</span>
+                            <span>-{formatPrice(appliedCoupon.discount)}</span>
                           </div>
                         )}
                         <div className="flex justify-between border-t border-border pt-3">
                           <span className="font-body text-sm font-semibold text-foreground">Total</span>
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
-                              ? formatCRC(Math.max(0, quantity * Number(cls.price) - (appliedCoupon?.discount ?? 0)))
+                              ? formatPrice(Math.max(0, quantity * Number(cls.price) - (appliedCoupon?.discount ?? 0)))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>

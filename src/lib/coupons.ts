@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { formatPrice } from "@/lib/currency";
 
 export interface CouponRecord {
   id: string;
@@ -112,4 +113,26 @@ export async function validateCoupon(
       : Math.min(basePrice, c.discount_value);
 
   return { valid: true, coupon: c, discountAmount };
+}
+
+/**
+ * What a coupon takes off, in the terms it was set up with.
+ *
+ * A percentage coupon reads as its percentage, with the exact amount beside it
+ * ("15% off (−$19.65)"); a fixed one reads as its dollar value. The amount is
+ * never rounded: MAXWELLNESS used to show as "$20 off", which guests read as a
+ * 20% coupon when it is 15%.
+ */
+export function describeCouponDiscount(
+  coupon: Pick<CouponRecord, "discount_type" | "discount_value">,
+  amount: number,
+): string {
+  const value = Number(coupon.discount_value);
+  if (coupon.discount_type === "percentage") {
+    return `${value}% off (−${formatPrice(amount)})`;
+  }
+  // A fixed coupon larger than the price is capped at the price.
+  return amount < value
+    ? `${formatPrice(value)} off (−${formatPrice(amount)} on this booking)`
+    : `${formatPrice(value)} off`;
 }

@@ -48,6 +48,18 @@ export function formatCRC(value: number | string | null | undefined): string {
   return `$${usdCompactFormatter.format(Math.round(n))}`;
 }
 
+/**
+ * An amount exactly as it will be charged: whole dollars stay whole (`$131`),
+ * anything with cents shows them (`$111.35`). formatCRC rounds to the dollar,
+ * which is right for a menu price but wrong once a coupon is involved — a 15%
+ * discount of $19.65 read as "$20 off", which looks like a 20% coupon.
+ */
+export function formatPrice(value: number | string | null | undefined): string {
+  const n = Math.round(toNumber(value) * 100) / 100;
+  if (n <= 0) return "$0";
+  return Number.isInteger(n) ? `$${usdCompactFormatter.format(n)}` : `$${usdPreciseFormatter.format(n)}`;
+}
+
 /** Precise two-decimal formatter used in checkout summaries and emails. */
 export function formatUsd(value: number | string | null | undefined): string {
   const n = toNumber(value);

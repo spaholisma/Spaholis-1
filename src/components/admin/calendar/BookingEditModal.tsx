@@ -719,8 +719,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
             </TabsContent>
           </Tabs>
         </ScrollArea>
-        <DialogFooter className="flex items-center justify-between gap-2">
-          <div className="flex gap-2">
+        <DialogFooter className="flex-row sm:flex-row flex-wrap items-center justify-between gap-2 sm:space-x-0 border-t border-border pt-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="destructive" size="sm" onClick={handleDelete} className="gap-1">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
@@ -734,7 +734,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
             <Button size="sm" onClick={handleSave} disabled={saving}
               className={cancellingNow ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}>
