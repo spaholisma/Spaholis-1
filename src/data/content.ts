@@ -112,6 +112,11 @@ export const seo = {
     description: "A full day of wellness in Manuel Antonio — movement, holistic treatments, nourishment and rest, thoughtfully woven into one restorative day.",
     canonical: "/day-retreats",
   },
+  wellnessPrograms: {
+    title: "Wellness Programs in Manuel Antonio",
+    description: "90-minute wellness programs pairing a movement class with hands-on bodywork at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/wellness-programs",
+  },
   contact: {
     title: "Location & Contact",
     description: "Visit Holis Wellness Center in Manuel Antonio, Quepos, Costa Rica. Get directions, call, WhatsApp or email us to plan your visit.",
@@ -887,6 +892,47 @@ export const content = {
     ctaText: "Every day retreat is tailored to you. Tell us what you're looking for and we'll craft an experience just for you.",
     ctaPrimary: "Plan my day",
     ctaSecondary: "Explore experiences",
+  },
+
+  // ── Wellness Programs Page (/wellness-programs) ──
+  // The programs themselves (name, price, description, image) come from the
+  // services table, category "Wellness Programs".
+  wellnessPrograms: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/d89fc404-0b7a-42f9-bd05-21136e5dafd6/045A5408.jpg?format=2500w",
+    heroImageAlt: "Wellness program at Holis Wellness Center",
+    heroEyebrow: "Wellness Programs",
+    heroTitle: "Awaken. Integrate. Manifest.",
+    heroSubtitle: "90-minute programs that pair a movement class with hands-on bodywork — a complete reset for body and mind in the heart of Manuel Antonio.",
+    heroPrimary: "Explore the programs",
+    heroSecondary: "Free consultation",
+    introEyebrow: "Movement + bodywork",
+    introTitle: "Two practices, one journey back to yourself",
+    introText: "Each program opens with a guided class to awaken the body, continues with a treatment chosen to integrate what the movement released, and leaves you with a balance you can carry into daily life.",
+    phases: [
+      { title: "Awaken", text: "A 45-minute class — breathwork, Gyrokinesis or yoga — to wake up the body and quiet the mind." },
+      { title: "Integrate", text: "A 45-minute hands-on session — bodywork, craniosacral or cupping and massage — to release and realign." },
+      { title: "Manifest", text: "Leave with renewed vitality, ease and awareness that stay with you long after the session." },
+    ],
+    programsEyebrow: "Choose your program",
+    programsTitle: "Three paths, one intention",
+    programsText: "Every program lasts 90 minutes and is guided by our instructors and therapists.",
+    programEyebrow: "Program",
+    includesLabel: "What's included",
+    requestButton: "Request this program",
+    detailsButton: "View details",
+    emptyText: "New programs are coming soon. Book a free consultation and we'll design one with you.",
+    stepsEyebrow: "How it works",
+    stepsTitle: "Simple, from request to reset",
+    stepLabel: "Step",
+    steps: [
+      { title: "Request your program", text: "Choose your program and share a few details, including a short health form." },
+      { title: "Secure your request", text: "Leave a card on file to hold it — our cancellation policy applies, just like our treatments." },
+      { title: "We schedule with you", text: "Our team contacts you to set the day and time for your class and your session." },
+    ],
+    ctaTitle: "Not sure which program is for you?",
+    ctaText: "Tell us how you feel and what you're looking for — we'll help you choose the right path.",
+    ctaPrimary: "Book a free consultation",
+    ctaWhatsapp: "Message us on WhatsApp",
   },
 
   // ── Location & Contact Page ──

@@ -34,6 +34,7 @@ const MENU: NavEntry[] = [
       { labelKey: "nav.subHolistic", label: "Holistic Therapies", to: "/treatments-therapies/holistic-therapy" },
       { labelKey: "nav.subFacialsBody", label: "Facials & Body Treatments", to: "/treatments-therapies/organic-facials" },
       { labelKey: "nav.subWellnessPackages", label: "Wellness Packages", to: "/treatments-therapies/spa-packages" },
+      { labelKey: "nav.subWellnessPrograms", label: "Wellness Programs", to: "/wellness-programs" },
       { labelKey: "nav.subSignature", label: "Signature Experiences", to: "/signature-treatments" },
     ],
   },
@@ -53,6 +54,7 @@ const MENU: NavEntry[] = [
     children: [
       { labelKey: "nav.subPersonalRetreats", label: "Personal Wellness Retreats", to: "/retreats?tab=retreats" },
       { labelKey: "nav.subDayRetreats", label: "Day Retreats", to: "/day-retreats" },
+      { labelKey: "nav.subWellnessPrograms", label: "Wellness Programs", to: "/wellness-programs" },
       { labelKey: "nav.subGroupRetreat", label: "Plan a Group Retreat", to: "/custom-retreat" },
       { labelKey: "nav.subInquiry", label: "Retreat Inquiry", to: "/custom-retreat" },
     ],

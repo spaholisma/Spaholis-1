@@ -244,6 +244,14 @@ const ServicesPage = () => {
                 <h2 {...cmsEditProps(`services.categories.${selected}`)} className="font-heading text-xl font-medium text-foreground border-b border-border pb-3 mb-6">
                   {localizeCategory(selected)}
                 </h2>
+                {selected === "Wellness Programs" && (
+                  <Link
+                    to={withLangPrefix("/wellness-programs", language)}
+                    className="-mt-2 mb-6 inline-flex items-center gap-1.5 font-body text-sm font-semibold text-primary hover:underline"
+                  >
+                    Discover how our Wellness Programs work →
+                  </Link>
+                )}
                 {(selected === "Massage Therapy" ||
                   selected === "Organic Facials" ||
                   selected === "Body Treatments") ? (
