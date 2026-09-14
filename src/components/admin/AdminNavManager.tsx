@@ -234,7 +234,7 @@ export function AdminNavManager() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Tip: the <strong>link</strong> is a path on your site, e.g. <code>/classes</code> or a deep link like <code>/treatments-therapies?category=Holistic Therapy</code>. Turn off the switch to hide an item without deleting it. A top-level item that has sub-items can't be dropped inside another dropdown.
+        Tip: the <strong>link</strong> is a path on your site, e.g. <code>/classes</code> or a deep link like <code>/treatments-therapies/holistic-therapy</code>. Turn off the switch to hide an item without deleting it. A top-level item that has sub-items can't be dropped inside another dropdown.
       </p>
     </div>
   );

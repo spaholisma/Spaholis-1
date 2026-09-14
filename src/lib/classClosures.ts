@@ -46,6 +46,28 @@ export function useClassClosures() {
   });
 }
 
+export interface ClosureRange {
+  from: string;
+  to: string;
+  message: string | null;
+}
+
+/**
+ * Consecutive closed days with the same message, merged into ranges — so the
+ * schedule can say "Closed October 16 – 31" once instead of sixteen times.
+ */
+export function closureRanges(closures: ClassClosure[]): ClosureRange[] {
+  const sorted = [...closures].sort((a, b) => a.closed_date.localeCompare(b.closed_date));
+  const out: ClosureRange[] = [];
+  for (const c of sorted) {
+    const last = out[out.length - 1];
+    const nextDay = last ? datesBetween(last.to, c.closed_date).length === 2 : false;
+    if (last && nextDay && (last.message ?? "") === (c.reason ?? "")) last.to = c.closed_date;
+    else out.push({ from: c.closed_date, to: c.closed_date, message: c.reason });
+  }
+  return out;
+}
+
 /** Every date from `from` to `to` inclusive, as YYYY-MM-DD. */
 export function datesBetween(from: string, to: string): string[] {
   const out: string[] = [];

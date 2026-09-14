@@ -24,16 +24,16 @@ interface NavEntry extends NavItem {
 
 // Menu structure. Parent `to` links to an existing page; children reuse existing
 // routes (see the reorg notes). Deep-links to Treatments categories use the
-// ?category= param; About sub-sections use #anchors; Retreats use the ?tab param.
+// /treatments-therapies/<slug> pages; About sub-sections use #anchors; Retreats use the ?tab param.
 const MENU: NavEntry[] = [
   { labelKey: "nav.home", label: "Home", to: "/" },
   {
     labelKey: "nav.treatments", label: "Treatments & Therapies", to: "/treatments-therapies",
     children: [
-      { labelKey: "nav.subMassage", label: "Massage Therapy", to: "/treatments-therapies?category=Massage Therapy" },
-      { labelKey: "nav.subHolistic", label: "Holistic Therapies", to: "/treatments-therapies?category=Holistic Therapy" },
-      { labelKey: "nav.subFacialsBody", label: "Facials & Body Treatments", to: "/treatments-therapies?category=Organic Facials" },
-      { labelKey: "nav.subWellnessPackages", label: "Wellness Packages", to: "/treatments-therapies?category=Spa Packages" },
+      { labelKey: "nav.subMassage", label: "Massage Therapy", to: "/treatments-therapies/massage-therapy" },
+      { labelKey: "nav.subHolistic", label: "Holistic Therapies", to: "/treatments-therapies/holistic-therapy" },
+      { labelKey: "nav.subFacialsBody", label: "Facials & Body Treatments", to: "/treatments-therapies/organic-facials" },
+      { labelKey: "nav.subWellnessPackages", label: "Wellness Packages", to: "/treatments-therapies/spa-packages" },
       { labelKey: "nav.subSignature", label: "Signature Experiences", to: "/signature-treatments" },
     ],
   },

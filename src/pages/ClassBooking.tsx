@@ -387,7 +387,9 @@ const ClassBookingPage = () => {
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
+          <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-3">Closed Day</p>
           <h1 className="spa-heading-lg text-foreground mb-4">We are closed on this day</h1>
+          {closure.reason && <p className="spa-body text-lg text-foreground mb-4">{closure.reason}</p>}
           <p className="spa-body mb-8">
             There are no classes on {new Date(event.start_time).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Costa_Rica" })}. Browse our upcoming classes instead.
           </p>

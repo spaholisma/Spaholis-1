@@ -8,9 +8,12 @@ import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SEO } from "@/components/SEO";
+import { useClassClosures } from "@/lib/classClosures";
 
 const ClassesCalendarPage = () => {
   const { data: weekEvents, isLoading } = useWeekEvents();
+  // Days the studio is closed, shown with the team's message.
+  const { data: closures = [] } = useClassClosures();
 
   return (
     <div className="min-h-screen bg-background">
@@ -47,7 +50,7 @@ const ClassesCalendarPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <WeeklyClassCalendar events={weekEvents ?? []} />
+            <WeeklyClassCalendar events={weekEvents ?? []} closures={closures} />
           </motion.div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { datesBetween, spaDateKey } from "@/lib/classClosures";
+import { closureRanges, datesBetween, spaDateKey } from "@/lib/classClosures";
 
 // Closed days for classes. A class booking is created by at least seven
 // paths, so the database is what refuses it; these checks keep every layer
@@ -27,6 +27,28 @@ describe("closed-day dates", () => {
   it("dates a session by the Costa Rica calendar, not UTC", () => {
     expect(spaDateKey("2026-10-01T02:00:00Z")).toBe("2026-09-30");
     expect(spaDateKey("2026-10-01T06:00:00Z")).toBe("2026-10-01");
+  });
+});
+
+describe("closed days on the public Class Schedule", () => {
+  const day = (closed_date: string, reason: string | null) => ({ id: closed_date, closed_date, reason });
+
+  it("merges consecutive days with the same message into one notice", () => {
+    const msg = "We are on vacation - see you on November 1st!";
+    expect(closureRanges([day("2026-10-17", msg), day("2026-10-16", msg), day("2026-10-18", msg)]))
+      .toEqual([{ from: "2026-10-16", to: "2026-10-18", message: msg }]);
+  });
+
+  it("keeps a gap or a different message as separate notices", () => {
+    expect(closureRanges([day("2026-10-01", "A"), day("2026-10-03", "A"), day("2026-10-04", "B")])).toHaveLength(3);
+  });
+
+  it("shows Closed Day with the message on the schedule", () => {
+    expect(read("src/pages/ClassesCalendar.tsx")).toContain("closures={closures}");
+    const cal = read("src/components/WeeklyClassCalendar.tsx");
+    expect(cal).toContain("Closed Day");
+    expect(cal).toContain("r.message");
+    expect(read("src/components/admin/ClassClosuresDialog.tsx")).toContain("clients see it on the Class Schedule");
   });
 });
 

@@ -63,6 +63,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/about", element: <About /> },
   { path: "/wellness", element: <Navigate to="/#wellness" replace /> },
   { path: "/treatments-therapies", element: <Services /> },
+  { path: "/treatments-therapies/:category", element: <Services /> },
   { path: "/signature-treatments", element: <SignatureTreatments /> },
   { path: "/book", element: <Booking /> },
   { path: "/booking/return", element: <BookingReturn /> },

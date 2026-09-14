@@ -31,6 +31,37 @@ export const seo = {
     description: "Browse holistic treatments, massages, bodywork, and therapeutic services at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/treatments-therapies",
   },
+  // One page per Treatments category (see src/lib/treatmentCategories.ts).
+  treatmentsMassage: {
+    title: "Massage Therapy in Manuel Antonio",
+    description: "Relaxing, therapeutic and couples massages at Holis Wellness Center in Manuel Antonio, Costa Rica. See durations and prices and book online.",
+    canonical: "/treatments-therapies/massage-therapy",
+  },
+  treatmentsFacials: {
+    title: "Organic Facials in Manuel Antonio",
+    description: "Organic facials with natural products at Holis Wellness Center in Manuel Antonio, Costa Rica. See durations and prices and book online.",
+    canonical: "/treatments-therapies/organic-facials",
+  },
+  treatmentsBody: {
+    title: "Body Treatments in Manuel Antonio",
+    description: "Body scrubs, wraps and restorative body treatments at Holis Wellness Center in Manuel Antonio, Costa Rica. See prices and book online.",
+    canonical: "/treatments-therapies/body-treatments",
+  },
+  treatmentsHolistic: {
+    title: "Holistic Therapy in Manuel Antonio",
+    description: "Holistic and energy therapies — craniosacral, SomatoEmotional Release and more — at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/treatments-therapies/holistic-therapy",
+  },
+  treatmentsWellnessPrograms: {
+    title: "Wellness Programs",
+    description: "Personalized wellness programs at Holis Wellness Center in Manuel Antonio, Costa Rica. Request yours online.",
+    canonical: "/treatments-therapies/wellness-programs",
+  },
+  treatmentsPackages: {
+    title: "Spa Packages in Manuel Antonio",
+    description: "Spa packages combining massages, facials and body treatments at Holis Wellness Center in Manuel Antonio, Costa Rica. Book online.",
+    canonical: "/treatments-therapies/spa-packages",
+  },
   signatureTreatments: {
     title: "Signature Treatments",
     description: "Discover our signature holistic treatments — SomatoEmotional Release, HoliSynergie, Sacred Facial, and more at Holis Wellness Center.",

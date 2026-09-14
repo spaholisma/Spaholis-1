@@ -116,8 +116,8 @@ export function ClassClosuresDialog({ open, onOpenChange, closures, onChanged }:
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Reason <span className="text-muted-foreground">(optional, for the team)</span></Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Studio closed for October" className="h-9 text-sm" />
+            <Label className="text-xs">Message <span className="text-muted-foreground">(optional, clients see it on the Class Schedule)</span></Label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. We're on vacation — see you on November 1st!" maxLength={200} className="h-9 text-sm" />
           </div>
           <Button size="sm" onClick={add} disabled={saving || !from} className="w-full">
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

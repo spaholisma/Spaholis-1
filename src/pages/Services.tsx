@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useServicesByCategory, type ServiceRow } from "@/hooks/useServices";
 import { useSpaPackages, type SpaPackage } from "@/hooks/useSpaPackages";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { categoryFromSlug, slugifyCategory, treatmentCategoryPath } from "@/lib/treatmentCategories";
 import { CheckCircle2, Clock } from "lucide-react";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
 import {
@@ -85,10 +86,13 @@ const ServicesPage = () => {
   const { language } = useLanguage();
   const { grouped, isLoading: servicesLoading } = useServicesByCategory();
   const { data: packages, isLoading: packagesLoading } = useSpaPackages();
-  const [selected, setSelected] = useState("");
-  // Optional deep-link: /treatments-therapies?category=Massage%20Therapy preselects a tab.
+  // Each category is its own page: /treatments-therapies/massage-therapy.
+  const { category: categorySlug } = useParams();
+  const navigate = useNavigate();
+  const slugCategory = categorySlug ? categoryFromSlug(categorySlug) : null;
+  // Old links (/treatments-therapies?category=Massage Therapy) still work.
   const [searchParams] = useSearchParams();
-  const categoryParam = searchParams.get("category");
+  const legacyCategory = searchParams.get("category");
   const [detailService, setDetailService] = useState<ServiceRow | null>(null);
   const [detailPackage, setDetailPackage] = useState<SpaPackage | null>(null);
   const { data: siteContent } = useSiteContent();
@@ -110,28 +114,15 @@ const ServicesPage = () => {
     ? [...availableCategories, SPA_PACKAGES_CATEGORY]
     : availableCategories;
 
-  // Remembers which ?category= value we've already applied, so we only honor a
-  // deep-link ONCE per distinct value. Otherwise this effect (whose `allCategories`
-  // dependency is a fresh array every render) would keep re-forcing the URL's
-  // category and snap the selection back whenever the user clicks another pill.
-  const appliedParamRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (allCategories.length === 0) return;
-    // A ?category= deep-link (e.g. from the top menu) preselects a tab, but only
-    // the first time we see that value — after that the user is free to click
-    // any pill (deselect/reselect) without it snapping back.
-    if (categoryParam && allCategories.includes(categoryParam)) {
-      if (appliedParamRef.current !== categoryParam) {
-        appliedParamRef.current = categoryParam;
-        setSelected(categoryParam);
-      }
-    } else if (!selected) {
-      setSelected(allCategories[0]);
-    }
-    // Intentionally not depending on `selected`: manual pill clicks must not be
-    // overridden, only a NEW URL category should re-sync (guarded by the ref).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allCategories, categoryParam]);
+  // The URL decides the tab; the plain page shows the first category.
+  const selected =
+    slugCategory && allCategories.includes(slugCategory) ? slugCategory : allCategories[0] ?? "";
+
+  // Per-category title and canonical (falls back to the Treatments page).
+  const seoKey = Object.keys(seoDefaults).find(
+    (k) => slugCategory && (seoDefaults as any)[k].canonical === treatmentCategoryPath(slugCategory),
+  );
+  const pageSeo = (seoKey && ((seo as any)[seoKey] || (seoDefaults as any)[seoKey])) || seo.treatments;
 
   // Build unified items for the selected category
   const unifiedItems: UnifiedItem[] =
@@ -161,9 +152,22 @@ const ServicesPage = () => {
     };
   }, [grouped]);
 
+  if (legacyCategory && !categorySlug) {
+    return <Navigate to={withLangPrefix(treatmentCategoryPath(legacyCategory), language)} replace />;
+  }
+  if (categorySlug) {
+    // Unknown slug, or an alias like "organic-facial": go to the real page.
+    if (!slugCategory || (!isLoading && !allCategories.includes(slugCategory))) {
+      return <Navigate to={withLangPrefix("/treatments-therapies", language)} replace />;
+    }
+    if (categorySlug !== slugifyCategory(slugCategory)) {
+      return <Navigate to={withLangPrefix(treatmentCategoryPath(slugCategory), language)} replace />;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <SEO title={seo.treatments.title} description={seo.treatments.description} canonical={seo.treatments.canonical} jsonLd={servicesJsonLd} />
+      <SEO title={pageSeo.title} description={pageSeo.description} canonical={pageSeo.canonical} jsonLd={servicesJsonLd} />
       <Navbar />
 
       <div className="relative pt-16">
@@ -210,7 +214,7 @@ const ServicesPage = () => {
                   key={cat}
                   {...cmsEditProps(`services.categories.${cat}`)}
                   onClick={() => {
-                    setSelected(cat);
+                    navigate(withLangPrefix(treatmentCategoryPath(cat), language));
                     window.scrollTo({ top: 320, behavior: "smooth" });
                   }}
                   className={cn(
