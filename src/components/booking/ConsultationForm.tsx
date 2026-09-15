@@ -12,6 +12,15 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { PhoneField } from "@/components/booking/PhoneField";
+import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { content as contentDefaults } from "@/data/content";
+import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
+import { privatePriceUsd, privatePricing } from "@/lib/otherOfferings";
+import {
+  clampPeople, parsePrivateKind, privateClassIntake, type PrivateClassOption,
+} from "@/lib/privateClassRequest";
+import { Users } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,6 +33,15 @@ export const ConsultationForm = () => {
   const isRequest = topic.length > 0;
   // kind=info → an information request (e.g. a course), not an appointment.
   const isInfo = (searchParams.get("kind")?.trim() || "") === "info";
+  // A one-on-one, couple's or group private class: the guest can pick a class
+  // and teacher, and the request is emailed to that teacher too.
+  const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
+  const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
+  const [classChoice, setClassChoice] = useState<PrivateClassOption | null>(null);
+  const { data: siteContent } = useSiteContent();
+  const ps: any = (siteContent as any)?.privateSessions || contentDefaults.privateSessions;
+  const kindTitle: string = privateKind ? (ps.classes?.[privateKind]?.title || topic) : "";
+  const privatePrice = privateKind ? privatePriceUsd(people, privatePricing(ps)) * USD_RATE : 0;
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
@@ -74,6 +92,34 @@ export const ConsultationForm = () => {
 
     setSubmitting(true);
     try {
+      if (privateKind) {
+        // The id is made here because a guest can't read the row back; the
+        // email function loads the request by this id.
+        const bookingId = crypto.randomUUID();
+        const classPart = classChoice
+          ? ` — Class: ${classChoice.classTitle}${classChoice.teacherName ? ` with ${classChoice.teacherName}` : ""}`
+          : " — No specific class";
+        const { error } = await supabase.from("bookings").insert({
+          id: bookingId,
+          guest_name: form.name.trim(),
+          guest_email: form.email.trim(),
+          guest_phone: form.phone.trim() || null,
+          booking_date: new Date().toISOString().split("T")[0],
+          booking_time: "00:00",
+          status: "pending",
+          notes: `${topic}${classPart}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`,
+          intake_form: privateClassIntake({ kind: privateKind, kindTitle, people, option: classChoice, preferred: prettyPref }) as any,
+        });
+        if (error) throw error;
+        try {
+          await supabase.functions.invoke("send-private-class-request", { body: { bookingId } });
+        } catch {
+          // The request is saved; an email problem must not lose it.
+        }
+        setSubmitted(true);
+        return;
+      }
+
       const { error } = await supabase.from("bookings").insert({
         guest_name: form.name.trim(),
         guest_email: form.email.trim(),
@@ -130,7 +176,11 @@ export const ConsultationForm = () => {
             </div>
             <h2 className="spa-heading-lg text-foreground mb-4">{t("consultation.thankYou")}</h2>
             <p className="font-body text-muted-foreground leading-relaxed">
-              {isInfo
+              {privateKind
+                ? classChoice?.teacherName
+                  ? t("consultation.privateThankYouTeacher", { name: classChoice.teacherName, defaultValue: "Your request was sent to {{name}} and the Holis team. You'll hear back by email to arrange your private class — check your inbox for a copy." })
+                  : t("consultation.privateThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email to arrange your private class — check your inbox for a copy." })
+                : isInfo
                 ? t("consultation.infoThankYou", { defaultValue: "Thank you! Our team will be in touch shortly with the course information — dates, pricing and how to register." })
                 : isRequest
                 ? t("consultation.appointmentThankYou", { defaultValue: "Holis Wellness Center will reach out to you shortly to confirm your appointment — or suggest another time based on our therapists' availability." })
@@ -161,7 +211,7 @@ export const ConsultationForm = () => {
                 ? t("consultation.infoTitle", { defaultValue: "Request Course Information" })
                 : isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
             </h1>
-            {isRequest ? (
+            {isRequest && !privateKind ? (
               <p className="font-body text-sm text-foreground text-center mb-2 max-w-sm mx-auto">
                 <span className="font-medium">{topic}</span>
               </p>
@@ -171,6 +221,27 @@ export const ConsultationForm = () => {
                 ? t("consultation.infoSubtitle", { defaultValue: "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register." })
                 : isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
+
+            {privateKind && (
+              <div className="mb-8 space-y-4">
+                <div className="flex items-center justify-between gap-4 rounded-3xl bg-foreground px-5 py-4 text-background shadow-md">
+                  <div className="min-w-0">
+                    <p className="font-body text-[11px] font-semibold uppercase tracking-[0.2em] text-background/60">
+                      {t("consultation.privateLabel", { defaultValue: "Private class" })}
+                    </p>
+                    <p className="font-heading text-lg leading-tight truncate">{kindTitle}</p>
+                    <p className="mt-0.5 flex items-center gap-1.5 font-body text-xs text-background/70">
+                      <Users className="h-3.5 w-3.5" />
+                      {people === 1
+                        ? t("consultation.privateOnePerson", { defaultValue: "1 person" })
+                        : t("consultation.privatePeople", { count: people, defaultValue: "{{count}} people" })}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-heading text-xl font-semibold">{formatCRCWithUsd(privatePrice)}</p>
+                </div>
+                <PrivateClassPicker value={classChoice} onChange={setClassChoice} />
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Left in the page on purpose and put out of sight rather than

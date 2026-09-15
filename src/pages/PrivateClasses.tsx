@@ -176,7 +176,7 @@ const PrivateClassesPage = () => {
                           {formatCRCWithUsd(price)}
                         </span>
                         <Button asChild variant="spa" size="sm">
-                          <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}`}>
+                          <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}${cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""}`}>
                             {(ps as any).ui?.bookNow}
                           </Link>
                         </Button>
