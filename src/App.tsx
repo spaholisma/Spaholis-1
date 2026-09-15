@@ -45,6 +45,7 @@ import TestPayment from "./pages/TestPayment";
 import TestPaymentReturn from "./pages/TestPaymentReturn";
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { PromoPopup } from "./components/PromoPopup";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
 const queryClient = new QueryClient();
@@ -122,6 +123,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <LanguageProvider>
+          <ScrollToTop />
           <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />
