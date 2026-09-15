@@ -200,7 +200,7 @@ export const ConsultationForm = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="spa-section">
-        <div className="max-w-md mx-auto">
+        <div className={privateKind ? "max-w-5xl mx-auto" : "max-w-md mx-auto"}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -216,14 +216,17 @@ export const ConsultationForm = () => {
                 <span className="font-medium">{topic}</span>
               </p>
             ) : null}
-            <p className="font-body text-sm text-muted-foreground text-center mb-10 leading-relaxed max-w-sm mx-auto">
+            <p className={`font-body text-sm text-muted-foreground text-center leading-relaxed max-w-sm mx-auto ${privateKind ? "mb-8" : "mb-10"}`}>
               {isInfo
                 ? t("consultation.infoSubtitle", { defaultValue: "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register." })
                 : isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
 
+            {/* Private class: the class and teacher on the left, the details on
+                the right, so the whole request fits on one screen. */}
+            <div className={privateKind ? "grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start lg:gap-10" : ""}>
             {privateKind && (
-              <div className="mb-8 space-y-4">
+              <div className="space-y-4 lg:sticky lg:top-24">
                 <div className="flex items-center justify-between gap-4 rounded-3xl bg-foreground px-5 py-4 text-background shadow-md">
                   <div className="min-w-0">
                     <p className="font-body text-[11px] font-semibold uppercase tracking-[0.2em] text-background/60">
@@ -243,7 +246,8 @@ export const ConsultationForm = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <div className={privateKind ? "rounded-3xl border border-border bg-card p-5 sm:p-7 shadow-sm" : ""}>
+            <form onSubmit={handleSubmit} className={privateKind ? "space-y-5" : "space-y-6"}>
               {/* Left in the page on purpose and put out of sight rather than
                   display:none, which the better scripts know to skip. Never
                   reached by keyboard or screen reader. */}
@@ -260,6 +264,7 @@ export const ConsultationForm = () => {
                 />
               </div>
 
+              <div className={privateKind ? "grid gap-5 sm:grid-cols-2" : "space-y-6"}>
               <div className="space-y-2">
                 <Label htmlFor="name" className="font-body text-sm">{t("consultation.name")} *</Label>
                 <Input
@@ -283,6 +288,7 @@ export const ConsultationForm = () => {
                   required
                   maxLength={255}
                 />
+              </div>
               </div>
 
               <div className="space-y-2">
@@ -372,6 +378,8 @@ export const ConsultationForm = () => {
                 {t("consultation.confirmSoon")}
               </p>
             </form>
+            </div>
+            </div>
           </motion.div>
         </div>
       </div>
