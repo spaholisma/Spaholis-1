@@ -230,8 +230,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
+      {/* The sidebar stays in place and scrolls on its own; the page scrolls separately. */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:static flex flex-col",
+        "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:shrink-0 flex flex-col",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-6 flex items-center justify-between">
@@ -258,7 +259,7 @@ const AdminDashboard = () => {
         {customize && (
           <p className="px-6 text-[11px] text-muted-foreground mb-2 -mt-1">Drag <GripVertical className="h-3 w-3 inline" /> to reorder · click the eye to hide/show.</p>
         )}
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 min-h-0 px-3 pb-6 space-y-1 overflow-y-auto overscroll-contain">
           {shownLinks.map((link) => {
             const isHidden = hidden.includes(link.id);
             if (customize) {
