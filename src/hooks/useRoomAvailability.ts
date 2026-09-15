@@ -76,7 +76,9 @@ export function useRoomAvailability(
       const { data: bookings, error: bookErr } = await supabase
         .from("bookings")
         .select("room_id, secondary_room_id, start_time, end_time, offsite_location")
-        .not("status", "eq", "cancelled")
+        // Same statuses create-booking ignores: a failed payment frees its slot.
+        // Counting it here hid times the server would have accepted.
+        .not("status", "in", "(cancelled,payment_failed)")
         .gte("start_time", dayStart.toISOString())
         .lte("start_time", dayEnd.toISOString());
       if (bookErr) throw bookErr;

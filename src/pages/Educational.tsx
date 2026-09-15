@@ -19,6 +19,7 @@ import { ChevronRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
@@ -474,7 +475,7 @@ const EducationalPage = () => {
             </p>
             <Input placeholder={edu.dialogFullName} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             <Input placeholder={t("form.email", { defaultValue: "Email" })} type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-            <Input placeholder="Phone / WhatsApp" type="tel" inputMode="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+            <PhoneField placeholder="Phone / WhatsApp" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
             {enrollDialog && (
               <Button
                 className="w-full"

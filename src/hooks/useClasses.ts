@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchClosedClassDays, spaDateKey } from "@/lib/classClosures";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { localizeRow, localizeRows } from "@/lib/localizeRow";
 
@@ -68,8 +69,10 @@ export function useUpcomingEvents() {
         .order("start_time", { ascending: true })
         .limit(50);
       if (error) throw error;
+      // Closed days (studio shut) are hidden; the database refuses bookings on them too.
+      const closed = await fetchClosedClassDays();
       return (data ?? [])
-        .filter((s: any) => s.classes?.is_active)
+        .filter((s: any) => s.classes?.is_active && !closed.has(spaDateKey(s.start_time)))
         .map((s: any) => ({
           ...s,
           classes: localizeRow(s.classes, language, CLASS_I18N_FIELDS),
@@ -95,8 +98,10 @@ export function useWeekEvents() {
         .order("start_time", { ascending: true })
         .limit(200);
       if (error) throw error;
+      // Closed days (studio shut) are hidden; the database refuses bookings on them too.
+      const closed = await fetchClosedClassDays();
       return (data ?? [])
-        .filter((s: any) => s.classes?.is_active)
+        .filter((s: any) => s.classes?.is_active && !closed.has(spaDateKey(s.start_time)))
         .map((s: any) => ({
           ...s,
           classes: localizeRow(s.classes, language, CLASS_I18N_FIELDS),

@@ -83,10 +83,13 @@ Deno.serve(async (req) => {
       if (!body.schedule_id) return json({ ok: false, reason: "missing_schedule" }, 400);
       const { data: sched } = await admin
         .from("class_schedule")
-        .select("id, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active)")
+        .select("id, start_time, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active)")
         .eq("id", body.schedule_id).maybeSingle();
       const cls: any = (sched as any)?.classes;
       if (!sched || !cls || cls.is_active === false) return json({ ok: false, reason: "class_unavailable" }, 404);
+      // The studio is closed that day: stop before PayPal takes any money.
+      const { data: closedDay } = await admin.rpc("is_class_day_closed", { _at: (sched as any).start_time });
+      if (closedDay) return json({ ok: false, reason: "class_day_closed" }, 409);
       const qty = Math.max(1, Math.min(Number(body.quantity ?? 1), 10));
       if (Number(sched.spots_remaining) < qty) return json({ ok: false, reason: "class_full" }, 409);
       const base = Number(cls.price ?? 0);

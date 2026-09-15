@@ -35,6 +35,7 @@ import Faqs from "./pages/Faqs";
 import Contact from "./pages/Contact";
 import StudioRental from "./pages/StudioRental";
 import DayRetreats from "./pages/DayRetreats";
+import WellnessPrograms from "./pages/WellnessPrograms";
 import CranioSacral from "./pages/CranioSacral";
 import Gyrotonic from "./pages/Gyrotonic";
 import Kinesiology from "./pages/Kinesiology";
@@ -46,6 +47,7 @@ import PractitionerProfile from "./pages/PractitionerProfile";
 import TestPayment from "./pages/TestPayment";
 import TestPaymentReturn from "./pages/TestPaymentReturn";
 import { WhatsAppButton } from "./components/WhatsAppButton";
+import { PromoPopup } from "./components/PromoPopup";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
 const queryClient = new QueryClient();
@@ -66,6 +68,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/about", element: <About /> },
   { path: "/wellness", element: <Navigate to="/#wellness" replace /> },
   { path: "/treatments-therapies", element: <Services /> },
+  { path: "/treatments-therapies/:category", element: <Services /> },
   { path: "/signature-treatments", element: <SignatureTreatments /> },
   { path: "/book", element: <Booking /> },
   { path: "/booking/return", element: <BookingReturn /> },
@@ -80,6 +83,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/retreats/:slug", element: <RetreatDetail /> },
   { path: "/custom-retreat", element: <CustomRetreat /> },
   { path: "/day-retreats", element: <DayRetreats /> },
+  { path: "/wellness-programs", element: <WellnessPrograms /> },
   { path: "/experience-booking", element: <ExperienceBooking /> },
   { path: "/studio-rental", element: <StudioRental /> },
   { path: "/craniosacral-therapy-manuel-antonio", element: <CranioSacral /> },
@@ -126,6 +130,7 @@ const App = () => (
           <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />
+          <PromoPopup />
           <Routes>
             {routeDefs.map((r) => (
               <Route key={`en${r.path}`} path={r.path} element={r.element} />

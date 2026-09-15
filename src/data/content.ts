@@ -31,6 +31,37 @@ export const seo = {
     description: "Browse holistic treatments, massages, bodywork, and therapeutic services at Holis Wellness Center in Manuel Antonio, Costa Rica.",
     canonical: "/treatments-therapies",
   },
+  // One page per Treatments category (see src/lib/treatmentCategories.ts).
+  treatmentsMassage: {
+    title: "Massage Therapy in Manuel Antonio",
+    description: "Relaxing, therapeutic and couples massages at Holis Wellness Center in Manuel Antonio, Costa Rica. See durations and prices and book online.",
+    canonical: "/treatments-therapies/massage-therapy",
+  },
+  treatmentsFacials: {
+    title: "Organic Facials in Manuel Antonio",
+    description: "Organic facials with natural products at Holis Wellness Center in Manuel Antonio, Costa Rica. See durations and prices and book online.",
+    canonical: "/treatments-therapies/organic-facials",
+  },
+  treatmentsBody: {
+    title: "Body Treatments in Manuel Antonio",
+    description: "Body scrubs, wraps and restorative body treatments at Holis Wellness Center in Manuel Antonio, Costa Rica. See prices and book online.",
+    canonical: "/treatments-therapies/body-treatments",
+  },
+  treatmentsHolistic: {
+    title: "Holistic Therapy in Manuel Antonio",
+    description: "Holistic and energy therapies — craniosacral, SomatoEmotional Release and more — at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/treatments-therapies/holistic-therapy",
+  },
+  treatmentsWellnessPrograms: {
+    title: "Wellness Programs",
+    description: "Personalized wellness programs at Holis Wellness Center in Manuel Antonio, Costa Rica. Request yours online.",
+    canonical: "/treatments-therapies/wellness-programs",
+  },
+  treatmentsPackages: {
+    title: "Spa Packages in Manuel Antonio",
+    description: "Spa packages combining massages, facials and body treatments at Holis Wellness Center in Manuel Antonio, Costa Rica. Book online.",
+    canonical: "/treatments-therapies/spa-packages",
+  },
   signatureTreatments: {
     title: "Signature Treatments",
     description: "Discover our signature holistic treatments — SomatoEmotional Release, HoliSynergie, Sacred Facial, and more at Holis Wellness Center.",
@@ -80,6 +111,11 @@ export const seo = {
     title: "Day Retreats",
     description: "A full day of wellness in Manuel Antonio — movement, holistic treatments, nourishment and rest, thoughtfully woven into one restorative day.",
     canonical: "/day-retreats",
+  },
+  wellnessPrograms: {
+    title: "Wellness Programs in Manuel Antonio",
+    description: "90-minute wellness programs pairing a movement class with hands-on bodywork at Holis Wellness Center in Manuel Antonio, Costa Rica.",
+    canonical: "/wellness-programs",
   },
   contact: {
     title: "Location & Contact",
@@ -563,6 +599,9 @@ export const content = {
     whyChoose: "Why Choose Private Sessions",
     ctaTitle: "Ready to start your personalized journey?",
     ctaButton: "Book a Private Class",
+    // Prices in USD (Admin > Services > Private Classes). 3–4 people pay
+    // "upToFour"; from 5 people, each extra person adds "extraPerson".
+    pricing: { onePerson: 85, twoPeople: 113, upToFour: 170, extraPerson: 28 },
     classes: {
       oneOnOne: {
         title: "One-on-One Private Class",
@@ -856,6 +895,62 @@ export const content = {
     ctaText: "Every day retreat is tailored to you. Tell us what you're looking for and we'll craft an experience just for you.",
     ctaPrimary: "Plan my day",
     ctaSecondary: "Explore experiences",
+  },
+
+  // ── Wellness Programs Page (/wellness-programs) ──
+  // The programs themselves (name, price, description, image) come from the
+  // services table, category "Wellness Programs".
+  wellnessPrograms: {
+    heroImage: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/d89fc404-0b7a-42f9-bd05-21136e5dafd6/045A5408.jpg?format=2500w",
+    heroImageAlt: "Wellness program at Holis Wellness Center",
+    heroEyebrow: "Wellness Programs",
+    heroTitle: "Awaken. Integrate. Manifest.",
+    heroSubtitle: "90-minute programs that pair a movement class with hands-on bodywork — a complete reset for body and mind in the heart of Manuel Antonio.",
+    heroPrimary: "Explore the programs",
+    heroSecondary: "Free consultation",
+    introEyebrow: "Movement + bodywork",
+    introTitle: "Two practices, one journey back to yourself",
+    introText: "Each program opens with a guided class to awaken the body, continues with a treatment chosen to integrate what the movement released, and leaves you with a balance you can carry into daily life.",
+    phases: [
+      { title: "Awaken", text: "A 45-minute class — breathwork, Gyrokinesis or yoga — to wake up the body and quiet the mind." },
+      { title: "Integrate", text: "A 45-minute hands-on session — bodywork, craniosacral or cupping and massage — to release and realign." },
+      { title: "Manifest", text: "Leave with renewed vitality, ease and awareness that stay with you long after the session." },
+    ],
+    programsEyebrow: "Choose your program",
+    programsTitle: "Three paths, one intention",
+    programsText: "Every program lasts 90 minutes and is guided by our instructors and therapists.",
+    programEyebrow: "Program",
+    includesLabel: "What's included",
+    requestButton: "Request this program",
+    detailsButton: "View details",
+    emptyText: "New programs are coming soon. Book a free consultation and we'll design one with you.",
+    stepsEyebrow: "How it works",
+    stepsTitle: "Simple, from request to reset",
+    stepLabel: "Step",
+    steps: [
+      { title: "Request your program", text: "Choose your program and share a few details, including a short health form." },
+      { title: "Secure your request", text: "Leave a card on file to hold it — our cancellation policy applies, just like our treatments." },
+      { title: "We schedule with you", text: "Our team contacts you to set the day and time for your class and your session." },
+    ],
+    ctaTitle: "Not sure which program is for you?",
+    ctaText: "Tell us how you feel and what you're looking for — we'll help you choose the right path.",
+    ctaPrimary: "Book a free consultation",
+    ctaWhatsapp: "Message us on WhatsApp",
+  },
+
+  // ── Promo popup (src/components/PromoPopup.tsx) ──
+  // Opens once per visit (not on every refresh). Set enabled: false to turn it off.
+  promoPopup: {
+    enabled: true,
+    delaySeconds: 2.5,
+    image: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/d89fc404-0b7a-42f9-bd05-21136e5dafd6/045A5408.jpg?format=1500w",
+    badge: "New",
+    eyebrow: "Wellness Programs",
+    title: "Awaken. Integrate. Manifest.",
+    text: "Our 90-minute programs pair a movement class with hands-on bodywork — a complete reset for body and mind.",
+    imageCaption: "Movement + bodywork · 90 min",
+    ctaText: "Discover the programs",
+    dismissText: "Maybe later",
   },
 
   // ── Location & Contact Page ──

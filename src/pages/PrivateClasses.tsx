@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
+import { privatePriceUsd, privatePricing } from "@/lib/otherOfferings";
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -29,29 +30,6 @@ const privateClasses = [
   { id: "gyrotonic-expansion-system", i18nKey: "gyrotonic", fixed: 1 },
 ] as const;
 
-function calcPrice(participants: number): number {
-  if (participants <= 0) return 0;
-  if (participants === 1) return 85;
-  if (participants === 2) return 113;
-  if (participants <= 4) return 170 + (participants - 4) * 28; // 3 people = between, use linear
-  // Actually: 1=$85, 2=$113, 4=$170, additional=$28
-  // For 3 people: $170 is for 4, so let's interpret:
-  // base for 1 = $85, 2 = $113, 4 = $170
-  // additional after 4 = $28 each
-  // 3 people: interpolate or just use $170 for up to 4
-  return 170 + Math.max(0, participants - 4) * 28;
-}
-
-// Pricing in CRC: 1=$85, 2=$113, 3-4=$170, 5+=$170 + $28 per extra (USD ref converted to CRC)
-function getPrice(participants: number): number {
-  let usd: number;
-  if (participants <= 1) usd = 85;
-  else if (participants === 2) usd = 113;
-  else if (participants <= 4) usd = 170;
-  else usd = 170 + (participants - 4) * 28;
-  return usd * USD_RATE;
-}
-
 const benefitKeys = ["personalized", "faster", "custom", "flexible"] as const;
 
 const PrivateClassesPage = () => {
@@ -61,6 +39,9 @@ const PrivateClassesPage = () => {
   const { data: seoData } = useSiteSeo();
   const ps = siteContent?.privateSessions || defaults.privateSessions;
   const seo = seoData || seoDefaults;
+  // Prices are edited in Admin > Services > Private Classes (USD).
+  const pricing = privatePricing(ps as any);
+  const getPrice = (participants: number) => privatePriceUsd(participants, pricing) * USD_RATE;
 
   const getCount = (cls: typeof privateClasses[number]) => {
     if (cls.fixed !== null && cls.fixed !== undefined) return cls.fixed;
@@ -95,10 +76,10 @@ const PrivateClassesPage = () => {
           </motion.div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             {[
-              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(85 * USD_RATE), path: "privateSessions.pricingLabels.onePerson" },
-              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(113 * USD_RATE), path: "privateSessions.pricingLabels.twoPeople" },
-              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(170 * USD_RATE), path: "privateSessions.pricingLabels.upToFour" },
-              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(28 * USD_RATE)}`, path: "privateSessions.pricingLabels.extraPerson" },
+              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(pricing.onePerson * USD_RATE), path: "privateSessions.pricingLabels.onePerson" },
+              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(pricing.twoPeople * USD_RATE), path: "privateSessions.pricingLabels.twoPeople" },
+              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(pricing.upToFour * USD_RATE), path: "privateSessions.pricingLabels.upToFour" },
+              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(pricing.extraPerson * USD_RATE)}`, path: "privateSessions.pricingLabels.extraPerson" },
             ].map((p) => (
               <div key={p.label} className="bg-card border border-border rounded-xl p-4">
                 <p className="font-heading text-xl font-semibold text-foreground">{p.price}</p>

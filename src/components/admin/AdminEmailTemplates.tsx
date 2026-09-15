@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { RULE_LINES, CHANGES_LINE, CLASS_POLICY_LINES, CANCELLATION_EMAIL } from "@/lib/cancellationPolicy";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,8 +48,8 @@ const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
 const CATEGORY_VARS: Record<string, string[]> = {
-  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "total", "payment_status", "details"],
-  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "payment_status", "details", "button"],
+  treatment: ["guest_name", "reservation_id", "service_name", "therapist", "date", "time", "service_price", "coupon_code", "discount", "total", "payment_status", "details", "policy"],
+  class: ["guest_name", "reservation_id", "class_title", "instructor", "when", "location", "class_price", "coupon_code", "discount", "total", "payment_status", "details", "button", "policy"],
   offering_purchase: ["first_name", "guest_name", "offering_name", "entitlement", "code", "details", "button", "loyalty"],
   offering_order: ["first_name", "guest_name", "offering_name", "entitlement", "code", "schedule_link", "details", "button", "loyalty"],
   client_notify: ["guest_name", "date", "time", "location", "button"],
@@ -91,22 +92,27 @@ function sampleVars(category: string): Record<string, string> {
   if (category === "treatment") {
     const details = table([
       row("Reservation ID", "A1B2C3D4"), row("Service", "Relaxing Massage"), row("Therapist", "Maria"),
-      row("Date", "Monday, July 20, 2026"), row("Time", "10:00"), row("Payment Status", "Confirmed"), row("Total", "$80.00"),
+      row("Date", "Monday, July 20, 2026"), row("Time", "10:00"), row("Payment Status", "Confirmed"),
+      row("Service Price", "$80.00"), row("Coupon", "WELCOME10"), row("Discount", "-$8.00"), row("Total", "$72.00"),
     ]);
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", service_name: "Relaxing Massage", therapist: "Maria",
-      date: "Monday, July 20, 2026", time: "10:00", total: "$80.00", payment_status: "Confirmed", details, button: "",
+      date: "Monday, July 20, 2026", time: "10:00", service_price: "$80.00", coupon_code: "WELCOME10",
+      discount: "-$8.00", total: "$72.00", payment_status: "Confirmed", details, button: "",
     };
   }
   if (category === "class") {
     const details = table([
       row("Reservation ID", "A1B2C3D4"), row("Class", "Vinyasa Flow"), row("Instructor", "Luis"),
-      row("When", "Monday, July 20, 2026, 8:00 AM"), row("Location", "Studio A"), row("Payment Status", "Paid"), row("Amount Paid", "$12.00"),
+      row("When", "Monday, July 20, 2026, 8:00 AM"), row("Location", "Studio A"), row("Payment Status", "Paid"),
+      row("Class Price", "$12.00"), row("Coupon", "None used"), row("Amount Paid", "$12.00"),
     ]);
     const button = `<p style="margin:0;"><a href="#" style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">Message us on WhatsApp</a></p>`;
     return {
       guest_name: "Ana", reservation_id: "A1B2C3D4", class_title: "Vinyasa Flow", instructor: "Luis",
-      when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", payment_status: "Paid", details, button, whatsapp_url: "#",
+      when: "Monday, July 20, 2026, 8:00 AM", location: "Studio A", class_price: "$12.00",
+      coupon_code: "None used", discount: "", total: "$12.00",
+      payment_status: "Paid", details, button, whatsapp_url: "#",
     };
   }
   if (category === "offering_expired") {
@@ -179,12 +185,34 @@ function sampleVars(category: string): Record<string, string> {
   };
 }
 
+/** Same block the edge function appends — see policyBlock() there. */
+function samplePolicy(category: string): string {
+  const treatment = category === "treatment";
+  const lines = treatment ? [...RULE_LINES, CHANGES_LINE] : CLASS_POLICY_LINES;
+  const items = lines.map((l) => `<li style="margin:0 0 6px;">${escHtml(l)}</li>`).join("");
+  // A treatment confirmation opens with the guest's own deadline (48 hours
+  // before their appointment) and ends with how the Cancel button works.
+  const deadline = treatment
+    ? `<p style="margin:0 0 12px;padding:12px 14px;background:#ffffff;border-left:3px solid #7a2e2e;border-radius:6px;font-size:14px;line-height:1.6;color:#2F2F2F;">For this appointment: cancel before <strong>Saturday, July 18, 2026 at 10:00 AM</strong> (Costa Rica time) and <strong>50%</strong> of the total is charged. After that — within the 48 hours before your appointment — or if you do not come, <strong>100%</strong> is charged.</p>`
+    : "";
+  const howTo = treatment
+    ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:#555;"><strong style="color:#2F2F2F;">How to cancel:</strong> tap the button below. It opens an email to us that is already addressed and filled in with your appointment — just add a line if you like, and send it. The time your email reaches us is the time of your cancellation. If the button does not open your email app, write to ${CANCELLATION_EMAIL} and include your reservation number.</p><p style="margin:12px 0 0;"><a href="#" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+    : "";
+  return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;"><p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>${deadline}<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#555;">${items}</ul>${howTo}</div>`;
+}
+
 function buildPreview(tpl: { heading: string; body_html: string }, category: string): string {
   const raw = sampleVars(category);
+  const hasPolicy = category === "treatment" || category === "class";
+  if (hasPolicy) raw.policy = samplePolicy(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty"].includes(k) ? v : escHtml(v);
-  return renderShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars));
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty", "policy"].includes(k) ? v : escHtml(v);
+  const body = interpolate(tpl.body_html, vars);
+  // Booking emails always carry the policy; a template that does not place
+  // {{policy}} gets it at the end, exactly as the server sends it.
+  const placesPolicy = /\{\{\s*policy\s*\}\}/.test(tpl.body_html || "");
+  return renderShell(interpolate(tpl.heading, vars), hasPolicy && !placesPolicy ? body + vars.policy : body);
 }
 
 export function AdminEmailTemplates() {
@@ -406,6 +434,11 @@ export function AdminEmailTemplates() {
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-mono">{`{{details}}`}</span> and <span className="font-mono">{`{{button}}`}</span> expand
                     to the booking details table and the action button automatically.
+                    {(editing.category === "treatment" || editing.category === "class") && (
+                      <> <span className="font-mono">{`{{policy}}`}</span> is the cancellation policy
+                      {editing.category === "treatment" ? " with the Cancel my appointment link" : ""} — it is
+                      added at the end of the email if you do not place it yourself.</>
+                    )}
                   </p>
                 </div>
               </div>

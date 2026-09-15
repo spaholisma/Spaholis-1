@@ -17,7 +17,7 @@ export default function Terms() {
         </h1>
         <div className="space-y-6 font-body text-foreground/90 leading-relaxed">
           <p>
-            Last updated: May 2026. By booking, purchasing, or otherwise using
+            Last updated: September 2026. By booking, purchasing, or otherwise using
             services offered by Holis Wellness Center (“Holis”, “we”, “us”) through
             this website, you agree to the following terms.
           </p>
@@ -31,9 +31,13 @@ export default function Terms() {
 
           <h2 className="font-heading text-2xl mt-8">2. Cancellations &amp; No-Shows</h2>
           <p>
-            Cancellations made at least 24 hours before the scheduled time are
-            eligible for rescheduling or refund. Cancellations within 24 hours
-            and no-shows may be charged the full session price.
+            Treatment cancellations made more than 48 hours before the
+            appointment are charged 50% of the total to the card on file.
+            Cancellations within the 48 hours before the appointment, and
+            no-shows, are charged 100% of the total. To cancel, email us at
+            spaholisma@gmail.com; the time your email reaches us is the time of
+            the cancellation. Changes to the treatment, date or time are
+            arranged by WhatsApp or email.
           </p>
 
           <h2 className="font-heading text-2xl mt-8">3. Health &amp; Safety</h2>

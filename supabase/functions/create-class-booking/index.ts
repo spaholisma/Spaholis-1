@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     // 1. Load schedule + class.
     const { data: schedule, error: schErr } = await admin
       .from("class_schedule")
-      .select("id, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active, payment_link)")
+      .select("id, start_time, spots_remaining, class_id, classes(id, title, price, requires_payment, is_active, payment_link)")
       .eq("id", body.schedule_id)
       .maybeSingle();
 
@@ -133,6 +133,9 @@ Deno.serve(async (req) => {
 
     const cls: any = (schedule as any).classes;
     if (!cls || cls.is_active === false) return json({ ok: false, reason: "class_unavailable" }, 404);
+    // The studio is closed that day (the booking trigger refuses it as well).
+    const { data: closedDay } = await admin.rpc("is_class_day_closed", { _at: (schedule as any).start_time });
+    if (closedDay) return json({ ok: false, reason: "class_day_closed" }, 409);
 
     const basePrice = Number(cls.price ?? 0);
     const requiresPayment = !!cls.requires_payment && basePrice > 0;

@@ -3,6 +3,7 @@ import { formatCRC } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField } from "@/components/booking/PhoneField";
 import { toast } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -14,6 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
+import { CancelAppointmentDialog } from "@/components/booking/CancelAppointmentDialog";
+import { HOLIS_WHATSAPP_URL, HOLIS_EMAIL } from "@/data/contact";
+import { MessageCircle, Mail } from "lucide-react";
 
 const ClientDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -218,8 +222,22 @@ const ClientDashboard = () => {
                   )}>
                     {apt.status}
                   </span>
+                  <CancelAppointmentDialog booking={apt} />
                 </div>
               ))}
+
+              <p className="font-body text-xs text-muted-foreground leading-relaxed px-1">
+                Need to change the treatment, the date or the time? Message us on{" "}
+                <a href={HOLIS_WHATSAPP_URL} target="_blank" rel="noreferrer"
+                   className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
+                  <MessageCircle className="h-3 w-3" /> WhatsApp
+                </a>{" "}or at{" "}
+                <a href={`mailto:${HOLIS_EMAIL}`}
+                   className="text-foreground underline underline-offset-2 inline-flex items-center gap-1">
+                  <Mail className="h-3 w-3" /> {HOLIS_EMAIL}
+                </a>{" "}and we'll move it for you. Cancelling more than 48 hours before your
+                appointment is charged 50%; within those 48 hours, or not showing up, 100%.
+              </p>
             </div>
           )}
         </div>
@@ -298,7 +316,7 @@ function ProfileSection({ profile, email, onSaved }: { profile: any; email?: str
         </div>
         <div>
           <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Phone</label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+506 ..." />
+          <PhoneField value={phone} onChange={setPhone} />
         </div>
         <div className="sm:col-span-2">
           <label className="font-body text-sm font-medium mb-1.5 block text-foreground">Email</label>

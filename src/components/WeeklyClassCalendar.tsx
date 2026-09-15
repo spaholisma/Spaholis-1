@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, startOfWeek, addDays, isSameDay } from "date-fns";
-import { Clock, MapPin, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, MapPin, Users, ChevronLeft, ChevronRight, CalendarOff } from "lucide-react";
+import { closureRanges, type ClassClosure } from "@/lib/classClosures";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -16,9 +17,14 @@ const DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 interface WeeklyCalendarProps {
   events: ScheduleRow[];
+  /** Days the studio is closed; shown as "Closed Day" with the team's message. */
+  closures?: ClassClosure[];
 }
 
-export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
+const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
+const longDay = (key: string) => format(new Date(`${key}T12:00:00`), "EEEE, MMMM d");
+
+export function WeeklyClassCalendar({ events, closures = [] }: WeeklyCalendarProps) {
   const [weekOffset, setWeekOffset] = useState(0);
 
   // Start of current week (Monday)
@@ -40,6 +46,11 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
 
   const weekLabel = `${format(weekDays[0], "MMM d")} – ${format(weekDays[6], "MMM d, yyyy")}`;
 
+  const closureByDay = new Map(closures.map((c) => [c.closed_date, c]));
+  const weekFrom = dayKey(weekDays[0]);
+  const weekTo = dayKey(weekDays[6]);
+  const weekClosures = closureRanges(closures).filter((r) => r.from <= weekTo && r.to >= weekFrom);
+
   return (
     <div>
       {/* Week Navigation */}
@@ -53,6 +64,28 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
         </Button>
       </div>
 
+      {/* Closed days in this week, with the team's message */}
+      {weekClosures.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {weekClosures.map((r) => (
+            <div key={r.from} className="flex items-start gap-4 rounded-2xl border border-spa-sage/30 bg-spa-sage/10 px-5 py-4">
+              <div className="h-10 w-10 rounded-full bg-spa-sage/20 flex items-center justify-center shrink-0">
+                <CalendarOff className="h-5 w-5 text-spa-sage" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage">
+                  {r.from === r.to ? "Closed Day" : "Closed Days"}
+                </p>
+                <p className="font-heading text-lg text-foreground mt-0.5">
+                  {r.from === r.to ? longDay(r.from) : `${longDay(r.from)} – ${longDay(r.to)}`}
+                </p>
+                {r.message && <p className="font-body text-sm text-muted-foreground mt-1">{r.message}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Desktop: 7-column week grid */}
       <div className="hidden md:block">
         {/* Day Headers */}
@@ -64,7 +97,7 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
                 key={i}
                 className={cn(
                   "text-center py-2 rounded-xl",
-                  isToday ? "bg-foreground text-background" : "bg-muted"
+                  isToday ? "bg-foreground text-background" : closureByDay.has(dayKey(day)) ? "bg-spa-sage/15" : "bg-muted"
                 )}
               >
                 <p className="font-body text-xs font-semibold uppercase tracking-wider">
@@ -83,9 +116,19 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
 
         {/* Events Grid */}
         <div className="grid grid-cols-7 gap-1 min-h-[300px]">
-          {weekDays.map((_, dayIdx) => (
+          {weekDays.map((day, dayIdx) => (
             <div key={dayIdx} className="space-y-1">
-              {eventsByDay[dayIdx]?.length > 0 ? (
+              {closureByDay.has(dayKey(day)) ? (
+                <div className="min-h-[120px] rounded-xl border border-spa-sage/30 bg-spa-sage/10 p-2.5 flex flex-col items-center text-center gap-1.5">
+                  <CalendarOff className="h-4 w-4 text-spa-sage" />
+                  <span className="font-body text-[10px] font-semibold uppercase tracking-wider text-spa-sage">Closed Day</span>
+                  {closureByDay.get(dayKey(day))?.reason && (
+                    <p className="font-body text-[11px] text-muted-foreground leading-snug line-clamp-5">
+                      {closureByDay.get(dayKey(day))?.reason}
+                    </p>
+                  )}
+                </div>
+              ) : eventsByDay[dayIdx]?.length > 0 ? (
                 eventsByDay[dayIdx].map((event) => (
                   <ClassSlot key={event.id} event={event} />
                 ))
@@ -113,6 +156,8 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
                   "flex-shrink-0 w-12 h-16 rounded-full flex flex-col items-center justify-center gap-0.5 border transition-colors",
                   isToday
                     ? "bg-foreground text-background border-transparent shadow-sm"
+                    : closureByDay.has(dayKey(day))
+                    ? "bg-spa-sage/10 border-spa-sage/30 text-spa-sage"
                     : hasEvents
                       ? "bg-primary/20 border-primary/30 text-foreground"
                       : "bg-background border-border/60 text-muted-foreground"
@@ -148,7 +193,15 @@ export function WeeklyClassCalendar({ events }: WeeklyCalendarProps) {
                   <div className={cn("h-px flex-1", empty ? "bg-border/40" : "bg-primary/40")} />
                 </div>
 
-                {empty ? (
+                {closureByDay.has(dayKey(day)) ? (
+                  <div className="py-5 px-4 rounded-2xl border border-spa-sage/30 bg-spa-sage/10 text-center flex flex-col items-center gap-1.5">
+                    <CalendarOff className="h-5 w-5 text-spa-sage" />
+                    <p className="font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage">Closed Day</p>
+                    {closureByDay.get(dayKey(day))?.reason && (
+                      <p className="font-body text-sm text-muted-foreground">{closureByDay.get(dayKey(day))?.reason}</p>
+                    )}
+                  </div>
+                ) : empty ? (
                   <div className="py-6 px-4 rounded-2xl border border-dashed border-border/60 text-center">
                     <p className="font-body text-sm text-muted-foreground">
                       No classes scheduled for today.

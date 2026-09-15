@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+import { PhoneField } from "@/components/booking/PhoneField";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,6 +29,12 @@ export const ConsultationForm = () => {
   // Preferred date/time the client would like for the appointment (optional).
   const [pref, setPref] = useState({ date: "", time: "" });
   const [submitting, setSubmitting] = useState(false);
+  // ── Two quiet traps for the bots that have been filling this form ──
+  // A field no person can see: a script fills every input it finds, so
+  // anything in here means the sender was not human.
+  const [website, setWebsite] = useState("");
+  // And the clock: nobody types a name, an email and a phone in two seconds.
+  const openedAt = useRef(Date.now());
   const [submitted, setSubmitted] = useState(false);
 
   // Human-friendly preferred date/time for notes + the staff email.
@@ -52,6 +59,16 @@ export const ConsultationForm = () => {
     }
     if (!EMAIL_RE.test(form.email.trim())) {
       toast.error(t("consultation.errorInvalidEmail"));
+      return;
+    }
+
+    // Caught by the hidden field: pretend it worked and write nothing, so the
+    // script has no signal to adapt to.
+    if (website.trim()) { setSubmitted(true); return; }
+    if (Date.now() - openedAt.current < 2000) {
+      toast.error(t("consultation.errorTooFast", {
+        defaultValue: "That was quick — please take a moment and send it again.",
+      }));
       return;
     }
 
@@ -156,6 +173,22 @@ export const ConsultationForm = () => {
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Left in the page on purpose and put out of sight rather than
+                  display:none, which the better scripts know to skip. Never
+                  reached by keyboard or screen reader. */}
+              <div aria-hidden="true" className="absolute left-[-9999px] top-auto h-0 w-0 overflow-hidden">
+                <label htmlFor="website">Website</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name" className="font-body text-sm">{t("consultation.name")} *</Label>
                 <Input
@@ -185,13 +218,11 @@ export const ConsultationForm = () => {
                 <Label htmlFor="phone" className="font-body text-sm">
                   {t("consultation.phone")} <span className="text-muted-foreground">{t("consultation.phoneRecommended")}</span>
                 </Label>
-                <Input
+                <PhoneField
                   id="phone"
-                  type="tel"
                   placeholder={t("consultation.phonePlaceholder")}
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  maxLength={30}
+                  onChange={(v) => setForm({ ...form, phone: v })}
                 />
               </div>
 

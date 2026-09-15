@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
-  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Receipt, ClipboardList, Paintbrush,
+  TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Tent, Receipt, ClipboardList, Paintbrush,
   GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ import { AdminInternalCalendars } from "@/components/admin/AdminInternalCalendar
 import { AdminWellnessOrganizer } from "@/components/admin/AdminWellnessOrganizer";
 import { AdminSpaPackagesManager } from "@/components/admin/AdminSpaPackagesManager";
 import { AdminCustomRetreats } from "@/components/admin/AdminCustomRetreats";
+import { AdminRetreatsManager } from "@/components/admin/AdminRetreatsManager";
 import { AdminHomeLists } from "@/components/admin/AdminHomeLists";
 import { AdminIntakeQuestions } from "@/components/admin/AdminIntakeQuestions";
 import { AdminTheme } from "@/components/admin/AdminTheme";
@@ -72,6 +73,7 @@ const sidebarLinks = [
   { label: "Teachers", icon: GraduationCap, id: "teachers" },
   { label: "Wellness", icon: Heart, id: "wellness" },
   { label: "Spa Packages", icon: Package, id: "spa-packages" },
+  { label: "Retreats", icon: Tent, id: "retreats" },
   { label: "Custom Retreats", icon: Sparkles, id: "custom-retreats" },
   { label: "Practitioners", icon: UserCircle, id: "practitioners" },
   { label: "Experiences", icon: CalendarDays, id: "experiences" },
@@ -230,12 +232,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* On a wide screen the sidebar is pinned to the viewport and scrolls
-          inside itself. It used to be a plain column as tall as the page, so
-          reaching the last menu item meant scrolling the whole page down. */}
+      {/* The sidebar stays in place and scrolls on its own; the page scrolls separately. */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform flex flex-col",
-        "lg:translate-x-0 lg:sticky lg:top-0 lg:bottom-auto lg:h-screen lg:self-start",
+        "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:shrink-0 flex flex-col",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-6 flex items-center justify-between">
@@ -262,7 +261,7 @@ const AdminDashboard = () => {
         {customize && (
           <p className="px-6 text-[11px] text-muted-foreground mb-2 -mt-1">Drag <GripVertical className="h-3 w-3 inline" /> to reorder · click the eye to hide/show.</p>
         )}
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 min-h-0 px-3 pb-6 space-y-1 overflow-y-auto overscroll-contain">
           {shownLinks.map((link) => {
             const isHidden = hidden.includes(link.id);
             if (customize) {
@@ -338,6 +337,7 @@ const AdminDashboard = () => {
           {activeTab === "calendars" && canRender("calendars") && <AdminInternalCalendars restrictToTreatment={isCoordinator || isViewer} readOnly={isViewer} />}
           {activeTab === "wellness" && <AdminWellnessOrganizer />}
           {activeTab === "spa-packages" && <AdminSpaPackagesManager />}
+          {activeTab === "retreats" && <AdminRetreatsManager />}
           {activeTab === "custom-retreats" && <AdminCustomRetreats />}
           {activeTab === "practitioners" && <AdminPractitioners />}
           {activeTab === "teachers" && <AdminTeachersManager />}
