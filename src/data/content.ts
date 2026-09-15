@@ -599,6 +599,9 @@ export const content = {
     whyChoose: "Why Choose Private Sessions",
     ctaTitle: "Ready to start your personalized journey?",
     ctaButton: "Book a Private Class",
+    // Prices in USD (Admin > Services > Private Classes). 3–4 people pay
+    // "upToFour"; from 5 people, each extra person adds "extraPerson".
+    pricing: { onePerson: 85, twoPeople: 113, upToFour: 170, extraPerson: 28 },
     classes: {
       oneOnOne: {
         title: "One-on-One Private Class",

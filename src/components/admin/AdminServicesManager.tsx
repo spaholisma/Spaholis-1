@@ -20,6 +20,8 @@ import { TagsInput } from "./TagsInput";
 import { TagFilter, useContentTagMap } from "./TagFilter";
 import { RelationshipsEditor } from "./RelationshipsEditor";
 import { MediaPickerDialog } from "./MediaLibrary";
+import { ExtraEditor, ExtraRowItem, openOwnEditor, opensOwnEditor, useOtherOfferings } from "./OtherOfferings";
+import { EXTRA_CATEGORIES, filterExtraRows, type ExtraRow } from "@/lib/otherOfferings";
 
 interface ServiceRow {
   id: string;
@@ -91,6 +93,9 @@ export function AdminServicesManager() {
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [tagRefresh, setTagRefresh] = useState(0);
   const { tagsByContentId, tagLookup } = useContentTagMap("services", tagRefresh);
+  // Private classes, studio rates, signature cards, memberships and retreats.
+  const other = useOtherOfferings();
+  const [extraEditing, setExtraEditing] = useState<ExtraRow | null>(null);
 
   const load = useCallback(async () => {
     const [{ data, error }, { data: pkgs }] = await Promise.all([
@@ -204,6 +209,21 @@ export function AdminServicesManager() {
       : byFilters;
     return sortServices(byTags);
   }, [services, query, category, status, tagFilter, tagsByContentId]);
+  const visibleExtras = useMemo(
+    () => (tagFilter.length ? [] : filterExtraRows(other.rows, { query, category, status })),
+    [other.rows, query, category, status, tagFilter],
+  );
+  const openExtra = (row: ExtraRow) => (opensOwnEditor(row) ? openOwnEditor(row) : setExtraEditing(row));
+
+  if (extraEditing) {
+    return (
+      <ExtraEditor
+        row={extraEditing}
+        services={services.filter((s) => s.is_active && !s.is_addon)}
+        onClose={() => { setExtraEditing(null); other.reload(); }}
+      />
+    );
+  }
 
   // ─────────────────────────── Editor ───────────────────────────
   if (editing) {
@@ -463,7 +483,8 @@ export function AdminServicesManager() {
   }
 
   // ─────────────────────────── List ───────────────────────────
-  const activeCount = services.filter((s) => s.is_active).length;
+  const totalCount = services.length + other.rows.length;
+  const activeCount = services.filter((s) => s.is_active).length + other.rows.filter((r) => r.active).length;
   const countIn = (c: string) => services.filter((s) => s.category === c).length;
   const issues = services.filter((s) => validateServiceTitle(s)).length;
   const filtersOn = query || category !== "all" || status !== "all" || tagFilter.length > 0;
@@ -475,10 +496,10 @@ export function AdminServicesManager() {
           <div>
             <h3 className="font-heading text-lg font-medium text-foreground">Services</h3>
             <p className="font-body text-xs text-muted-foreground">
-              {services.length} services · {activeCount} on the website · {services.length - activeCount} hidden
+              {totalCount} things we offer · {activeCount} on the website · {totalCount - activeCount} hidden
             </p>
           </div>
-          <Button variant="default" size="sm" onClick={() => setEditing({ ...emptyService, category: category !== "all" ? category : emptyService.category })}>
+          <Button variant="default" size="sm" onClick={() => setEditing({ ...emptyService, category: category !== "all" && !EXTRA_CATEGORIES.includes(category) ? category : emptyService.category })}>
             <Plus className="h-4 w-4 mr-1" /> Add service
           </Button>
         </div>
@@ -494,9 +515,12 @@ export function AdminServicesManager() {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
-            <option value="all">All categories ({services.length})</option>
+            <option value="all">All categories ({totalCount})</option>
             {categories.map((c) => (
               <option key={c} value={c}>{categoryLabel(c)} ({countIn(c)})</option>
+            ))}
+            {EXTRA_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c} ({other.rows.filter((r) => r.category === c).length})</option>
             ))}
           </select>
           <select
@@ -530,7 +554,7 @@ export function AdminServicesManager() {
       <div className="divide-y divide-border">
         {loading ? (
           <p className="p-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 mr-2 animate-spin" />Loading services…</p>
-        ) : visible.length === 0 ? (
+        ) : visible.length === 0 && visibleExtras.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">No services match. Try another search or clear the filters.</p>
         ) : (
           visible.map((s) => {
@@ -602,6 +626,9 @@ export function AdminServicesManager() {
             );
           })
         )}
+        {!loading && !other.loading && visibleExtras.map((row) => (
+          <ExtraRowItem key={row.key} row={row} onEdit={() => openExtra(row)} />
+        ))}
       </div>
     </div>
   );
