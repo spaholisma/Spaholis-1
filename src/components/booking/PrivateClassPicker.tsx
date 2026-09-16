@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Mail, Sparkles, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useLanguage } from "@/i18n/LanguageProvider";
-import { localizeRows } from "@/lib/localizeRow";
+import { useWeekEvents } from "@/hooks/useClasses";
 import { cn } from "@/lib/utils";
-import { buildClassOptions, initials, NO_CLASS, type PrivateClassOption } from "@/lib/privateClassRequest";
+import { buildClassOptions, initials, NO_CLASS, type PrivateClassOption, type SessionWithClass, type TeacherRow } from "@/lib/privateClassRequest";
 
 function Face({ name, photo, className }: { name: string | null; photo: string | null; className?: string }) {
   if (photo) return <img src={photo} alt="" className={cn("h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background", className)} />;
@@ -24,8 +23,9 @@ function Face({ name, photo, className }: { name: string | null; photo: string |
 
 /**
  * "Choose a class & teacher" for a private class request. Optional: the
- * default is "No specific class". Options come from the active classes and
- * the teachers named on their sessions.
+ * default is "No specific class". The list is built from the scheduled
+ * sessions — the same classes the Classes page shows — with the teacher named
+ * on those sessions.
  */
 export function PrivateClassPicker({
   value,
@@ -35,25 +35,35 @@ export function PrivateClassPicker({
   onChange: (option: PrivateClassOption | null) => void;
 }) {
   const { t } = useTranslation();
-  const { language } = useLanguage();
-  const [options, setOptions] = useState<PrivateClassOption[] | null>(null);
+  // The classes we are actually teaching: the scheduled sessions, exactly what
+  // the Classes page lists. Anything not running is never offered here.
+  const { data: sessions, isLoading } = useWeekEvents();
+  const [teachers, setTeachers] = useState<TeacherRow[] | null>(null);
+  // Upcoming sessions often have no teacher on them yet, so who has been
+  // giving each class recently fills that in.
+  const [recent, setRecent] = useState<SessionWithClass[] | null>(null);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
-      const until = new Date(Date.now() + 120 * 86_400_000).toISOString();
-      const [{ data: classes }, { data: sessions }, { data: teachers }] = await Promise.all([
-        supabase.from("classes").select("id, title, title_es, category, instructor, image_url").eq("is_active", true).order("title"),
-        supabase.from("class_schedule").select("class_id, instructor").eq("is_cancelled", false).gte("start_time", since).lte("start_time", until).limit(2000),
-        (supabase as any).rpc("public_teachers"),
-      ]);
+    // 60 days: the same window send-private-class-request checks a teacher against.
+    const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    Promise.all([
+      (supabase as any).rpc("public_teachers"),
+      supabase.from("class_schedule").select("class_id, instructor").eq("is_cancelled", false)
+        .gte("start_time", since).lte("start_time", new Date().toISOString())
+        .not("instructor", "is", null).order("start_time", { ascending: false }).limit(500),
+    ]).then(([t, r]: any[]) => {
       if (!alive) return;
-      const localized = localizeRows(((classes as any[]) ?? []), language, ["title"]);
-      setOptions(buildClassOptions(localized as any, (sessions as any[]) ?? [], (teachers as any[]) ?? []));
-    })().catch(() => alive && setOptions([]));
+      setTeachers((t?.data as TeacherRow[]) ?? []);
+      setRecent(((r?.data as SessionWithClass[]) ?? []));
+    });
     return () => { alive = false; };
-  }, [language]);
+  }, []);
+
+  const options = useMemo(
+    () => (isLoading || teachers === null || recent === null ? null : buildClassOptions((sessions ?? []) as any, teachers, recent)),
+    [sessions, isLoading, teachers, recent],
+  );
 
   const teacherLine = (o: PrivateClassOption) =>
     o.teacherName

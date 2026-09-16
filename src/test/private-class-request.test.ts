@@ -10,37 +10,57 @@ import {
 const root = resolve(__dirname, "../..");
 const read = (p: string) => readFileSync(resolve(root, p), "utf8");
 
-const classes = [
-  { id: "hatha", title: "Hatha Yoga", category: "Studio Classes", instructor: null },
-  { id: "aerial", title: "Aerial Yoga + Floating Gong Bath", category: "Yoga", instructor: null },
-  { id: "yin", title: "Yin Yoga", category: "Studio Classes", instructor: null },
-  { id: "chakra", title: "Chakradance with Petra Era", category: "Workshop", instructor: "Petra Era" },
-  { id: "vinyasa", title: "Vinyasa  Yoga", category: "Studio Classes", instructor: "Ana Ruiz" },
-];
+// Sessions on the schedule, the same source the Classes page uses.
+const session = (classId: string, title: string, instructor: string | null, category = "Studio Classes") => ({
+  class_id: classId,
+  instructor,
+  classes: { id: classId, title, category, instructor: null },
+});
+// Upcoming sessions: often no teacher on them yet.
 const sessions = [
-  { class_id: "hatha", instructor: "Melanie Moss" },
-  { class_id: "hatha", instructor: " melanie moss " },
-  { class_id: "aerial", instructor: "Kerri Michie" },
-  { class_id: "aerial", instructor: "Kataleia Dragonfly" },
-  { class_id: "yin", instructor: "" },
+  session("hatha", "Hatha Yoga", null),
+  session("aerial", "Aerial Yoga + Floating Gong Bath", "Kerri Michie", "Yoga"),
+  session("aerial", "Aerial Yoga + Floating Gong Bath", null, "Yoga"),
+  session("vinyasa", "Vinyasa  Yoga", null),
+  session("chakra", "Chakradance with Petra Era", "Petra Era", "Workshop"),
+  session("breath", "Breathwork with Anja", "Anja Diggelmann", "Special Event"),
+];
+// Already taught: who has been giving each class.
+const recent = [
+  session("hatha", "Hatha Yoga", "Melanie Moss"),
+  session("hatha", "Hatha Yoga", " melanie moss "),
+  session("aerial", "Aerial Yoga + Floating Gong Bath", "Kataleia Dragonfly", "Yoga"),
+  session("yin", "Yin Yoga", "Someone Else"),
 ];
 const teachers = [{ id: "t1", display_name: "Kerri Michie", photo_url: "https://x/kerri.jpg" }];
 
 describe("classes and teachers in the dropdown", () => {
-  const options = buildClassOptions(classes, sessions, teachers);
+  const options = buildClassOptions(sessions, teachers, recent);
 
-  it("shows each class with its teacher, one option per teacher", () => {
+  it("lists each class once, with its teacher, from the classes being taught", () => {
     expect(options.map((o) => `${o.classTitle} | ${o.teacherName ?? "—"}`)).toEqual([
       "Aerial Yoga + Floating Gong Bath | Kataleia Dragonfly",
       "Aerial Yoga + Floating Gong Bath | Kerri Michie",
       "Hatha Yoga | Melanie Moss",
-      "Vinyasa Yoga | Ana Ruiz",
-      "Yin Yoga | —",
+      "Vinyasa Yoga | —",
     ]);
   });
 
-  it("leaves workshops out and uses the teacher's photo when she has one", () => {
+  it("never shows a class that is not on the schedule", () => {
+    // Active in the database but with no upcoming sessions — e.g. Yin Yoga,
+    // Vinyasa Flow — even when someone taught it recently.
+    expect(buildClassOptions([], teachers, recent)).toEqual([]);
+    expect(options.some((o) => o.classId === "yin")).toBe(false);
+  });
+
+  it("falls back to the class's own teacher when nobody taught it recently", () => {
+    const withClassTeacher = [{ class_id: "yin", instructor: null, classes: { id: "yin", title: "Yin Yoga", category: "Studio Classes", instructor: "Ana Ruiz" } }];
+    expect(buildClassOptions(withClassTeacher, teachers).map((o) => o.teacherName)).toEqual(["Ana Ruiz"]);
+  });
+
+  it("leaves workshops and one-off events out, and uses the teacher's photo", () => {
     expect(options.some((o) => o.classTitle.startsWith("Chakradance"))).toBe(false);
+    expect(options.some((o) => o.classTitle.startsWith("Breathwork"))).toBe(false);
     expect(options.find((o) => o.teacherName === "Kerri Michie")?.teacherPhoto).toBe("https://x/kerri.jpg");
     expect(initials("Melanie Moss")).toBe("MM");
   });
@@ -77,7 +97,10 @@ describe("which private classes get the picker", () => {
   it("the request form defaults to no class and calls the email function with the booking id only", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
     expect(form).toContain('supabase.functions.invoke("send-private-class-request", { body: { bookingId } })');
-    expect(read("src/components/booking/PrivateClassPicker.tsx")).toContain("value={value?.key ?? NO_CLASS}");
+    const picker = read("src/components/booking/PrivateClassPicker.tsx");
+    expect(picker).toContain("value={value?.key ?? NO_CLASS}");
+    // Same source as the Classes page, so the two lists can never disagree.
+    expect(picker).toContain("useWeekEvents()");
   });
 });
 
