@@ -1,22 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Mail, Sparkles, Users } from "lucide-react";
+import { Check, ChevronDown, Mail, Sparkles, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWeekEvents } from "@/hooks/useClasses";
 import { cn } from "@/lib/utils";
-import { buildClassOptions, initials, NO_CLASS, type PrivateClassOption, type SessionWithClass, type TeacherRow } from "@/lib/privateClassRequest";
+import { buildClassOptions, initials, type PrivateClassOption, type SessionWithClass, type TeacherRow } from "@/lib/privateClassRequest";
 
-function Face({ name, photo, className }: { name: string | null; photo: string | null; className?: string }) {
-  if (photo) return <img src={photo} alt="" className={cn("h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background", className)} />;
+function Face({ name, photo }: { name: string | null; photo: string | null }) {
+  if (photo) return <img src={photo} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background" />;
   return (
     <span className={cn(
       "flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-body text-xs font-semibold ring-2 ring-background",
       name ? "bg-spa-sage/25 text-spa-sage" : "bg-muted text-muted-foreground",
-      className,
     )}>
       {name ? initials(name) : <Sparkles className="h-4 w-4" />}
+    </span>
+  );
+}
+
+function Row({ title, subtitle, name, photo }: { title: string; subtitle: string; name: string | null; photo: string | null }) {
+  return (
+    <span className="flex min-w-0 items-center gap-3">
+      <Face name={name} photo={photo} />
+      <span className="flex min-w-0 flex-col text-left">
+        <span className="truncate font-body text-sm font-medium text-foreground">{title}</span>
+        <span className="truncate font-body text-xs text-muted-foreground">{subtitle}</span>
+      </span>
     </span>
   );
 }
@@ -24,8 +35,12 @@ function Face({ name, photo, className }: { name: string | null; photo: string |
 /**
  * "Choose a class & teacher" for a private class request. Optional: the
  * default is "No specific class". The list is built from the scheduled
- * sessions — the same classes the Classes page shows — with the teacher named
- * on those sessions.
+ * sessions — the same classes the Classes page shows — with the teacher who
+ * has been giving each one.
+ *
+ * A plain scrolling list rather than a Select: the wheel, the trackpad and a
+ * finger then move it like the rest of the page, instead of the step-by-step
+ * arrows a Select brings.
  */
 export function PrivateClassPicker({
   value,
@@ -42,6 +57,8 @@ export function PrivateClassPicker({
   // Upcoming sessions often have no teacher on them yet, so who has been
   // giving each class recently fills that in.
   const [recent, setRecent] = useState<SessionWithClass[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -65,10 +82,23 @@ export function PrivateClassPicker({
     [sessions, isLoading, teachers, recent],
   );
 
+  const noClassTitle = t("consultation.privateNoClass", { defaultValue: "No specific class" });
+  const noClassHint = t("consultation.privateNoClassHint", { defaultValue: "We'll help you choose" });
   const teacherLine = (o: PrivateClassOption) =>
     o.teacherName
       ? t("consultation.privateWith", { name: o.teacherName, defaultValue: "with {{name}}" })
       : t("consultation.privateTeacherTbc", { defaultValue: "Teacher to be confirmed" });
+
+  const pick = (option: PrivateClassOption | null) => {
+    onChange(option);
+    setOpen(false);
+  };
+
+  const itemClass = (selected: boolean) =>
+    cn(
+      "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-spa-sage/10",
+      selected && "bg-spa-sage/15",
+    );
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-spa-sage/30 bg-gradient-to-br from-spa-sage/15 via-background to-background p-5 sm:p-6 shadow-sm">
@@ -91,39 +121,67 @@ export function PrivateClassPicker({
         {options === null ? (
           <Skeleton className="h-16 w-full rounded-2xl" />
         ) : (
-          <Select
-            value={value?.key ?? NO_CLASS}
-            onValueChange={(k) => onChange(k === NO_CLASS ? null : options.find((o) => o.key === k) ?? null)}
-          >
-            <SelectTrigger
-              aria-label={t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })}
-              className="h-auto min-h-[68px] rounded-2xl border-spa-sage/40 bg-background/90 px-3 py-2.5 text-left shadow-sm backdrop-blur focus:ring-spa-sage [&>span]:w-full"
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                role="combobox"
+                aria-expanded={open}
+                aria-label={t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })}
+                className="flex w-full items-center justify-between gap-2 rounded-2xl border border-spa-sage/40 bg-background/90 px-3 py-2.5 text-left shadow-sm backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-spa-sage"
+              >
+                {value
+                  ? <Row title={value.classTitle} subtitle={teacherLine(value)} name={value.teacherName} photo={value.teacherPhoto} />
+                  : <Row title={noClassTitle} subtitle={noClassHint} name={null} photo={null} />}
+                <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              className="w-[var(--radix-popover-trigger-width)] rounded-2xl p-1.5"
+              onOpenAutoFocus={(e) => {
+                // Keep the page still; the list is scrolled, not focused into.
+                e.preventDefault();
+                listRef.current?.focus({ preventScroll: true });
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-80 rounded-2xl">
-              <SelectItem value={NO_CLASS} className="rounded-xl py-2.5">
-                <span className="flex items-center gap-3">
-                  <Face name={null} photo={null} />
-                  <span className="flex flex-col text-left">
-                    <span className="font-body text-sm font-medium text-foreground">{t("consultation.privateNoClass", { defaultValue: "No specific class" })}</span>
-                    <span className="font-body text-xs text-muted-foreground">{t("consultation.privateNoClassHint", { defaultValue: "We'll help you choose" })}</span>
-                  </span>
-                </span>
-              </SelectItem>
-              {options.map((o) => (
-                <SelectItem key={o.key} value={o.key} className="rounded-xl py-2.5">
-                  <span className="flex items-center gap-3">
-                    <Face name={o.teacherName} photo={o.teacherPhoto} />
-                    <span className="flex flex-col text-left">
-                      <span className="font-body text-sm font-medium text-foreground">{o.classTitle}</span>
-                      <span className="font-body text-xs text-muted-foreground">{teacherLine(o)}</span>
-                    </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              {/* Plain scrolling: wheel, trackpad and finger all behave normally. */}
+              <div
+                ref={listRef}
+                role="listbox"
+                tabIndex={-1}
+                className="max-h-[19rem] space-y-1 overflow-y-auto overscroll-contain pr-0.5 outline-none"
+              >
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={value === null}
+                  onClick={() => pick(null)}
+                  className={itemClass(value === null)}
+                >
+                  <Row title={noClassTitle} subtitle={noClassHint} name={null} photo={null} />
+                  {value === null && <Check className="h-4 w-4 shrink-0 text-spa-sage" />}
+                </button>
+                {options.map((o) => {
+                  const selected = value?.key === o.key;
+                  return (
+                    <button
+                      key={o.key}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => pick(o)}
+                      className={itemClass(selected)}
+                    >
+                      <Row title={o.classTitle} subtitle={teacherLine(o)} name={o.teacherName} photo={o.teacherPhoto} />
+                      {selected && <Check className="h-4 w-4 shrink-0 text-spa-sage" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
 

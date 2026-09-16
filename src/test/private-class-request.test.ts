@@ -98,9 +98,13 @@ describe("which private classes get the picker", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
     expect(form).toContain('supabase.functions.invoke("send-private-class-request", { body: { bookingId } })');
     const picker = read("src/components/booking/PrivateClassPicker.tsx");
-    expect(picker).toContain("value={value?.key ?? NO_CLASS}");
+    // Nothing is picked until the guest picks it.
+    expect(picker).toContain("onClick={() => pick(null)}");
     // Same source as the Classes page, so the two lists can never disagree.
     expect(picker).toContain("useWeekEvents()");
+    // A plain scrolling list, so the wheel and a finger move it normally.
+    expect(picker).toContain("overflow-y-auto overscroll-contain");
+    expect(picker).not.toContain("@/components/ui/select");
   });
 });
 
