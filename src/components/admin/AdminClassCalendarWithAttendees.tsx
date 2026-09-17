@@ -680,7 +680,22 @@ export function AdminClassCalendarWithAttendees() {
 
   const toggleCancel = async (sc: ScheduledClass) => {
     const next = !sc.is_cancelled;
-    if (next && !confirm("Cancel this session? Attendees will keep their bookings but the class will show as cancelled.")) return;
+    if (next) {
+      // Cancelling emails the teacher and everyone still signed up, so say how
+      // many people that is before it happens.
+      const { count } = await supabase
+        .from("class_bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_id", sc.id)
+        .neq("status", "cancelled");
+      const booked = count ?? 0;
+      const msg = booked > 0
+        ? `${booked} ${booked === 1 ? "person is" : "people are"} signed up for this session. ` +
+          `Cancelling emails ${booked === 1 ? "them" : "all of them"} and the teacher, and the session ` +
+          `disappears from the website. They keep their booking — refunds are handled by hand. Cancel it?`
+        : "Cancel this session? Nobody is signed up. It disappears from the website and the schedule.";
+      if (!confirm(msg)) return;
+    }
     const { error } = await supabase.from("class_schedule").update({ is_cancelled: next }).eq("id", sc.id);
     if (error) { toast.error(error.message); return; }
     toast.success(next ? "Session cancelled" : "Session reactivated");
