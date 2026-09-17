@@ -93,9 +93,19 @@ export function AdminEventsManager() {
     setOpenAttendees(scheduleId);
   };
 
+  const [upcoming, setUpcoming] = useState<Record<string, number>>({});
+
   const load = useCallback(async () => {
-    const { data } = await supabase.from("classes").select("*").order("title");
+    // Also count the sessions ahead: an active class with none is invisible on
+    // the website, because the site lists what is on the schedule.
+    const [{ data }, { data: sessions }] = await Promise.all([
+      supabase.from("classes").select("*").order("title"),
+      supabase.from("class_schedule").select("class_id").eq("is_cancelled", false).gte("start_time", new Date().toISOString()),
+    ]);
     setClasses((data as unknown as ClassRow[]) ?? []);
+    const counts: Record<string, number> = {};
+    for (const s of ((sessions as any[]) ?? [])) counts[s.class_id] = (counts[s.class_id] ?? 0) + 1;
+    setUpcoming(counts);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -474,6 +484,10 @@ export function AdminEventsManager() {
     );
   }
 
+  // Active but with nothing ahead on the calendar: the website only lists what
+  // is scheduled, so these are switched on and still invisible.
+  const unscheduled = classes.filter((c) => c.is_active && (upcoming[c.id] ?? 0) === 0);
+
   return (
     <div className="bg-card rounded-2xl border border-border">
       <div className="p-5 border-b border-border flex items-center justify-between">
@@ -482,6 +496,14 @@ export function AdminEventsManager() {
           <Plus className="h-4 w-4 mr-1" /> Add Event
         </Button>
       </div>
+      {unscheduled.length > 0 && (
+        <div className="px-5 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-start gap-2 text-sm">
+          <CalendarPlus className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+          <p className="font-body text-amber-800">
+            <strong>{unscheduled.length} active {unscheduled.length === 1 ? "class has" : "classes have"} no dates ahead</strong>, so {unscheduled.length === 1 ? "it does" : "they do"} not appear on the website: {unscheduled.map((c) => c.title).join(", ")}. Use the calendar button to add dates.
+          </p>
+        </div>
+      )}
       <div className="divide-y divide-border">
         {classes.map((c) => (
           <div key={c.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
@@ -497,6 +519,18 @@ export function AdminEventsManager() {
                 {c.instructor && ` · ${c.instructor}`}
               </p>
             </div>
+            {c.is_active && ((upcoming[c.id] ?? 0) > 0 ? (
+              <span className="text-xs font-body px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
+                {upcoming[c.id]} on the schedule
+              </span>
+            ) : (
+              <span
+                title="Add dates with the calendar button so it shows on the website"
+                className="text-xs font-body font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 whitespace-nowrap"
+              >
+                Not on the schedule
+              </span>
+            ))}
             <span className={cn(
               "text-xs font-body font-semibold px-2.5 py-0.5 rounded-full",
               c.is_active ? "bg-spa-sage/15 text-spa-sage" : "bg-muted text-muted-foreground"
