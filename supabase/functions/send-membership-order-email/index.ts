@@ -10,6 +10,7 @@
 // books eligible classes at $0 without logging in or typing a code.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { emailShell, detailsRow, emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,18 +71,7 @@ function interpolate(str: string, vars: Record<string, string>): string {
 }
 
 function renderShell(heading: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${heading}</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">${inner}</div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(heading, inner);
 }
 
 // textVars are HTML-escaped; rawVars ({{details}}, {{button}}, {{schedule_link}})
@@ -248,8 +238,8 @@ Deno.serve(async (req) => {
     custRes = await sendEmail(to, built.subject, built.html);
   } else {
     custRes = isOrder
-      ? await sendEmail(to, `Your Holis membership is ready — ${o.name_snapshot}`, customerHtml(o, link))
-      : await sendEmail(to, `Your Holis purchase — ${o.name_snapshot}`, purchaseHtml(o));
+      ? await sendEmail(to, `Your Holis membership is ready — ${o.name_snapshot}`, emailDocument(customerHtml(o, link), "Your Holis membership"))
+      : await sendEmail(to, `Your Holis purchase — ${o.name_snapshot}`, emailDocument(purchaseHtml(o), "Your Holis purchase"));
   }
 
   // Admin copy (+ backup)
@@ -263,9 +253,9 @@ Deno.serve(async (req) => {
       <p><strong>Offering:</strong> ${esc(o.name_snapshot)}</p>
       ${isOrder ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>` : ""}
     </div>`;
-  await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
+  await sendEmail(ADMIN_EMAIL, adminSubj, emailDocument(adminHtml, adminSubj));
   if (ADMIN_BACKUP_EMAIL && ADMIN_BACKUP_EMAIL !== ADMIN_EMAIL) {
-    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
+    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));
   }
 
   if (!custRes.ok) {

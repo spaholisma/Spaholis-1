@@ -117,7 +117,7 @@ export function WeeklyClassCalendar({ events, closures = [] }: WeeklyCalendarPro
               {closureByDay.has(dayKey(day)) ? (
                 <div className="min-h-[120px] rounded-xl border border-spa-sage/30 bg-spa-sage/10 p-2.5 flex flex-col items-center text-center gap-1.5">
                   <CalendarOff className="h-4 w-4 text-spa-sage" />
-                  <span className="font-body text-[10px] font-semibold uppercase tracking-wider text-spa-sage">Closed Day</span>
+                  <span className="font-body text-[11px] font-semibold uppercase tracking-wider text-spa-sage">Closed Day</span>
                   {closureByDay.get(dayKey(day))?.reason && (
                     <p className="font-body text-[11px] text-muted-foreground leading-snug line-clamp-5">
                       {closureByDay.get(dayKey(day))?.reason}
@@ -159,7 +159,7 @@ export function WeeklyClassCalendar({ events, closures = [] }: WeeklyCalendarPro
                       : "bg-background border-border/60 text-muted-foreground"
                 )}
               >
-                <span className="font-body text-[10px] font-medium uppercase tracking-wider">
+                <span className="font-body text-[11px] font-medium uppercase tracking-wider">
                   {DAYS_SHORT[i]}
                 </span>
                 <span className="font-body text-sm font-bold">{format(day, "d")}</span>
@@ -236,15 +236,15 @@ function MobileClassCard({ event }: { event: ScheduleRow }) {
           {format(start, "h:mm a")} • {cls.duration_minutes} min
         </span>
         {soldOut ? (
-          <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-tighter">
+          <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold uppercase tracking-tighter">
             Sold Out
           </span>
         ) : spotsLow ? (
-          <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap">
+          <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[11px] font-bold uppercase tracking-tighter whitespace-nowrap">
             {event.spots_remaining} left
           </span>
         ) : (
-          <span className="px-2 py-0.5 rounded-full bg-spa-sage/10 text-spa-sage text-[10px] font-bold uppercase tracking-tighter">
+          <span className="px-2 py-0.5 rounded-full bg-spa-sage/10 text-spa-sage text-[11px] font-bold uppercase tracking-tighter">
             Open
           </span>
         )}
@@ -292,20 +292,20 @@ function ClassSlot({ event }: { event: ScheduleRow }) {
       </div>
 
       {/* Duration */}
-      <p className="font-body text-[10px] text-muted-foreground mt-0.5">
+      <p className="font-body text-[11px] text-muted-foreground mt-0.5">
         {cls.duration_minutes}min
       </p>
 
       {/* Spots */}
       <div className="mt-1.5">
         {soldOut ? (
-          <span className="font-body text-[9px] font-semibold uppercase text-destructive">Sold Out</span>
+          <span className="font-body text-[11px] font-semibold uppercase text-destructive">Sold Out</span>
         ) : spotsLow ? (
-          <span className="font-body text-[9px] font-semibold uppercase text-destructive/80">
+          <span className="font-body text-[11px] font-semibold uppercase text-destructive/80">
             {event.spots_remaining} spots left
           </span>
         ) : (
-          <span className="font-body text-[9px] font-medium text-spa-sage uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="font-body text-[11px] font-medium text-spa-sage uppercase opacity-0 group-hover:opacity-100 transition-opacity">
             Book Now →
           </span>
         )}

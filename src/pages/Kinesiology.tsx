@@ -164,7 +164,7 @@ const KinesiologyPage = () => {
             <Para items={c.founderText} />
           </div>
           <div className="mt-6">
-            <Button asChild variant="outline" size="lg">
+            <Button asChild variant="outline" size="lg" className="max-w-full whitespace-normal h-auto min-h-12 py-3 text-center leading-tight">
               <Link to={c.meetLink}>{c.meetCta}</Link>
             </Button>
           </div>

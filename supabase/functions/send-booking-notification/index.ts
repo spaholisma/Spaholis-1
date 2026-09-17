@@ -23,6 +23,9 @@
 // cancelled, or otherwise incomplete bookings.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import {
+  emailShell, detailsTable, detailsRow, emailButton,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +64,7 @@ function depositUsd(service: any): number {
 
 
 function tableRow(label: string, value: string) {
-  return `<tr><td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;width:40%;">${label}</td><td style="padding:6px 10px;border:1px solid #ddd;">${value}</td></tr>`;
+  return detailsRow(label, value);
 }
 
 // Mirror of src/lib/cancellationPolicy.ts. Deno cannot import from src/, so
@@ -251,18 +254,7 @@ function interpolate(str: string, vars: Record<string, string>): string {
 }
 
 function renderShell(heading: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${heading}</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">${inner}</div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(heading, inner);
 }
 
 // textVars are HTML-escaped; rawVars ({{details}}, {{button}}) are trusted HTML.
@@ -286,12 +278,10 @@ function buildFromTemplate(
   };
 }
 
-function detailsTable(rows: string[]): string {
-  return `<table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>`;
-}
+
 
 function whatsappButton(url: string): string {
-  return `<p style="margin:0;"><a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">Message us on WhatsApp</a></p>`;
+  return `<p style="margin:0;">${emailButton(url, "Message us on WhatsApp", { background: "#25D366", border: "#25D366" })}</p>`;
 }
 
 function buildAdminHtml(ctx: {
@@ -338,22 +328,13 @@ function buildAdminHtml(ctx: {
   if (ctx.paymentId) rows.push(tableRow("Payment ID", ctx.paymentId));
   if (ctx.notes) rows.push(tableRow("Customer Notes", ctx.notes));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">New Reservation Confirmed</h1>
-      </div>
-      <div style="padding:24px;">
-        <h3 style="color:#2F2F2F;font-size:16px;margin:0 0 10px;">Reservation Details</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        ${ctx.intakeHtml}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center — Reservation Notification
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(
+    "New Reservation Confirmed",
+    `<h3 style="color:#2F2F2F;font-size:16px;margin:0 0 10px;">Reservation Details</h3>
+        ${detailsTable(rows)}
+        ${ctx.intakeHtml}`,
+    { footer: "Holis Wellness Center — Reservation Notification" },
+  );
 }
 
 function buildCustomerHtml(ctx: {
@@ -387,29 +368,19 @@ function buildCustomerHtml(ctx: {
   if (ctx.remainingBalance != null && ctx.remainingBalance > 0)
     rows.push(tableRow("Balance Due at Visit", `${formatCRC(ctx.remainingBalance)}${formatUsdRef(ctx.remainingBalance)}`));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Your Reservation is Confirmed</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">
-        <p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
+  return emailShell(
+    "Your Reservation is Confirmed",
+    `<p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
         <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
           Thank you for booking with Holis Wellness Center. We've confirmed the details of your reservation below.
           If anything looks incorrect, reply to this email and our team will assist you.
         </p>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        <p style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
+        ${detailsTable(rows)}
+        <p class="fine" style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
           We look forward to welcoming you. Please arrive 10 minutes early to settle in.
         </p>
-        ${policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref: ctx.cancelHref, deadline: ctx.deadline })}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+        ${policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref: ctx.cancelHref, deadline: ctx.deadline })}`,
+  );
 }
 
 function buildIntakeHtml(intake: any): string {
@@ -417,7 +388,7 @@ function buildIntakeHtml(intake: any): string {
   const f = intake.is_couples ? intake.person1 ?? {} : intake;
   return `
     <h3 style="color:#2F2F2F;font-size:16px;margin:20px 0 10px;">Therapy Intake Form</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <table class="t" style="width:100%;border-collapse:collapse;font-size:14px;">
       ${tableRow("Allergies", f.allergies || "None")}
       ${tableRow("Medications", f.medications || "None")}
       ${tableRow("Health Conditions", f.health_conditions || f.medical_conditions || "None")}
@@ -697,34 +668,19 @@ export function buildClassCustomerHtml(ctx: {
     priceLabel: "Class Price", totalLabel: "Amount Paid", showNoCoupon: true,
   }));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Your Class is Booked</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">
-        <p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
+  return emailShell(
+    "Your Class is Booked",
+    `<p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
         <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
           Thanks for signing up. Your spot in ${ctx.className} is confirmed.
         </p>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        <p style="font-size:13px;line-height:1.6;margin:22px 0 12px;color:#555;">
+        ${detailsTable(rows)}
+        <p class="fine" style="font-size:13px;line-height:1.6;margin:22px 0 12px;color:#555;">
           Please arrive 10 minutes early. Need to reach us?
         </p>
-        <p style="margin:0;">
-          <a href="${ctx.whatsappUrl}"
-             style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">
-            Message us on WhatsApp
-          </a>
-        </p>
-        ${policyBlock(CLASS_POLICY_LINES)}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+        ${whatsappButton(ctx.whatsappUrl)}
+        ${policyBlock(CLASS_POLICY_LINES)}`,
+  );
 }
 
 export function buildClassAdminHtml(ctx: {
@@ -761,20 +717,11 @@ export function buildClassAdminHtml(ctx: {
   }));
   if (ctx.paymentId) rows.push(tableRow("Payment ID", ctx.paymentId));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">New Class Booking</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center — Class Booking Notification
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(
+    "New Class Booking",
+    detailsTable(rows),
+    { footer: "Holis Wellness Center — Class Booking Notification" },
+  );
 }
 
 async function handleByClassBookingId(classBookingId: string, supabase: any): Promise<Response> {
@@ -1068,14 +1015,9 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     ? `The guest has been emailed this cancellation.`
     : `The guest was not emailed — they never received a confirmation email for this booking.`;
 
-  const adminHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#7a2e2e;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Booking Cancelled</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+  const adminHtml = emailShell(
+    "Booking Cancelled",
+    `<table class="t" style="width:100%;border-collapse:collapse;font-size:14px;">
           ${guestRows.join("")}
           ${tableRow("Client", escHtml(booking.guest_name || "Guest"))}
           ${tableRow("Email", escHtml(booking.guest_email || "N/A"))}
@@ -1087,10 +1029,9 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
         </table>
         ${chargeNote}
         ${overrideNote}
-        <p style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>
-      </div>
-    </div>
-  </body></html>`;
+        <p class="fine" style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>`,
+    { headerBackground: "#7a2e2e" },
+  );
 
   const adminSubj = feePercent != null && feePercent > 0
     ? `Cancelled (charge ${formatCRC(feeUsd)}) — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`
@@ -1107,7 +1048,7 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
       <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
         Your appointment has been cancelled. Here is what was cancelled:
       </p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">${guestRows.join("")}</table>
+      ${detailsTable(guestRows)}
       ${whenSentence || feeSentence ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${whenSentence}${whenSentence && feeSentence ? " " : ""}${escHtml(feeSentence)}</p>` : ""}
       <p style="font-size:13px;line-height:1.6;margin:18px 0 0;color:#555;">
         We would love to see you another time — reply to this email or message us on WhatsApp and we will find you a new slot.
@@ -1141,18 +1082,11 @@ async function handleLegacyPayload(body: any): Promise<Response> {
   if (body.payment_id) rows.push(tableRow("Payment ID", body.payment_id));
   if (body.notes) rows.push(tableRow("Notes", body.notes));
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${body.is_retreat ? "New Retreat Inquiry" : "New Reservation"}</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        ${buildIntakeHtml(body.intake_form)}
-      </div>
-    </div>
-  </body></html>`;
+  const html = emailShell(
+    body.is_retreat ? "New Retreat Inquiry" : "New Reservation",
+    `${detailsTable(rows)}
+        ${buildIntakeHtml(body.intake_form)}`,
+  );
 
   const subj = `New ${body.is_retreat ? "Retreat Inquiry" : "Reservation"}: ${serviceName} — ${guestName}`;
   const res = await sendEmail(ADMIN_EMAIL, subj, html);

@@ -85,7 +85,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
 
           {/* Content */}
           <div className="p-4 sm:p-5 md:p-6 pb-8 md:pb-6 flex flex-col justify-center text-spa-cream">
-            <span className="self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-2 font-body text-[10px] font-semibold uppercase tracking-[0.16em]">
+            <span className="self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-2 font-body text-[11px] font-semibold uppercase tracking-[0.16em]">
               Special event
             </span>
 

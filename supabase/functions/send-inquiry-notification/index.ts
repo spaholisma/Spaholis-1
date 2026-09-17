@@ -7,6 +7,7 @@
 // holds. Replying to the email goes straight to the guest.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { emailHead } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,24 +36,25 @@ const niceDate = (d: string | null) =>
 /** One table row; skipped when there is nothing to show. `html` is already safe. */
 function row(label: string, html: string) {
   if (!html) return "";
-  return `<tr><td style="padding:8px 0;color:#7a7a72;font-size:13px;width:38%;vertical-align:top">${esc(label)}</td>` +
-    `<td style="padding:8px 0;color:#2d2d2a;font-size:14px;vertical-align:top">${html}</td></tr>`;
+  return `<tr><td class="k" style="padding:8px 0;color:#7a7a72;font-size:13px;width:38%;vertical-align:top">${esc(label)}</td>` +
+    `<td class="v" style="padding:8px 0;color:#2d2d2a;font-size:14px;vertical-align:top">${html}</td></tr>`;
 }
 
 function shell(eyebrow: string, title: string, rows: string, message: string, messageLabel: string) {
-  return `<!doctype html><html><body style="margin:0;background:#f4f1ec;font-family:Helvetica,Arial,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:28px 12px">
+  return `<!doctype html><html lang="en">${emailHead(title)}
+  <body style="margin:0;background:#f4f1ec;font-family:Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="wrap" style="background:#f4f1ec;padding:28px 12px">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden">
-        <tr><td style="background:#7d9a85;padding:22px 28px">
+        <tr><td class="head" style="background:#7d9a85;padding:22px 28px">
           <p style="margin:0;color:#eef3ef;font-size:11px;letter-spacing:2px;text-transform:uppercase">${esc(eyebrow)}</p>
-          <h1 style="margin:6px 0 0;color:#ffffff;font-size:22px;font-weight:600">${esc(title)}</h1>
+          <h1 class="h1" style="margin:6px 0 0;color:#ffffff;font-size:22px;font-weight:600">${esc(title)}</h1>
         </td></tr>
-        <tr><td style="padding:22px 28px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+        <tr><td class="pad" style="padding:22px 28px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="t">${rows}</table>
           ${message ? `<p style="margin:18px 0 6px;color:#7a7a72;font-size:13px">${esc(messageLabel)}</p>
           <div style="background:#f4f1ec;border-radius:12px;padding:14px 16px;color:#2d2d2a;font-size:14px;line-height:1.55;white-space:pre-line">${esc(message)}</div>` : ""}
-          <p style="margin:22px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">Reply to this email to answer the guest directly.
+          <p class="foot" style="margin:22px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">Reply to this email to answer the guest directly.
           Update the status in <a href="${ADMIN_URL}" style="color:#5e7d67">Admin</a>.</p>
         </td></tr>
       </table>

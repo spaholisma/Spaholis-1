@@ -154,7 +154,7 @@ const WellnessPage = () => {
                                 <h4 className="font-body text-sm font-semibold text-foreground whitespace-pre-line">
                                   {t.name}
                                 </h4>
-                                <span className={`text-[10px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${tagColors[t.tag]}`}>
+                                <span className={`text-[11px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${tagColors[t.tag]}`}>
                                   {t.tag}
                                 </span>
                               </div>

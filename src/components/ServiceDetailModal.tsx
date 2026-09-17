@@ -78,7 +78,7 @@ export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
                 {service.category}
               </span>
               {service.type && service.type !== "treatment" && (
-                <span className="text-[10px] font-body font-semibold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-body font-semibold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                   {service.type}
                 </span>
               )}

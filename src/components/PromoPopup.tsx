@@ -80,7 +80,7 @@ export function PromoPopup() {
                 className="absolute inset-0 h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
-              <span className="absolute left-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-spa-sage px-3 py-1 font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-white shadow">
+              <span className="absolute left-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-spa-sage px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.2em] text-white shadow">
                 <Sparkles className="h-3 w-3" /> {c.badge}
               </span>
               <p className="absolute bottom-5 left-5 right-5 font-body text-xs font-medium uppercase tracking-[0.25em] text-white/90">

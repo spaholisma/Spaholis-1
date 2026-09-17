@@ -246,7 +246,7 @@ export default function ExperienceBooking() {
                 i <= step ? "bg-primary" : "bg-muted"
               )} />
               <span className={cn(
-                "text-[10px] sm:text-xs font-body transition-colors",
+                "text-[11px] sm:text-xs font-body transition-colors",
                 i <= step ? "text-foreground" : "text-muted-foreground"
               )}>{label}</span>
             </div>

@@ -97,6 +97,10 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    /* Safari on iPhone grows text on its own when the phone turns sideways,
+       which breaks layouts that were fine in portrait. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {

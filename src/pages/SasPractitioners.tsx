@@ -51,7 +51,7 @@ function PractitionerCard({ p, viewProfileLabel, bookLabel }: { p: Practitioner;
       <div className="p-5 flex flex-col flex-1">
         <div className="flex flex-wrap gap-1.5 mb-3">
           {p.status.slice(0, 2).map((s) => (
-            <Badge key={s} variant="secondary" className="text-[10px] uppercase tracking-wider">
+            <Badge key={s} variant="secondary" className="text-[11px] uppercase tracking-wider">
               {STATUS_LABELS[s]}
             </Badge>
           ))}

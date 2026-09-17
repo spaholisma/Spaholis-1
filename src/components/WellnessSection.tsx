@@ -291,13 +291,13 @@ export function WellnessSection() {
                                 <h4 className="font-body text-sm font-semibold text-foreground">
                                   {item.title}
                                 </h4>
-                                <span className="text-[10px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                                <span className="text-[11px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">
                                   {bookingTypeLabels[item.type] || item.type}
                                 </span>
                                 {item.tags.map(tag => (
                                   <span
                                     key={tag}
-                                    className={`text-[10px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${tagColors[tag] || "bg-muted text-muted-foreground"}`}
+                                    className={`text-[11px] font-body font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${tagColors[tag] || "bg-muted text-muted-foreground"}`}
                                   >
                                     {tag}
                                   </span>
