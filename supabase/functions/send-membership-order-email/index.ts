@@ -10,7 +10,7 @@
 // books eligible classes at $0 without logging in or typing a code.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { emailShell, detailsRow, emailDocument } from "../_shared/email-layout.ts";
+import { emailShell, emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,7 +107,7 @@ function offeringDetailsHtml(o: any): string {
 }
 
 function ctaButton(label: string, url: string): string {
-  return `<p style="text-align:center;margin:24px 0;"><a href="${url}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">${label}</a></p>`;
+  return `<p style="text-align:center;margin:24px 0;"><a class="btn" href="${url}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">${label}</a></p>`;
 }
 
 function customerHtml(o: any, link: string): string {
@@ -130,7 +130,7 @@ function customerHtml(o: any, link: string): string {
     </div>
     <p style="font-size:15px;line-height:1.5;">Click below to book any eligible class — the credit is applied automatically, so your total is <strong>$0</strong>. No login or code needed.</p>
     <p style="text-align:center;margin:24px 0;">
-      <a href="${link}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Schedule your classes</a>
+      <a class="btn" href="${link}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Schedule your classes</a>
     </p>
     <p style="font-size:13px;color:#666;line-height:1.5;">Or paste this link into your browser:<br><span style="word-break:break-all;">${link}</span></p>
     <p style="font-size:13px;color:#999;margin-top:24px;">Holis Wellness Center · Manuel Antonio, Costa Rica</p>
@@ -157,7 +157,7 @@ function purchaseHtml(o: any): string {
     </div>
     <p style="font-size:15px;line-height:1.5;">Log in and head to Classes to book — your credit is applied automatically at checkout.</p>
     <p style="text-align:center;margin:24px 0;">
-      <a href="${SITE_URL}/classes" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Browse classes</a>
+      <a class="btn" href="${SITE_URL}/classes" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Browse classes</a>
     </p>
     <p style="font-size:13px;color:#999;margin-top:24px;">Holis Wellness Center · Manuel Antonio, Costa Rica</p>
   </div>`;

@@ -8,7 +8,7 @@
 // (loyalty_reward_earned / loyalty_progress), with a built-in fallback.
 // Counts are recomputed HERE from the database, never trusted from the caller.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { emailShell, detailsRow, emailDocument } from "../_shared/email-layout.ts";
+import { emailShell, detailsRow } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,10 +104,10 @@ Deno.serve(async (req) => {
     if (tpl && tpl.enabled === false) return json({ ok: true, skipped: "template_disabled" });
 
     const appButton = `<p style="text-align:center;margin:20px 0 6px;">
-      <a href="${scheduleLink}" style="background:#1d5b6a;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;font-size:15px;display:inline-block;">Book your classes</a></p>
+      <a class="btn" href="${scheduleLink}" style="background:#1d5b6a;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;font-size:15px;display:inline-block;">Book your classes</a></p>
       <p style="text-align:center;margin:0 0 18px;">
-      <a href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:13px 26px;border-radius:9999px;font-size:14px;display:inline-block;">Get the Holis app</a></p>
-      <p style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to install the Holis app and see your bookings anytime.</p>`;
+      <a class="btn" href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:13px 26px;border-radius:9999px;font-size:14px;display:inline-block;">Get the Holis app</a></p>
+      <p class="fine" style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to install the Holis app and see your bookings anytime.</p>`;
 
     // Complete member box: membership, benefits, code, validity + loyalty progress.
     const details = `<div style="background:#f3f6f6;border-radius:12px;padding:18px;margin:14px 0;">
