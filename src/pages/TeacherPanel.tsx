@@ -14,7 +14,7 @@ import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
   Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
   NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks, BadgeCheck, HandCoins,
-  ClipboardList,
+  ClipboardList, HeartHandshake,
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, parseISO, isSameMonth,
@@ -33,6 +33,7 @@ import { TeacherProfileCard } from "@/components/teacher/TeacherProfileCard";
 import { TeacherMonthRecord } from "@/components/teacher/TeacherMonthRecord";
 import { TeacherPassRequests } from "@/components/teacher/TeacherPassRequests";
 import { TeacherMembers } from "@/components/teacher/TeacherMembers";
+import { TeacherPrivateClasses } from "@/components/teacher/TeacherPrivateClasses";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -62,6 +63,7 @@ const TABS = [
   { value: "calendar", label: "Calendar", icon: CalendarRange },
   { value: "classes", label: "My classes", icon: ListChecks },
   { value: "record", label: "My month", icon: ClipboardList },
+  { value: "private", label: "Private classes", icon: HeartHandshake },
   { value: "students", label: "Students", icon: Users },
   { value: "notes", label: "Notebook", icon: NotebookPen },
   { value: "memberships", label: "Memberships", icon: BadgeCheck },
@@ -645,6 +647,10 @@ export default function TeacherPanel() {
                       clientTypes={clientTypes}
                     />
                   </>
+                )}
+
+                {tab === "private" && teacher && (
+                  <TeacherPrivateClasses teacherId={teacher.id} note={(teacher as any).private_class_note ?? null} />
                 )}
 
                 {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}
