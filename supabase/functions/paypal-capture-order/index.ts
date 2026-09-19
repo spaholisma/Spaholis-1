@@ -15,6 +15,24 @@ const corsHeaders = {
 const json = (b: any, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+// An online purchase gets the same code and no-login link as an order made from
+// the Admin. Before, only Admin orders had them, so the first guests to buy on
+// the website were left with nothing to book with but their login.
+// Same shape as create_membership_order(): 2 letters + 4 digits, e.g. AF2270.
+const randomCode = () =>
+  String.fromCharCode(65 + Math.floor(Math.random() * 26), 65 + Math.floor(Math.random() * 26)) +
+  String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+const randomToken = () => (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+
+async function uniqueCode(admin: any): Promise<string> {
+  for (let i = 0; i < 20; i++) {
+    const code = randomCode();
+    const { data } = await admin.from("user_offerings").select("id").eq("code", code).maybeSingle();
+    if (!data) return code;
+  }
+  throw new Error("could not allocate an offering code");
+}
+
 const PP_BASE = (Deno.env.get("PAYPAL_MODE") ?? "live") === "sandbox"
   ? "https://api-m.sandbox.paypal.com"
   : "https://api-m.paypal.com";
@@ -136,12 +154,23 @@ Deno.serve(async (req) => {
       }
       expires_at = d.toISOString();
     }
+    // Who bought it, so the email, the code and the Admin lists all have a name
+    // and an address — the buyer is logged in, so it comes from their profile.
+    let buyerName: string | null = null;
+    let buyerEmail: string | null = null;
+    if (t.user_id) {
+      const { data: prof } = await admin.from("profiles").select("full_name, email").eq("user_id", t.user_id).maybeSingle();
+      buyerName = (prof as any)?.full_name || null;
+      buyerEmail = (prof as any)?.email ? String((prof as any).email).trim().toLowerCase() : null;
+    }
     const { data: uo, error: uoErr } = await admin.from("user_offerings").insert({
       user_id: t.user_id ?? null,
       offering_id: (off as any).id, type: (off as any).type, name_snapshot: (off as any).name,
       price_paid: (off as any).price, is_unlimited: (off as any).is_unlimited,
       credits_total: (off as any).credits, credits_remaining: (off as any).credits,
       expires_at, status: "active", source: "purchase", payment_id: capId,
+      code: await uniqueCode(admin), access_token: randomToken(),
+      guest_name: buyerName, guest_email: buyerEmail,
     }).select("id").single();
     if (uoErr) throw uoErr;
 

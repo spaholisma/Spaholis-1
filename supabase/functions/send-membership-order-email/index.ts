@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id, source")
     .eq("id", userOfferingId)
     .maybeSingle();
 
@@ -199,7 +199,10 @@ Deno.serve(async (req) => {
   }
   if (!to) return json({ ok: false, reason: "no_recipient" }, 409);
 
-  const isOrder = !!o.access_token; // admin order → schedule link; else a purchase
+  // Anything with a link gets the code + "Schedule your classes" email. Online
+  // purchases have one too now, so they are told apart for the team by source.
+  const isOrder = !!o.access_token;
+  const isOnlinePurchase = (o as any).source === "purchase";
   const link = isOrder ? `${SITE_URL}/classes?m=${o.access_token}` : `${SITE_URL}/classes`;
 
   // Prefer the admin-editable template; fall back to the built-in copy.
@@ -243,12 +246,12 @@ Deno.serve(async (req) => {
   }
 
   // Admin copy (+ backup)
-  const adminSubj = isOrder
-    ? `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`
-    : `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}`;
+  const adminSubj = isOnlinePurchase
+    ? `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
+    : `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`;
   const adminHtml = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:16px;color:#1f2937;">
-      <h2 style="font-size:18px;">${isOrder ? "New membership order" : "New membership/pass purchase"}</h2>
+      <h2 style="font-size:18px;">${isOnlinePurchase ? "New membership/pass purchase (paid online)" : "New membership order"}</h2>
       <p><strong>Customer:</strong> ${esc(o.guest_name || "")} &lt;${esc(to)}&gt;</p>
       <p><strong>Offering:</strong> ${esc(o.name_snapshot)}</p>
       ${isOrder ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>` : ""}
