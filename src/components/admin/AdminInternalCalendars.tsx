@@ -20,6 +20,7 @@ import { BookingEditModal } from "./calendar/BookingEditModal";
 import type { CalendarBooking } from "./calendar/calendarUtils";
 import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, normalizeLinkInput, sanitizeLinkLabel, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CalendarSearch } from "./calendar/CalendarSearch";
 
 type CalendarType = "treatment" | "retreat" | "class";
 
@@ -651,6 +652,18 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     openEdit(entry);
   };
 
+  /**
+   * A search result: go to its month, open it, and leave the person on that
+   * day when they close it — so a search ends where the entry lives, not back
+   * on whatever month they happened to be looking at.
+   */
+  const jumpToResult = (entry: CalendarEntry) => {
+    const [y, m, d] = entry.entry_date.split("-").map(Number);
+    const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+    setCurrentDate(date);
+    openItem(entry, date);
+  };
+
   /** Close the entry form and drop back into the day it was opened from. */
   const closeEntryModal = () => {
     setModalOpen(false);
@@ -900,6 +913,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <CalendarSearch calendarType={calendarType} readOnly={readOnly} onPick={jumpToResult} />
           <PushNotificationsButton />
           {!readOnly && (
             <>
