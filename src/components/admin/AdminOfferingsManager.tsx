@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,19 +53,26 @@ export function AdminOfferingsManager() {
   const [grantOpen, setGrantOpen] = useState<Offering | null>(null);
   const { data: existingEligible = [] } = useOfferingEligibleClasses(editing?.id ?? null);
 
-  // Sync existing eligibility into local state when opening for edit
-  // (using a key on the dialog re-creates state when editing changes)
+  // Which offering the covered-classes list has already been filled in for.
+  // Without this the list refilled itself on every render while the selection
+  // was empty — so unticking the last class put it straight back, and a pass
+  // limited to one class could never be opened up again from here.
+  const hydratedFor = useRef<string | null>(null);
+
   const openEditor = (o: Partial<Offering> | null) => {
     setEditing(o);
-    setEligibleClassIds([]); // reset; will be populated by effect below via the query
+    setEligibleClassIds([]);
+    hydratedFor.current = null;
   };
 
-  // Pull eligibility into editing state once it loads
-  // (relies on existingEligible refreshing when editing.id changes)
-  if (editing?.id && existingEligible.length > 0 && eligibleClassIds.length === 0) {
-    // one-shot hydrate
+  // Fill the ticks in once per offering, when its list arrives.
+  useEffect(() => {
+    if (!editing?.id) { hydratedFor.current = null; return; }
+    if (hydratedFor.current === editing.id) return;
+    if (existingEligible.length === 0) return;   // nothing saved, or not loaded yet
+    hydratedFor.current = editing.id;
     setEligibleClassIds(existingEligible);
-  }
+  }, [editing?.id, existingEligible]);
 
   const save = async () => {
     if (!editing?.name?.trim()) return toast.error("Name is required");

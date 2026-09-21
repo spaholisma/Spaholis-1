@@ -96,3 +96,21 @@ describe("the website", () => {
     expect(handler).toMatch(/if \(submitting\) return;/);
   });
 });
+
+describe("the classes a pass covers, in the Admin", () => {
+  const manager = read("src/components/admin/AdminOfferingsManager.tsx");
+
+  it("fills the ticks in once per offering, not on every render", () => {
+    // The old code re-applied the saved list during render whenever the
+    // selection was empty, so unticking the last class put it straight back.
+    expect(manager).not.toMatch(/if \(editing\?\.id && existingEligible\.length > 0 && eligibleClassIds\.length === 0\)/);
+    expect(manager).toMatch(/hydratedFor\.current === editing\.id/);
+    expect(manager).toMatch(/useEffect\(\(\) => \{[\s\S]{0,400}setEligibleClassIds\(existingEligible\)/);
+  });
+
+  it("treats an empty list as covering every class", () => {
+    const save = manager.slice(manager.indexOf("const save = async"));
+    expect(save).toMatch(/from\("offering_eligible_classes"\)\s*\.delete\(\)/);
+    expect(save).toMatch(/if \(eligibleClassIds\.length > 0\)/);
+  });
+});
