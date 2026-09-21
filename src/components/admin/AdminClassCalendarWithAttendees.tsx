@@ -863,12 +863,12 @@ export function AdminClassCalendarWithAttendees() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-2">
+      <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="icon" onClick={goPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="font-heading text-lg font-semibold min-w-[160px] text-center">{headerTitle}</h3>
+          <h3 className="font-heading text-base sm:text-lg font-semibold min-w-[120px] sm:min-w-[160px] text-center">{headerTitle}</h3>
           <Button variant="outline" size="icon" onClick={goNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -889,7 +889,7 @@ export function AdminClassCalendarWithAttendees() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant={showCancelled ? "secondary" : "outline"}
@@ -923,15 +923,15 @@ export function AdminClassCalendarWithAttendees() {
       />
 
       {viewMode === "month" ? (
-      <div className="border border-border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-7 bg-muted">
+      <div className="border border-border rounded-xl overflow-x-auto">
+        <div className="grid grid-cols-7 bg-muted min-w-[640px]">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
               {d}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-7 min-w-[640px]">
           {days.map((day) => {
             const dayClasses = visibleScheduled.filter((s) => isSameDay(parseISO(s.start_time), day));
             const isToday = isSameDay(day, new Date());
