@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMyOfferings, redeemOffering, type UserOffering } from "@/hooks/useOfferings";
+import { useMyOfferings, type UserOffering } from "@/hooks/useOfferings";
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
@@ -302,12 +302,20 @@ const ClassBookingPage = () => {
     if (!user) return toast.error(t("booking.signInForOfferingError"));
     setSubmitting(true);
     try {
-      const bookingId = await createClassBooking({
-        paymentStatus: "paid",
-        paymentMethod: payMethod,
-        userOfferingId: selectedOfferingId,
+      // One call, one transaction: the booking, the credit and the redemption
+      // move together. Doing it in two steps from the browser left bookings
+      // behind whenever the second step failed — and the retry booked the
+      // person again.
+      const { data, error } = await supabase.rpc("book_class_with_offering" as any, {
+        _user_offering_id: selectedOfferingId,
+        _schedule_id: scheduleId,
+        _guest_name: formData.name?.trim() || null,
+        _guest_email: formData.email?.trim() || null,
+        _guest_phone: formData.phone?.trim() || null,
       });
-      await redeemOffering(selectedOfferingId, bookingId);
+      if (error) throw error;
+      const bookingId = (data as any)?.booking_id as string | undefined;
+      if (!bookingId) throw new Error(t("booking.redeemFailed"));
       // Fire-and-forget: send USD-formatted class confirmation email.
       supabase.functions
         .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
