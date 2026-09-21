@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt, Ticket } from "lucide-react";
+import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt, Ticket, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { membershipExpiryISO } from "@/lib/membership";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -809,19 +809,32 @@ function EligibleClassesPicker({
     <div className="rounded-lg border border-border p-3 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-body text-sm font-medium">Eligible classes</p>
+          <p className="font-body text-sm font-medium">Which classes this covers</p>
           <p className="text-xs text-muted-foreground">
             {allSelected
-              ? "Currently usable for all classes. Select specific classes to restrict."
-              : `Restricted to ${selectedIds.length} class${selectedIds.length === 1 ? "" : "es"}.`}
+              ? "Covers every class. Tick classes only if this pass should be limited to them."
+              : `Limited to ${selectedIds.length} class${selectedIds.length === 1 ? "" : "es"}.`}
           </p>
         </div>
         {!allSelected && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => onChange([])}>
-            All classes
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange([])}>
+            Cover every class
           </Button>
         )}
       </div>
+
+      {/* Ticking one class quietly shut every other one out — somebody ticked
+          "Wellness Sunday" and no member could book yoga again. Say it plainly. */}
+      {!allSelected && (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+          <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-xs font-body text-amber-800">
+            <strong>Only the ticked classes can be booked with this pass.</strong> Every other
+            class will be refused, including new ones you add later. Untick them all — or press
+            “Cover every class” — to let it work everywhere.
+          </p>
+        </div>
+      )}
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading classes…</p>
       ) : classes.length === 0 ? (

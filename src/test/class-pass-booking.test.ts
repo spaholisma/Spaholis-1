@@ -108,6 +108,14 @@ describe("the classes a pass covers, in the Admin", () => {
     expect(manager).toMatch(/useEffect\(\(\) => \{[\s\S]{0,400}setEligibleClassIds\(existingEligible\)/);
   });
 
+  it("warns that ticking classes shuts every other one out", () => {
+    // Somebody ticked "Wellness Sunday" meaning to include it, and every
+    // member lost yoga. The screen has to say what ticking actually does.
+    expect(manager).toMatch(/Only the ticked classes can be booked with this pass/);
+    expect(manager).toMatch(/Cover every class/);
+    expect(manager).toMatch(/Covers every class\. Tick classes only if/);
+  });
+
   it("treats an empty list as covering every class", () => {
     const save = manager.slice(manager.indexOf("const save = async"));
     expect(save).toMatch(/from\("offering_eligible_classes"\)\s*\.delete\(\)/);
