@@ -15,8 +15,10 @@
 //                   immediately, decrement a spot, record coupon usage and send
 //                   the confirmation email. No redirect.
 //
-// Membership / class-credit redemption is NOT handled here — it already flows
-// through the `redeem_offering` RPC on the client.
+// Membership / class-credit redemption is NOT handled here — that goes through
+// the `book_class_with_offering` RPC, which books and spends the credit in one
+// transaction. A class marked `full_price_only` takes neither of those, nor a
+// coupon: see validateClassCoupon() below.
 
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@3.25.76";
@@ -68,6 +70,16 @@ async function validateClassCoupon(
 ): Promise<{ code: string | null; discount: number; couponId: string | null }> {
   const code = (codeRaw || "").trim().toUpperCase();
   if (!code) return { code: null, discount: 0, couponId: null };
+
+  // A class can be marked as always paid in full — no coupon applies to it.
+  const { data: klass } = await admin
+    .from("classes").select("title, full_price_only").eq("id", classId).maybeSingle();
+  if ((klass as any)?.full_price_only) {
+    throw Object.assign(
+      new Error(`${(klass as any).title} is always paid in full`),
+      { code: "INVALID_COUPON" },
+    );
+  }
 
   const { data: coupon, error } = await admin
     .from("coupons")

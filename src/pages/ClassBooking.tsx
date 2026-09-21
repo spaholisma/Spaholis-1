@@ -88,8 +88,12 @@ const ClassBookingPage = () => {
   const multi = quantity > 1;
   useEffect(() => { setQuantity((q) => Math.min(Math.max(1, q), maxQty)); }, [maxQty]);
 
+  // Some classes are always paid in full — no pass, no membership, no coupon.
+  // The database refuses them too; this only keeps the offer off the screen.
+  const fullPriceOnly = !!(cls as any)?.full_price_only;
+
   // Only offerings that are valid for THIS class
-  const eligibleOfferings = classId
+  const eligibleOfferings = classId && !fullPriceOnly
     ? filterEligibleOfferings(myOfferings, classId, eligibilityMap)
     : [];
   const memberships = eligibleOfferings.filter((o) => o.type === "membership");
@@ -101,6 +105,7 @@ const ClassBookingPage = () => {
   // The membership behind the emailed link — usable without login if it's valid
   // and covers THIS class. This is the Acuity-style "recognized" flow.
   const tokenEligible =
+    !fullPriceOnly &&
     !!tokenOffering &&
     tokenOffering.valid &&
     !!classId &&
@@ -651,7 +656,15 @@ const ClassBookingPage = () => {
                         </PayOption>
                       )}
 
-                      {user && !hasRedeemable && ineligibleOwned.length > 0 && (
+                      {fullPriceOnly ? (
+                        <div className="rounded-xl border border-border bg-muted/30 p-3">
+                          <p className="text-xs font-body text-muted-foreground">
+                            <span className="font-medium text-foreground">{cls.title}</span> is
+                            always paid in full — memberships, class credits and coupons do not
+                            apply to it.
+                          </p>
+                        </div>
+                      ) : user && !hasRedeemable && ineligibleOwned.length > 0 && (
                         <div className="rounded-xl border border-border bg-muted/30 p-3">
                           <p className="text-xs font-body text-muted-foreground">
                             Your existing memberships and passes don't cover{" "}
@@ -672,13 +685,13 @@ const ClassBookingPage = () => {
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
 
-                      {!multi && !user && !tokenEligible && (
+                      {!multi && !user && !tokenEligible && !fullPriceOnly && (
                         <p className="text-xs font-body text-muted-foreground px-1">
                           <Link to="/auth" className="underline">Sign in</Link> to use a membership or class credits.
                         </p>
                       )}
 
-                      {payMethod === "card" && (
+                      {payMethod === "card" && !fullPriceOnly && (
                         <div className="bg-card rounded-2xl border border-border p-4 mt-2 space-y-2">
                           <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon?</label>
                           <div className="flex gap-2">

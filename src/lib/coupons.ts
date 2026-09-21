@@ -70,6 +70,19 @@ export async function validateCoupon(
     }
   }
 
+  // Some classes are always paid in full: no coupon touches them. The server
+  // checks this too — this is so the person is told before they press Book.
+  if (opts.classId) {
+    const { data: klass } = await supabase
+      .from("classes")
+      .select("title, full_price_only")
+      .eq("id", opts.classId)
+      .maybeSingle();
+    if ((klass as any)?.full_price_only) {
+      return { valid: false, reason: `${(klass as any).title} is always paid in full — coupons do not apply to it` };
+    }
+  }
+
   // Restriction check: if any restriction list is set, the matching id must be in it.
   const checkList = (
     list: string[] | null | undefined,
