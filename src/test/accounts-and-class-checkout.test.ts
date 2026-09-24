@@ -94,9 +94,10 @@ describe("a signed-in guest and their pass", () => {
   const page = read("src/pages/ClassBooking.tsx");
   const sql = strip(read("supabase/migrations/20260926120000_membership_code_and_my_offerings.sql"));
 
-  it("fills in the details from their account, without overwriting what is typed", () => {
+  it("fills in the details from their account, and locks name and email", () => {
     expect(page).toMatch(/from\("profiles"\)\.select\("full_name, email, phone"\)/);
-    expect(page).toMatch(/setFormData\(\(f\) => \(f\.name \|\| f\.email \? f :/);
+    expect(page).toMatch(/readOnly=\{!!locked\.name\}/);
+    expect(page).toMatch(/readOnly=\{!!locked\.email\}/);
   });
 
   it("brings a pass sold at the desk into their account — only unowned ones, only their confirmed email", () => {

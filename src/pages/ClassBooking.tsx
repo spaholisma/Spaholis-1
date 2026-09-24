@@ -24,7 +24,7 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, isFreeWithCoupon, looksLikePassCode } from "@/lib/classCheckout";
+import { cardTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
@@ -131,23 +131,42 @@ const ClassBookingPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenOffering]);
 
-  // Signed in: fill in what their account already knows, so they do not
-  // retype it. Anything already typed (or taken from a pass link) wins.
+  // Signed in: what their account knows about them.
+  const [account, setAccount] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setAccount(null); return; }
     let live = true;
     (async () => {
       const { data } = await supabase
         .from("profiles").select("full_name, email, phone").eq("user_id", user.id).maybeSingle();
       if (!live) return;
-      setFormData((f) => (f.name || f.email ? f : {
-        name: (data as any)?.full_name || (user.user_metadata as any)?.full_name || "",
-        email: (data as any)?.email || user.email || "",
-        phone: toE164((data as any)?.phone) || f.phone,
-      }));
+      setAccount({
+        name: (data as any)?.full_name || (user.user_metadata as any)?.full_name || null,
+        email: (data as any)?.email || user.email || null,
+        phone: (data as any)?.phone || null,
+      });
     })();
     return () => { live = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The booking is theirs: name and email come from the account (or from the
+  // pass behind the link) and cannot be changed, so a membership cannot book a
+  // friend in for free. What is missing can still be typed. The server
+  // (book_class_with_offering) holds to the same rule.
+  const locked = lockedDetails({
+    signedIn: !!user,
+    account,
+    authEmail: user?.email ?? null,
+    pass: tokenOffering,
+  });
+  useEffect(() => {
+    if (!locked.name && !locked.email) return;
+    setFormData((f) => ({
+      name: locked.name ?? f.name,
+      email: locked.email ?? f.email,
+      phone: f.phone || toE164(account?.phone) || f.phone,
+    }));
+  }, [locked.name, locked.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Signed in: a pass the studio sold them at the desk is filed under their
   // email, not their account — bring it into the account so it can be used
@@ -609,12 +628,35 @@ const ClassBookingPage = () => {
                         </div>
                       )}
                       <div>
-                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
-                        <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Jane Doe" />
+                        <label htmlFor="booking-name" className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
+                        <Input
+                          id="booking-name"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Jane Doe"
+                          readOnly={!!locked.name}
+                          aria-readonly={!!locked.name}
+                          className={cn(locked.name && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
+                        />
                       </div>
                       <div>
-                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Email *</label>
-                        <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="jane@example.com" />
+                        <label htmlFor="booking-email" className="font-body text-sm font-medium text-foreground mb-1.5 block">Email *</label>
+                        <Input
+                          id="booking-email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="jane@example.com"
+                          readOnly={!!locked.email}
+                          aria-readonly={!!locked.email}
+                          className={cn(locked.email && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
+                        />
+                        {(locked.name || locked.email) && (
+                          <p className="text-xs text-muted-foreground mt-1.5 font-body">
+                            {user ? "From your account" : "From your membership"} — this booking is in your name.
+                            {maxQty > 1 ? " Bringing someone? Add a spot for them above." : ""}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Phone</label>
