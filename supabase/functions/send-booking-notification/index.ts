@@ -34,6 +34,7 @@ const corsHeaders = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRMED_STATUSES = new Set(["paid", "pending", "confirmed", "completed"]);
 const ADMIN_EMAIL = "info@spaholis.com";
 const ADMIN_BACKUP_EMAIL = "spaholisma@gmail.com";
@@ -1043,6 +1044,30 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
   // ---- The guest ----
   let customerRes: { ok: boolean; error?: string } = { ok: true };
   if (booking.guest_email && booking.notification_sent_at) {
+    // Admin → Client Emails → "Treatment cancellation"; built-in copy below
+    // when it is missing or switched off.
+    const cancelNote = whenSentence || feeSentence
+      ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${whenSentence}${whenSentence && feeSentence ? " " : ""}${escHtml(feeSentence)}</p>`
+      : "";
+    const tpl = await loadTemplate(supabase, "treatment_cancelled");
+    if (tpl) {
+      const built = buildFromTemplate(
+        tpl,
+        {
+          guest_name: booking.guest_name || "Guest",
+          reservation_id: reservationId,
+          service_name: serviceName,
+          date: bookingDate,
+          time: bookingTime,
+          total: totalUsd != null ? formatCRC(totalUsd) : "",
+          fee: feeLabel ?? "",
+        },
+        { details: detailsTable(guestRows), cancel_note: cancelNote, policy: policyBlock([...RULE_LINES, CHANGES_LINE]) },
+      );
+      customerRes = await sendEmail(booking.guest_email, built.subject, built.html);
+      if (!customerRes.ok) console.error("[send-booking-notification] cancel guest email failed:", customerRes.error);
+      return json({ ok: true, adminSent: adminRes.ok, customerSent: customerRes.ok, feePercent, feeUsd });
+    }
     const inner = `
       <p style="font-size:15px;margin:0 0 16px;">Dear ${escHtml(booking.guest_name || "Guest")},</p>
       <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
@@ -1063,6 +1088,75 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
   }
 
   return json({ ok: true, adminSent: adminRes.ok, customerSent: customerRes.ok, feePercent, feeUsd });
+}
+
+/**
+ * A guest asked for a request-only treatment (ConsultationForm, request_kind
+ * "appointment"). The team gets the "Appointment request (staff)" template and
+ * the guest the "Appointment request — client confirmation" one, both edited
+ * in Admin → Client Emails. Missing or switched off → the team gets the plain
+ * notice below and the guest nothing, as before.
+ */
+async function handleAppointmentRequest(body: any, supabase: any): Promise<Response> {
+  const therapy = String(body.service_name || body.serviceName || "Appointment");
+  const guestName = String(body.guest_name || body.guestName || "Guest");
+  const guestEmail = String(body.guest_email || body.guestEmail || "").trim();
+  const phone = String(body.guest_phone || body.guestPhone || "").trim();
+  const preferred = String(body.preferred_datetime || "").trim();
+  const notes = String(body.notes || "").trim();
+
+  const details = detailsTable([
+    tableRow("Terapia solicitada", escHtml(therapy)),
+    ...(preferred ? [tableRow("Fecha y hora deseada", escHtml(preferred))] : []),
+    tableRow("Nombre", escHtml(guestName)),
+    tableRow("Correo", escHtml(guestEmail || "N/A")),
+    tableRow("Teléfono", escHtml(phone || "Not provided")),
+    ...(notes ? [tableRow("Notas", escHtml(notes))] : []),
+  ]);
+  const textVars = {
+    therapy, guest_name: guestName, preferred_datetime: preferred,
+    phone, email: guestEmail, notes,
+  };
+  const rawVars = {
+    details,
+    preferred_line: preferred ? ` for <strong>${escHtml(preferred)}</strong>` : "",
+  };
+
+  // ---- The team ----
+  const staffTpl = await loadTemplate(supabase, "appointment_request");
+  let adminRes: { ok: boolean; error?: string };
+  if (staffTpl) {
+    const built = buildFromTemplate(staffTpl, textVars, rawVars);
+    adminRes = await sendEmail(ADMIN_EMAIL, built.subject, built.html);
+    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${built.subject}`, built.html);
+  } else {
+    return await handleLegacyPayload(body);
+  }
+
+  // ---- The guest ----
+  // This path is public, so the confirmation only goes to someone who has just
+  // left a request on the site — it cannot be used to send mail to anyone.
+  let customerSent = false;
+  const clientTpl = await loadTemplate(supabase, "appointment_request_client");
+  if (clientTpl && EMAIL_RE.test(guestEmail)) {
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("bookings").select("id")
+      .ilike("guest_email", guestEmail)
+      .eq("status", "pending")
+      .gte("created_at", since)
+      .limit(1);
+    if ((recent ?? []).length) {
+      const built = buildFromTemplate(clientTpl, textVars, rawVars);
+      const r = await sendEmail(guestEmail, built.subject, built.html);
+      customerSent = r.ok;
+      if (!r.ok) console.error("[send-booking-notification] request confirmation failed:", r.error);
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, adminSent: adminRes.ok, customerSent }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 async function handleLegacyPayload(body: any): Promise<Response> {
@@ -1130,6 +1224,9 @@ Deno.serve(async (req) => {
         });
       }
       return await handleCancellation(body.cancelledBookingId, supabase);
+    }
+    if (body.request_kind === "appointment") {
+      return await handleAppointmentRequest(body, supabase);
     }
     return await handleLegacyPayload(body);
   } catch (err) {

@@ -37,10 +37,36 @@ const SUSPEND_FOR = "876000h";
 const clean = (s: unknown) => String(s ?? "").trim();
 const cleanEmail = (s: unknown) => clean(s).toLowerCase();
 
-async function sendWelcome(to: string, name: string, link: string) {
+const interpolate = (str: string, vars: Record<string, string>) =>
+  String(str ?? "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => (k in vars ? String(vars[k] ?? "") : ""));
+
+async function sendWelcome(admin: any, to: string, name: string, link: string) {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { ok: false, error: "email_config_missing" };
   const first = name.split(/\s+/)[0] || "there";
+
+  // Admin → Client Emails → "Website account — welcome"; the built-in copy
+  // below when it is missing or switched off.
+  const { data: tpl } = await admin.from("email_templates")
+    .select("subject, heading, body_html, enabled").eq("template_key", "account_welcome").maybeSingle();
+  if (tpl && tpl.enabled !== false) {
+    const vars = {
+      first_name: escapeHtml(first),
+      guest_name: escapeHtml(name),
+      button: emailButton(link, "Choose my password"),
+    };
+    const subject = interpolate(tpl.subject, vars);
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        from: FROM_ADDRESS, to, subject,
+        html: emailShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars), { title: subject }),
+      }),
+    });
+    return res.ok ? { ok: true } : { ok: false, error: await res.text() };
+  }
+
   const html = emailShell(
     "Your Holis account is ready",
     `<p style="font-size:15px;margin:0 0 14px;">Hi ${escapeHtml(first)},</p>
@@ -142,7 +168,7 @@ Deno.serve(async (req) => {
         });
         const actionLink = (link as any)?.properties?.action_link;
         if (!lErr && actionLink) {
-          const sent = await sendWelcome(email, name, actionLink);
+          const sent = await sendWelcome(admin, email, name, actionLink);
           emailed = sent.ok;
           if (!sent.ok) console.error("[admin-clients] welcome email failed", sent.error);
         } else {

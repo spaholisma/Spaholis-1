@@ -67,3 +67,22 @@ export const unsuspendAccount = (userId: string) => adminClients({ action: "unsu
 
 /** Remove the login. Their memberships, classes and treatments stay under their name. */
 export const deleteAccount = (userId: string) => adminClients({ action: "delete", user_id: userId });
+
+export type DeletedCounts = { memberships: number; classes: number; treatments: number; calendar: number };
+
+/**
+ * Remove a client altogether: their login if they have one, then every
+ * membership, class, treatment (to the Trash) and calendar entry that is theirs.
+ */
+export async function deleteClient(clientKey: string, userId: string | null): Promise<DeletedCounts> {
+  if (userId) await deleteAccount(userId);
+  try {
+    return await rpc<DeletedCounts>("admin_delete_client", { _key: clientKey });
+  } catch (e: any) {
+    // Someone with a login and nothing else: once the login is gone, so are they.
+    if (userId && /Client not found/.test(e?.message ?? "")) {
+      return { memberships: 0, classes: 0, treatments: 0, calendar: 0 };
+    }
+    throw e;
+  }
+}

@@ -278,3 +278,41 @@ describe("managing a client's account", () => {
     expect(invoke.mock.calls[0][1].body).toMatchObject({ action: "update", full_name: "Sophia W." });
   });
 });
+
+describe("deleting a client", () => {
+  it("is offered for someone registered by staff, and needs the word DELETE", async () => {
+    await openProfile({ has_account: false, user_id: null }, { admin_delete_client: { memberships: 1, classes: 0, treatments: 3, calendar: 0 } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Delete client/ }));
+    await waitFor(() => screen.getByText("Delete Sophia Wisdom?"));
+    const confirm = screen.getAllByRole("button", { name: "Delete client" }).at(-1)!;
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Type DELETE to confirm"), { target: { value: "delete" } });
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_delete_client", { _key: "sophy@example.com" }));
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("removes the website login first when there is one", async () => {
+    await openProfile({ has_account: true }, { admin_delete_client: { memberships: 0, classes: 0, treatments: 0, calendar: 0 } });
+    invoke.mockResolvedValueOnce({ data: { ok: true, deleted: true }, error: null });
+
+    fireEvent.click(screen.getByRole("button", { name: /Delete client/ }));
+    fireEvent.change(await screen.findByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete client" }).at(-1)!);
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_delete_client", { _key: "sophy@example.com" }));
+    expect(invoke.mock.calls[0][1].body).toEqual({ action: "delete", user_id: "3ce38398-7e2a-4412-bdfc-87e59d4b1662" });
+    expect(invoke.mock.invocationCallOrder[0]).toBeLessThan(
+      rpc.mock.invocationCallOrder[rpc.mock.calls.findIndex((c) => c[0] === "admin_delete_client")],
+    );
+  });
+
+  it("is never offered for a staff login", async () => {
+    await openProfile({ has_account: true, is_staff: true });
+    expect(screen.queryByRole("button", { name: /Delete client/ })).toBeNull();
+  });
+});

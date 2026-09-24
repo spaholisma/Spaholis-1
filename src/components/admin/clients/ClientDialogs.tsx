@@ -136,6 +136,80 @@ export function ClientDetailsDialog({
   );
 }
 
+/**
+ * Delete a client and everything that is theirs. It cannot be undone (only
+ * treatments can be brought back, from the Trash), so it spells out what goes
+ * and asks for the word DELETE.
+ */
+export function DeleteClientDialog({
+  open, name, hasAccount, counts, busy, onConfirm, onCancel,
+}: {
+  open: boolean;
+  name: string;
+  hasAccount: boolean;
+  counts: { memberships: number; classes: number; treatments: number; calendar: number };
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  useEffect(() => { if (open) setTyped(""); }, [open]);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const lines = [
+    hasAccount && "their website account (they can no longer sign in)",
+    counts.memberships > 0 && plural(counts.memberships, "membership or pass", "memberships and passes"),
+    counts.classes > 0 && plural(counts.classes, "class booking", "class bookings"),
+    counts.treatments > 0 && `${plural(counts.treatments, "treatment", "treatments")} — moved to the Trash, restorable for 30 days`,
+    counts.calendar > 0 && plural(counts.calendar, "calendar entry", "calendar entries"),
+  ].filter(Boolean) as string[];
+  const ready = typed.trim().toUpperCase() === "DELETE";
+
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => { if (!o && !busy) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <p>This removes the client from Clients along with:</p>
+              {lines.length > 0 ? (
+                <ul className="list-disc pl-5 space-y-1">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
+              ) : (
+                <p>Nothing else is on file for them.</p>
+              )}
+              <p>
+                Use it for test entries and people who should not be here. A real client's
+                history is usually worth keeping — for someone who only needs to stop signing
+                in, use Suspend or Delete account instead.
+              </p>
+              <label htmlFor="confirm-delete-client" className="block font-medium text-foreground">
+                Type DELETE to confirm
+              </label>
+              <Input
+                id="confirm-delete-client"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+              />
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy || !ready}
+            onClick={(e) => { e.preventDefault(); if (ready) onConfirm(); }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {busy ? "Deleting…" : "Delete client"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 /** "Are you sure?" for suspending and deleting a login. */
 export function ConfirmAccountAction({
   open, title, body, confirmLabel, destructive, busy, onConfirm, onCancel,

@@ -44,7 +44,14 @@ export function ClientsDirectory() {
   const list = useMemo(() => visibleClients(rows ?? [], query, filter), [rows, query, filter]);
 
   if (openKey) {
-    return <ClientProfile clientKey={openKey} onClose={() => setOpenKey(null)} onChanged={onChanged} />;
+    return (
+      <ClientProfile
+        clientKey={openKey}
+        onClose={() => setOpenKey(null)}
+        onChanged={onChanged}
+        onDeleted={() => { setOpenKey(null); setVersion((v) => v + 1); }}
+      />
+    );
   }
 
   return (

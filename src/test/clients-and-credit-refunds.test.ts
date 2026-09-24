@@ -184,3 +184,40 @@ describe("the phone box on the Memberships edit form", () => {
     expect(manager).toMatch(/_phone: phoneToSave\(form\.phone, row\.guest_phone\)/);
   });
 });
+
+describe("deleting a client altogether", () => {
+  const sql = strip(read("supabase/migrations/20260925130000_admin_delete_client.sql"));
+  const body = sql.slice(sql.indexOf("function public.admin_delete_client"));
+
+  it("is staff only and closed to the public", () => {
+    expect(body).toMatch(/has_role\(auth\.uid\(\), 'super_admin'\) or has_role\(auth\.uid\(\), 'manager'\)/);
+    expect(sql).toMatch(/revoke all on function public\.admin_delete_client\(text\) from public, anon/);
+  });
+
+  it("never deletes a staff member, and a website login only after it is removed", () => {
+    expect(body).toMatch(/This is a staff account/);
+    expect(body).toMatch(/delete the account first/);
+  });
+
+  it("sends treatments to the Trash rather than deleting them", () => {
+    expect(body).toMatch(/perform public\.soft_delete_booking\(v_id\)/);
+    expect(body).not.toMatch(/delete from public\.bookings/);
+  });
+
+  it("tells a teacher about a spot opening in a class to come, but not about past classes", () => {
+    const upcoming = body.indexOf("cs.start_time > now()");
+    const quiet = body.indexOf("set_config('holis.quiet_teacher_notify', 'on', true)");
+    expect(upcoming).toBeGreaterThan(0);
+    expect(upcoming).toBeLessThan(quiet);
+  });
+
+  it("the teacher trigger honours the quiet switch before anything else", () => {
+    const trg = sql.slice(sql.indexOf("function public.notify_teacher_event"));
+    expect(trg.indexOf("holis.quiet_teacher_notify")).toBeLessThan(trg.indexOf("tg_table_name"));
+  });
+
+  it("correcting a client's details no longer emails their teachers", () => {
+    const upd = sql.slice(sql.indexOf("function public.admin_update_client_contact"), sql.indexOf("function public.admin_delete_client"));
+    expect(upd.indexOf("'on', true")).toBeLessThan(upd.indexOf("update public.class_bookings"));
+  });
+});

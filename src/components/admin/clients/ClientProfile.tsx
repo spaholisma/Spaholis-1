@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Globe, UserPlus, Mail, Phone, Pencil, Ban, RotateCcw, Trash2, KeyRound, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Globe, UserPlus, Mail, Phone, Pencil, Ban, RotateCcw, Trash2, KeyRound, ShieldCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCRC } from "@/lib/currency";
 import { displayName, shortDate } from "./clientDirectory";
-import { ClientDetailsDialog, ConfirmAccountAction } from "./ClientDialogs";
-import { deleteAccount, suspendAccount, unsuspendAccount } from "./clientAccounts";
+import { ClientDetailsDialog, ConfirmAccountAction, DeleteClientDialog } from "./ClientDialogs";
+import { deleteAccount, deleteClient, suspendAccount, unsuspendAccount } from "./clientAccounts";
 
 type History = {
   person: {
@@ -44,12 +44,14 @@ const timeOf = (iso: string | null) =>
 // From here staff can also look after the person: correct their details,
 // give them a website account, suspend it, or delete it.
 export function ClientProfile({
-  clientKey, onClose, onChanged,
+  clientKey, onClose, onChanged, onDeleted,
 }: {
   clientKey: string;
   onClose: () => void;
   /** Something about them changed; `newKey` is where they are found now. */
   onChanged?: (newKey: string) => void;
+  /** They are gone: back to the list, read again. */
+  onDeleted?: () => void;
 }) {
   const [data, setData] = useState<History | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function ClientProfile({
   const [dialog, setDialog] = useState<null | "edit" | "create">(null);
   const [confirm, setConfirm] = useState<null | "suspend" | "unsuspend" | "delete">(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -93,6 +96,24 @@ export function ClientProfile({
   // Staff logins are never changed from here.
   const isStaff = !!p.is_staff;
   const first = displayName(p).split(/\s+/)[0];
+
+  const runDeleteClient = async () => {
+    setBusy(true);
+    try {
+      const out = await deleteClient(clientKey, userId);
+      toast.success(
+        out.treatments > 0
+          ? `${first} was deleted — their treatments are in the Trash for 30 days`
+          : `${first} was deleted`,
+      );
+      setDeleting(false);
+      (onDeleted ?? onClose)();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not delete this client");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const runAccountAction = async () => {
     if (!confirm || !userId) return;
@@ -187,6 +208,9 @@ export function ClientProfile({
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete account
               </Button>
             )}
+            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
+              <UserX className="h-3.5 w-3.5 mr-1.5" /> Delete client
+            </Button>
           </div>
         )}
 
@@ -277,6 +301,20 @@ export function ClientProfile({
         userId={userId}
         onClose={() => setDialog(null)}
         onSaved={changed}
+      />
+      <DeleteClientDialog
+        open={deleting}
+        name={displayName(p)}
+        hasAccount={!!userId}
+        counts={{
+          memberships: data.memberships.length,
+          classes: data.classes.length,
+          treatments: data.treatments.length,
+          calendar: data.calendar.length,
+        }}
+        busy={busy}
+        onConfirm={runDeleteClient}
+        onCancel={() => setDeleting(false)}
       />
       <ConfirmAccountAction
         open={confirm !== null}

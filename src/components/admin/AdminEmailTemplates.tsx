@@ -41,9 +41,11 @@ const CATEGORY_LABEL: Record<string, string> = {
   receipts: "Receipts (purchase & refund)",
   appointment_request: "Appointment requests (staff + client)",
   loyalty: "Loyalty rewards (renewal progress & earned)",
+  cancellation: "Treatment cancellations",
+  account: "Website accounts",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "client_notify", "offering_expired", "receipts", "appointment_request"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "cancellation", "client_notify", "offering_expired", "receipts", "appointment_request", "account"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -57,6 +59,8 @@ const CATEGORY_VARS: Record<string, string[]> = {
   receipts: ["guest_name", "amount", "paid_to", "concept", "date", "reference", "receipt_box"],
   appointment_request: ["therapy", "guest_name", "preferred_datetime", "preferred_line", "phone", "email", "notes", "details"],
   loyalty: ["guest_name", "offering_name", "purchases", "threshold", "remaining", "reward_label", "details", "button"],
+  cancellation: ["guest_name", "reservation_id", "service_name", "date", "time", "total", "fee", "details", "cancel_note", "policy"],
+  account: ["first_name", "guest_name", "button"],
 };
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -158,6 +162,23 @@ function sampleVars(category: string): Record<string, string> {
       phone: "8888-8888", email: "ana@email.com", notes: "", details,
     };
   }
+  if (category === "cancellation") {
+    const details = table([
+      row("Reservation ID", "A1B2C3D4"), row("Service", "Relaxing Massage"),
+      row("Was booked for", "Monday, July 20, 2026 at 10:00"), row("Booking total", "$72.00"),
+      row("Cancellation fee", "50% — $36.00"),
+    ]);
+    const cancel_note = `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">Your cancellation request reached us on <strong>Friday, July 17, 2026 at 9:00 AM</strong> (Costa Rica time) — more than 48 hours before your appointment. 50% of the total ($36.00) will be charged to the card on file.</p>`;
+    return {
+      guest_name: "Ana", reservation_id: "A1B2C3D4", service_name: "Relaxing Massage",
+      date: "Monday, July 20, 2026", time: "10:00", total: "$72.00", fee: "50% — $36.00",
+      details, cancel_note,
+    };
+  }
+  if (category === "account") {
+    const button = `<a href="#" style="display:inline-block;background:#2F2F2F;border:1px solid #2F2F2F;color:#ffffff;padding:12px 20px;border-radius:6px;font-size:15px;line-height:1.2;text-decoration:none;">Choose my password</a>`;
+    return { first_name: "Ana", guest_name: "Ana López", button };
+  }
   if (category === "loyalty") {
     const details = table([
       row("Membership", "Monthly Unlimited"), row("Renewals so far", "2"),
@@ -188,7 +209,9 @@ function sampleVars(category: string): Record<string, string> {
 /** Same block the edge function appends — see policyBlock() there. */
 function samplePolicy(category: string): string {
   const treatment = category === "treatment";
-  const lines = treatment ? [...RULE_LINES, CHANGES_LINE] : CLASS_POLICY_LINES;
+  // A cancellation email carries the treatment rule, without a deadline or a
+  // Cancel button — the appointment is already cancelled.
+  const lines = category === "class" ? CLASS_POLICY_LINES : [...RULE_LINES, CHANGES_LINE];
   const items = lines.map((l) => `<li style="margin:0 0 6px;">${escHtml(l)}</li>`).join("");
   // A treatment confirmation opens with the guest's own deadline (48 hours
   // before their appointment) and ends with how the Cancel button works.
@@ -203,11 +226,11 @@ function samplePolicy(category: string): string {
 
 function buildPreview(tpl: { heading: string; body_html: string }, category: string): string {
   const raw = sampleVars(category);
-  const hasPolicy = category === "treatment" || category === "class";
+  const hasPolicy = category === "treatment" || category === "class" || category === "cancellation";
   if (hasPolicy) raw.policy = samplePolicy(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty", "policy"].includes(k) ? v : escHtml(v);
+  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty", "policy", "cancel_note"].includes(k) ? v : escHtml(v);
   const body = interpolate(tpl.body_html, vars);
   // Booking emails always carry the policy; a template that does not place
   // {{policy}} gets it at the end, exactly as the server sends it.
@@ -434,7 +457,7 @@ export function AdminEmailTemplates() {
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-mono">{`{{details}}`}</span> and <span className="font-mono">{`{{button}}`}</span> expand
                     to the booking details table and the action button automatically.
-                    {(editing.category === "treatment" || editing.category === "class") && (
+                    {(editing.category === "treatment" || editing.category === "class" || editing.category === "cancellation") && (
                       <> <span className="font-mono">{`{{policy}}`}</span> is the cancellation policy
                       {editing.category === "treatment" ? " with the Cancel my appointment link" : ""} — it is
                       added at the end of the email if you do not place it yourself.</>
