@@ -86,7 +86,12 @@ export function AdminOfferingsManager() {
       price: Number(editing.price ?? 0),
       currency: editing.currency || "CRC",
       credits: editing.type === "class_pass" ? Number(editing.credits ?? 0) : null,
-      duration_days: editing.type === "membership" ? Number(editing.duration_days ?? 0) || null : null,
+      // How long it lasts. A class pass may have one too ("5 classes valid for
+      // 30 days"); empty means it never expires. It used to be wiped here on
+      // every save of anything but a membership.
+      duration_days: editing.type === "membership" || editing.type === "class_pass"
+        ? Number(editing.duration_days ?? 0) || null
+        : null,
       is_unlimited: editing.type === "membership" ? !!editing.is_unlimited : false,
       status: editing.status || "active",
       sort_order: Number(editing.sort_order ?? 0),
@@ -203,7 +208,7 @@ export function AdminOfferingsManager() {
                         <td className="px-5 py-4 font-body text-sm text-foreground">{formatCRC(o.price)}</td>
                         <td className="px-5 py-4 font-body text-sm text-muted-foreground">
                           {o.is_unlimited ? "Unlimited" :
-                           o.type === "class_pass" ? `${o.credits ?? 0} credits` :
+                           o.type === "class_pass" ? `${o.credits ?? 0} credits${o.duration_days ? ` · ${o.duration_days} days` : ""}` :
                            o.type === "membership" ? `${o.duration_days ?? 0} days` : "—"}
                         </td>
                         <td className="px-5 py-4">
@@ -289,10 +294,27 @@ export function AdminOfferingsManager() {
               </div>
 
               {editing.type === "class_pass" && (
-                <div>
-                  <label className="font-body text-sm font-medium mb-1.5 block">Credits (# of classes)</label>
-                  <Input type="number" min="1" value={editing.credits ?? 0} onChange={(e) => setEditing({ ...editing, credits: Number(e.target.value) })} />
-                </div>
+                <>
+                  <div>
+                    <label className="font-body text-sm font-medium mb-1.5 block">Credits (# of classes)</label>
+                    <Input type="number" min="1" value={editing.credits ?? 0} onChange={(e) => setEditing({ ...editing, credits: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <label htmlFor="pass-valid-days" className="font-body text-sm font-medium mb-1.5 block">Valid for (days)</label>
+                    <Input
+                      id="pass-valid-days"
+                      type="number"
+                      min="1"
+                      placeholder="Never expires"
+                      value={editing.duration_days ?? ""}
+                      onChange={(e) => setEditing({ ...editing, duration_days: e.target.value === "" ? null : Number(e.target.value) })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Counted from the day the pass starts. When it passes, the pass stops working and the
+                      customer gets the expiry email. Empty = never expires. Changing it affects passes sold from now on.
+                    </p>
+                  </div>
+                </>
               )}
 
               {editing.type === "membership" && (

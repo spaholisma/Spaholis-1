@@ -53,7 +53,7 @@ describe("after choosing a password", () => {
 
   it("copies the address before the Supabase client can tidy it away", () => {
     const main = read("src/main.tsx");
-    const first = main.split("\n").find((l) => l.startsWith("import"));
+    const first = main.split(/\r?\n/).find((l) => l.startsWith("import"));
     expect(first).toBe('import "./lib/initialUrl";');
     expect(read("src/lib/initialUrl.ts")).not.toMatch(/^import /m);
   });
