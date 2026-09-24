@@ -164,9 +164,16 @@ describe("the search box", () => {
   });
 
   it("opens the highlighted result with the keyboard", async () => {
+    // Results are ordered by closeness to today, so the dates have to be taken
+    // from today — fixed dates reorder themselves as the calendar moves on.
+    const inDays = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
     entryRows = [
-      entry({ id: "a", title: "First one", entry_date: "2026-09-21" }),
-      entry({ id: "b", title: "Second one", entry_date: "2026-09-22" }),
+      entry({ id: "a", title: "First one", entry_date: inDays(1) }),
+      entry({ id: "b", title: "Second one", entry_date: inDays(2) }),
     ];
     const onPick = vi.fn();
     render(<CalendarSearch calendarType="treatment" onPick={onPick} />);
