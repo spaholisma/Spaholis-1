@@ -20,9 +20,11 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMyOfferings, type UserOffering } from "@/hooks/useOfferings";
+import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hooks/useOfferings";
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
-import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
+import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
+import { toE164 } from "@/lib/phone";
+import { cardTotal, isFreeWithCoupon, looksLikePassCode } from "@/lib/classCheckout";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
@@ -70,6 +72,10 @@ const ClassBookingPage = () => {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  // A pass code typed in the coupon box: waiting to see whether its pass
+  // covers this class.
+  const [pendingPassCode, setPendingPassCode] = useState<string | null>(null);
+  const invalidateOfferings = useInvalidateOfferings();
   // How many spots to book at once (e.g. bringing friends). Multi-spot always
   // pays by card — memberships/credits are personal and stay at one spot.
   const [quantity, setQuantity] = useState(1);
@@ -124,6 +130,53 @@ const ClassBookingPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenOffering]);
+
+  // Signed in: fill in what their account already knows, so they do not
+  // retype it. Anything already typed (or taken from a pass link) wins.
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles").select("full_name, email, phone").eq("user_id", user.id).maybeSingle();
+      if (!live) return;
+      setFormData((f) => (f.name || f.email ? f : {
+        name: (data as any)?.full_name || (user.user_metadata as any)?.full_name || "",
+        email: (data as any)?.email || user.email || "",
+        phone: toE164((data as any)?.phone) || f.phone,
+      }));
+    })();
+    return () => { live = false; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Signed in: a pass the studio sold them at the desk is filed under their
+  // email, not their account — bring it into the account so it can be used
+  // here (link_my_offerings only takes passes nobody owns yet).
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc("link_my_offerings" as any).then(({ data, error }) => {
+      if (!error && Number(data) > 0) invalidateOfferings();
+    });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A pass code was typed: once its pass has loaded, use it — or say why not.
+  useEffect(() => {
+    if (!pendingPassCode || tokenQuery.isFetching) return;
+    if (!tokenOffering) return;
+    setPendingPassCode(null);
+    if (tokenEligible) {
+      setUseLinkMembership(true);
+      setPayMethod(tokenMethod);
+      setSelectedOfferingId(null);
+      setAppliedCoupon(null);
+      setCouponCode("");
+      toast.success(`${tokenOffering.name_snapshot} applied — this class is covered.`);
+    } else if (!tokenOffering.valid) {
+      toast.error(`${tokenOffering.name_snapshot} has no classes left or has expired.`);
+    } else {
+      toast.error(`${tokenOffering.name_snapshot} does not cover ${cls?.title ?? "this class"}.`);
+    }
+  }, [pendingPassCode, tokenOffering, tokenQuery.isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // For the entitlements panel: what the user owns but can't use here
   const ineligibleOwned = myOfferings.filter(
@@ -693,7 +746,7 @@ const ClassBookingPage = () => {
 
                       {payMethod === "card" && !fullPriceOnly && (
                         <div className="bg-card rounded-2xl border border-border p-4 mt-2 space-y-2">
-                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon?</label>
+                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon or a pass code?</label>
                           <div className="flex gap-2">
                             <Input
                               value={couponCode}
@@ -711,8 +764,25 @@ const ClassBookingPage = () => {
                                 onClick={async () => {
                                   setValidatingCoupon(true);
                                   const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
+                                  if (!res.valid) {
+                                    // Not a coupon — perhaps the code of a pass or membership.
+                                    // It needs the email the pass was sold to, so a code alone
+                                    // cannot open someone else's pass.
+                                    const { data: token } = await supabase.rpc("membership_token_for_code" as any, {
+                                      _code: couponCode.trim(), _email: formData.email.trim(),
+                                    });
+                                    setValidatingCoupon(false);
+                                    if (typeof token === "string" && token) {
+                                      setPendingPassCode(couponCode.trim().toUpperCase());
+                                      storeMembershipToken(token);
+                                      return;
+                                    }
+                                    toast.error(looksLikePassCode(couponCode)
+                                      ? `We could not find an active pass with that code for ${formData.email.trim() || "this email"}. Use the email the pass was sold to.`
+                                      : (res.reason || "Invalid coupon"));
+                                    return;
+                                  }
                                   setValidatingCoupon(false);
-                                  if (!res.valid) { toast.error(res.reason || "Invalid coupon"); return; }
                                   const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
                                   setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
                                   toast.success(`Coupon applied: ${label}`);
@@ -749,13 +819,22 @@ const ClassBookingPage = () => {
                           <span className="font-body text-sm font-semibold text-foreground">Total</span>
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
-                              ? formatPrice(Math.max(0, quantity * Number(cls.price) - (appliedCoupon?.discount ?? 0)))
+                              ? formatPrice(cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>
                       </div>
 
-                      {payMethod === "card" ? (
+                      {isFreeWithCoupon({
+                        payMethod, multi, hasCoupon: !!appliedCoupon,
+                        total: cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0),
+                      }) ? (
+                        // Nothing to pay: PayPal cannot take $0, so book it here.
+                        // The server checks the coupon again before confirming.
+                        <Button className="w-full" onClick={handleCardCheckout} disabled={submitting || !formData.name || !formData.email}>
+                          {submitting ? t("booking.booking") : t("booking.confirmBooking")}
+                        </Button>
+                      ) : payMethod === "card" ? (
                         <PayPalCheckout
                           disabled={!formData.name || !formData.email}
                           createOrderBody={() =>
