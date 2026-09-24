@@ -15,6 +15,10 @@ export type ClientRow = {
   memberships: number;
   memberships_active: number;
   total_value: number | string | null;
+  /** Their website login, when they have one. */
+  user_id?: string | null;
+  /** The login is blocked from signing in. */
+  suspended?: boolean;
 };
 
 export type ClientFilter = "all" | "account" | "staff" | "active";

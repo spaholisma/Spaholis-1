@@ -122,3 +122,65 @@ describe("every client, in one place", () => {
     expect(dashboard).not.toMatch(/from\("profiles"\)\.select\("\*"\)\.order\("created_at"/);
   });
 });
+
+describe("looking after a client's account", () => {
+  const sql = strip(read("supabase/migrations/20260925120000_admin_client_accounts.sql"));
+  const fn = read("supabase/functions/admin-clients/index.ts");
+  const fnOf = (name: string) => sql.slice(sql.indexOf(`function public.${name}`)).slice(0, 4000);
+
+  it("every database step is staff only, and closed to the public", () => {
+    for (const name of ["admin_update_client_contact", "admin_link_records_to_account", "admin_detach_client_account"]) {
+      expect(fnOf(name)).toMatch(/has_role\(auth\.uid\(\), 'super_admin'\) or has_role\(auth\.uid\(\), 'manager'\)/);
+      expect(sql).toMatch(new RegExp(`revoke all on function public\\.${name}\\([^)]*\\) from public, anon`));
+    }
+  });
+
+  it("corrects a client on everything of theirs — but not on bookings an account made for someone else", () => {
+    const body = fnOf("admin_update_client_contact");
+    expect(body).toMatch(/where client_key = _key/);
+    expect(body).toMatch(/user_id = _user_id\s+and client_key = public\.client_key\(v_email, v_phone, v_name\)/);
+  });
+
+  it("never lets staff delete their own login or another staff member's", () => {
+    const body = fnOf("admin_detach_client_account");
+    expect(body).toMatch(/_user_id = auth\.uid\(\)/);
+    expect(body).toMatch(/from public\.user_roles where user_id = _user_id/);
+  });
+
+  it("keeps who they were on their history before the login goes", () => {
+    const body = fnOf("admin_detach_client_account");
+    expect(body).toMatch(/guest_email\s*=\s*coalesce\(/);
+  });
+
+  it("the function checks the caller is staff before anything else", () => {
+    expect(fn.indexOf("r.role === \"super_admin\" || r.role === \"manager\"")).toBeLessThan(fn.indexOf("req.json()"));
+    expect(fn).toMatch(/if \(!isAdmin\) return json\(\{ ok: false, reason: "forbidden" \}, 403\)/);
+  });
+
+  it("guards staff, teachers and the caller's own login", () => {
+    expect(fn).toMatch(/userId === callerId/);
+    expect(fn).toMatch(/from\("user_roles"\)\.select\("user_id"\)\.eq\("user_id", userId\)/);
+    expect(fn).toMatch(/from\("teachers"\)/);
+  });
+
+  it("never sets or reveals a password — the client chooses theirs from an email", () => {
+    expect(fn).not.toMatch(/password\s*:/);
+    expect(fn).toMatch(/generateLink\(\{\s*type: "recovery"/);
+    expect(fn).toMatch(/redirectTo: `\$\{SITE_URL\}\/reset-password`/);
+  });
+
+  it("suspends without deleting, and deletes only after the history is kept", () => {
+    expect(fn).toMatch(/ban_duration: action === "suspend" \? SUSPEND_FOR : "none"/);
+    expect(fn.indexOf("admin_detach_client_account")).toBeLessThan(fn.indexOf("deleteUser"));
+  });
+});
+
+describe("the phone box on the Memberships edit form", () => {
+  const manager = read("src/components/admin/AdminOfferingsManager.tsx");
+
+  it("uses the country picker, and never loses an old number", () => {
+    expect(manager).toMatch(/<ContactPhoneField value=\{form\.phone\}/);
+    expect(manager).toMatch(/phone: initialPhone\(row\.guest_phone\)/);
+    expect(manager).toMatch(/_phone: phoneToSave\(form\.phone, row\.guest_phone\)/);
+  });
+});

@@ -17,6 +17,7 @@ import { useOfferings, useInvalidateOfferings, type Offering, type OfferingType 
 import { useOfferingEligibleClasses, useInvalidateEligibility } from "@/hooks/useOfferingEligibility";
 import { useClasses } from "@/hooks/useClasses";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContactPhoneField, initialPhone, phoneProblem, phoneToSave } from "@/components/admin/ContactPhoneField";
 
 const TYPE_LABEL: Record<OfferingType, string> = {
   membership: "Membership",
@@ -595,7 +596,7 @@ function EditContactDialog({ row, onClose, onDone }: { row: any | null; onClose:
     setForm({
       name: row.guest_name || row.customerName || "",
       email: row.guest_email || row.customerEmail || "",
-      phone: row.guest_phone || "",
+      phone: initialPhone(row.guest_phone),
       notes: row.notes || "",
     });
   }, [row]);
@@ -604,13 +605,15 @@ function EditContactDialog({ row, onClose, onDone }: { row: any | null; onClose:
 
   const save = async () => {
     if (!form.name.trim()) { toast.error("The customer's name is required"); return; }
+    const badPhone = phoneProblem(form.phone);
+    if (badPhone) { toast.error(badPhone); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase.rpc("admin_update_offering_contact" as any, {
         _id: row.id,
         _name: form.name,
         _email: form.email,
-        _phone: form.phone,
+        _phone: phoneToSave(form.phone, row.guest_phone),
         _notes: form.notes,
       });
       if (error) throw error;
@@ -643,7 +646,7 @@ function EditContactDialog({ row, onClose, onDone }: { row: any | null; onClose:
           </div>
           <div>
             <label className="font-body text-sm font-medium mb-1.5 block">Phone</label>
-            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} maxLength={30} />
+            <ContactPhoneField value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} onFile={row.guest_phone} />
           </div>
           <div>
             <label className="font-body text-sm font-medium mb-1.5 block">Notes</label>

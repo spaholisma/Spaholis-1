@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Globe, UserPlus, Mail, Phone } from "lucide-react";
+import { ArrowLeft, Globe, UserPlus, Mail, Phone, Pencil, Ban, RotateCcw, Trash2, KeyRound, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCRC } from "@/lib/currency";
 import { displayName, shortDate } from "./clientDirectory";
+import { ClientDetailsDialog, ConfirmAccountAction } from "./ClientDialogs";
+import { deleteAccount, suspendAccount, unsuspendAccount } from "./clientAccounts";
 
 type History = {
   person: {
     name: string | null; email: string | null; phone: string | null;
     has_account: boolean; account_since: string | null; first_seen: string | null;
+    user_id?: string | null; suspended?: boolean; last_sign_in?: string | null; is_staff?: boolean;
   } | null;
   memberships: any[];
   classes: any[];
@@ -36,17 +40,40 @@ const timeOf = (iso: string | null) =>
 // Everything the studio knows about one person: who they are, every membership
 // and pass they have had (and what is left on it), every class, every treatment,
 // and what they have spent — whether or not they have a website account.
-export function ClientProfile({ clientKey, onClose }: { clientKey: string; onClose: () => void }) {
+//
+// From here staff can also look after the person: correct their details,
+// give them a website account, suspend it, or delete it.
+export function ClientProfile({
+  clientKey, onClose, onChanged,
+}: {
+  clientKey: string;
+  onClose: () => void;
+  /** Something about them changed; `newKey` is where they are found now. */
+  onChanged?: (newKey: string) => void;
+}) {
   const [data, setData] = useState<History | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const [dialog, setDialog] = useState<null | "edit" | "create">(null);
+  const [confirm, setConfirm] = useState<null | "suspend" | "unsuspend" | "delete">(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let live = true;
     (async () => {
       const { data, error } = await supabase.rpc("admin_client_history" as any, { _key: clientKey });
+      if (!live) return;
       if (error) { setError(error.message); return; }
+      setError(null);
       setData(data as History);
     })();
-  }, [clientKey]);
+    return () => { live = false; };
+  }, [clientKey, version]);
+
+  const changed = (newKey: string) => {
+    if (newKey === clientKey) setVersion((v) => v + 1);
+    onChanged?.(newKey);
+  };
 
   if (error) {
     return (
@@ -61,6 +88,34 @@ export function ClientProfile({ clientKey, onClose }: { clientKey: string; onClo
   }
 
   const p = data.person ?? { name: null, email: null, phone: null, has_account: false, account_since: null, first_seen: null };
+  const userId = p.has_account ? p.user_id ?? null : null;
+  const suspended = !!p.suspended;
+  // Staff logins are never changed from here.
+  const isStaff = !!p.is_staff;
+  const first = displayName(p).split(/\s+/)[0];
+
+  const runAccountAction = async () => {
+    if (!confirm || !userId) return;
+    setBusy(true);
+    try {
+      if (confirm === "suspend") {
+        await suspendAccount(userId);
+        toast.success(`${first} can no longer sign in`);
+      } else if (confirm === "unsuspend") {
+        await unsuspendAccount(userId);
+        toast.success(`${first} can sign in again`);
+      } else {
+        await deleteAccount(userId);
+        toast.success("Website account deleted — their history stays here");
+      }
+      setConfirm(null);
+      changed(clientKey);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not complete that");
+    } finally {
+      setBusy(false);
+    }
+  };
   const classesDone = data.classes.filter((c) => !CANCELLED.has(c.status));
   const treatmentsDone = data.treatments.filter((t) => !CANCELLED.has(t.status));
   const activeMemberships = data.memberships.filter((m) => m.status === "active");
@@ -84,15 +139,56 @@ export function ClientProfile({ clientKey, onClose }: { clientKey: string; onClo
               {!p.email && !p.phone && <div>No contact details on file</div>}
             </div>
           </div>
-          <div className="text-right space-y-1">
-            {p.has_account ? (
-              <Badge variant="secondary" className="gap-1"><Globe className="h-3 w-3" /> Website account since {shortDate(p.account_since)}</Badge>
-            ) : (
-              <Badge variant="outline" className="gap-1"><UserPlus className="h-3 w-3" /> Registered by staff</Badge>
-            )}
+          <div className="sm:text-right space-y-1">
+            <div className="flex flex-wrap sm:justify-end gap-1">
+              {p.has_account ? (
+                <Badge variant="secondary" className="gap-1"><Globe className="h-3 w-3" /> Website account since {shortDate(p.account_since)}</Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1"><UserPlus className="h-3 w-3" /> Registered by staff</Badge>
+              )}
+              {suspended && <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" /> Suspended</Badge>}
+              {isStaff && <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" /> Staff</Badge>}
+            </div>
             <p className="text-xs text-muted-foreground font-body">Client since {shortDate(p.first_seen)}</p>
+            {p.has_account && (
+              <p className="text-xs text-muted-foreground font-body">
+                Last sign-in {p.last_sign_in ? shortDate(p.last_sign_in) : "never"}
+              </p>
+            )}
           </div>
         </div>
+
+        {/* What staff can do for them */}
+        {isStaff ? (
+          <p className="mt-4 text-xs text-muted-foreground font-body">
+            This is a staff login — it cannot be edited, suspended or deleted from Clients.
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setDialog("edit")}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+            </Button>
+            {!p.has_account && (
+              <Button size="sm" variant="outline" onClick={() => setDialog("create")}>
+                <KeyRound className="h-3.5 w-3.5 mr-1.5" /> Create website account
+              </Button>
+            )}
+            {userId && (suspended ? (
+              <Button size="sm" variant="outline" onClick={() => setConfirm("unsuspend")}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reactivate account
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setConfirm("suspend")}>
+                <Ban className="h-3.5 w-3.5 mr-1.5" /> Suspend account
+              </Button>
+            ))}
+            {userId && (
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirm("delete")}>
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete account
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
           {[
@@ -172,6 +268,36 @@ export function ClientProfile({ clientKey, onClose }: { clientKey: string; onClo
           </Table>
         </Section>
       )}
+
+      <ClientDetailsDialog
+        open={dialog !== null}
+        mode={dialog ?? "edit"}
+        person={p}
+        clientKey={clientKey}
+        userId={userId}
+        onClose={() => setDialog(null)}
+        onSaved={changed}
+      />
+      <ConfirmAccountAction
+        open={confirm !== null}
+        busy={busy}
+        destructive={confirm === "delete"}
+        title={
+          confirm === "delete" ? `Delete ${first}'s website account?`
+            : confirm === "suspend" ? `Suspend ${first}'s account?`
+              : `Reactivate ${first}'s account?`
+        }
+        body={
+          confirm === "delete"
+            ? "They will no longer be able to sign in, and the login cannot be recovered. Their memberships, passes, classes and treatments stay here under their name, and staff can still book them. You can create a new account for them later."
+            : confirm === "suspend"
+              ? "They will not be able to sign in to the website until you reactivate it. Nothing is deleted: their memberships, passes and bookings stay exactly as they are."
+              : "They will be able to sign in to the website again."
+        }
+        confirmLabel={confirm === "delete" ? "Delete account" : confirm === "suspend" ? "Suspend" : "Reactivate"}
+        onConfirm={runAccountAction}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   );
 }

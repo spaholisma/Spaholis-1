@@ -91,11 +91,17 @@ describe("the order", () => {
 
 // ── the screen ─────────────────────────────────────────────────────────────
 const rpc = vi.fn();
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...a: any[]) => rpc(...a) } }));
+const invoke = vi.fn();
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rpc: (...a: any[]) => rpc(...a),
+    functions: { invoke: (...a: any[]) => invoke(...a) },
+  },
+}));
 
 import { ClientsDirectory } from "./ClientsDirectory";
 
-beforeEach(() => rpc.mockReset());
+beforeEach(() => { rpc.mockReset(); invoke.mockReset(); });
 
 describe("the Clients screen", () => {
   it("lists people with no website account, marked as registered by staff", async () => {
@@ -158,5 +164,117 @@ describe("the Clients screen", () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: "Not authorized" } });
     render(<ClientsDirectory />);
     await waitFor(() => expect(screen.getByText("Not authorized")).toBeTruthy());
+  });
+});
+
+// ── looking after a client ─────────────────────────────────────────────────
+const history = (person: Record<string, unknown>) => ({
+  data: {
+    person: {
+      name: "Sophia Wisdom", email: "sophy@example.com", phone: null, has_account: true,
+      account_since: "2026-08-01T10:00:00Z", first_seen: "2026-08-01T10:00:00Z",
+      user_id: "3ce38398-7e2a-4412-bdfc-87e59d4b1662", suspended: false, last_sign_in: null, is_staff: false,
+      ...person,
+    },
+    memberships: [], classes: [], treatments: [], calendar: [],
+  },
+  error: null,
+});
+
+// Answers each database call by name, as often as the screen asks.
+function database(person: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  rpc.mockImplementation(async (fn: string) => {
+    if (fn === "admin_client_directory") {
+      return { data: [row({ client_key: "sophy@example.com", name: "Sophia Wisdom", has_account: !!person.has_account })], error: null };
+    }
+    if (fn === "admin_client_history") return history(person);
+    return { data: extra[fn] ?? null, error: null };
+  });
+}
+
+async function openProfile(person: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  database(person, extra);
+  render(<ClientsDirectory />);
+  await waitFor(() => screen.getByText("Sophia Wisdom"));
+  fireEvent.click(screen.getByText("Sophia Wisdom"));
+  await waitFor(() => screen.getByText("No classes booked."));
+}
+
+describe("managing a client's account", () => {
+  it("marks a suspended login in the list", async () => {
+    rpc.mockResolvedValueOnce({ data: [row({ client_key: "k", name: "Blocked Person", has_account: true, suspended: true })], error: null });
+    render(<ClientsDirectory />);
+    await waitFor(() => screen.getByText("Blocked Person"));
+    expect(screen.getByText("Suspended")).toBeTruthy();
+  });
+
+  it("can open a new client account from the list", async () => {
+    rpc.mockResolvedValueOnce({ data: [], error: null });
+    render(<ClientsDirectory />);
+    await waitFor(() => screen.getByText("No clients match."));
+    fireEvent.click(screen.getByRole("button", { name: "New client account" }));
+    await waitFor(() => expect(screen.getByText(/choose their own password/)).toBeTruthy());
+    expect(screen.getByText("Email them a link to choose their password")).toBeTruthy();
+  });
+
+  it("offers edit, suspend and delete on a website account", async () => {
+    await openProfile({ has_account: true });
+    expect(screen.getByRole("button", { name: /Edit/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Suspend account/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Delete account/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Create website account/ })).toBeNull();
+  });
+
+  it("offers to create an account for someone registered by staff", async () => {
+    await openProfile({ has_account: false, user_id: null });
+    expect(screen.getByRole("button", { name: /Create website account/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Suspend account/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Delete account/ })).toBeNull();
+  });
+
+  it("offers to reactivate a suspended account", async () => {
+    await openProfile({ has_account: true, suspended: true });
+    expect(screen.getByRole("button", { name: /Reactivate account/ })).toBeTruthy();
+  });
+
+  it("never lets a staff login be changed from here", async () => {
+    await openProfile({ has_account: true, is_staff: true });
+    expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Delete account/ })).toBeNull();
+    expect(screen.getByText(/staff login/)).toBeTruthy();
+  });
+
+  it("asks before suspending, then asks the server to do it", async () => {
+    await openProfile({ has_account: true });
+    invoke.mockResolvedValueOnce({ data: { ok: true, suspended: true }, error: null });
+
+    fireEvent.click(screen.getByRole("button", { name: /Suspend account/ }));
+    await waitFor(() => screen.getByText("Suspend Sophia's account?"));
+    expect(invoke).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("admin-clients", {
+      body: { action: "suspend", user_id: "3ce38398-7e2a-4412-bdfc-87e59d4b1662" },
+    }));
+  });
+
+  it("edits the details through the database, and the login too for an account", async () => {
+    await openProfile({ has_account: true }, { admin_update_client_contact: { client_key: "sophy@example.com" } });
+    invoke.mockResolvedValueOnce({ data: { ok: true }, error: null });
+
+    fireEvent.click(screen.getByRole("button", { name: /Edit/ }));
+    const name = await screen.findByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Sophia W." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_update_client_contact", {
+      _key: "sophy@example.com", _name: "Sophia W.", _email: "sophy@example.com", _phone: "",
+      _user_id: "3ce38398-7e2a-4412-bdfc-87e59d4b1662",
+    }));
+    // The login is updated first, so a taken email stops everything.
+    expect(invoke.mock.invocationCallOrder[0]).toBeLessThan(
+      rpc.mock.invocationCallOrder[rpc.mock.calls.findIndex((c) => c[0] === "admin_update_client_contact")],
+    );
+    expect(invoke.mock.calls[0][1].body).toMatchObject({ action: "update", full_name: "Sophia W." });
   });
 });

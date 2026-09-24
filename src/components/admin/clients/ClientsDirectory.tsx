@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Globe, UserPlus } from "lucide-react";
+import { Search, Globe, UserPlus, Ban, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatCRC } from "@/lib/currency";
 import {
@@ -10,6 +11,7 @@ import {
   type ClientFilter, type ClientRow,
 } from "./clientDirectory";
 import { ClientProfile } from "./ClientProfile";
+import { ClientDetailsDialog } from "./ClientDialogs";
 
 // Every client the studio has — not only the ones who made a website account.
 // Most regulars never sign up: they come to class and are entered by hand, and
@@ -20,20 +22,29 @@ export function ClientsDirectory() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ClientFilter>("all");
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Bumped when a client is changed, so the list is read again.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.rpc("admin_client_directory" as any);
       if (error) { setError(error.message); setRows([]); return; }
-      setRows((data as ClientRow[]) ?? []);
+      setError(null);
+      setRows(Array.isArray(data) ? (data as ClientRow[]) : []);
     })();
-  }, []);
+  }, [version]);
+
+  const onChanged = (newKey: string) => {
+    setOpenKey(newKey);
+    setVersion((v) => v + 1);
+  };
 
   const counts = useMemo(() => countBy(rows ?? []), [rows]);
   const list = useMemo(() => visibleClients(rows ?? [], query, filter), [rows, query, filter]);
 
   if (openKey) {
-    return <ClientProfile clientKey={openKey} onClose={() => setOpenKey(null)} />;
+    return <ClientProfile clientKey={openKey} onClose={() => setOpenKey(null)} onChanged={onChanged} />;
   }
 
   return (
@@ -48,15 +59,20 @@ export function ClientsDirectory() {
                 : `${counts.all} clients · ${counts.account} with a website account · ${counts.staff} registered by staff`}
             </p>
           </div>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, email or phone…"
-              aria-label="Search clients"
-              className="pl-9 h-9"
-            />
+          <div className="flex w-full sm:w-auto items-center gap-2">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, email or phone…"
+                aria-label="Search clients"
+                className="pl-9 h-9"
+              />
+            </div>
+            <Button size="sm" className="h-9 shrink-0" onClick={() => setCreating(true)} aria-label="New client account">
+              <Plus className="h-4 w-4 sm:mr-1" /> <span className="hidden sm:inline">New client account</span>
+            </Button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -111,7 +127,11 @@ export function ClientsDirectory() {
                   </td>
                   <td className="px-5 py-3">
                     {c.has_account ? (
-                      <Badge variant="secondary" className="gap-1 whitespace-nowrap"><Globe className="h-3 w-3" /> Website</Badge>
+                      c.suspended ? (
+                        <Badge variant="destructive" className="gap-1 whitespace-nowrap"><Ban className="h-3 w-3" /> Suspended</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="gap-1 whitespace-nowrap"><Globe className="h-3 w-3" /> Website</Badge>
+                      )
                     ) : (
                       <Badge variant="outline" className="gap-1 whitespace-nowrap"><UserPlus className="h-3 w-3" /> By staff</Badge>
                     )}
@@ -141,6 +161,13 @@ export function ClientsDirectory() {
           </table>
         </div>
       )}
+
+      <ClientDetailsDialog
+        open={creating}
+        mode="create"
+        onClose={() => setCreating(false)}
+        onSaved={onChanged}
+      />
     </div>
   );
 }
