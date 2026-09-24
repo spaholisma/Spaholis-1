@@ -136,10 +136,16 @@ export function ClientDetailsDialog({
   );
 }
 
+export type DeleteScope = "login" | "everything";
+
 /**
- * Delete a client and everything that is theirs. It cannot be undone (only
- * treatments can be brought back, from the Trash), so it spells out what goes
- * and asks for the word DELETE.
+ * The one way to delete from a client's page.
+ *
+ * With a website account there are two things that can go, so the dialog asks
+ * which: only the login (they stop signing in, their history stays), or the
+ * person altogether. Without an account there is only the second. Deleting
+ * everything cannot be undone — only treatments come back, from the Trash — so
+ * it spells out what goes and asks for the word DELETE.
  */
 export function DeleteClientDialog({
   open, name, hasAccount, counts, busy, onConfirm, onCancel,
@@ -149,11 +155,15 @@ export function DeleteClientDialog({
   hasAccount: boolean;
   counts: { memberships: number; classes: number; treatments: number; calendar: number };
   busy?: boolean;
-  onConfirm: () => void;
+  onConfirm: (scope: DeleteScope) => void;
   onCancel: () => void;
 }) {
   const [typed, setTyped] = useState("");
-  useEffect(() => { if (open) setTyped(""); }, [open]);
+  const [scope, setScope] = useState<DeleteScope>(hasAccount ? "login" : "everything");
+  useEffect(() => {
+    if (open) { setTyped(""); setScope(hasAccount ? "login" : "everything"); }
+  }, [open, hasAccount]);
+
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const lines = [
     hasAccount && "their website account (they can no longer sign in)",
@@ -162,7 +172,30 @@ export function DeleteClientDialog({
     counts.treatments > 0 && `${plural(counts.treatments, "treatment", "treatments")} — moved to the Trash, restorable for 30 days`,
     counts.calendar > 0 && plural(counts.calendar, "calendar entry", "calendar entries"),
   ].filter(Boolean) as string[];
-  const ready = typed.trim().toUpperCase() === "DELETE";
+  const everything = scope === "everything";
+  const ready = !everything || typed.trim().toUpperCase() === "DELETE";
+
+  const option = (value: DeleteScope, title: string, text: string) => (
+    <label
+      key={value}
+      className={`flex gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${scope === value ? "border-foreground bg-muted/40" : "border-border hover:bg-muted/20"}`}
+    >
+      <input
+        type="radio"
+        name="delete-scope"
+        value={value}
+        checked={scope === value}
+        onChange={() => setScope(value)}
+        disabled={busy}
+        className="mt-1"
+        aria-label={title}
+      />
+      <span className="space-y-0.5">
+        <span className="block font-medium text-foreground">{title}</span>
+        <span className="block text-xs">{text}</span>
+      </span>
+    </label>
+  );
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => { if (!o && !busy) onCancel(); }}>
@@ -171,27 +204,47 @@ export function DeleteClientDialog({
           <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
-              <p>This removes the client from Clients along with:</p>
-              {lines.length > 0 ? (
-                <ul className="list-disc pl-5 space-y-1">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
-              ) : (
-                <p>Nothing else is on file for them.</p>
+              {hasAccount && (
+                <div className="space-y-2" role="radiogroup" aria-label="What to delete">
+                  {option(
+                    "login",
+                    "Only the website account",
+                    "They can no longer sign in. Their memberships, passes, classes and treatments stay here under their name, and you can create a new account for them later.",
+                  )}
+                  {option(
+                    "everything",
+                    "The client and everything that is theirs",
+                    "For test entries and people who should not be here.",
+                  )}
+                </div>
               )}
-              <p>
-                Use it for test entries and people who should not be here. A real client's
-                history is usually worth keeping — for someone who only needs to stop signing
-                in, use Suspend or Delete account instead.
-              </p>
-              <label htmlFor="confirm-delete-client" className="block font-medium text-foreground">
-                Type DELETE to confirm
-              </label>
-              <Input
-                id="confirm-delete-client"
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                autoComplete="off"
-                disabled={busy}
-              />
+
+              {everything && (
+                <>
+                  <p>This removes the client from Clients along with:</p>
+                  {lines.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
+                  ) : (
+                    <p>Nothing else is on file for them.</p>
+                  )}
+                  {!hasAccount && (
+                    <p>
+                      Use it for test entries and people who should not be here — a real
+                      client's history is usually worth keeping.
+                    </p>
+                  )}
+                  <label htmlFor="confirm-delete-client" className="block font-medium text-foreground">
+                    Type DELETE to confirm
+                  </label>
+                  <Input
+                    id="confirm-delete-client"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    autoComplete="off"
+                    disabled={busy}
+                  />
+                </>
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -199,10 +252,10 @@ export function DeleteClientDialog({
           <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             disabled={busy || !ready}
-            onClick={(e) => { e.preventDefault(); if (ready) onConfirm(); }}
+            onClick={(e) => { e.preventDefault(); if (ready) onConfirm(scope); }}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {busy ? "Deleting…" : "Delete client"}
+            {busy ? "Deleting…" : everything ? "Delete client" : "Delete account"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

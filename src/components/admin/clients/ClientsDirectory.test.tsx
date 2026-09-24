@@ -221,15 +221,17 @@ describe("managing a client's account", () => {
     await openProfile({ has_account: true });
     expect(screen.getByRole("button", { name: /Edit/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Suspend account/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Delete account/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Delete$/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Create website account/ })).toBeNull();
+    // One Delete button — not one for the login and another for the client.
+    expect(screen.queryByRole("button", { name: /Delete account|Delete client/ })).toBeNull();
   });
 
   it("offers to create an account for someone registered by staff", async () => {
     await openProfile({ has_account: false, user_id: null });
     expect(screen.getByRole("button", { name: /Create website account/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Suspend account/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Delete account/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Delete$/ })).toBeTruthy();
   });
 
   it("offers to reactivate a suspended account", async () => {
@@ -240,7 +242,7 @@ describe("managing a client's account", () => {
   it("never lets a staff login be changed from here", async () => {
     await openProfile({ has_account: true, is_staff: true });
     expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Delete account/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Delete$/ })).toBeNull();
     expect(screen.getByText(/staff login/)).toBeTruthy();
   });
 
@@ -283,8 +285,10 @@ describe("deleting a client", () => {
   it("is offered for someone registered by staff, and needs the word DELETE", async () => {
     await openProfile({ has_account: false, user_id: null }, { admin_delete_client: { memberships: 1, classes: 0, treatments: 3, calendar: 0 } });
 
-    fireEvent.click(screen.getByRole("button", { name: /Delete client/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
     await waitFor(() => screen.getByText("Delete Sophia Wisdom?"));
+    // Nothing to choose without a website account.
+    expect(screen.queryByRole("radiogroup")).toBeNull();
     const confirm = screen.getAllByRole("button", { name: "Delete client" }).at(-1)!;
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
 
@@ -296,11 +300,28 @@ describe("deleting a client", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("removes the website login first when there is one", async () => {
+  it("with a website account, deletes only the login by default — history stays", async () => {
+    await openProfile({ has_account: true });
+    invoke.mockResolvedValueOnce({ data: { ok: true, deleted: true }, error: null });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
+    await waitFor(() => screen.getByText("Delete Sophia Wisdom?"));
+    expect((screen.getByLabelText("Only the website account") as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByLabelText("Type DELETE to confirm")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete account" }).at(-1)!);
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("admin-clients", {
+      body: { action: "delete", user_id: "3ce38398-7e2a-4412-bdfc-87e59d4b1662" },
+    }));
+    expect(rpc).not.toHaveBeenCalledWith("admin_delete_client", expect.anything());
+  });
+
+  it("can delete everything instead: the login first, then the records", async () => {
     await openProfile({ has_account: true }, { admin_delete_client: { memberships: 0, classes: 0, treatments: 0, calendar: 0 } });
     invoke.mockResolvedValueOnce({ data: { ok: true, deleted: true }, error: null });
 
-    fireEvent.click(screen.getByRole("button", { name: /Delete client/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
+    fireEvent.click(await screen.findByLabelText("The client and everything that is theirs"));
     fireEvent.change(await screen.findByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Delete client" }).at(-1)!);
 
@@ -313,6 +334,6 @@ describe("deleting a client", () => {
 
   it("is never offered for a staff login", async () => {
     await openProfile({ has_account: true, is_staff: true });
-    expect(screen.queryByRole("button", { name: /Delete client/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Delete$/ })).toBeNull();
   });
 });

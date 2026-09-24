@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Globe, UserPlus, Mail, Phone, Pencil, Ban, RotateCcw, Trash2, KeyRound, ShieldCheck, UserX } from "lucide-react";
+import { ArrowLeft, Globe, UserPlus, Mail, Phone, Pencil, Ban, RotateCcw, Trash2, KeyRound, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCRC } from "@/lib/currency";
 import { displayName, shortDate } from "./clientDirectory";
-import { ClientDetailsDialog, ConfirmAccountAction, DeleteClientDialog } from "./ClientDialogs";
+import { ClientDetailsDialog, ConfirmAccountAction, DeleteClientDialog, type DeleteScope } from "./ClientDialogs";
 import { deleteAccount, deleteClient, suspendAccount, unsuspendAccount } from "./clientAccounts";
 
 type History = {
@@ -57,7 +57,7 @@ export function ClientProfile({
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [dialog, setDialog] = useState<null | "edit" | "create">(null);
-  const [confirm, setConfirm] = useState<null | "suspend" | "unsuspend" | "delete">(null);
+  const [confirm, setConfirm] = useState<null | "suspend" | "unsuspend">(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -97,9 +97,16 @@ export function ClientProfile({
   const isStaff = !!p.is_staff;
   const first = displayName(p).split(/\s+/)[0];
 
-  const runDeleteClient = async () => {
+  const runDelete = async (scope: DeleteScope) => {
     setBusy(true);
     try {
+      if (scope === "login" && userId) {
+        await deleteAccount(userId);
+        toast.success("Website account deleted — their history stays here");
+        setDeleting(false);
+        changed(clientKey);
+        return;
+      }
       const out = await deleteClient(clientKey, userId);
       toast.success(
         out.treatments > 0
@@ -122,12 +129,9 @@ export function ClientProfile({
       if (confirm === "suspend") {
         await suspendAccount(userId);
         toast.success(`${first} can no longer sign in`);
-      } else if (confirm === "unsuspend") {
+      } else {
         await unsuspendAccount(userId);
         toast.success(`${first} can sign in again`);
-      } else {
-        await deleteAccount(userId);
-        toast.success("Website account deleted — their history stays here");
       }
       setConfirm(null);
       changed(clientKey);
@@ -203,13 +207,9 @@ export function ClientProfile({
                 <Ban className="h-3.5 w-3.5 mr-1.5" /> Suspend account
               </Button>
             ))}
-            {userId && (
-              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirm("delete")}>
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete account
-              </Button>
-            )}
+            {/* One Delete: the dialog asks whether it is the login or everything. */}
             <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
-              <UserX className="h-3.5 w-3.5 mr-1.5" /> Delete client
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
             </Button>
           </div>
         )}
@@ -313,26 +313,19 @@ export function ClientProfile({
           calendar: data.calendar.length,
         }}
         busy={busy}
-        onConfirm={runDeleteClient}
+        onConfirm={runDelete}
         onCancel={() => setDeleting(false)}
       />
       <ConfirmAccountAction
         open={confirm !== null}
         busy={busy}
-        destructive={confirm === "delete"}
-        title={
-          confirm === "delete" ? `Delete ${first}'s website account?`
-            : confirm === "suspend" ? `Suspend ${first}'s account?`
-              : `Reactivate ${first}'s account?`
-        }
+        title={confirm === "suspend" ? `Suspend ${first}'s account?` : `Reactivate ${first}'s account?`}
         body={
-          confirm === "delete"
-            ? "They will no longer be able to sign in, and the login cannot be recovered. Their memberships, passes, classes and treatments stay here under their name, and staff can still book them. You can create a new account for them later."
-            : confirm === "suspend"
-              ? "They will not be able to sign in to the website until you reactivate it. Nothing is deleted: their memberships, passes and bookings stay exactly as they are."
-              : "They will be able to sign in to the website again."
+          confirm === "suspend"
+            ? "They will not be able to sign in to the website until you reactivate it. Nothing is deleted: their memberships, passes and bookings stay exactly as they are."
+            : "They will be able to sign in to the website again."
         }
-        confirmLabel={confirm === "delete" ? "Delete account" : confirm === "suspend" ? "Suspend" : "Reactivate"}
+        confirmLabel={confirm === "suspend" ? "Suspend" : "Reactivate"}
         onConfirm={runAccountAction}
         onCancel={() => setConfirm(null)}
       />
