@@ -245,17 +245,41 @@ Deno.serve(async (req) => {
       : await sendEmail(to, `Your Holis purchase — ${o.name_snapshot}`, emailDocument(purchaseHtml(o), "Your Holis purchase"));
   }
 
-  // Admin copy (+ backup)
-  const adminSubj = isOnlinePurchase
-    ? `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
-    : `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`;
-  const adminHtml = `
+  // Admin copy (+ backup). Editable in Admin → Client Emails → Team
+  // notifications ("New membership order" / "New purchase paid online"); the
+  // built-in copy below when that template is missing or switched off.
+  const orderLines = isOrder
+    ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
+    : "";
+  const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
+  let adminSubj: string;
+  let adminHtml: string;
+  if (teamTpl) {
+    const text = {
+      guest_name: String(o.guest_name || to), customer_name: String(o.guest_name || ""), email: to,
+      offering_name: String(o.name_snapshot || ""), code: String(o.code || ""),
+      code_suffix: o.code ? ` (${o.code})` : "",
+    };
+    const vars: Record<string, string> = { order_details: orderLines };
+    for (const [k, v] of Object.entries(text)) vars[k] = esc(v);
+    adminSubj = interpolate(teamTpl.subject, { ...text, order_details: "" });
+    adminHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:16px;color:#1f2937;">
+      <h2 style="font-size:18px;">${interpolate(teamTpl.heading, vars)}</h2>
+      ${interpolate(teamTpl.body_html, vars)}
+    </div>`;
+  } else {
+    adminSubj = isOnlinePurchase
+      ? `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
+      : `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`;
+    adminHtml = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:16px;color:#1f2937;">
       <h2 style="font-size:18px;">${isOnlinePurchase ? "New membership/pass purchase (paid online)" : "New membership order"}</h2>
       <p><strong>Customer:</strong> ${esc(o.guest_name || "")} &lt;${esc(to)}&gt;</p>
       <p><strong>Offering:</strong> ${esc(o.name_snapshot)}</p>
-      ${isOrder ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>` : ""}
+      ${orderLines}
     </div>`;
+  }
   await sendEmail(ADMIN_EMAIL, adminSubj, emailDocument(adminHtml, adminSubj));
   if (ADMIN_BACKUP_EMAIL && ADMIN_BACKUP_EMAIL !== ADMIN_EMAIL) {
     await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));

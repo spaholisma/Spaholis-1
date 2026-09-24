@@ -40,7 +40,27 @@ function row(label: string, html: string) {
     `<td class="v" style="padding:8px 0;color:#2d2d2a;font-size:14px;vertical-align:top">${html}</td></tr>`;
 }
 
+/** The table of what the guest sent. */
+function detailsBlock(rows: string) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="t">${rows}</table>`;
+}
+
+/** Their own words, when they wrote any. */
+function messageBlock(message: string, messageLabel: string) {
+  return message ? `<p style="margin:18px 0 6px;color:#7a7a72;font-size:13px">${esc(messageLabel)}</p>
+          <div style="background:#f4f1ec;border-radius:12px;padding:14px 16px;color:#2d2d2a;font-size:14px;line-height:1.55;white-space:pre-line">${esc(message)}</div>` : "";
+}
+
+const FOOT = `<p class="foot" style="margin:22px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">Reply to this email to answer the guest directly.
+          Update the status in <a href="${ADMIN_URL}" style="color:#5e7d67">Admin</a>.</p>`;
+
 function shell(eyebrow: string, title: string, rows: string, message: string, messageLabel: string) {
+  return page(eyebrow, title, `${detailsBlock(rows)}
+          ${messageBlock(message, messageLabel)}
+          ${FOOT}`);
+}
+
+function page(eyebrow: string, title: string, inner: string) {
   return `<!doctype html><html lang="en">${emailHead(title)}
   <body style="margin:0;background:#f4f1ec;font-family:Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="wrap" style="background:#f4f1ec;padding:28px 12px">
@@ -51,11 +71,7 @@ function shell(eyebrow: string, title: string, rows: string, message: string, me
           <h1 class="h1" style="margin:6px 0 0;color:#ffffff;font-size:22px;font-weight:600">${esc(title)}</h1>
         </td></tr>
         <tr><td class="pad" style="padding:22px 28px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="t">${rows}</table>
-          ${message ? `<p style="margin:18px 0 6px;color:#7a7a72;font-size:13px">${esc(messageLabel)}</p>
-          <div style="background:#f4f1ec;border-radius:12px;padding:14px 16px;color:#2d2d2a;font-size:14px;line-height:1.55;white-space:pre-line">${esc(message)}</div>` : ""}
-          <p class="foot" style="margin:22px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">Reply to this email to answer the guest directly.
-          Update the status in <a href="${ADMIN_URL}" style="color:#5e7d67">Admin</a>.</p>
+          ${inner}
         </td></tr>
       </table>
     </td></tr>
@@ -74,9 +90,39 @@ async function sendEmail(subject: string, html: string, replyTo?: string) {
   return { ok: true };
 }
 
+// Editable in Admin → Client Emails → Team notifications. The layout stays
+// here; subject, the small heading and the wording come from the template.
+type Template = { subject: string; heading: string; body_html: string };
+
+async function loadTemplate(supabase: any, key: string): Promise<Template | null> {
+  try {
+    const { data } = await supabase
+      .from("email_templates").select("subject, heading, body_html, enabled")
+      .eq("template_key", key).maybeSingle();
+    if (!data || data.enabled === false) return null;
+    return { subject: data.subject, heading: data.heading, body_html: data.body_html };
+  } catch {
+    return null;
+  }
+}
+
+const interpolate = (str: string, vars: Record<string, string>) =>
+  String(str ?? "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => (k in vars ? String(vars[k] ?? "") : ""));
+
+function fromTemplate(
+  tpl: Template, title: string, text: Record<string, string>, raw: Record<string, string>,
+) {
+  const vars: Record<string, string> = { ...raw };
+  for (const [k, v] of Object.entries(text)) vars[k] = esc(v);
+  return {
+    subject: interpolate(tpl.subject, { ...raw, ...text }),
+    html: page(interpolate(tpl.heading, vars), title, interpolate(tpl.body_html, vars)),
+  };
+}
+
 const mail = (email: string) => (email ? `<a href="mailto:${esc(email)}" style="color:#5e7d67">${esc(email)}</a>` : "");
 
-function retreatEmail(r: any) {
+function retreatEmail(r: any, tpl: Template | null) {
   const name = `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim();
   const rows =
     row("Retreat", esc(r.retreat_title)) +
@@ -88,13 +134,18 @@ function retreatEmail(r: any) {
     row("Room", esc(r.occupancy_type)) +
     row("Accommodation", r.with_accommodation === false ? "Without accommodation" : "With accommodation") +
     row("Received", esc(crTime(r.created_at)));
+  if (tpl) {
+    return fromTemplate(tpl, r.retreat_title || "Retreat inquiry",
+      { retreat_title: r.retreat_title || "Retreat", guest_name: name },
+      { details: detailsBlock(rows), message: messageBlock(r.message ?? "", "Message") });
+  }
   return {
     subject: `New retreat inquiry — ${r.retreat_title || "Retreat"} · ${name}`,
     html: shell("New retreat inquiry", r.retreat_title || "Retreat inquiry", rows, r.message ?? "", "Message"),
   };
 }
 
-function customEmail(r: any) {
+function customEmail(r: any, tpl: Template | null) {
   const list = (v: unknown) => (Array.isArray(v) && v.length ? esc(v.join(", ")) : "");
   const rows =
     row("Name", esc(r.full_name)) +
@@ -111,6 +162,11 @@ function customEmail(r: any) {
     row("Intention", list(r.retreat_vision)) +
     row("Activities", list(r.preferred_activities)) +
     row("Received", esc(crTime(r.created_at)));
+  if (tpl) {
+    return fromTemplate(tpl, r.full_name || "Custom retreat",
+      { guest_name: r.full_name || "Guest" },
+      { details: detailsBlock(rows), message: messageBlock(r.special_requests ?? "", "Special requests") });
+  }
   return {
     subject: `New custom retreat request — ${r.full_name || "Guest"}`,
     html: shell("Custom retreat request", r.full_name || "Custom retreat", rows, r.special_requests ?? "", "Special requests"),
@@ -139,7 +195,9 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!inquiry) return json({ ok: false, reason: "not_found" }, 404);
 
-    const { subject, html } = body.table === "retreat_inquiries" ? retreatEmail(inquiry) : customEmail(inquiry);
+    const isRetreat = body.table === "retreat_inquiries";
+    const tpl = await loadTemplate(supabase, isRetreat ? "team_retreat_inquiry" : "team_custom_retreat");
+    const { subject, html } = isRetreat ? retreatEmail(inquiry, tpl) : customEmail(inquiry, tpl);
     const sent = await sendEmail(subject, html, inquiry.email || undefined);
     if (!sent.ok) console.error("[send-inquiry-notification] email failed", sent.error);
     return json({ ok: sent.ok, warning: sent.ok ? undefined : sent.error });

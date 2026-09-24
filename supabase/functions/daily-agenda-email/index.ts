@@ -64,18 +64,34 @@ Deno.serve(async (req) => {
   const entryRows = (entries ?? []).map((e: any) =>
     row([e.is_all_day ? "All day" : hm(e.start_time), e.title, e.is_offsite ? `Off-site${e.offsite_location ? " · " + e.offsite_location : ""}` : roomName(e.room_id)]));
 
-  const html = emailShell(
-    `Tomorrow's Agenda — ${prettyDate}`,
-    `<h3 style="font-size:15px;margin:0 0 8px;">Website bookings (${bookingRows.length})</h3>
+  const agenda = `<h3 style="font-size:15px;margin:0 0 8px;">Website bookings (${bookingRows.length})</h3>
         ${bookingRows.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;">${head(["Time", "Guest", "Service", "Room", "Status"], [3, 4])}${bookingRows.join("")}</table>` : `<p class="fine" style="font-size:13px;color:#666;margin:0;">None.</p>`}
         <h3 style="font-size:15px;margin:20px 0 8px;">Calendar entries (${entryRows.length})</h3>
-        ${entryRows.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;">${head(["Time", "Entry", "Where"])}${entryRows.join("")}</table>` : `<p class="fine" style="font-size:13px;color:#666;margin:0;">None.</p>`}`,
-    { footer: "Holis Wellness Center · daily agenda", title: "Tomorrow's agenda" },
-  );
+        ${entryRows.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;">${head(["Time", "Entry", "Where"])}${entryRows.join("")}</table>` : `<p class="fine" style="font-size:13px;color:#666;margin:0;">None.</p>`}`;
+  const shellOpts = { footer: "Holis Wellness Center · daily agenda", title: "Tomorrow's agenda" };
+
+  // Editable in Admin → Client Emails → Team notifications ("Tomorrow's agenda");
+  // the built-in copy when that template is missing or switched off. The two
+  // tables ({{agenda}}) are always built here, from the day's bookings.
+  const { data: tpl } = await admin.from("email_templates")
+    .select("subject, heading, body_html, enabled").eq("template_key", "team_daily_agenda").maybeSingle();
+  const useTpl = !!tpl && tpl.enabled !== false;
+  const fill = (str: string, vars: Record<string, string>) =>
+    String(str ?? "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => (k in vars ? String(vars[k] ?? "") : ""));
+  const text = {
+    date: prettyDate,
+    bookings_count: String(bookingRows.length),
+    entries_count: String(entryRows.length),
+  };
+  const html = useTpl
+    ? emailShell(fill(tpl!.heading, text), fill(tpl!.body_html, { ...text, agenda }), shellOpts)
+    : emailShell(`Tomorrow's Agenda — ${prettyDate}`, agenda, shellOpts);
 
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
   if (!RESEND_API_KEY) return json({ ok: false, reason: "email_config_missing" }, 500);
-  const subject = `Agenda mañana — ${prettyDate} (${bookingRows.length} reservas)`;
+  const subject = useTpl
+    ? fill(tpl!.subject, text)
+    : `Agenda mañana — ${prettyDate} (${bookingRows.length} reservas)`;
   const send = (to: string) => fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },

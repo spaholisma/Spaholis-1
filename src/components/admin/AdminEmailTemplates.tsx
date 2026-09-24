@@ -43,9 +43,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   loyalty: "Loyalty rewards (renewal progress & earned)",
   cancellation: "Treatment cancellations",
   account: "Website accounts",
+  team: "Team notifications (sent to us)",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "cancellation", "client_notify", "offering_expired", "receipts", "appointment_request", "account"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "cancellation", "client_notify", "offering_expired", "receipts", "appointment_request", "account", "team"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -61,7 +62,28 @@ const CATEGORY_VARS: Record<string, string[]> = {
   loyalty: ["guest_name", "offering_name", "purchases", "threshold", "remaining", "reward_label", "details", "button"],
   cancellation: ["guest_name", "reservation_id", "service_name", "date", "time", "total", "fee", "details", "cancel_note", "policy"],
   account: ["first_name", "guest_name", "button"],
+  team: ["details"],
 };
+
+// The team's emails each carry their own data, so their variables are listed
+// per email rather than per section.
+const TEMPLATE_VARS: Record<string, string[]> = {
+  team_new_treatment: ["guest_name", "service_name", "reservation_id", "date", "time", "details", "intake"],
+  team_new_class: ["class_title", "guest_label", "guest_name", "reservation_id", "when", "details"],
+  team_treatment_cancelled: ["guest_name", "service_name", "reservation_id", "date", "time", "charge_label", "details", "charge_note", "override_note", "guest_notice"],
+  team_request_notice: ["kind", "service_name", "guest_name", "details", "intake"],
+  team_offering_order: ["guest_name", "customer_name", "email", "offering_name", "code", "order_details"],
+  team_offering_purchase: ["guest_name", "customer_name", "email", "offering_name", "code", "code_suffix", "order_details"],
+  team_retreat_inquiry: ["retreat_title", "guest_name", "details", "message"],
+  team_custom_retreat: ["guest_name", "details", "message"],
+  team_daily_agenda: ["date", "bookings_count", "entries_count", "agenda"],
+};
+
+/** Blocks of HTML the server builds — shown in the preview as they are. */
+const HTML_VARS = [
+  "details", "button", "receipt_box", "preferred_line", "loyalty", "policy", "cancel_note",
+  "intake", "charge_note", "override_note", "order_details", "message", "agenda",
+];
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
 const escHtml = (s: unknown) =>
@@ -93,6 +115,27 @@ const table = (rows: string[]) => `<table style="width:100%;border-collapse:coll
 
 // Sample data + rendered {{details}}/{{button}} blocks used only for the preview.
 function sampleVars(category: string): Record<string, string> {
+  if (category === "team") {
+    const details = table([
+      row("Reservation ID", "A1B2C3D4"), row("Service", "Relaxing Massage"), row("Client Name", "Ana López"),
+      row("Email", "ana@email.com"), row("Phone", "+506 8888 8888"), row("Date", "Monday, July 20, 2026"),
+      row("Time", "10:00"), row("Total Price", "$72.00"),
+    ]);
+    const agenda = `<h3 style="font-size:15px;margin:0 0 8px;">Website bookings (1)</h3>${table([row("10:00", "Ana López — Relaxing Massage")])}<h3 style="font-size:15px;margin:20px 0 8px;">Calendar entries (0)</h3><p style="font-size:13px;color:#666;margin:0;">None.</p>`;
+    return {
+      guest_name: "Ana López", customer_name: "Ana López", email: "ana@email.com", service_name: "Relaxing Massage",
+      reservation_id: "A1B2C3D4", date: "Monday, July 20, 2026", time: "10:00", class_title: "Vinyasa Flow",
+      guest_label: "Ana López", when: "Monday, July 20, 2026, 8:00 AM", kind: "Reservation",
+      charge_label: " (charge $36.00)", guest_notice: "The guest has been emailed this cancellation.",
+      charge_note: `<p style="margin:18px 0 0;padding:14px;background:#fdf0f0;border-radius:8px;font-size:14px;color:#7a2e2e;"><strong>Charge the card on file $36.00</strong> (50% cancellation fee).</p>`,
+      override_note: "", intake: "",
+      offering_name: "5-Class Pass", code: "AB1234", code_suffix: " (AB1234)",
+      order_details: `<p><strong>Code:</strong> AB1234</p><p><strong>Scheduling link:</strong><br>https://www.spaholis.com/classes?m=sample</p>`,
+      retreat_title: "Pura Vida Retreat",
+      message: `<p style="margin:18px 0 6px;color:#7a7a72;font-size:13px">Message</p><div style="background:#f4f1ec;border-radius:12px;padding:14px 16px;font-size:14px;">We would love to come in March.</div>`,
+      bookings_count: "1", entries_count: "0", agenda, details,
+    };
+  }
   if (category === "treatment") {
     const details = table([
       row("Reservation ID", "A1B2C3D4"), row("Service", "Relaxing Massage"), row("Therapist", "Maria"),
@@ -230,7 +273,7 @@ function buildPreview(tpl: { heading: string; body_html: string }, category: str
   if (hasPolicy) raw.policy = samplePolicy(category);
   const vars: Record<string, string> = {};
   // Escape scalar text vars; keep the pre-built HTML blocks raw.
-  for (const [k, v] of Object.entries(raw)) vars[k] = ["details", "button", "receipt_box", "preferred_line", "loyalty", "policy", "cancel_note"].includes(k) ? v : escHtml(v);
+  for (const [k, v] of Object.entries(raw)) vars[k] = HTML_VARS.includes(k) ? v : escHtml(v);
   const body = interpolate(tpl.body_html, vars);
   // Booking emails always carry the policy; a template that does not place
   // {{policy}} gets it at the end, exactly as the server sends it.
@@ -442,7 +485,7 @@ export function AdminEmailTemplates() {
                 <div className="space-y-1.5">
                   <Label className="font-body text-xs text-muted-foreground">Insert a variable</Label>
                   <div className="flex flex-wrap gap-1.5">
-                    {(CATEGORY_VARS[editing.category] ?? []).map((v) => (
+                    {(TEMPLATE_VARS[editing.template_key] ?? CATEGORY_VARS[editing.category] ?? []).map((v) => (
                       <button
                         key={v}
                         type="button"
