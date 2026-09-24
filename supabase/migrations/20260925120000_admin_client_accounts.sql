@@ -246,7 +246,7 @@ begin
 end;
 $fn$;
 
-comment on function public.admin_update_client_contact(text, text, text, text) is
+comment on function public.admin_update_client_contact(text, text, text, text, uuid) is
   'Admin: correct a client''s name, email and phone on every record that is theirs.';
 
 revoke all on function public.admin_update_client_contact(text, text, text, text, uuid) from public, anon;
