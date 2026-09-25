@@ -60,7 +60,7 @@ describe("the filters", () => {
 
   it("counts every group for the chips", () => {
     const counts = countBy([row({ has_account: true }), row(), row({ memberships_active: 0 })]);
-    expect(counts).toEqual({ all: 3, account: 1, staff: 2, active: 2 });
+    expect(counts).toEqual({ all: 3, account: 1, staff: 2, active: 2, team: 0 });
   });
 });
 
@@ -335,5 +335,77 @@ describe("deleting a client", () => {
   it("is never offered for a staff login", async () => {
     await openProfile({ has_account: true, is_staff: true });
     expect(screen.queryByRole("button", { name: /^Delete$/ })).toBeNull();
+  });
+});
+
+// ── who can use the Admin Panel ────────────────────────────────────────────
+describe("access to the Admin Panel", () => {
+  const SOPHIA = "3ce38398-7e2a-4412-bdfc-87e59d4b1662";
+
+  it("marks the team in the list, and filters to it", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        row({ client_key: "k1", name: "Front Desk", has_account: true, roles: ["coordinator"] }),
+        row({ client_key: "k2", name: "Regular Guest", has_account: true, roles: [] }),
+      ],
+      error: null,
+    });
+    render(<ClientsDirectory />);
+    await waitFor(() => screen.getByText("Front Desk"));
+    expect(screen.getByText("Reception")).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/^Team/, { selector: "button" }));
+    expect(screen.getByText("Front Desk")).toBeTruthy();
+    expect(screen.queryByText("Regular Guest")).toBeNull();
+  });
+
+  it("lets an Admin make someone Reception, after confirming", async () => {
+    await openProfile(
+      { has_account: true, roles: [], can_manage_access: true, is_self: false },
+      { admin_set_access_level: ["coordinator"] },
+    );
+    expect(screen.getByRole("radio", { name: /^Client/ }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("button", { name: "Save access" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: /^Reception/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save access" }));
+    await waitFor(() => screen.getByText("Make Sophia Reception?"));
+    // Nothing changes until it is confirmed.
+    expect(rpc).not.toHaveBeenCalledWith("admin_set_access_level", expect.anything());
+
+    fireEvent.click(screen.getByRole("button", { name: "Make Reception" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_set_access_level", { _user_id: SOPHIA, _level: "reception" }));
+  });
+
+  it("warns plainly before making someone an Admin", async () => {
+    await openProfile({ has_account: true, roles: [], can_manage_access: true, is_self: false });
+    fireEvent.click(screen.getByRole("radio", { name: /^Admin/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save access" }));
+    await waitFor(() => screen.getByText("Make Sophia Admin?"));
+    expect(screen.getByText(/card details — and will be able to change other people's access/)).toBeTruthy();
+  });
+
+  it("shows a team member's level and how to take it away", async () => {
+    await openProfile({ has_account: true, roles: ["super_admin"], is_staff: true, can_manage_access: true, is_self: false });
+    expect(screen.getByRole("radio", { name: /^Admin/ }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText(/first set their access to Client below/)).toBeTruthy();
+  });
+
+  it("does not let you change your own access", async () => {
+    await openProfile({ has_account: true, roles: ["super_admin"], is_staff: true, can_manage_access: true, is_self: true });
+    expect(screen.getByText(/This is you\. Another Admin has to change your access\./)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save access" })).toBeNull();
+    expect((screen.getByRole("radio", { name: /^Client/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("is read-only for someone who is not an Admin", async () => {
+    await openProfile({ has_account: true, roles: [], can_manage_access: false, is_self: false });
+    expect(screen.getByText("Only an Admin can change who has access.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save access" })).toBeNull();
+  });
+
+  it("needs a website account", async () => {
+    await openProfile({ has_account: false, user_id: null, can_manage_access: true });
+    expect(screen.queryByText("Access to the Admin Panel")).toBeNull();
   });
 });
