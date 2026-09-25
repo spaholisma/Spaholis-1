@@ -85,7 +85,7 @@ describe("which private classes get the picker", () => {
   });
 
   it("saves 'no specific class' as the default choice", () => {
-    expect(privateClassIntake({ kind: "couples", kindTitle: "Couple's Private Class", people: 2, offering: null, preferred: "" }).private_class)
+    expect(privateClassIntake({ kind: "couples", kindTitle: "Couple's Private Class", people: 2, choice: null, preferred: "" }).private_class)
       .toEqual({ kind: "couples", kind_title: "Couple's Private Class", people: 2, offering_id: null, class_id: null, class_title: null, teacher_name: null, preferred: null });
   });
 
@@ -100,8 +100,10 @@ describe("which private classes get the picker", () => {
     const picker = read("src/components/booking/PrivateClassPicker.tsx");
     // Nothing is picked until the guest picks it.
     expect(picker).toContain("onClick={() => pick(null)}");
-    // The teachers' own private classes, each at her own price.
+    // The teachers' own private classes, each at her own price — and the
+    // schedule for teachers who have not listed theirs yet.
     expect(picker).toContain("usePrivateOfferings()");
+    expect(picker).toContain("useWeekEvents()");
     // A plain scrolling list, so the wheel and a finger move it normally.
     expect(picker).toContain("overflow-y-auto overscroll-contain");
     expect(picker).not.toContain("@/components/ui/select");

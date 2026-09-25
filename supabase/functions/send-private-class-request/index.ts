@@ -167,7 +167,9 @@ Deno.serve(async (req) => {
       row("People", esc(peopleText)) +
       row("Class", classText) +
       row("Teacher", teacherText) +
-      row("Price", price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price` : "") +
+      row("Price",
+        price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price`
+        : teacherName ? `To be confirmed by ${esc(teacherName)}` : "") +
       row("Preferred date & time", esc(preferred));
     const guestRows =
       row("Name", esc(guestName)) +

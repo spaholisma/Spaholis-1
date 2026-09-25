@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { PrivateKind } from "@/lib/privateClassRequest";
+import type { PrivateClassOption, PrivateKind } from "@/lib/privateClassRequest";
 
 // A teacher's private classes and her own prices (table teacher_private_offerings,
 // edited in her Teacher Panel). The website reads them through
@@ -74,4 +74,55 @@ export function offeringsOf(all: PrivateOffering[], teacherName: string, classId
   const mine = all.filter((o) => sameName(o.teacher_name, teacherName));
   if (!classId) return mine;
   return [...mine.filter((o) => o.class_id === classId), ...mine.filter((o) => o.class_id !== classId)];
+}
+
+/**
+ * One line of the request form's list: a teacher's own private class at her
+ * price — or, while she has not listed hers yet, one of her classes from the
+ * schedule, with the price to be confirmed by her.
+ */
+export interface PrivateChoice {
+  key: string;
+  title: string;
+  classId: string | null;
+  teacherName: string | null;
+  teacherPhoto: string | null;
+  /** Her private class with her prices; null when she has not listed hers yet. */
+  offering: PrivateOffering | null;
+}
+
+export function buildPrivateChoices(
+  offerings: PrivateOffering[],
+  scheduleOptions: PrivateClassOption[],
+  kind: PrivateKind,
+  people: number,
+): PrivateChoice[] {
+  const priced: PrivateChoice[] = offerings
+    .filter((o) => offeringPrice(o, kind, people) != null)
+    .map((o) => ({
+      key: `o:${o.id}`, title: o.title, classId: o.class_id,
+      teacherName: o.teacher_name, teacherPhoto: o.teacher_photo, offering: o,
+    }));
+  // A teacher who has listed her private classes is offered only through them.
+  const listed = new Set(offerings.map((o) => o.teacher_name.trim().replace(/\s+/g, " ").toLowerCase()));
+  const fallback: PrivateChoice[] = scheduleOptions
+    .filter((s) => !s.teacherName || !listed.has(s.teacherName.trim().replace(/\s+/g, " ").toLowerCase()))
+    .map((s) => ({
+      key: `c:${s.key}`, title: s.classTitle, classId: s.classId,
+      teacherName: s.teacherName, teacherPhoto: s.teacherPhoto, offering: null,
+    }));
+  return [...priced, ...fallback].sort(
+    (a, b) => a.title.localeCompare(b.title) || (a.teacherName ?? "~").localeCompare(b.teacherName ?? "~"),
+  );
+}
+
+/** The choice a link asked for: her private class, else her class on the schedule. */
+export function findChoice(
+  choices: PrivateChoice[],
+  pre: { offeringId?: string | null; classId?: string | null; teacherName?: string | null },
+): PrivateChoice | null {
+  if (pre.offeringId) return choices.find((c) => c.offering?.id === pre.offeringId) ?? null;
+  if (!pre.classId || !pre.teacherName) return null;
+  const mine = choices.filter((c) => c.classId === pre.classId && sameName(c.teacherName, pre.teacherName));
+  return mine.find((c) => c.offering) ?? mine[0] ?? null;
 }

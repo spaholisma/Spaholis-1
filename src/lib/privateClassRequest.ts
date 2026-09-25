@@ -117,9 +117,9 @@ export function privateClassIntake(input: {
   kind: PrivateKind;
   kindTitle: string;
   people: number;
-  /** The teacher's private class that was picked, if any. Its price is worked
-   *  out again on the server; nothing about money is stored from here. */
-  offering: { id: string; class_id: string | null; title: string; teacher_name: string } | null;
+  /** What was picked: her own private class (priced again on the server —
+   *  nothing about money is stored from here), or her class on the schedule. */
+  choice: { offering: { id: string } | null; classId: string | null; title: string; teacherName: string | null } | null;
   preferred: string;
 }) {
   return {
@@ -127,10 +127,10 @@ export function privateClassIntake(input: {
       kind: input.kind,
       kind_title: input.kindTitle,
       people: input.people,
-      offering_id: input.offering?.id ?? null,
-      class_id: input.offering?.class_id ?? null,
-      class_title: input.offering?.title ?? null,
-      teacher_name: input.offering?.teacher_name ?? null,
+      offering_id: input.choice?.offering?.id ?? null,
+      class_id: input.choice?.classId ?? null,
+      class_title: input.choice?.title ?? null,
+      teacher_name: input.choice?.teacherName ?? null,
       preferred: input.preferred || null,
     },
   };

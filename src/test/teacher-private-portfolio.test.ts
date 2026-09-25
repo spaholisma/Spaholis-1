@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { privateClassIntake, privateRequestPath } from "@/lib/privateClassRequest";
 import {
-  fromPrice, kindsOffered, maxGroup, offeringPrice, offeringsOf, type PrivateOffering,
+  buildPrivateChoices, findChoice, fromPrice, kindsOffered, maxGroup, offeringPrice, offeringsOf,
+  type PrivateOffering,
 } from "@/lib/privateOfferings";
+import type { PrivateClassOption } from "@/lib/privateClassRequest";
 
 // Private classes belong to the teacher: she lists hers in her Teacher Panel,
 // each with her own prices. Her class pages show all of them in a menu, and the
@@ -64,19 +66,52 @@ describe("the request", () => {
   });
 
   it("keeps which of her classes was picked — and nothing about money", () => {
-    const pc = privateClassIntake({ kind: "oneOnOne", kindTitle: "One-on-One", people: 1, offering: offering(), preferred: "" }).private_class;
+    const o = offering();
+    const pc = privateClassIntake({
+      kind: "oneOnOne", kindTitle: "One-on-One", people: 1, preferred: "",
+      choice: { offering: o, classId: o.class_id, title: o.title, teacherName: o.teacher_name },
+    }).private_class;
     expect(pc).toMatchObject({ offering_id: "o1", class_id: "c1", class_title: "Private Aerial Yoga", teacher_name: "Ashley" });
     expect(JSON.stringify(pc)).not.toMatch(/price/);
   });
 
   it("the request page shows her price once her class is chosen, otherwise says it depends", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
-    expect(form).toMatch(/const privatePrice = privateKind && classChoice \? offeringPrice\(classChoice, privateKind, people\) : null;/);
+    expect(form).toMatch(/const privatePrice = privateKind && classChoice\?\.offering \? offeringPrice\(classChoice\.offering, privateKind, people\) : null;/);
     expect(form).toMatch(/Price depends on the class and teacher/);
+    expect(form).toMatch(/Price confirmed by \{\{name\}\}/);
     const picker = read("src/components/booking/PrivateClassPicker.tsx");
-    // Only the ones she offers for this kind and this many people.
-    expect(picker).toMatch(/\(all \?\? \[\]\)\.filter\(\(o\) => priceOf\(o\) != null\)/);
-    expect(picker).toMatch(/options\.find\(\(x\) => x\.id === preselect\.offeringId\)/);
+    expect(picker).toMatch(/return buildPrivateChoices\(offerings \?\? \[\], schedule, kind, people\);/);
+    expect(picker).toMatch(/const c = findChoice\(options, preselect\);/);
+  });
+});
+
+describe("while a teacher has not listed her private classes", () => {
+  const schedule = (classId: string, teacherName: string | null): PrivateClassOption => ({
+    key: `${classId}::${teacherName ?? ""}`, classId, classTitle: `Class ${classId}`, teacherName, teacherPhoto: null,
+  });
+  const listed = [offering({ id: "o1", teacher_name: "Ashley", class_id: "c1", price_group: null })];
+  const sched = [schedule("c1", "Ashley"), schedule("c2", "Evelina"), schedule("c3", null)];
+
+  it("her classes from the schedule still show, with the price to be confirmed", () => {
+    const list = buildPrivateChoices(listed, sched, "oneOnOne", 1);
+    // In order of class name, as the list always was.
+    expect(list.map((c) => c.key)).toEqual(["c:c2::Evelina", "c:c3::", "o:o1"]);
+    expect(list.find((c) => c.teacherName === "Evelina")?.offering).toBeNull();
+  });
+
+  it("a teacher who listed hers is shown only through them — not for a kind she does not offer", () => {
+    const groups = buildPrivateChoices(listed, sched, "group", 4);
+    expect(groups.some((c) => c.teacherName === "Ashley")).toBe(false);
+    expect(groups.some((c) => c.teacherName === "Evelina")).toBe(true);
+  });
+
+  it("a link picks her private class first, else her class on the schedule, never someone else", () => {
+    const list = buildPrivateChoices(listed, sched, "oneOnOne", 1);
+    expect(findChoice(list, { offeringId: "o1" })?.key).toBe("o:o1");
+    expect(findChoice(list, { classId: "c1", teacherName: "ashley" })?.key).toBe("o:o1");
+    expect(findChoice(list, { classId: "c2", teacherName: "Evelina" })?.key).toBe("c:c2::Evelina");
+    expect(findChoice(list, { classId: "c2", teacherName: "Petra" })).toBeNull();
   });
 });
 
@@ -119,5 +154,6 @@ describe("the database and the emails", () => {
     expect(sql).toMatch(/check \(price_one is not null or price_two is not null or price_group is not null\)/);
     expect(fn).toMatch(/admin\.rpc\("private_offering_price"/);
     expect(fn).toMatch(/row\("Price"/);
+    expect(fn).toMatch(/teacherName \? `To be confirmed by \$\{esc\(teacherName\)\}`/);
   });
 });

@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Mail, Sparkles, Users } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWeekEvents } from "@/hooks/useClasses";
 import { cn } from "@/lib/utils";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
-import { initials, type PrivateKind } from "@/lib/privateClassRequest";
-import { offeringPrice, sameName, usePrivateOfferings, type PrivateOffering } from "@/lib/privateOfferings";
+import {
+  buildClassOptions, initials, type PrivateKind, type SessionWithClass, type TeacherRow,
+} from "@/lib/privateClassRequest";
+import {
+  buildPrivateChoices, findChoice, offeringPrice, usePrivateOfferings, type PrivateChoice,
+} from "@/lib/privateOfferings";
 
 function Face({ name, photo }: { name: string | null; photo: string | null }) {
   if (photo) return <img src={photo} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background" />;
@@ -35,9 +41,10 @@ function Row({ title, subtitle, name, photo }: { title: string; subtitle: string
 /**
  * "Choose a class & teacher" for a private class request. Optional: the
  * default is "No specific class". The list is the teachers' own private
- * classes (each teacher sets hers, with her prices, in her Teacher Panel) —
- * only the ones offered for this kind of private class and this many people,
- * each with her price.
+ * classes, each at her price (she sets them in her Teacher Panel) — only the
+ * ones offered for this kind and this many people. A teacher who has not
+ * listed hers yet still appears with the classes she teaches on the schedule,
+ * and the price is confirmed by her.
  *
  * A plain scrolling list rather than a Select: the wheel, the trackpad and a
  * finger then move it like the rest of the page, instead of the step-by-step
@@ -52,21 +59,46 @@ export function PrivateClassPicker({
 }: {
   kind: PrivateKind;
   people: number;
-  value: PrivateOffering | null;
-  onChange: (offering: PrivateOffering | null) => void;
+  value: PrivateChoice | null;
+  onChange: (choice: PrivateChoice | null) => void;
   /** Chosen on the way in — from a teacher's class page. Applied once. */
   preselect?: { offeringId?: string | null; classId?: string | null; teacherName?: string | null } | null;
 }) {
   const { t } = useTranslation();
-  const { data: all, isLoading } = usePrivateOfferings();
+  const { data: offerings, isLoading: loadingOfferings } = usePrivateOfferings();
+  // The classes we are actually teaching, for teachers who have not listed
+  // their private classes yet: the scheduled sessions, as the Classes page shows.
+  const { data: sessions, isLoading: loadingSessions } = useWeekEvents();
+  const [teachers, setTeachers] = useState<TeacherRow[] | null>(null);
+  // Upcoming sessions often have no teacher on them yet, so who has been
+  // giving each class recently fills that in.
+  const [recent, setRecent] = useState<SessionWithClass[] | null>(null);
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const priceOf = (o: PrivateOffering) => offeringPrice(o, kind, people);
-  const options = useMemo(
-    () => (isLoading ? null : (all ?? []).filter((o) => priceOf(o) != null)),
-    [all, isLoading, kind, people], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  useEffect(() => {
+    let alive = true;
+    // 60 days: the same window send-private-class-request checks a teacher against.
+    const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    Promise.all([
+      (supabase as any).rpc("public_teachers"),
+      supabase.from("class_schedule").select("class_id, instructor").eq("is_cancelled", false)
+        .gte("start_time", since).lte("start_time", new Date().toISOString())
+        .not("instructor", "is", null).order("start_time", { ascending: false }).limit(500),
+    ]).then(([tr, r]: any[]) => {
+      if (!alive) return;
+      setTeachers((tr?.data as TeacherRow[]) ?? []);
+      setRecent(((r?.data as SessionWithClass[]) ?? []));
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const options = useMemo(() => {
+    if (loadingOfferings || loadingSessions || teachers === null || recent === null) return null;
+    const schedule = buildClassOptions((sessions ?? []) as any, teachers, recent);
+    // If her private classes could not be read, the schedule still works.
+    return buildPrivateChoices(offerings ?? [], schedule, kind, people);
+  }, [offerings, loadingOfferings, sessions, loadingSessions, teachers, recent, kind, people]);
 
   // Arriving from a teacher's page: her private class is already chosen, and
   // the guest can still change it. A teacher who is not found picks nothing,
@@ -76,23 +108,22 @@ export function PrivateClassPicker({
     if (preselected.current || !options || !preselect) return;
     preselected.current = true;
     if (value) return;
-    const o = preselect.offeringId
-      ? options.find((x) => x.id === preselect.offeringId)
-      : preselect.classId && preselect.teacherName
-        ? options.find((x) => x.class_id === preselect.classId && sameName(x.teacher_name, preselect.teacherName))
-        : undefined;
-    if (o) onChange(o);
+    const c = findChoice(options, preselect);
+    if (c) onChange(c);
   }, [options, preselect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noClassTitle = t("consultation.privateNoClass", { defaultValue: "No specific class" });
   const noClassHint = t("consultation.privateNoClassHint", { defaultValue: "We'll help you choose" });
-  const line = (o: PrivateOffering) => {
-    const price = priceOf(o);
-    const who = t("consultation.privateWith", { name: o.teacher_name, defaultValue: "with {{name}}" });
-    return price == null ? who : `${who} · ${formatCRCWithUsd(price * USD_RATE)}`;
+  const line = (c: PrivateChoice) => {
+    if (!c.teacherName) return t("consultation.privateTeacherTbc", { defaultValue: "Teacher to be confirmed" });
+    const who = t("consultation.privateWith", { name: c.teacherName, defaultValue: "with {{name}}" });
+    const price = c.offering ? offeringPrice(c.offering, kind, people) : null;
+    return price != null
+      ? `${who} · ${formatCRCWithUsd(price * USD_RATE)}`
+      : `${who} · ${t("consultation.privatePriceByTeacher", { defaultValue: "price confirmed by her" })}`;
   };
 
-  const pick = (option: PrivateOffering | null) => {
+  const pick = (option: PrivateChoice | null) => {
     onChange(option);
     setOpen(false);
   };
@@ -134,7 +165,7 @@ export function PrivateClassPicker({
                 className="flex w-full items-center justify-between gap-2 rounded-2xl border border-spa-sage/40 bg-background/90 px-3 py-2.5 text-left shadow-sm backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-spa-sage"
               >
                 {value
-                  ? <Row title={value.title} subtitle={line(value)} name={value.teacher_name} photo={value.teacher_photo} />
+                  ? <Row title={value.title} subtitle={line(value)} name={value.teacherName} photo={value.teacherPhoto} />
                   : <Row title={noClassTitle} subtitle={noClassHint} name={null} photo={null} />}
                 <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
               </button>
@@ -167,17 +198,17 @@ export function PrivateClassPicker({
                   {value === null && <Check className="h-4 w-4 shrink-0 text-spa-sage" />}
                 </button>
                 {options.map((o) => {
-                  const selected = value?.id === o.id;
+                  const selected = value?.key === o.key;
                   return (
                     <button
-                      key={o.id}
+                      key={o.key}
                       type="button"
                       role="option"
                       aria-selected={selected}
                       onClick={() => pick(o)}
                       className={itemClass(selected)}
                     >
-                      <Row title={o.title} subtitle={line(o)} name={o.teacher_name} photo={o.teacher_photo} />
+                      <Row title={o.title} subtitle={line(o)} name={o.teacherName} photo={o.teacherPhoto} />
                       {selected && <Check className="h-4 w-4 shrink-0 text-spa-sage" />}
                     </button>
                   );
@@ -189,10 +220,10 @@ export function PrivateClassPicker({
       </div>
 
       <p className="relative mt-3 flex items-start gap-2 font-body text-xs text-muted-foreground">
-        {value ? (
+        {value?.teacherName ? (
           <>
             <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-spa-sage" />
-            <span>{t("consultation.privateGoesTo", { name: value.teacher_name, defaultValue: "Your request goes straight to {{name}} and the Holis team." })}</span>
+            <span>{t("consultation.privateGoesTo", { name: value.teacherName, defaultValue: "Your request goes straight to {{name}} and the Holis team." })}</span>
           </>
         ) : (
           <>
