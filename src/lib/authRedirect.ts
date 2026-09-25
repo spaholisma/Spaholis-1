@@ -41,12 +41,14 @@ export function initialPasswordLink(): AuthLink {
 const STAFF_ROLES = new Set(["super_admin", "manager", "coordinator", "viewer"]);
 
 /**
- * Where someone belongs once signed in: the team to the Admin panel, everyone
- * else to their own page. Sending every client to /admin showed them
- * "Access Denied" right after they chose a password.
+ * Where someone belongs once signed in: the team to the Admin panel, a teacher
+ * to her Teacher Panel, everyone else to their own page. Sending every client
+ * to /admin showed them "Access Denied" right after they chose a password.
  */
-export async function homeFor(userId: string | null | undefined): Promise<"/admin" | "/dashboard"> {
+export async function homeFor(userId: string | null | undefined): Promise<"/admin" | "/teacher" | "/dashboard"> {
   if (!userId) return "/dashboard";
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  return (data ?? []).some((r: any) => STAFF_ROLES.has(String(r.role))) ? "/admin" : "/dashboard";
+  const roles = (data ?? []).map((r: any) => String(r.role));
+  if (roles.some((r) => STAFF_ROLES.has(r))) return "/admin";
+  return roles.includes("teacher") ? "/teacher" : "/dashboard";
 }

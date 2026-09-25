@@ -12,7 +12,7 @@
 // Called only by the database triggers in `notify_teacher_event()`, so every
 // path reaches the teacher: the website, PayPal, the admin calendar, her panel.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { emailDocument } from "../_shared/email-layout.ts";
+import { emailButton, emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,7 +74,8 @@ type Event =
   | "booking_created" | "booking_cancelled"
   | "class_cancelled" | "class_reactivated"
   | "class_rescheduled" | "class_reassigned"
-  | "pass_requested";
+  | "pass_requested"
+  | "teacher_welcome";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -130,6 +131,59 @@ Deno.serve(async (req) => {
       );
       if (!res.ok) console.error("[notify-teacher] pass request email failed", res.error);
       return json({ ok: true, event, teacherEmailed: res.ok });
+    }
+
+    // ── A new teacher: how to open her panel ──
+    // Sent by the database the moment her website account is linked to her —
+    // whether the Admin invited her or she signed up herself.
+    if (event === "teacher_welcome") {
+      const { data: t } = await admin.from("teachers")
+        .select("display_name, email, user_id").eq("id", teacherId).maybeSingle();
+      const teacher: any = t;
+      if (!teacher?.user_id) return json({ ok: true, teacherEmailed: false, reason: "not_linked" });
+      const { data: u } = await admin.auth.admin.getUserById(teacher.user_id);
+      const to = u?.user?.email || teacher.email;
+      if (!to) return json({ ok: true, teacherEmailed: false, reason: "no_email" });
+
+      // Never signed in (the Admin made her account): she chooses her password
+      // first. Nobody on the team ever knows it.
+      const firstTime = !u?.user?.last_sign_in_at;
+      let passwordLink: string | null = null;
+      if (firstTime) {
+        const { data: link, error: lErr } = await admin.auth.admin.generateLink({
+          type: "recovery", email: to, options: { redirectTo: `${SITE}/reset-password` },
+        });
+        passwordLink = (link as any)?.properties?.action_link ?? null;
+        if (lErr || !passwordLink) console.error("[notify-teacher] could not make the password link", lErr?.message);
+      }
+
+      const first = String(teacher.display_name || "").trim().split(/\s+/)[0] || "there";
+      const next = passwordLink
+        ? `<p style="margin:20px 0 0;">${emailButton(passwordLink, "Choose my password")}</p>
+           <p style="color:#6b6b6b;font-size:13px;line-height:1.5;margin:14px 0 0">
+             Choose a password and you go straight to your Teacher Panel. The link works once and
+             expires after a while — if it has, go to spaholis.com, press Sign in, then
+             "Forgot password" with this email address.
+           </p>`
+        : `<p style="margin:20px 0 0;">${emailButton(`${SITE}/teacher`, "Open my Teacher Panel")}</p>
+           <p style="color:#6b6b6b;font-size:13px;line-height:1.5;margin:14px 0 0">
+             Sign in with this email address and your usual password. You also find it under
+             My Account → Teacher Admin Panel.
+           </p>`;
+      const res = await sendEmail(
+        to,
+        "Welcome to the Holis teaching team",
+        shell(
+          "Welcome to the Holis teaching team",
+          `Hi ${esc(first)} — you have been added as a teacher at Holis Wellness Center. In your ` +
+          "Teacher Panel you see the studio's week and your classes, who signed up, your students " +
+          "and notes, and the studio rent for the month.",
+          [row("Your name on the schedule", teacher.display_name || ""), row("Sign in with", to)],
+          next,
+        ),
+      );
+      if (!res.ok) console.error("[notify-teacher] welcome email failed", res.error);
+      return json({ ok: true, event, teacherEmailed: res.ok, firstTime });
     }
 
     const { data: sched } = await admin

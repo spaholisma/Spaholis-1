@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction, extractInvokeErrorMessage } from "@/lib/invokeEdgeFunction";
+import { AddTeacherCard } from "@/components/admin/AddTeacherCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
-  ChevronLeft, ChevronRight, Loader2, Plus, Trash2, Link2, Users,
+  ChevronLeft, ChevronRight, Loader2, Trash2, Link2, Users, Send,
   Wallet, ChevronDown, ChevronUp, Download, AlertTriangle, HandCoins, Check,
 } from "lucide-react";
 import {
@@ -50,8 +52,6 @@ export function AdminTeachersManager() {
   const [payingFor, setPayingFor] = useState<string | null>(null);
   const [payDraft, setPayDraft] = useState({ amount: "", paid_on: todayCR(), method: "cash", note: "" });
   const [savingPay, setSavingPay] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
   const { confirm, confirmDialog } = useConfirm();
 
   const ym = format(month, "yyyy-MM");
@@ -187,29 +187,35 @@ export function AdminTeachersManager() {
     if (error) toast.error(error.message); else load();
   };
 
-  const addTeacher = async () => {
-    const name = newName.trim();
-    if (!name) { toast.error("Name is required"); return; }
-    const { data, error } = await sb.from("teachers")
-      .insert({ display_name: name, email: newEmail.trim() || "", studio_rate: 35 })
-      .select("id").single();
-    if (error) { toast.error(error.message.includes("duplicate") ? "That teacher already exists" : error.message); return; }
-    if (newEmail.trim()) await linkAccount(data.id, newEmail.trim(), true);
-    setNewName(""); setNewEmail("");
-    toast.success(`${name} added`);
+  /** Attach a login to a teacher (and give it the teacher role). */
+  const linkAccount = async (teacherId: string, email: string) => {
+    const { data, error } = await sb.rpc("link_teacher_account", { _teacher_id: teacherId, _email: email });
+    if (error) { toast.error(error.message); return; }
+    toast[data ? "success" : "info"](
+      data ? "Account linked — she's been emailed how to open her Teacher Panel"
+           : "No account with that email yet. Invite her, or she is linked as soon as she signs up with it.",
+    );
     loadTeachers();
   };
 
-  /** Attach a login to a teacher (and give it the teacher role). */
-  const linkAccount = async (teacherId: string, email: string, quiet = false) => {
-    const { data, error } = await sb.rpc("link_teacher_account", { _teacher_id: teacherId, _email: email });
+  /**
+   * Make her a website login and email her the invitation. The email is kept on
+   * her first, so the database links the new account to her (and sends the
+   * welcome) the moment it exists. Nobody on the team ever sees her password.
+   */
+  const inviteTeacher = async (t: Teacher, email: string) => {
+    const { data: linked, error } = await sb.rpc("link_teacher_account", { _teacher_id: t.id, _email: email });
     if (error) { toast.error(error.message); return; }
-    if (!quiet) {
-      toast[data ? "success" : "info"](
-        data ? "Account linked — she can now open the Teacher Panel"
-             : "No account with that email yet. Ask her to sign up, then link again.",
-      );
+    if (linked) {
+      toast.success("She already had an account — linked, and she's been emailed how to open her Teacher Panel");
+      loadTeachers();
+      return;
     }
+    const res = await invokeEdgeFunction("admin-clients", {
+      body: { action: "create", full_name: t.display_name, email, send_email: false },
+    });
+    if (!res.ok) { toast.error(extractInvokeErrorMessage(res, "Could not create her login")); return; }
+    toast.success(`Invitation sent to ${email}`);
     loadTeachers();
   };
 
@@ -312,7 +318,7 @@ export function AdminTeachersManager() {
                         {!r.teacher.active && <span className="ml-2 text-xs font-normal text-muted-foreground">(inactive)</span>}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        {r.teacher.user_id ? r.teacher.email : <span className="text-amber-600">no account linked</span>}
+                        {r.teacher.user_id ? r.teacher.email : <span className="text-amber-600">not linked yet — invite her under Details</span>}
                       </p>
                     </div>
                     <div className="text-right">
@@ -450,9 +456,20 @@ export function AdminTeachersManager() {
                             }}>
                             <Link2 className="h-3.5 w-3.5 mr-1" /> Link
                           </Button>
+                          {!r.teacher.user_id && (
+                            <Button size="sm" className="h-8 whitespace-nowrap"
+                              onClick={() => {
+                                const el = document.getElementById(`email-${r.teacher.id}`) as HTMLInputElement;
+                                if (el?.value.trim()) inviteTeacher(r.teacher, el.value.trim());
+                              }}>
+                              <Send className="h-3.5 w-3.5 mr-1" /> Invite
+                            </Button>
+                          )}
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          She must have signed up on the site first. Linking also gives her the teacher role.
+                          {r.teacher.user_id
+                            ? "Her website account is linked — she opens her Teacher Panel with it."
+                            : "Not linked yet. Link finds her account by email; Invite makes one and emails her. She is also linked automatically when she signs up with this email."}
                         </p>
 
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
@@ -502,19 +519,7 @@ export function AdminTeachersManager() {
           )}
 
           {/* Add a teacher */}
-          <Card className="p-4">
-            <p className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">Add a teacher</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)}
-                placeholder="Name — exactly as it appears on classes" className="h-9 max-w-xs" />
-              <Input value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="her@email.com (optional)" className="h-9 max-w-xs" />
-              <Button size="sm" onClick={addTeacher}><Plus className="h-4 w-4 mr-1" /> Add</Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
-              The name must match the teacher set on each class session, otherwise her classes won't show up.
-            </p>
-          </Card>
+          <AddTeacherCard teacherNames={teachers.map((t) => t.display_name)} onAdded={loadTeachers} />
         </>
       )}
       {confirmDialog}
