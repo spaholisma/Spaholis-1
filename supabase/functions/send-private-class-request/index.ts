@@ -16,6 +16,7 @@
 // really teach that class, and her email comes from the teachers table.
 
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { emailHead } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,7 +49,8 @@ function row(label: string, value: string) {
 }
 
 function shell(eyebrow: string, title: string, intro: string, rows: string, footer: string) {
-  return `<!doctype html><html><body style="margin:0;background:#f4f1ec;font-family:Helvetica,Arial,sans-serif">
+  // The shared head carries the viewport line, so a phone shows it at its own width.
+  return `<!DOCTYPE html><html lang="en">${emailHead(title)}<body style="margin:0;background:#f4f1ec;font-family:Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:28px 12px">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden">

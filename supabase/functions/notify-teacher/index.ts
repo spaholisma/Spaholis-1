@@ -12,6 +12,7 @@
 // Called only by the database triggers in `notify_teacher_event()`, so every
 // path reaches the teacher: the website, PayPal, the admin calendar, her panel.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,8 +47,9 @@ async function sendEmail(to: string, subject: string, html: string) {
   return { ok: true };
 }
 
+// Poured into the shared document so a phone shows it at its own width.
 function shell(title: string, intro: string, rows: string[], footer = ""): string {
-  return `
+  return emailDocument(`
   <div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#2e2e2e">
     <h2 style="font-weight:600;color:#2e2e2e;margin:0 0 8px">${esc(title)}</h2>
     <p style="color:#6b6b6b;margin:0 0 18px;line-height:1.5">${intro}</p>
@@ -59,7 +61,7 @@ function shell(title: string, intro: string, rows: string[], footer = ""): strin
       Holis Wellness Center · Manuel Antonio, Costa Rica<br>
       <a href="${SITE}/teacher" style="color:#7b9d87">Open your Teacher Panel</a>
     </p>
-  </div>`;
+  </div>`, title);
 }
 const row = (k: string, v: string) => `
   <tr>

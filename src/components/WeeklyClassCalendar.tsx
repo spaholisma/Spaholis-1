@@ -295,7 +295,7 @@ function ClassSlot({ event }: { event: ScheduleRow }) {
 
       {/* Who teaches it */}
       {teacherOf(event) && (
-        <p className="font-body text-[10px] text-muted-foreground leading-tight truncate">
+        <p className="font-body text-[11px] text-muted-foreground leading-tight truncate">
           with {teacherOf(event)}
         </p>
       )}
