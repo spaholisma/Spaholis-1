@@ -69,7 +69,7 @@ export function WellnessProgramsSection() {
                         loading="lazy"
                       />
                     )}
-                    <span className="absolute top-4 left-4 rounded-full bg-background/90 backdrop-blur px-3 py-1 font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-spa-sage">
+                    <span className="absolute top-4 left-4 rounded-full bg-background/90 backdrop-blur px-3 py-1 font-body text-[11px] font-semibold uppercase tracking-[0.2em] text-spa-sage">
                       Program {String(i + 1).padStart(2, "0")}
                     </span>
                   </div>

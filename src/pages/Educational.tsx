@@ -250,7 +250,9 @@ const EducationalPage = () => {
               </div>
             </motion.div>
 
-            <div className="grid lg:grid-cols-[300px_1fr] gap-8 lg:gap-10 items-start">
+            {/* minmax(0,1fr): the column may shrink to the screen — on a 320px
+                phone its widest row pushed the page 14px sideways. */}
+            <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[300px_minmax(0,1fr)] gap-8 lg:gap-10 items-start">
               {/* LEFT: SAS-certified practitioners registry (count only — no names) */}
               {sasPractitionerCount > 0 && (
                 <aside className="lg:sticky lg:top-24">

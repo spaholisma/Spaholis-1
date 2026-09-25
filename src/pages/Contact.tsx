@@ -97,7 +97,7 @@ const ContactPage = () => {
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => (
-            <motion.div {...fadeIn} key={card.title} className="bg-card border border-border rounded-2xl p-6 flex flex-col">
+            <motion.div key={card.title} {...fadeIn} className="bg-card border border-border rounded-2xl p-6 flex flex-col">
               <div className="w-11 h-11 rounded-full bg-spa-sage/15 flex items-center justify-center mb-4">
                 <card.icon className="h-5 w-5 text-spa-sage" />
               </div>

@@ -20,9 +20,12 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMyOfferings, redeemOffering, type UserOffering } from "@/hooks/useOfferings";
+import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hooks/useOfferings";
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
-import { useTokenOffering, getStoredMembershipToken } from "@/hooks/useMembershipToken";
+import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
+import { toE164 } from "@/lib/phone";
+import { cardTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
+import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
@@ -70,6 +73,10 @@ const ClassBookingPage = () => {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  // A pass code typed in the coupon box: waiting to see whether its pass
+  // covers this class.
+  const [pendingPassCode, setPendingPassCode] = useState<string | null>(null);
+  const invalidateOfferings = useInvalidateOfferings();
   // How many spots to book at once (e.g. bringing friends). Multi-spot always
   // pays by card — memberships/credits are personal and stay at one spot.
   const [quantity, setQuantity] = useState(1);
@@ -88,8 +95,12 @@ const ClassBookingPage = () => {
   const multi = quantity > 1;
   useEffect(() => { setQuantity((q) => Math.min(Math.max(1, q), maxQty)); }, [maxQty]);
 
+  // Some classes are always paid in full — no pass, no membership, no coupon.
+  // The database refuses them too; this only keeps the offer off the screen.
+  const fullPriceOnly = !!(cls as any)?.full_price_only;
+
   // Only offerings that are valid for THIS class
-  const eligibleOfferings = classId
+  const eligibleOfferings = classId && !fullPriceOnly
     ? filterEligibleOfferings(myOfferings, classId, eligibilityMap)
     : [];
   const memberships = eligibleOfferings.filter((o) => o.type === "membership");
@@ -101,6 +112,7 @@ const ClassBookingPage = () => {
   // The membership behind the emailed link — usable without login if it's valid
   // and covers THIS class. This is the Acuity-style "recognized" flow.
   const tokenEligible =
+    !fullPriceOnly &&
     !!tokenOffering &&
     tokenOffering.valid &&
     !!classId &&
@@ -119,6 +131,72 @@ const ClassBookingPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenOffering]);
+
+  // Signed in: what their account knows about them.
+  const [account, setAccount] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
+  useEffect(() => {
+    if (!user) { setAccount(null); return; }
+    let live = true;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles").select("full_name, email, phone").eq("user_id", user.id).maybeSingle();
+      if (!live) return;
+      setAccount({
+        name: (data as any)?.full_name || (user.user_metadata as any)?.full_name || null,
+        email: (data as any)?.email || user.email || null,
+        phone: (data as any)?.phone || null,
+      });
+    })();
+    return () => { live = false; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The booking is theirs: name and email come from the account (or from the
+  // pass behind the link) and cannot be changed, so a membership cannot book a
+  // friend in for free. What is missing can still be typed. The server
+  // (book_class_with_offering) holds to the same rule.
+  const locked = lockedDetails({
+    signedIn: !!user,
+    account,
+    authEmail: user?.email ?? null,
+    pass: tokenOffering,
+  });
+  useEffect(() => {
+    if (!locked.name && !locked.email) return;
+    setFormData((f) => ({
+      name: locked.name ?? f.name,
+      email: locked.email ?? f.email,
+      phone: f.phone || toE164(account?.phone) || f.phone,
+    }));
+  }, [locked.name, locked.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Signed in: a pass the studio sold them at the desk is filed under their
+  // email, not their account — bring it into the account so it can be used
+  // here (link_my_offerings only takes passes nobody owns yet).
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc("link_my_offerings" as any).then(({ data, error }) => {
+      if (!error && Number(data) > 0) invalidateOfferings();
+    });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A pass code was typed: once its pass has loaded, use it — or say why not.
+  useEffect(() => {
+    if (!pendingPassCode || tokenQuery.isFetching) return;
+    if (!tokenOffering) return;
+    setPendingPassCode(null);
+    if (tokenEligible) {
+      setUseLinkMembership(true);
+      setPayMethod(tokenMethod);
+      setSelectedOfferingId(null);
+      setAppliedCoupon(null);
+      setCouponCode("");
+      toast.success(`${tokenOffering.name_snapshot} applied — this class is covered.`);
+    } else if (!tokenOffering.valid) {
+      toast.error(`${tokenOffering.name_snapshot} has no classes left or has expired.`);
+    } else {
+      toast.error(`${tokenOffering.name_snapshot} does not cover ${cls?.title ?? "this class"}.`);
+    }
+  }, [pendingPassCode, tokenOffering, tokenQuery.isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // For the entitlements panel: what the user owns but can't use here
   const ineligibleOwned = myOfferings.filter(
@@ -255,10 +333,10 @@ const ClassBookingPage = () => {
       if (!result.ok || !result.data || result.data.ok === false) {
         const reason = result.data?.reason;
         const msg =
-          reason === "class_full" ? "This class just filled up."
-          : reason === "invalid_coupon" ? (result.data?.message || "That coupon is not valid for this class.")
+          classCheckoutReasonMessage(reason)
+          ?? (reason === "invalid_coupon" ? (result.data?.message || "That coupon is not valid for this class.")
           : reason === "no_payment_link" ? "Card payment is temporarily unavailable. Please contact us."
-          : (result.data?.message || t("booking.classBookFailed"));
+          : (result.data?.message || t("booking.classBookFailed")));
         toast.error(msg);
         return;
       }
@@ -302,12 +380,20 @@ const ClassBookingPage = () => {
     if (!user) return toast.error(t("booking.signInForOfferingError"));
     setSubmitting(true);
     try {
-      const bookingId = await createClassBooking({
-        paymentStatus: "paid",
-        paymentMethod: payMethod,
-        userOfferingId: selectedOfferingId,
+      // One call, one transaction: the booking, the credit and the redemption
+      // move together. Doing it in two steps from the browser left bookings
+      // behind whenever the second step failed — and the retry booked the
+      // person again.
+      const { data, error } = await supabase.rpc("book_class_with_offering" as any, {
+        _user_offering_id: selectedOfferingId,
+        _schedule_id: scheduleId,
+        _guest_name: formData.name?.trim() || null,
+        _guest_email: formData.email?.trim() || null,
+        _guest_phone: formData.phone?.trim() || null,
       });
-      await redeemOffering(selectedOfferingId, bookingId);
+      if (error) throw error;
+      const bookingId = (data as any)?.booking_id as string | undefined;
+      if (!bookingId) throw new Error(t("booking.redeemFailed"));
       // Fire-and-forget: send USD-formatted class confirmation email.
       supabase.functions
         .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
@@ -400,14 +486,14 @@ const ClassBookingPage = () => {
     );
   }
 
-  // Online booking closes 15 min before the class starts (the DB also blocks it).
-  if (new Date(event.start_time).getTime() < Date.now() + 15 * 60 * 1000) {
+  // Online booking is open until the class starts (the DB holds to the same).
+  if (!isClassOpenForBooking(event.start_time)) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
           <h1 className="spa-heading-lg text-foreground mb-4">Booking is closed for this class</h1>
-          <p className="spa-body mb-8">Online booking closes 15 minutes before a class starts. Browse our upcoming classes instead.</p>
+          <p className="spa-body mb-8">This class has already started, so online booking is closed. Browse our upcoming classes instead.</p>
           <Button asChild><Link to="/classes">See upcoming classes</Link></Button>
         </div>
         <Footer />
@@ -543,12 +629,35 @@ const ClassBookingPage = () => {
                         </div>
                       )}
                       <div>
-                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
-                        <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Jane Doe" />
+                        <label htmlFor="booking-name" className="font-body text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
+                        <Input
+                          id="booking-name"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Jane Doe"
+                          readOnly={!!locked.name}
+                          aria-readonly={!!locked.name}
+                          className={cn(locked.name && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
+                        />
                       </div>
                       <div>
-                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Email *</label>
-                        <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="jane@example.com" />
+                        <label htmlFor="booking-email" className="font-body text-sm font-medium text-foreground mb-1.5 block">Email *</label>
+                        <Input
+                          id="booking-email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="jane@example.com"
+                          readOnly={!!locked.email}
+                          aria-readonly={!!locked.email}
+                          className={cn(locked.email && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
+                        />
+                        {(locked.name || locked.email) && (
+                          <p className="text-xs text-muted-foreground mt-1.5 font-body">
+                            {user ? "From your account" : "From your membership"} — this booking is in your name.
+                            {maxQty > 1 ? " Bringing someone? Add a spot for them above." : ""}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Phone</label>
@@ -643,7 +752,15 @@ const ClassBookingPage = () => {
                         </PayOption>
                       )}
 
-                      {user && !hasRedeemable && ineligibleOwned.length > 0 && (
+                      {fullPriceOnly ? (
+                        <div className="rounded-xl border border-border bg-muted/30 p-3">
+                          <p className="text-xs font-body text-muted-foreground">
+                            <span className="font-medium text-foreground">{cls.title}</span> is
+                            always paid in full — memberships, class credits and coupons do not
+                            apply to it.
+                          </p>
+                        </div>
+                      ) : user && !hasRedeemable && ineligibleOwned.length > 0 && (
                         <div className="rounded-xl border border-border bg-muted/30 p-3">
                           <p className="text-xs font-body text-muted-foreground">
                             Your existing memberships and passes don't cover{" "}
@@ -664,15 +781,15 @@ const ClassBookingPage = () => {
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
 
-                      {!multi && !user && !tokenEligible && (
+                      {!multi && !user && !tokenEligible && !fullPriceOnly && (
                         <p className="text-xs font-body text-muted-foreground px-1">
                           <Link to="/auth" className="underline">Sign in</Link> to use a membership or class credits.
                         </p>
                       )}
 
-                      {payMethod === "card" && (
+                      {payMethod === "card" && !fullPriceOnly && (
                         <div className="bg-card rounded-2xl border border-border p-4 mt-2 space-y-2">
-                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon?</label>
+                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon or a pass code?</label>
                           <div className="flex gap-2">
                             <Input
                               value={couponCode}
@@ -690,8 +807,25 @@ const ClassBookingPage = () => {
                                 onClick={async () => {
                                   setValidatingCoupon(true);
                                   const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
+                                  if (!res.valid) {
+                                    // Not a coupon — perhaps the code of a pass or membership.
+                                    // It needs the email the pass was sold to, so a code alone
+                                    // cannot open someone else's pass.
+                                    const { data: token } = await supabase.rpc("membership_token_for_code" as any, {
+                                      _code: couponCode.trim(), _email: formData.email.trim(),
+                                    });
+                                    setValidatingCoupon(false);
+                                    if (typeof token === "string" && token) {
+                                      setPendingPassCode(couponCode.trim().toUpperCase());
+                                      storeMembershipToken(token);
+                                      return;
+                                    }
+                                    toast.error(looksLikePassCode(couponCode)
+                                      ? `We could not find an active pass with that code for ${formData.email.trim() || "this email"}. Use the email the pass was sold to.`
+                                      : (res.reason || "Invalid coupon"));
+                                    return;
+                                  }
                                   setValidatingCoupon(false);
-                                  if (!res.valid) { toast.error(res.reason || "Invalid coupon"); return; }
                                   const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
                                   setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
                                   toast.success(`Coupon applied: ${label}`);
@@ -728,13 +862,22 @@ const ClassBookingPage = () => {
                           <span className="font-body text-sm font-semibold text-foreground">Total</span>
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
-                              ? formatPrice(Math.max(0, quantity * Number(cls.price) - (appliedCoupon?.discount ?? 0)))
+                              ? formatPrice(cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>
                       </div>
 
-                      {payMethod === "card" ? (
+                      {isFreeWithCoupon({
+                        payMethod, multi, hasCoupon: !!appliedCoupon,
+                        total: cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0),
+                      }) ? (
+                        // Nothing to pay: PayPal cannot take $0, so book it here.
+                        // The server checks the coupon again before confirming.
+                        <Button className="w-full" onClick={handleCardCheckout} disabled={submitting || !formData.name || !formData.email}>
+                          {submitting ? t("booking.booking") : t("booking.confirmBooking")}
+                        </Button>
+                      ) : payMethod === "card" ? (
                         <PayPalCheckout
                           disabled={!formData.name || !formData.email}
                           createOrderBody={() =>

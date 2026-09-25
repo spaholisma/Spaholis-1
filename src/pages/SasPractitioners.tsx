@@ -51,7 +51,7 @@ function PractitionerCard({ p, viewProfileLabel, bookLabel }: { p: Practitioner;
       <div className="p-5 flex flex-col flex-1">
         <div className="flex flex-wrap gap-1.5 mb-3">
           {p.status.slice(0, 2).map((s) => (
-            <Badge key={s} variant="secondary" className="text-[10px] uppercase tracking-wider">
+            <Badge key={s} variant="secondary" className="text-[11px] uppercase tracking-wider">
               {STATUS_LABELS[s]}
             </Badge>
           ))}
@@ -208,7 +208,9 @@ const SasPractitionersPage = () => {
           )}
         </motion.header>
 
-        <div className="grid lg:grid-cols-[280px_1fr] gap-8 lg:gap-10 items-start">
+        {/* minmax(0,1fr): the column may shrink to the screen — on a 320px
+            phone its widest content pushed the page 29px sideways. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] gap-8 lg:gap-10 items-start">
           {/* Sidebar filters */}
           <aside className="space-y-5 lg:sticky lg:top-24">
             <div className="bg-card border border-border rounded-2xl p-5">

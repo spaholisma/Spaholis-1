@@ -97,6 +97,10 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    /* Safari on iPhone grows text on its own when the phone turns sideways,
+       which breaks layouts that were fine in portrait. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -117,6 +121,20 @@
   .spa-heading-lg {
     font-family: var(--font-heading);
     @apply text-3xl sm:text-4xl font-normal uppercase tracking-[0.06em];
+  }
+
+  /* The narrowest phones (320px, e.g. the first iPhone SE): a long word in
+     capitals ("PRACTITIONERS") is wider than the screen at 36px and pushed the
+     page sideways. One size down, and a word that still cannot fit may break
+     rather than overflow. Every wider screen is unchanged. */
+  @media (max-width: 359px) {
+    .spa-heading-xl {
+      font-size: 1.875rem;
+      overflow-wrap: break-word;
+    }
+    .spa-heading-lg {
+      overflow-wrap: break-word;
+    }
   }
 
   .spa-heading-md {

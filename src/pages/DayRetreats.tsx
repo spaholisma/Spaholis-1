@@ -55,7 +55,7 @@ const DayRetreatsPage = () => {
           {c.steps.map((step: { title: string; text: string }, i: number) => {
             const Icon = STEP_ICONS[i] || Leaf;
             return (
-              <motion.div {...fadeIn} key={i} className="bg-card border border-border rounded-2xl p-6">
+              <motion.div key={i} {...fadeIn} className="bg-card border border-border rounded-2xl p-6">
                 <div className="w-11 h-11 rounded-full bg-spa-sage/15 flex items-center justify-center mb-4">
                   <Icon className="h-5 w-5 text-spa-sage" />
                 </div>

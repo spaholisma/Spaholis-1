@@ -29,6 +29,8 @@ export function WhatsAppButton() {
       aria-label={wa?.text || "Chat on WhatsApp"}
       className={cn(
         "fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 shadow-lg transition-all",
+        // Clear of the iPhone home indicator, which sits over the bottom strip.
+        "[bottom:calc(1.5rem+env(safe-area-inset-bottom))]",
         "bg-[#25D366] text-white hover:bg-[#1ebe57] hover:shadow-xl hover:scale-105",
         "group"
       )}

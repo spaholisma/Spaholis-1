@@ -217,14 +217,14 @@ const WellnessProgramsPage = () => {
             <h2 className="font-heading text-3xl sm:text-4xl font-light">{c.ctaTitle}</h2>
             <p className="font-body text-base text-white/85 max-w-xl mx-auto">{c.ctaText}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
-              <Button size="lg" asChild className="font-body bg-white text-foreground hover:bg-white/90">
+              <Button size="lg" asChild className="font-body bg-white text-foreground hover:bg-white/90 max-w-full whitespace-normal h-auto min-h-11 py-2.5 text-center leading-tight">
                 <Link to={consultHref}>{c.ctaPrimary}</Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
                 asChild
-                className="font-body bg-transparent border-white/50 text-white hover:bg-white/10 hover:text-white"
+                className="font-body bg-transparent border-white/50 text-white hover:bg-white/10 hover:text-white max-w-full whitespace-normal h-auto min-h-11 py-2.5 text-center leading-tight"
               >
                 <a href={HOLIS_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
                   <MessageCircle className="h-4 w-4 mr-2" /> {c.ctaWhatsapp}

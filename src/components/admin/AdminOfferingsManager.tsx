@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt, Ticket } from "lucide-react";
+import { Pencil, Trash2, Plus, Gift, Users, Info, Snowflake, Play, CalendarClock, Receipt, Ticket, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { membershipExpiryISO } from "@/lib/membership";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -17,6 +17,7 @@ import { useOfferings, useInvalidateOfferings, type Offering, type OfferingType 
 import { useOfferingEligibleClasses, useInvalidateEligibility } from "@/hooks/useOfferingEligibility";
 import { useClasses } from "@/hooks/useClasses";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContactPhoneField, initialPhone, phoneProblem, phoneToSave } from "@/components/admin/ContactPhoneField";
 
 const TYPE_LABEL: Record<OfferingType, string> = {
   membership: "Membership",
@@ -53,19 +54,26 @@ export function AdminOfferingsManager() {
   const [grantOpen, setGrantOpen] = useState<Offering | null>(null);
   const { data: existingEligible = [] } = useOfferingEligibleClasses(editing?.id ?? null);
 
-  // Sync existing eligibility into local state when opening for edit
-  // (using a key on the dialog re-creates state when editing changes)
+  // Which offering the covered-classes list has already been filled in for.
+  // Without this the list refilled itself on every render while the selection
+  // was empty — so unticking the last class put it straight back, and a pass
+  // limited to one class could never be opened up again from here.
+  const hydratedFor = useRef<string | null>(null);
+
   const openEditor = (o: Partial<Offering> | null) => {
     setEditing(o);
-    setEligibleClassIds([]); // reset; will be populated by effect below via the query
+    setEligibleClassIds([]);
+    hydratedFor.current = null;
   };
 
-  // Pull eligibility into editing state once it loads
-  // (relies on existingEligible refreshing when editing.id changes)
-  if (editing?.id && existingEligible.length > 0 && eligibleClassIds.length === 0) {
-    // one-shot hydrate
+  // Fill the ticks in once per offering, when its list arrives.
+  useEffect(() => {
+    if (!editing?.id) { hydratedFor.current = null; return; }
+    if (hydratedFor.current === editing.id) return;
+    if (existingEligible.length === 0) return;   // nothing saved, or not loaded yet
+    hydratedFor.current = editing.id;
     setEligibleClassIds(existingEligible);
-  }
+  }, [editing?.id, existingEligible]);
 
   const save = async () => {
     if (!editing?.name?.trim()) return toast.error("Name is required");
@@ -78,7 +86,12 @@ export function AdminOfferingsManager() {
       price: Number(editing.price ?? 0),
       currency: editing.currency || "CRC",
       credits: editing.type === "class_pass" ? Number(editing.credits ?? 0) : null,
-      duration_days: editing.type === "membership" ? Number(editing.duration_days ?? 0) || null : null,
+      // How long it lasts. A class pass may have one too ("5 classes valid for
+      // 30 days"); empty means it never expires. It used to be wiped here on
+      // every save of anything but a membership.
+      duration_days: editing.type === "membership" || editing.type === "class_pass"
+        ? Number(editing.duration_days ?? 0) || null
+        : null,
       is_unlimited: editing.type === "membership" ? !!editing.is_unlimited : false,
       status: editing.status || "active",
       sort_order: Number(editing.sort_order ?? 0),
@@ -195,7 +208,7 @@ export function AdminOfferingsManager() {
                         <td className="px-5 py-4 font-body text-sm text-foreground">{formatCRC(o.price)}</td>
                         <td className="px-5 py-4 font-body text-sm text-muted-foreground">
                           {o.is_unlimited ? "Unlimited" :
-                           o.type === "class_pass" ? `${o.credits ?? 0} credits` :
+                           o.type === "class_pass" ? `${o.credits ?? 0} credits${o.duration_days ? ` · ${o.duration_days} days` : ""}` :
                            o.type === "membership" ? `${o.duration_days ?? 0} days` : "—"}
                         </td>
                         <td className="px-5 py-4">
@@ -281,10 +294,27 @@ export function AdminOfferingsManager() {
               </div>
 
               {editing.type === "class_pass" && (
-                <div>
-                  <label className="font-body text-sm font-medium mb-1.5 block">Credits (# of classes)</label>
-                  <Input type="number" min="1" value={editing.credits ?? 0} onChange={(e) => setEditing({ ...editing, credits: Number(e.target.value) })} />
-                </div>
+                <>
+                  <div>
+                    <label className="font-body text-sm font-medium mb-1.5 block">Credits (# of classes)</label>
+                    <Input type="number" min="1" value={editing.credits ?? 0} onChange={(e) => setEditing({ ...editing, credits: Number(e.target.value) })} />
+                  </div>
+                  <div>
+                    <label htmlFor="pass-valid-days" className="font-body text-sm font-medium mb-1.5 block">Valid for (days)</label>
+                    <Input
+                      id="pass-valid-days"
+                      type="number"
+                      min="1"
+                      placeholder="Never expires"
+                      value={editing.duration_days ?? ""}
+                      onChange={(e) => setEditing({ ...editing, duration_days: e.target.value === "" ? null : Number(e.target.value) })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Counted from the day the pass starts. When it passes, the pass stops working and the
+                      customer gets the expiry email. Empty = never expires. Changing it affects passes sold from now on.
+                    </p>
+                  </div>
+                </>
               )}
 
               {editing.type === "membership" && (
@@ -434,6 +464,7 @@ function UserOfferingsTable() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendRow, setExtendRow] = useState<any | null>(null);
   const [creditsRow, setCreditsRow] = useState<any | null>(null);
+  const [editRow, setEditRow] = useState<any | null>(null);
 
   const call = async (fn: string, args: Record<string, any>, ok: string) => {
     setBusyId(args._id);
@@ -520,6 +551,10 @@ function UserOfferingsTable() {
                   <td className="px-4 py-3"><Badge variant={STATUS_VARIANT[r.status] ?? "secondary"}>{r.status}</Badge></td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
+                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
+                        onClick={() => setEditRow(r)} title="Correct the customer's name, email, phone or notes">
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                      </Button>
                       {r.status === "active" && (
                         <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={busy}
                           onClick={() => call("admin_freeze_offering", { _id: r.id }, "Frozen")} title="Pause: stops the expiry clock and blocks use">
@@ -565,7 +600,91 @@ function UserOfferingsTable() {
       </div>
       <ExtendDialog row={extendRow} onClose={() => setExtendRow(null)} onDone={refetch} />
       <AdjustCreditsDialog row={creditsRow} onClose={() => setCreditsRow(null)} onDone={refetch} />
+      <EditContactDialog row={editRow} onClose={() => setEditRow(null)} onDone={refetch} />
     </div>
+  );
+}
+
+/**
+ * Fix a typo on a customer's membership without deleting it — which would lose
+ * its code, its link, its history and its credits.
+ */
+function EditContactDialog({ row, onClose, onDone }: { row: any | null; onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!row) return;
+    setForm({
+      name: row.guest_name || row.customerName || "",
+      email: row.guest_email || row.customerEmail || "",
+      phone: initialPhone(row.guest_phone),
+      notes: row.notes || "",
+    });
+  }, [row]);
+
+  if (!row) return null;
+
+  const save = async () => {
+    if (!form.name.trim()) { toast.error("The customer's name is required"); return; }
+    const badPhone = phoneProblem(form.phone);
+    if (badPhone) { toast.error(badPhone); return; }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc("admin_update_offering_contact" as any, {
+        _id: row.id,
+        _name: form.name,
+        _email: form.email,
+        _phone: phoneToSave(form.phone, row.guest_phone),
+        _notes: form.notes,
+      });
+      if (error) throw error;
+      toast.success((data as any)?.linked_account
+        ? "Saved — and linked to their website account"
+        : "Customer details saved");
+      onDone();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message ?? "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit customer — {row.name_snapshot}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="font-body text-sm font-medium mb-1.5 block">Name</label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={100} />
+          </div>
+          <div>
+            <label className="font-body text-sm font-medium mb-1.5 block">Email</label>
+            <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} />
+          </div>
+          <div>
+            <label className="font-body text-sm font-medium mb-1.5 block">Phone</label>
+            <ContactPhoneField value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} onFile={row.guest_phone} />
+          </div>
+          <div>
+            <label className="font-body text-sm font-medium mb-1.5 block">Notes</label>
+            <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </div>
+          <p className="text-xs text-muted-foreground font-body">
+            The code, the link, the credits and everything booked with it stay as they are.
+            Future emails and bookings with this pass use the new details.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -712,13 +831,14 @@ function useOfferingsAdminQuery() {
           .in("user_id", userIds);
         for (const p of profiles ?? []) map.set(p.user_id, p);
       }
-      // Registered buyer's profile, else the guest details captured at checkout.
+      // The details on the pass first — they are what staff enter and correct —
+      // then the registered buyer's profile for passes that have none.
       return rows.map((r: any) => {
         const p = r.user_id ? map.get(r.user_id) : null;
         return {
           ...r,
-          customerName: p?.full_name || r.guest_name || null,
-          customerEmail: p?.email || r.guest_email || null,
+          customerName: r.guest_name || p?.full_name || null,
+          customerEmail: r.guest_email || p?.email || null,
         };
       });
     },
@@ -802,19 +922,32 @@ function EligibleClassesPicker({
     <div className="rounded-lg border border-border p-3 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-body text-sm font-medium">Eligible classes</p>
+          <p className="font-body text-sm font-medium">Which classes this covers</p>
           <p className="text-xs text-muted-foreground">
             {allSelected
-              ? "Currently usable for all classes. Select specific classes to restrict."
-              : `Restricted to ${selectedIds.length} class${selectedIds.length === 1 ? "" : "es"}.`}
+              ? "Covers every class. Tick classes only if this pass should be limited to them."
+              : `Limited to ${selectedIds.length} class${selectedIds.length === 1 ? "" : "es"}.`}
           </p>
         </div>
         {!allSelected && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => onChange([])}>
-            All classes
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange([])}>
+            Cover every class
           </Button>
         )}
       </div>
+
+      {/* Ticking one class quietly shut every other one out — somebody ticked
+          "Wellness Sunday" and no member could book yoga again. Say it plainly. */}
+      {!allSelected && (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+          <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-xs font-body text-amber-800">
+            <strong>Only the ticked classes can be booked with this pass.</strong> Every other
+            class will be refused, including new ones you add later. Untick them all — or press
+            “Cover every class” — to let it work everywhere.
+          </p>
+        </div>
+      )}
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading classes…</p>
       ) : classes.length === 0 ? (

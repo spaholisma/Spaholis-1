@@ -129,7 +129,7 @@ const Index = () => {
             >
               <div className="grid md:grid-cols-[1fr_auto] items-center gap-6 p-6 sm:p-8 md:p-10 text-spa-cream">
                 <div className="min-w-0">
-                  <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-3 font-body text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-spa-cream/15 px-2.5 py-0.5 mb-3 font-body text-[11px] font-semibold uppercase tracking-[0.16em]">
                     <Home className="h-3 w-3" /> {inHouse.eyebrow}
                   </span>
                   <h2 className="font-heading text-2xl sm:text-3xl font-semibold leading-tight mb-2">

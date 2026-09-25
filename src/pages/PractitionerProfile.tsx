@@ -127,7 +127,7 @@ const PractitionerProfilePage = () => {
           <div>
             <div className="flex flex-wrap gap-1.5 mb-3">
               {p.status.map((s) => (
-                <Badge key={s} className="text-[10px] uppercase tracking-wider">
+                <Badge key={s} className="text-[11px] uppercase tracking-wider">
                   {STATUS_LABELS[s]}
                 </Badge>
               ))}

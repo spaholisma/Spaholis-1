@@ -10,6 +10,7 @@
 // books eligible classes at $0 without logging in or typing a code.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { emailShell, emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,18 +71,7 @@ function interpolate(str: string, vars: Record<string, string>): string {
 }
 
 function renderShell(heading: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${heading}</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">${inner}</div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(heading, inner);
 }
 
 // textVars are HTML-escaped; rawVars ({{details}}, {{button}}, {{schedule_link}})
@@ -117,7 +107,7 @@ function offeringDetailsHtml(o: any): string {
 }
 
 function ctaButton(label: string, url: string): string {
-  return `<p style="text-align:center;margin:24px 0;"><a href="${url}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">${label}</a></p>`;
+  return `<p style="text-align:center;margin:24px 0;"><a class="btn" href="${url}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">${label}</a></p>`;
 }
 
 function customerHtml(o: any, link: string): string {
@@ -140,7 +130,7 @@ function customerHtml(o: any, link: string): string {
     </div>
     <p style="font-size:15px;line-height:1.5;">Click below to book any eligible class — the credit is applied automatically, so your total is <strong>$0</strong>. No login or code needed.</p>
     <p style="text-align:center;margin:24px 0;">
-      <a href="${link}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Schedule your classes</a>
+      <a class="btn" href="${link}" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Schedule your classes</a>
     </p>
     <p style="font-size:13px;color:#666;line-height:1.5;">Or paste this link into your browser:<br><span style="word-break:break-all;">${link}</span></p>
     <p style="font-size:13px;color:#999;margin-top:24px;">Holis Wellness Center · Manuel Antonio, Costa Rica</p>
@@ -167,7 +157,7 @@ function purchaseHtml(o: any): string {
     </div>
     <p style="font-size:15px;line-height:1.5;">Log in and head to Classes to book — your credit is applied automatically at checkout.</p>
     <p style="text-align:center;margin:24px 0;">
-      <a href="${SITE_URL}/classes" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Browse classes</a>
+      <a class="btn" href="${SITE_URL}/classes" style="background:#1d5b6a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;font-size:16px;display:inline-block;">Browse classes</a>
     </p>
     <p style="font-size:13px;color:#999;margin-top:24px;">Holis Wellness Center · Manuel Antonio, Costa Rica</p>
   </div>`;
@@ -192,7 +182,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id, source")
     .eq("id", userOfferingId)
     .maybeSingle();
 
@@ -209,7 +199,10 @@ Deno.serve(async (req) => {
   }
   if (!to) return json({ ok: false, reason: "no_recipient" }, 409);
 
-  const isOrder = !!o.access_token; // admin order → schedule link; else a purchase
+  // Anything with a link gets the code + "Schedule your classes" email. Online
+  // purchases have one too now, so they are told apart for the team by source.
+  const isOrder = !!o.access_token;
+  const isOnlinePurchase = (o as any).source === "purchase";
   const link = isOrder ? `${SITE_URL}/classes?m=${o.access_token}` : `${SITE_URL}/classes`;
 
   // Prefer the admin-editable template; fall back to the built-in copy.
@@ -248,24 +241,48 @@ Deno.serve(async (req) => {
     custRes = await sendEmail(to, built.subject, built.html);
   } else {
     custRes = isOrder
-      ? await sendEmail(to, `Your Holis membership is ready — ${o.name_snapshot}`, customerHtml(o, link))
-      : await sendEmail(to, `Your Holis purchase — ${o.name_snapshot}`, purchaseHtml(o));
+      ? await sendEmail(to, `Your Holis membership is ready — ${o.name_snapshot}`, emailDocument(customerHtml(o, link), "Your Holis membership"))
+      : await sendEmail(to, `Your Holis purchase — ${o.name_snapshot}`, emailDocument(purchaseHtml(o), "Your Holis purchase"));
   }
 
-  // Admin copy (+ backup)
-  const adminSubj = isOrder
-    ? `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`
-    : `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}`;
-  const adminHtml = `
+  // Admin copy (+ backup). Editable in Admin → Client Emails → Team
+  // notifications ("New membership order" / "New purchase paid online"); the
+  // built-in copy below when that template is missing or switched off.
+  const orderLines = isOrder
+    ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
+    : "";
+  const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
+  let adminSubj: string;
+  let adminHtml: string;
+  if (teamTpl) {
+    const text = {
+      guest_name: String(o.guest_name || to), customer_name: String(o.guest_name || ""), email: to,
+      offering_name: String(o.name_snapshot || ""), code: String(o.code || ""),
+      code_suffix: o.code ? ` (${o.code})` : "",
+    };
+    const vars: Record<string, string> = { order_details: orderLines };
+    for (const [k, v] of Object.entries(text)) vars[k] = esc(v);
+    adminSubj = interpolate(teamTpl.subject, { ...text, order_details: "" });
+    adminHtml = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:16px;color:#1f2937;">
-      <h2 style="font-size:18px;">${isOrder ? "New membership order" : "New membership/pass purchase"}</h2>
+      <h2 style="font-size:18px;">${interpolate(teamTpl.heading, vars)}</h2>
+      ${interpolate(teamTpl.body_html, vars)}
+    </div>`;
+  } else {
+    adminSubj = isOnlinePurchase
+      ? `[Purchase] ${o.guest_name || to} — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
+      : `[New order] ${o.guest_name || to} — ${o.name_snapshot} (${o.code})`;
+    adminHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:16px;color:#1f2937;">
+      <h2 style="font-size:18px;">${isOnlinePurchase ? "New membership/pass purchase (paid online)" : "New membership order"}</h2>
       <p><strong>Customer:</strong> ${esc(o.guest_name || "")} &lt;${esc(to)}&gt;</p>
       <p><strong>Offering:</strong> ${esc(o.name_snapshot)}</p>
-      ${isOrder ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>` : ""}
+      ${orderLines}
     </div>`;
-  await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
+  }
+  await sendEmail(ADMIN_EMAIL, adminSubj, emailDocument(adminHtml, adminSubj));
   if (ADMIN_BACKUP_EMAIL && ADMIN_BACKUP_EMAIL !== ADMIN_EMAIL) {
-    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
+    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));
   }
 
   if (!custRes.ok) {

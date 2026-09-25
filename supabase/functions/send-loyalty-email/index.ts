@@ -8,6 +8,7 @@
 // (loyalty_reward_earned / loyalty_progress), with a built-in fallback.
 // Counts are recomputed HERE from the database, never trusted from the caller.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { emailShell, detailsRow } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,22 +27,11 @@ const interpolate = (str: string, vars: Record<string, string>) =>
   String(str ?? "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => (k in vars ? String(vars[k] ?? "") : ""));
 
 function renderShell(heading: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${heading}</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">${inner}</div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(heading, inner);
 }
 
 function row(label: string, value: string) {
-  return `<tr><td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;width:55%;">${label}</td><td style="padding:6px 10px;border:1px solid #ddd;">${value}</td></tr>`;
+  return detailsRow(label, value);
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
@@ -114,10 +104,10 @@ Deno.serve(async (req) => {
     if (tpl && tpl.enabled === false) return json({ ok: true, skipped: "template_disabled" });
 
     const appButton = `<p style="text-align:center;margin:20px 0 6px;">
-      <a href="${scheduleLink}" style="background:#1d5b6a;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;font-size:15px;display:inline-block;">Book your classes</a></p>
+      <a class="btn" href="${scheduleLink}" style="background:#1d5b6a;color:#ffffff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;font-size:15px;display:inline-block;">Book your classes</a></p>
       <p style="text-align:center;margin:0 0 18px;">
-      <a href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:13px 26px;border-radius:9999px;font-size:14px;display:inline-block;">Get the Holis app</a></p>
-      <p style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to install the Holis app and see your bookings anytime.</p>`;
+      <a class="btn" href="${SITE_URL}" style="background:#2F2F2F;color:#F5F1EC;text-decoration:none;padding:13px 26px;border-radius:9999px;font-size:14px;display:inline-block;">Get the Holis app</a></p>
+      <p class="fine" style="font-size:13px;line-height:1.6;color:#555;text-align:center;margin:0 0 8px;">Tip: open <strong>spaholis.com</strong> on your phone and tap “Add to Home Screen” to install the Holis app and see your bookings anytime.</p>`;
 
     // Complete member box: membership, benefits, code, validity + loyalty progress.
     const details = `<div style="background:#f3f6f6;border-radius:12px;padding:18px;margin:14px 0;">

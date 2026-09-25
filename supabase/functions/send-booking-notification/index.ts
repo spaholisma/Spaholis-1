@@ -23,6 +23,9 @@
 // cancelled, or otherwise incomplete bookings.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import {
+  emailShell, detailsTable, detailsRow, emailButton,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +34,7 @@ const corsHeaders = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONFIRMED_STATUSES = new Set(["paid", "pending", "confirmed", "completed"]);
 const ADMIN_EMAIL = "info@spaholis.com";
 const ADMIN_BACKUP_EMAIL = "spaholisma@gmail.com";
@@ -61,7 +65,7 @@ function depositUsd(service: any): number {
 
 
 function tableRow(label: string, value: string) {
-  return `<tr><td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;width:40%;">${label}</td><td style="padding:6px 10px;border:1px solid #ddd;">${value}</td></tr>`;
+  return detailsRow(label, value);
 }
 
 // Mirror of src/lib/cancellationPolicy.ts. Deno cannot import from src/, so
@@ -156,7 +160,7 @@ function policyBlock(lines: string[], opts: { cancelHref?: string; deadline?: st
     : "";
   const howTo = opts.cancelHref
     ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:#555;"><strong style="color:#2F2F2F;">How to cancel:</strong> tap the button below. It opens an email to us that is already addressed and filled in with your appointment — just add a line if you like, and send it. The time your email reaches us is the time of your cancellation. If the button does not open your email app, write to ${CANCELLATION_EMAIL} and include your reservation number.</p>
-       <p style="margin:12px 0 0;"><a href="${opts.cancelHref.replace(/&/g, "&amp;")}" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:9px 16px;border-radius:6px;font-size:14px;text-decoration:none;">Cancel my appointment</a></p>`
+       <p style="margin:12px 0 0;"><a class="btn" href="${opts.cancelHref.replace(/&/g, "&amp;")}" style="display:inline-block;border:1px solid #2F2F2F;color:#2F2F2F;padding:12px 18px;border-radius:6px;font-size:15px;text-decoration:none;">Cancel my appointment</a></p>`
     : "";
   return `<div style="margin:24px 0 0;padding:16px 18px;background:#f5f1ec;border-radius:10px;">
     <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#2F2F2F;text-transform:uppercase;letter-spacing:0.5px;">Cancellation policy</p>
@@ -251,18 +255,7 @@ function interpolate(str: string, vars: Record<string, string>): string {
 }
 
 function renderShell(heading: string, inner: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${heading}</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">${inner}</div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+  return emailShell(heading, inner);
 }
 
 // textVars are HTML-escaped; rawVars ({{details}}, {{button}}) are trusted HTML.
@@ -286,15 +279,35 @@ function buildFromTemplate(
   };
 }
 
-function detailsTable(rows: string[]): string {
-  return `<table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>`;
+
+
+// ---- Team notifications (Admin → Client Emails → Team notifications) ------
+// The emails to us are editable too: subject, heading and wording come from the
+// template; the layout (header colour, footer) and the tables of booking data
+// stay here. Missing or switched off → the built-in copy, word for word the
+// same. The subject is plain text, so it takes the values unescaped.
+async function fromTeamTemplate(
+  supabase: any,
+  key: string,
+  textVars: Record<string, string>,
+  rawVars: Record<string, string>,
+  opts: { footer?: string; headerBackground?: string } = {},
+): Promise<{ subject: string; html: string } | null> {
+  const tpl = await loadTemplate(supabase, key);
+  if (!tpl) return null;
+  const vars: Record<string, string> = { ...rawVars };
+  for (const [k, v] of Object.entries(textVars)) vars[k] = escHtml(v);
+  return {
+    subject: interpolate(tpl.subject, { ...rawVars, ...textVars }),
+    html: emailShell(interpolate(tpl.heading, vars), interpolate(tpl.body_html, vars), opts),
+  };
 }
 
 function whatsappButton(url: string): string {
-  return `<p style="margin:0;"><a href="${url}" style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">Message us on WhatsApp</a></p>`;
+  return `<p style="margin:0;">${emailButton(url, "Message us on WhatsApp", { background: "#25D366", border: "#25D366" })}</p>`;
 }
 
-function buildAdminHtml(ctx: {
+type AdminCtx = {
   reservationId: string;
   serviceName: string;
   therapist: string | null;
@@ -316,7 +329,10 @@ function buildAdminHtml(ctx: {
    *  half — what reception reads a cancellation email against. */
   bookedAt: string | null;
   halfChargeUntil: string | null;
-}) {
+};
+
+/** The reservation table of the team's "New Reservation" email. */
+function adminRows(ctx: AdminCtx): string[] {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
   rows.push(tableRow("Service", ctx.serviceName));
@@ -337,23 +353,19 @@ function buildAdminHtml(ctx: {
   if (ctx.remainingBalance != null) rows.push(tableRow("Remaining Balance Due", `${formatCRC(ctx.remainingBalance)}${formatUsdRef(ctx.remainingBalance)}`));
   if (ctx.paymentId) rows.push(tableRow("Payment ID", ctx.paymentId));
   if (ctx.notes) rows.push(tableRow("Customer Notes", ctx.notes));
+  return rows;
+}
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">New Reservation Confirmed</h1>
-      </div>
-      <div style="padding:24px;">
-        <h3 style="color:#2F2F2F;font-size:16px;margin:0 0 10px;">Reservation Details</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        ${ctx.intakeHtml}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center — Reservation Notification
-      </div>
-    </div>
-  </body></html>`;
+const RESERVATION_FOOTER = "Holis Wellness Center — Reservation Notification";
+
+function buildAdminHtml(ctx: AdminCtx) {
+  return emailShell(
+    "New Reservation Confirmed",
+    `<h3 style="color:#2F2F2F;font-size:16px;margin:0 0 10px;">Reservation Details</h3>
+        ${detailsTable(adminRows(ctx))}
+        ${ctx.intakeHtml}`,
+    { footer: RESERVATION_FOOTER },
+  );
 }
 
 function buildCustomerHtml(ctx: {
@@ -387,29 +399,19 @@ function buildCustomerHtml(ctx: {
   if (ctx.remainingBalance != null && ctx.remainingBalance > 0)
     rows.push(tableRow("Balance Due at Visit", `${formatCRC(ctx.remainingBalance)}${formatUsdRef(ctx.remainingBalance)}`));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Your Reservation is Confirmed</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">
-        <p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
+  return emailShell(
+    "Your Reservation is Confirmed",
+    `<p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
         <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
           Thank you for booking with Holis Wellness Center. We've confirmed the details of your reservation below.
           If anything looks incorrect, reply to this email and our team will assist you.
         </p>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        <p style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
+        ${detailsTable(rows)}
+        <p class="fine" style="font-size:13px;line-height:1.6;margin:22px 0 0;color:#555;">
           We look forward to welcoming you. Please arrive 10 minutes early to settle in.
         </p>
-        ${policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref: ctx.cancelHref, deadline: ctx.deadline })}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+        ${policyBlock([...RULE_LINES, CHANGES_LINE], { cancelHref: ctx.cancelHref, deadline: ctx.deadline })}`,
+  );
 }
 
 function buildIntakeHtml(intake: any): string {
@@ -417,7 +419,7 @@ function buildIntakeHtml(intake: any): string {
   const f = intake.is_couples ? intake.person1 ?? {} : intake;
   return `
     <h3 style="color:#2F2F2F;font-size:16px;margin:20px 0 10px;">Therapy Intake Form</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <table class="t" style="width:100%;border-collapse:collapse;font-size:14px;">
       ${tableRow("Allergies", f.allergies || "None")}
       ${tableRow("Medications", f.medications || "None")}
       ${tableRow("Health Conditions", f.health_conditions || f.medical_conditions || "None")}
@@ -533,7 +535,7 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
     serviceName, date: bookingDate, time: bookingTime, reservationId, guestName: booking.guest_name,
   });
 
-  const adminHtml = buildAdminHtml({
+  const adminCtx: AdminCtx = {
     reservationId,
     serviceName,
     therapist,
@@ -555,9 +557,15 @@ async function handleByBookingId(bookingId: string, supabase: any): Promise<Resp
     halfChargeUntil: bookedInside
       ? "None — booked less than 48 hours before the appointment, so any cancellation is 100%"
       : `${spaDateTime(fullFrom)} — after that, 100%`,
-  });
-
-  const adminSubj = `New Reservation — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
+  };
+  const teamTpl = await fromTeamTemplate(
+    supabase, "team_new_treatment",
+    { guest_name: booking.guest_name || "Guest", service_name: serviceName, reservation_id: reservationId, date: bookingDate, time: bookingTime },
+    { details: detailsTable(adminRows(adminCtx)), intake: adminCtx.intakeHtml },
+    { footer: RESERVATION_FOOTER },
+  );
+  const adminHtml = teamTpl?.html ?? buildAdminHtml(adminCtx);
+  const adminSubj = teamTpl?.subject ?? `New Reservation — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] admin email failed:", adminRes.error);
   // Backup copy to Gmail so the team keeps a durable off-domain archive.
@@ -697,37 +705,22 @@ export function buildClassCustomerHtml(ctx: {
     priceLabel: "Class Price", totalLabel: "Amount Paid", showNoCoupon: true,
   }));
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:28px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Your Class is Booked</h1>
-      </div>
-      <div style="padding:28px;color:#2F2F2F;">
-        <p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
+  return emailShell(
+    "Your Class is Booked",
+    `<p style="font-size:15px;margin:0 0 16px;">Dear ${ctx.guestName},</p>
         <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
           Thanks for signing up. Your spot in ${ctx.className} is confirmed.
         </p>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        <p style="font-size:13px;line-height:1.6;margin:22px 0 12px;color:#555;">
+        ${detailsTable(rows)}
+        <p class="fine" style="font-size:13px;line-height:1.6;margin:22px 0 12px;color:#555;">
           Please arrive 10 minutes early. Need to reach us?
         </p>
-        <p style="margin:0;">
-          <a href="${ctx.whatsappUrl}"
-             style="display:inline-block;background:#25D366;color:#ffffff;padding:10px 18px;border-radius:6px;font-size:14px;text-decoration:none;">
-            Message us on WhatsApp
-          </a>
-        </p>
-        ${policyBlock(CLASS_POLICY_LINES)}
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center · spaholis.com
-      </div>
-    </div>
-  </body></html>`;
+        ${whatsappButton(ctx.whatsappUrl)}
+        ${policyBlock(CLASS_POLICY_LINES)}`,
+  );
 }
 
-export function buildClassAdminHtml(ctx: {
+type ClassAdminCtx = {
   reservationId: string;
   className: string;
   instructor: string | null;
@@ -742,7 +735,16 @@ export function buildClassAdminHtml(ctx: {
   couponCode: string | null;
   discountAmount: number | null;
   bookedAt?: string | null;
-}) {
+};
+
+const CLASS_FOOTER = "Holis Wellness Center — Class Booking Notification";
+
+export function buildClassAdminHtml(ctx: ClassAdminCtx) {
+  return emailShell("New Class Booking", detailsTable(classAdminRows(ctx)), { footer: CLASS_FOOTER });
+}
+
+/** The booking table of the team's "New Class Booking" email. */
+export function classAdminRows(ctx: ClassAdminCtx): string[] {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
   rows.push(tableRow("Class", ctx.className));
@@ -760,21 +762,7 @@ export function buildClassAdminHtml(ctx: {
     alwaysShowTotal: true,
   }));
   if (ctx.paymentId) rows.push(tableRow("Payment ID", ctx.paymentId));
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">New Class Booking</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-      </div>
-      <div style="background:#f5f1ec;padding:16px;text-align:center;font-size:12px;color:#666;">
-        Holis Wellness Center — Class Booking Notification
-      </div>
-    </div>
-  </body></html>`;
+  return rows;
 }
 
 async function handleByClassBookingId(classBookingId: string, supabase: any): Promise<Response> {
@@ -876,7 +864,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   // WhatsApp CTA prefilled with the correct USD amount.
   const whatsappUrl = buildClassWhatsAppUrl({ className, reservationId, totalUsd });
 
-  const adminHtml = buildClassAdminHtml({
+  const classCtx: ClassAdminCtx = {
     reservationId,
     className,
     instructor,
@@ -891,9 +879,16 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     couponCode,
     discountAmount: discountUsd,
     bookedAt: booking.created_at ? `${spaDateTime(new Date(booking.created_at))} (Costa Rica time)` : null,
-  });
-
-  const adminSubj = `New Class Booking — ${className} — ${partyLine ? `${party.length} spots (${booking.guest_name || "Guest"})` : (booking.guest_name || "Guest")} (${reservationId})`;
+  };
+  const guestLabel = partyLine ? `${party.length} spots (${booking.guest_name || "Guest"})` : (booking.guest_name || "Guest");
+  const teamTpl = await fromTeamTemplate(
+    supabase, "team_new_class",
+    { class_title: className, guest_label: guestLabel, guest_name: booking.guest_name || "Guest", reservation_id: reservationId, when: scheduleLabel },
+    { details: detailsTable(classAdminRows(classCtx)) },
+    { footer: CLASS_FOOTER },
+  );
+  const adminHtml = teamTpl?.html ?? buildClassAdminHtml(classCtx);
+  const adminSubj = teamTpl?.subject ?? `New Class Booking — ${className} — ${guestLabel} (${reservationId})`;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] class admin email failed:", adminRes.error);
   const backupRes = await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
@@ -1068,14 +1063,7 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
     ? `The guest has been emailed this cancellation.`
     : `The guest was not emailed — they never received a confirmation email for this booking.`;
 
-  const adminHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#7a2e2e;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">Booking Cancelled</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+  const teamDetails = `<table class="t" style="width:100%;border-collapse:collapse;font-size:14px;">
           ${guestRows.join("")}
           ${tableRow("Client", escHtml(booking.guest_name || "Guest"))}
           ${tableRow("Email", escHtml(booking.guest_email || "N/A"))}
@@ -1084,17 +1072,27 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
           ${tableRow("50% cancellation until", bookedInside ? "None — booked less than 48 hours before the appointment" : `${spaDateTime(fullFrom)} — after that, 100%`)}
           ${requestedAt ? tableRow("Request received", `${spaDateTime(requestedAt)} — ${requestInside ? "within the 48 hours" : "more than 48 hours before"} (policy: ${policyPercent}%)`) : ""}
           ${booking.cancelled_at ? tableRow("Cancelled on", spaDateTime(new Date(booking.cancelled_at))) : ""}
-        </table>
+        </table>`;
+  const chargeLabel = feePercent != null && feePercent > 0 ? ` (charge ${formatCRC(feeUsd)})` : "";
+  const teamTpl = await fromTeamTemplate(
+    supabase, "team_treatment_cancelled",
+    {
+      guest_name: booking.guest_name || "Guest", service_name: serviceName, reservation_id: reservationId,
+      date: bookingDate, time: bookingTime, charge_label: chargeLabel, guest_notice: guestNotice,
+    },
+    { details: teamDetails, charge_note: chargeNote, override_note: overrideNote },
+    { headerBackground: "#7a2e2e" },
+  );
+  const adminHtml = teamTpl?.html ?? emailShell(
+    "Booking Cancelled",
+    `${teamDetails}
         ${chargeNote}
         ${overrideNote}
-        <p style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>
-      </div>
-    </div>
-  </body></html>`;
+        <p class="fine" style="margin:14px 0 0;font-size:13px;color:#555;">${guestNotice}</p>`,
+    { headerBackground: "#7a2e2e" },
+  );
 
-  const adminSubj = feePercent != null && feePercent > 0
-    ? `Cancelled (charge ${formatCRC(feeUsd)}) — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`
-    : `Cancelled — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
+  const adminSubj = teamTpl?.subject ?? `Cancelled${chargeLabel} — ${serviceName} — ${booking.guest_name || "Guest"} (${reservationId})`;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] cancel admin email failed:", adminRes.error);
   await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
@@ -1102,12 +1100,36 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
   // ---- The guest ----
   let customerRes: { ok: boolean; error?: string } = { ok: true };
   if (booking.guest_email && booking.notification_sent_at) {
+    // Admin → Client Emails → "Treatment cancellation"; built-in copy below
+    // when it is missing or switched off.
+    const cancelNote = whenSentence || feeSentence
+      ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${whenSentence}${whenSentence && feeSentence ? " " : ""}${escHtml(feeSentence)}</p>`
+      : "";
+    const tpl = await loadTemplate(supabase, "treatment_cancelled");
+    if (tpl) {
+      const built = buildFromTemplate(
+        tpl,
+        {
+          guest_name: booking.guest_name || "Guest",
+          reservation_id: reservationId,
+          service_name: serviceName,
+          date: bookingDate,
+          time: bookingTime,
+          total: totalUsd != null ? formatCRC(totalUsd) : "",
+          fee: feeLabel ?? "",
+        },
+        { details: detailsTable(guestRows), cancel_note: cancelNote, policy: policyBlock([...RULE_LINES, CHANGES_LINE]) },
+      );
+      customerRes = await sendEmail(booking.guest_email, built.subject, built.html);
+      if (!customerRes.ok) console.error("[send-booking-notification] cancel guest email failed:", customerRes.error);
+      return json({ ok: true, adminSent: adminRes.ok, customerSent: customerRes.ok, feePercent, feeUsd });
+    }
     const inner = `
       <p style="font-size:15px;margin:0 0 16px;">Dear ${escHtml(booking.guest_name || "Guest")},</p>
       <p style="font-size:14px;line-height:1.6;margin:0 0 18px;">
         Your appointment has been cancelled. Here is what was cancelled:
       </p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">${guestRows.join("")}</table>
+      ${detailsTable(guestRows)}
       ${whenSentence || feeSentence ? `<p style="font-size:14px;line-height:1.6;margin:18px 0 0;color:#2F2F2F;">${whenSentence}${whenSentence && feeSentence ? " " : ""}${escHtml(feeSentence)}</p>` : ""}
       <p style="font-size:13px;line-height:1.6;margin:18px 0 0;color:#555;">
         We would love to see you another time — reply to this email or message us on WhatsApp and we will find you a new slot.
@@ -1124,7 +1146,76 @@ async function handleCancellation(bookingId: string, supabase: any): Promise<Res
   return json({ ok: true, adminSent: adminRes.ok, customerSent: customerRes.ok, feePercent, feeUsd });
 }
 
-async function handleLegacyPayload(body: any): Promise<Response> {
+/**
+ * A guest asked for a request-only treatment (ConsultationForm, request_kind
+ * "appointment"). The team gets the "Appointment request (staff)" template and
+ * the guest the "Appointment request — client confirmation" one, both edited
+ * in Admin → Client Emails. Missing or switched off → the team gets the plain
+ * notice below and the guest nothing, as before.
+ */
+async function handleAppointmentRequest(body: any, supabase: any): Promise<Response> {
+  const therapy = String(body.service_name || body.serviceName || "Appointment");
+  const guestName = String(body.guest_name || body.guestName || "Guest");
+  const guestEmail = String(body.guest_email || body.guestEmail || "").trim();
+  const phone = String(body.guest_phone || body.guestPhone || "").trim();
+  const preferred = String(body.preferred_datetime || "").trim();
+  const notes = String(body.notes || "").trim();
+
+  const details = detailsTable([
+    tableRow("Terapia solicitada", escHtml(therapy)),
+    ...(preferred ? [tableRow("Fecha y hora deseada", escHtml(preferred))] : []),
+    tableRow("Nombre", escHtml(guestName)),
+    tableRow("Correo", escHtml(guestEmail || "N/A")),
+    tableRow("Teléfono", escHtml(phone || "Not provided")),
+    ...(notes ? [tableRow("Notas", escHtml(notes))] : []),
+  ]);
+  const textVars = {
+    therapy, guest_name: guestName, preferred_datetime: preferred,
+    phone, email: guestEmail, notes,
+  };
+  const rawVars = {
+    details,
+    preferred_line: preferred ? ` for <strong>${escHtml(preferred)}</strong>` : "",
+  };
+
+  // ---- The team ----
+  const staffTpl = await loadTemplate(supabase, "appointment_request");
+  let adminRes: { ok: boolean; error?: string };
+  if (staffTpl) {
+    const built = buildFromTemplate(staffTpl, textVars, rawVars);
+    adminRes = await sendEmail(ADMIN_EMAIL, built.subject, built.html);
+    await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${built.subject}`, built.html);
+  } else {
+    return await handleLegacyPayload(body, supabase);
+  }
+
+  // ---- The guest ----
+  // This path is public, so the confirmation only goes to someone who has just
+  // left a request on the site — it cannot be used to send mail to anyone.
+  let customerSent = false;
+  const clientTpl = await loadTemplate(supabase, "appointment_request_client");
+  if (clientTpl && EMAIL_RE.test(guestEmail)) {
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("bookings").select("id")
+      .ilike("guest_email", guestEmail)
+      .eq("status", "pending")
+      .gte("created_at", since)
+      .limit(1);
+    if ((recent ?? []).length) {
+      const built = buildFromTemplate(clientTpl, textVars, rawVars);
+      const r = await sendEmail(guestEmail, built.subject, built.html);
+      customerSent = r.ok;
+      if (!r.ok) console.error("[send-booking-notification] request confirmation failed:", r.error);
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, adminSent: adminRes.ok, customerSent }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleLegacyPayload(body: any, supabase: any): Promise<Response> {
   // Back-compat path: caller passes an already-composed payload for a
   // non-payment (already-confirmed) reservation, e.g. admin walk-in.
   const serviceName = body.service_name || body.serviceName || "Reservation";
@@ -1141,20 +1232,19 @@ async function handleLegacyPayload(body: any): Promise<Response> {
   if (body.payment_id) rows.push(tableRow("Payment ID", body.payment_id));
   if (body.notes) rows.push(tableRow("Notes", body.notes));
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-  <body style="font-family:Arial,sans-serif;background:#f5f1ec;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <div style="background:#2F2F2F;padding:24px;text-align:center;">
-        <h1 style="color:#F5F1EC;font-size:22px;margin:0;">${body.is_retreat ? "New Retreat Inquiry" : "New Reservation"}</h1>
-      </div>
-      <div style="padding:24px;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows.join("")}</table>
-        ${buildIntakeHtml(body.intake_form)}
-      </div>
-    </div>
-  </body></html>`;
+  const kind = body.is_retreat ? "Retreat Inquiry" : "Reservation";
+  const teamTpl = await fromTeamTemplate(
+    supabase, "team_request_notice",
+    { kind, service_name: String(serviceName), guest_name: String(guestName) },
+    { details: detailsTable(rows), intake: buildIntakeHtml(body.intake_form) },
+  );
+  const html = teamTpl?.html ?? emailShell(
+    `New ${kind}`,
+    `${detailsTable(rows)}
+        ${buildIntakeHtml(body.intake_form)}`,
+  );
 
-  const subj = `New ${body.is_retreat ? "Retreat Inquiry" : "Reservation"}: ${serviceName} — ${guestName}`;
+  const subj = teamTpl?.subject ?? `New ${kind}: ${serviceName} — ${guestName}`;
   const res = await sendEmail(ADMIN_EMAIL, subj, html);
   // Backup copy to Gmail for durable off-domain archive.
   await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${subj}`, html);
@@ -1197,7 +1287,10 @@ Deno.serve(async (req) => {
       }
       return await handleCancellation(body.cancelledBookingId, supabase);
     }
-    return await handleLegacyPayload(body);
+    if (body.request_kind === "appointment") {
+      return await handleAppointmentRequest(body, supabase);
+    }
+    return await handleLegacyPayload(body, supabase);
   } catch (err) {
     console.error("[send-booking-notification] unhandled:", err);
     return new Response(JSON.stringify({ ok: true, warning: (err as Error).message }), {

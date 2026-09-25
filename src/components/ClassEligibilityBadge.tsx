@@ -35,7 +35,7 @@ export function ClassEligibilityBadge({ classId, size = "md", className }: Props
         variant="secondary"
         className={cn(
           "gap-1 bg-spa-sage/15 text-spa-sage border-spa-sage/30 hover:bg-spa-sage/20",
-          isSm && "px-1.5 py-0 text-[9px]",
+          isSm && "px-1.5 py-0 text-[11px]",
           className,
         )}
       >
@@ -50,7 +50,7 @@ export function ClassEligibilityBadge({ classId, size = "md", className }: Props
       variant="secondary"
       className={cn(
         "gap-1 bg-spa-sage/15 text-spa-sage border-spa-sage/30 hover:bg-spa-sage/20",
-        isSm && "px-1.5 py-0 text-[9px]",
+        isSm && "px-1.5 py-0 text-[11px]",
         className,
       )}
     >

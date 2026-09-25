@@ -15,8 +15,10 @@
 //                   immediately, decrement a spot, record coupon usage and send
 //                   the confirmation email. No redirect.
 //
-// Membership / class-credit redemption is NOT handled here — it already flows
-// through the `redeem_offering` RPC on the client.
+// Membership / class-credit redemption is NOT handled here — that goes through
+// the `book_class_with_offering` RPC, which books and spends the credit in one
+// transaction. A class marked `full_price_only` takes neither of those, nor a
+// coupon: see validateClassCoupon() below.
 
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@3.25.76";
@@ -68,6 +70,16 @@ async function validateClassCoupon(
 ): Promise<{ code: string | null; discount: number; couponId: string | null }> {
   const code = (codeRaw || "").trim().toUpperCase();
   if (!code) return { code: null, discount: 0, couponId: null };
+
+  // A class can be marked as always paid in full — no coupon applies to it.
+  const { data: klass } = await admin
+    .from("classes").select("title, full_price_only").eq("id", classId).maybeSingle();
+  if ((klass as any)?.full_price_only) {
+    throw Object.assign(
+      new Error(`${(klass as any).title} is always paid in full`),
+      { code: "INVALID_COUPON" },
+    );
+  }
 
   const { data: coupon, error } = await admin
     .from("coupons")
@@ -136,6 +148,12 @@ Deno.serve(async (req) => {
     // The studio is closed that day (the booking trigger refuses it as well).
     const { data: closedDay } = await admin.rpc("is_class_day_closed", { _at: (schedule as any).start_time });
     if (closedDay) return json({ ok: false, reason: "class_day_closed" }, 409);
+    // Online booking is open until the class starts. This function writes with
+    // the service key, which the booking trigger lets through (for payments that
+    // began in time), so it checks the start itself.
+    if (new Date((schedule as any).start_time).getTime() <= Date.now()) {
+      return json({ ok: false, reason: "class_started", message: "This class has already started — online booking is closed." }, 409);
+    }
 
     const basePrice = Number(cls.price ?? 0);
     const requiresPayment = !!cls.requires_payment && basePrice > 0;

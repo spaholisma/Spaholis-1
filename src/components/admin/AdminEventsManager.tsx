@@ -27,6 +27,8 @@ interface ClassRow {
   is_recurring: boolean;
   recurrence_rule: string | null;
   requires_payment: boolean;
+  /** Always paid in full: no pass, no membership, no coupon. */
+  full_price_only: boolean;
   max_capacity: number;
   payment_link: string | null;
   price_label: string | null;
@@ -61,6 +63,7 @@ const emptyClass: Omit<ClassRow, "id"> = {
   is_recurring: false,
   recurrence_rule: "",
   requires_payment: false,
+  full_price_only: false,
   max_capacity: 15,
   payment_link: null,
   price_label: null,
@@ -139,6 +142,7 @@ export function AdminEventsManager() {
       is_recurring: editing.is_recurring,
       recurrence_rule: editing.recurrence_rule || null,
       requires_payment: editing.requires_payment,
+      full_price_only: editing.full_price_only,
       max_capacity: editing.max_capacity,
       payment_link: (editing.payment_link || "").trim() || null,
       price_label: (editing.price_label || "").trim() || null,
@@ -460,6 +464,23 @@ export function AdminEventsManager() {
             Requires Payment
           </label>
         </div>
+
+        {/* Wellness Sunday is sold at its own price: no pass, membership or
+            coupon may be spent on it. Any class can be set the same way. */}
+        <label className="flex items-start gap-2 text-sm font-body rounded-lg border border-border p-3">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!editing.full_price_only}
+            onChange={(e) => setEditing({ ...editing, full_price_only: e.target.checked })}
+          />
+          <span>
+            Always paid in full
+            <span className="block text-xs text-muted-foreground">
+              Memberships, class passes and coupons cannot be used for this class.
+            </span>
+          </span>
+        </label>
 
         {editing.requires_payment && (
           <div>

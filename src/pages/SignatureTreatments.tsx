@@ -51,7 +51,7 @@ function TreatmentCard({ treatment, index }: { treatment: Treatment; index: numb
       <div className="space-y-5 md:[direction:ltr]">
         <div className="flex items-center gap-3">
           {treatment.comingSoon && (
-            <span className="text-[10px] font-body font-semibold uppercase tracking-widest bg-spa-sage/10 text-spa-sage px-3 py-1 rounded-full">
+            <span className="text-[11px] font-body font-semibold uppercase tracking-widest bg-spa-sage/10 text-spa-sage px-3 py-1 rounded-full">
               {t("signatureTreatments.comingSoon")}
             </span>
           )}

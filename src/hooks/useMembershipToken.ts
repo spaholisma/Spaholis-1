@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +39,14 @@ export type TokenOffering = {
 export function useMembershipToken(): string | null {
   const [params] = useSearchParams();
   const urlToken = params.get("m");
+  // A pass code typed on the booking page stores its token while the page is
+  // open; this is how the page hears about it without a reload.
+  const [stored, setStored] = useState<string | null>(() => getStoredMembershipToken());
+  useEffect(() => {
+    const onChange = () => setStored(getStoredMembershipToken());
+    window.addEventListener(TOKEN_EVENT, onChange);
+    return () => window.removeEventListener(TOKEN_EVENT, onChange);
+  }, []);
   useEffect(() => {
     if (urlToken) {
       try {
@@ -48,7 +56,22 @@ export function useMembershipToken(): string | null {
       }
     }
   }, [urlToken]);
-  return urlToken || getStoredMembershipToken();
+  return urlToken || stored;
+}
+
+const TOKEN_EVENT = "holis:membership-token";
+
+/**
+ * Remember the pass found from a typed code, exactly as if the customer had
+ * opened its "Schedule your classes" link.
+ */
+export function storeMembershipToken(token: string): void {
+  try {
+    sessionStorage.setItem(KEY, token);
+  } catch {
+    /* sessionStorage unavailable */
+  }
+  window.dispatchEvent(new Event(TOKEN_EVENT));
 }
 
 /**

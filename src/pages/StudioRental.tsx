@@ -113,7 +113,7 @@ const StudioRentalPage = () => {
           {c.sectionTitle}
         </motion.h2>
 
-        <div className="grid md:grid-cols-2 gap-10 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
           <motion.div {...fadeIn} className="space-y-5">
             <p className="spa-body">{c.intro1}</p>
             <p className="spa-body">{c.intro2}</p>
@@ -169,7 +169,7 @@ const StudioRentalPage = () => {
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-5">
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="font-body text-sm">{f.firstNameLabel} *</Label>
                   <Input value={form.firstName} onChange={(e) => set("firstName", e.target.value)} maxLength={80} required />
@@ -179,7 +179,7 @@ const StudioRentalPage = () => {
                   <Input value={form.lastName} onChange={(e) => set("lastName", e.target.value)} maxLength={80} required />
                 </div>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="font-body text-sm">{f.emailLabel} *</Label>
                   <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} maxLength={255} required />
@@ -197,7 +197,7 @@ const StudioRentalPage = () => {
                 <Label className="font-body text-sm">{f.propsLabel} *</Label>
                 <Input value={form.props} onChange={(e) => set("props", e.target.value)} maxLength={200} required />
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="font-body text-sm">{f.dayLabel} *</Label>
                   <Input type="date" value={form.day} min={new Date().toISOString().split("T")[0]} onChange={(e) => set("day", e.target.value)} required />

@@ -735,7 +735,7 @@ const BookingPage = () => {
           {steps.map((s, i) => (
             <div key={s} className="flex items-center gap-1 sm:gap-2 shrink-0">
               <div className={cn(
-                "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-body font-semibold transition-colors",
+                "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-body font-semibold transition-colors",
                 i < step ? "bg-spa-sage text-spa-cream" : i === step ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
               )}>
                 {i < step ? <Check className="h-3 w-3 sm:h-4 sm:w-4" /> : i + 1}
@@ -800,7 +800,7 @@ const BookingPage = () => {
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-heading text-lg font-medium text-foreground">{s.title}</h4>
                                     {s.type === "course" && (
-                                      <span className="text-[10px] font-body font-semibold uppercase bg-primary/15 text-primary px-2 py-0.5 rounded-full">{s.sessions} sessions</span>
+                                      <span className="text-[11px] font-body font-semibold uppercase bg-primary/15 text-primary px-2 py-0.5 rounded-full">{s.sessions} sessions</span>
                                     )}
                                   </div>
                                   <p className="spa-body-sm mt-1 line-clamp-1">{s.description}</p>

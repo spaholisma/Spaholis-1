@@ -18,7 +18,7 @@ import { BookingEditModal } from "@/components/admin/calendar/BookingEditModal";
 import { BookingsTrash } from "@/components/admin/BookingsTrash";
 import type { CalendarBooking } from "@/components/admin/calendar/calendarUtils";
 import { AdminGiftCardsManager } from "@/components/admin/AdminGiftCardsManager";
-import { ClientBookingHistory } from "@/components/admin/ClientBookingHistory";
+import { ClientsDirectory } from "@/components/admin/clients/ClientsDirectory";
 import { AdminCouponsManager } from "@/components/admin/AdminCouponsManager";
 import { AdminLoyaltyManager } from "@/components/admin/AdminLoyaltyManager";
 import { AdminClassFinances } from "@/components/admin/AdminClassFinances";
@@ -328,7 +328,7 @@ const AdminDashboard = () => {
           {activeTab === "vacation" && <AdminVacationMode />}
           {activeTab === "educational" && <EducationalAdminView />}
           {activeTab === "course-reviews" && <AdminCourseReviews />}
-          {activeTab === "clients" && <ClientsView />}
+          {activeTab === "clients" && <ClientsDirectory />}
           {activeTab === "giftcards" && <AdminGiftCardsManager />}
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
           {activeTab === "class-finances" && <AdminClassFinances />}
@@ -571,56 +571,6 @@ function AppointmentsView() {
         onSaved={load}
         services={services}
       />
-    </div>
-  );
-}
-
-function ClientsView() {
-  const [clients, setClients] = useState<any[]>([]);
-  const [search, setSearch] = useState("");
-  const [selectedClient, setSelectedClient] = useState<{ id: string; name: string } | null>(null);
-
-  useEffect(() => {
-    supabase.from("profiles").select("*").order("created_at", { ascending: false }).then(({ data }) => setClients(data ?? []));
-  }, []);
-
-  const filtered = clients.filter((c) =>
-    (c.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.email || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (selectedClient) {
-    return <ClientBookingHistory clientId={selectedClient.id} clientName={selectedClient.name} onClose={() => setSelectedClient(null)} />;
-  }
-
-  return (
-    <div className="bg-card rounded-2xl border border-border">
-      <div className="p-5 border-b border-border flex items-center justify-between gap-4">
-        <h3 className="font-heading text-lg font-medium text-foreground">Client Directory</h3>
-        <input className="border border-border rounded-lg px-3 py-1.5 text-sm font-body bg-background" placeholder="Search clients..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              {["Name", "Email", "Phone", "Visits", "Joined"].map((h) => (
-                <th key={h} className="text-left px-5 py-3 font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.map((c) => (
-              <tr key={c.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedClient({ id: c.user_id, name: c.full_name || "Client" })}>
-                <td className="px-5 py-4 font-body text-sm font-medium text-foreground underline decoration-muted-foreground/30">{c.full_name || "—"}</td>
-                <td className="px-5 py-4 font-body text-sm text-muted-foreground">{c.email || "—"}</td>
-                <td className="px-5 py-4 font-body text-sm text-muted-foreground">{c.phone || "—"}</td>
-                <td className="px-5 py-4 font-body text-sm text-foreground">{c.total_visits}</td>
-                <td className="px-5 py-4 font-body text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

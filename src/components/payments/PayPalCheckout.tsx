@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { classCheckoutReasonMessage } from "@/lib/classBookingWindow";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -58,6 +60,9 @@ export function PayPalCheckout({
         const paypal = await loadPayPalSdk(data.clientId, data.currency || "USD");
         if (cancelled || !containerRef.current) return;
         containerRef.current.innerHTML = "";
+        // Why the server refused to start a payment (class started, full, …),
+        // so the guest reads the real reason instead of a generic PayPal error.
+        let refusal: string | null = null;
         paypal.Buttons({
           style: { layout: "vertical", shape: "pill", color: "gold", label: "pay" },
           onClick: (_: any, actions: any) => {
@@ -68,12 +73,14 @@ export function PayPalCheckout({
             return actions.resolve();
           },
           createOrder: async () => {
+            refusal = null;
             const body = bodyRef.current();
-            const { data: res, error } = await supabase.functions.invoke("paypal-create-order", { body });
-            if (error || !res?.ok || !res?.orderId) {
-              throw new Error(res?.message || res?.reason || "Could not start the PayPal payment");
+            const res = await invokeEdgeFunction<any>("paypal-create-order", { body });
+            if (!res.ok || !res.data?.orderId) {
+              refusal = classCheckoutReasonMessage(res.data?.reason) || res.data?.message || null;
+              throw new Error(refusal || res.data?.reason || "Could not start the PayPal payment");
             }
-            return res.orderId as string;
+            return res.data.orderId as string;
           },
           onApprove: async (approval: any) => {
             const { data: res, error } = await supabase.functions.invoke("paypal-capture-order", {
@@ -87,7 +94,8 @@ export function PayPalCheckout({
           },
           onError: (err: any) => {
             console.error("[paypal] error", err);
-            toast.error("PayPal ran into a problem. Please try again.");
+            toast.error(refusal || "PayPal ran into a problem. Please try again.");
+            refusal = null;
           },
         }).render(containerRef.current);
         if (!cancelled) setStatus("ready");
