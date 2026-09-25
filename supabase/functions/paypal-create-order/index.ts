@@ -90,6 +90,13 @@ Deno.serve(async (req) => {
       // The studio is closed that day: stop before PayPal takes any money.
       const { data: closedDay } = await admin.rpc("is_class_day_closed", { _at: (sched as any).start_time });
       if (closedDay) return json({ ok: false, reason: "class_day_closed" }, 409);
+      // Online booking is open until the class starts. Checked here, before any
+      // money moves: a payment begun in time is honoured at capture even if it
+      // completes a few seconds after the start (the booking trigger lets this
+      // server function through for exactly that reason).
+      if (new Date((sched as any).start_time).getTime() <= Date.now()) {
+        return json({ ok: false, reason: "class_started", message: "This class has already started — online booking is closed." }, 409);
+      }
       const qty = Math.max(1, Math.min(Number(body.quantity ?? 1), 10));
       if (Number(sched.spots_remaining) < qty) return json({ ok: false, reason: "class_full" }, 409);
       const base = Number(cls.price ?? 0);

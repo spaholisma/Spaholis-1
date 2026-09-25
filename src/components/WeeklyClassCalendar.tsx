@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
+import { isClassOpenForBooking } from "@/lib/classBookingWindow";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -29,14 +30,14 @@ export function WeeklyClassCalendar({ events, closures = [] }: WeeklyCalendarPro
 
   const weekDays = DAYS.map((_, i) => addDays(weekStart, i));
 
-  // Group events by day of week. Past classes (booking closes 15 min before
-  // start) are hidden so the schedule only shows what can still be booked.
-  const bookableCutoff = Date.now() + 15 * 60 * 1000;
+  // Group events by day of week. Classes that have started are hidden, so the
+  // schedule only shows what can still be booked (open until the class starts).
+  const now = Date.now();
   const eventsByDay: Record<number, ScheduleRow[]> = {};
   weekDays.forEach((day, i) => {
     eventsByDay[i] = events.filter((e) => {
       const eventDate = new Date(e.start_time);
-      return isSameDay(eventDate, day) && eventDate.getTime() >= bookableCutoff;
+      return isSameDay(eventDate, day) && isClassOpenForBooking(eventDate, now);
     }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   });
 

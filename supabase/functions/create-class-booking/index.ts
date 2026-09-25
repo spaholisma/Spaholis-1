@@ -148,6 +148,12 @@ Deno.serve(async (req) => {
     // The studio is closed that day (the booking trigger refuses it as well).
     const { data: closedDay } = await admin.rpc("is_class_day_closed", { _at: (schedule as any).start_time });
     if (closedDay) return json({ ok: false, reason: "class_day_closed" }, 409);
+    // Online booking is open until the class starts. This function writes with
+    // the service key, which the booking trigger lets through (for payments that
+    // began in time), so it checks the start itself.
+    if (new Date((schedule as any).start_time).getTime() <= Date.now()) {
+      return json({ ok: false, reason: "class_started", message: "This class has already started — online booking is closed." }, 409);
+    }
 
     const basePrice = Number(cls.price ?? 0);
     const requiresPayment = !!cls.requires_payment && basePrice > 0;

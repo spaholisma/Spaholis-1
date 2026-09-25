@@ -25,6 +25,7 @@ import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleF
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
 import { cardTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
+import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
@@ -332,10 +333,10 @@ const ClassBookingPage = () => {
       if (!result.ok || !result.data || result.data.ok === false) {
         const reason = result.data?.reason;
         const msg =
-          reason === "class_full" ? "This class just filled up."
-          : reason === "invalid_coupon" ? (result.data?.message || "That coupon is not valid for this class.")
+          classCheckoutReasonMessage(reason)
+          ?? (reason === "invalid_coupon" ? (result.data?.message || "That coupon is not valid for this class.")
           : reason === "no_payment_link" ? "Card payment is temporarily unavailable. Please contact us."
-          : (result.data?.message || t("booking.classBookFailed"));
+          : (result.data?.message || t("booking.classBookFailed")));
         toast.error(msg);
         return;
       }
@@ -485,14 +486,14 @@ const ClassBookingPage = () => {
     );
   }
 
-  // Online booking closes 15 min before the class starts (the DB also blocks it).
-  if (new Date(event.start_time).getTime() < Date.now() + 15 * 60 * 1000) {
+  // Online booking is open until the class starts (the DB holds to the same).
+  if (!isClassOpenForBooking(event.start_time)) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="pt-24 pb-16 px-4 max-w-3xl mx-auto text-center">
           <h1 className="spa-heading-lg text-foreground mb-4">Booking is closed for this class</h1>
-          <p className="spa-body mb-8">Online booking closes 15 minutes before a class starts. Browse our upcoming classes instead.</p>
+          <p className="spa-body mb-8">This class has already started, so online booking is closed. Browse our upcoming classes instead.</p>
           <Button asChild><Link to="/classes">See upcoming classes</Link></Button>
         </div>
         <Footer />
