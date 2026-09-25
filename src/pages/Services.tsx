@@ -597,8 +597,8 @@ function SeoContentSection() {
         <div className="grid gap-8 md:grid-cols-2">
           {(["massage", "facials", "body", "holistic"] as const).map((key) => (
             <motion.div
-              {...fadeIn}
               key={key}
+              {...fadeIn}
               className="bg-card rounded-2xl border border-border p-6"
             >
               <h3 {...cmsEditProps(`services.seo.blocks.${key}.title`)} className="font-heading text-xl font-medium text-foreground mb-3">

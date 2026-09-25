@@ -123,6 +123,20 @@
     @apply text-3xl sm:text-4xl font-normal uppercase tracking-[0.06em];
   }
 
+  /* The narrowest phones (320px, e.g. the first iPhone SE): a long word in
+     capitals ("PRACTITIONERS") is wider than the screen at 36px and pushed the
+     page sideways. One size down, and a word that still cannot fit may break
+     rather than overflow. Every wider screen is unchanged. */
+  @media (max-width: 359px) {
+    .spa-heading-xl {
+      font-size: 1.875rem;
+      overflow-wrap: break-word;
+    }
+    .spa-heading-lg {
+      overflow-wrap: break-word;
+    }
+  }
+
   .spa-heading-md {
     font-family: var(--font-heading);
     @apply text-2xl sm:text-3xl font-normal uppercase tracking-[0.04em];

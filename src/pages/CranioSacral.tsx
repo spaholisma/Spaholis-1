@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -46,7 +47,7 @@ const CranioSacralPage = () => {
           src={c.heroImage}
           alt={c.heroTitle}
           className="absolute inset-0 w-full h-full object-cover"
-          fetchPriority="high"
+          {...HERO_IMAGE_FIRST}
         />
         <div className="absolute inset-0 bg-spa-charcoal/55" />
         <div className="relative z-10 flex items-center justify-center min-h-[90vh] px-4 sm:px-6 lg:px-8 pt-28 pb-16">

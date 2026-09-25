@@ -320,14 +320,16 @@ export default function RetreatsPage() {
         )}
 
         {/* Custom retreat CTA */}
-        <motion.div {...fadeIn} className="mt-16 bg-card rounded-2xl border border-border p-8 text-center">
+        <motion.div {...fadeIn} className="mt-16 bg-card rounded-2xl border border-border p-6 sm:p-8 text-center">
           <h2 {...cmsEditProps("retreats.customTitle")} className="font-heading text-2xl font-medium text-foreground mb-3">
             {rt.customTitle}
           </h2>
           <p {...cmsEditProps("retreats.customBody")} className="spa-body max-w-lg mx-auto mb-6">
             {rt.customBody}
           </p>
-          <Button variant="default" size="lg" asChild>
+          {/* On the narrowest phones the label may take two lines rather than
+              push the page sideways. */}
+          <Button variant="default" size="lg" asChild className="max-w-full h-auto min-h-11 whitespace-normal py-3">
             <Link to="/custom-retreat">{rt.customButton}</Link>
           </Button>
         </motion.div>
