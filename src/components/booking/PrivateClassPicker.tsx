@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWeekEvents } from "@/hooks/useClasses";
 import { cn } from "@/lib/utils";
-import { buildClassOptions, initials, type PrivateClassOption, type SessionWithClass, type TeacherRow } from "@/lib/privateClassRequest";
+import { buildClassOptions, findOption, initials, type PrivateClassOption, type SessionWithClass, type TeacherRow } from "@/lib/privateClassRequest";
 
 function Face({ name, photo }: { name: string | null; photo: string | null }) {
   if (photo) return <img src={photo} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background" />;
@@ -45,9 +45,12 @@ function Row({ title, subtitle, name, photo }: { title: string; subtitle: string
 export function PrivateClassPicker({
   value,
   onChange,
+  preselect,
 }: {
   value: PrivateClassOption | null;
   onChange: (option: PrivateClassOption | null) => void;
+  /** Chosen on the way in — from a teacher's portfolio. Applied once. */
+  preselect?: { classId: string; teacherName: string | null } | null;
 }) {
   const { t } = useTranslation();
   // The classes we are actually teaching: the scheduled sessions, exactly what
@@ -81,6 +84,17 @@ export function PrivateClassPicker({
     () => (isLoading || teachers === null || recent === null ? null : buildClassOptions((sessions ?? []) as any, teachers, recent)),
     [sessions, isLoading, teachers, recent],
   );
+
+  // Arriving from a teacher's portfolio: her class is already chosen, and the
+  // guest can still change it.
+  const preselected = useRef(false);
+  useEffect(() => {
+    if (preselected.current || !options || !preselect) return;
+    preselected.current = true;
+    if (value) return;
+    const o = findOption(options, preselect.classId, preselect.teacherName);
+    if (o) onChange(o);
+  }, [options, preselect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noClassTitle = t("consultation.privateNoClass", { defaultValue: "No specific class" });
   const noClassHint = t("consultation.privateNoClassHint", { defaultValue: "We'll help you choose" });

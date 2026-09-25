@@ -48,6 +48,9 @@ export const cleanName = (s: string | null | undefined) => (s ?? "").trim().repl
 // One-off events are not classes you can take privately.
 const SKIP_CATEGORY = /workshop|special event/i;
 
+/** A class that can be taken privately (not a workshop or special event). */
+export const canBookPrivately = (category: string | null | undefined) => !SKIP_CATEGORY.test(category ?? "");
+
 /**
  * The classes actually being taught — built from the scheduled sessions, the
  * same source the Classes page uses, so the list never shows a class that is
@@ -128,4 +131,34 @@ export function privateClassIntake(input: {
       preferred: input.preferred || null,
     },
   };
+}
+
+/**
+ * The option a link asked for — a teacher's portfolio sends ?class=…&teacher=… —
+ * when the schedule offers it. A teacher who was named but is not found picks
+ * nothing, so a request never goes to somebody else by accident.
+ */
+export function findOption(
+  options: PrivateClassOption[],
+  classId: string | null | undefined,
+  teacherName: string | null | undefined,
+): PrivateClassOption | null {
+  if (!classId) return null;
+  const k = cleanName(teacherName).toLowerCase();
+  return options.find((o) => o.classId === classId && (k ? (o.teacherName ?? "").toLowerCase() === k : true)) ?? null;
+}
+
+/** The request page for a private class, with its class and teacher chosen. */
+export function privateRequestPath(o: {
+  kind: PrivateKind;
+  kindTitle: string;
+  people: number;
+  classId?: string | null;
+  teacherName?: string | null;
+}): string {
+  const topic = `Private Class: ${o.kindTitle} – ${o.people} ${o.people === 1 ? "person" : "people"}`;
+  const q = new URLSearchParams({ service: "consultation", topic, private: o.kind, people: String(o.people) });
+  if (o.classId) q.set("class", o.classId);
+  if (o.teacherName) q.set("teacher", cleanName(o.teacherName));
+  return `/book?${q.toString()}`;
 }

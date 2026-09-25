@@ -38,6 +38,11 @@ export const ConsultationForm = () => {
   const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
   const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
   const [classChoice, setClassChoice] = useState<PrivateClassOption | null>(null);
+  // From a teacher's portfolio: her class and her name come along.
+  const preselectClass = privateKind ? searchParams.get("class")?.trim() || "" : "";
+  const preselect = preselectClass
+    ? { classId: preselectClass, teacherName: searchParams.get("teacher")?.trim() || null }
+    : null;
   const { data: siteContent } = useSiteContent();
   const ps: any = (siteContent as any)?.privateSessions || contentDefaults.privateSessions;
   const kindTitle: string = privateKind ? (ps.classes?.[privateKind]?.title || topic) : "";
@@ -242,7 +247,7 @@ export const ConsultationForm = () => {
                   </div>
                   <p className="shrink-0 font-heading text-xl font-semibold">{formatCRCWithUsd(privatePrice)}</p>
                 </div>
-                <PrivateClassPicker value={classChoice} onChange={setClassChoice} />
+                <PrivateClassPicker value={classChoice} onChange={setClassChoice} preselect={preselect} />
               </div>
             )}
 

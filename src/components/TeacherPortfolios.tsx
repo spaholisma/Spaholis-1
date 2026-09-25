@@ -8,6 +8,8 @@ import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
+import { PrivateClassDialog, type PrivatePick } from "@/components/PrivateClassDialog";
+import { canBookPrivately } from "@/lib/privateClassRequest";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -83,6 +85,8 @@ const byClass = (rows: ScheduleRow[]) =>
  */
 export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
   const [pick, setPick] = useState<PassPick | null>(null);
+  // A private class with a teacher, in one of her classes.
+  const [privatePick, setPrivatePick] = useState<PrivatePick | null>(null);
   const [passes, setPasses] = useState<Pass[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
 
@@ -235,7 +239,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                       <RichText value={cls.description} />
                     </p>
                   )}
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     {bookable ? (
                       <Button size="sm" variant="outline" className="rounded-full" asChild>
                         <Link to={`/classes/${cls.id}`}>Reserve</Link>
@@ -247,6 +251,17 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                       >
                         Full — see other dates
                       </Link>
+                    )}
+                    {/* The same class, just for you, with her. */}
+                    {isTeacher && canBookPrivately((cls as any).category) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-full"
+                        onClick={() => setPrivatePick({ classId: cls.id, classTitle: cls.title, teacherName: p.teacher })}
+                      >
+                        Private class
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -302,6 +317,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
         );
       })}
       <PassRequestDialog pick={pick} onOpenChange={(o) => !o && setPick(null)} />
+      <PrivateClassDialog pick={privatePick} onOpenChange={(o) => !o && setPrivatePick(null)} />
     </div>
   );
 }
