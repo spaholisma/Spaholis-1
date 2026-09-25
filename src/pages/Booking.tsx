@@ -13,7 +13,7 @@ import { SEO } from "@/components/SEO";
 import { seo, content as contentDefaults } from "@/data/content";
 import { useSiteContent } from "@/hooks/useSiteContent";
 
-import { useServices, useAddonServices, type ServiceRow } from "@/hooks/useServices";
+import { useServices, useAddonServices, extrasOfferedWith, type ServiceRow } from "@/hooks/useServices";
 import { useSpaPackages } from "@/hooks/useSpaPackages";
 import { PackageDetailView } from "@/components/booking/PackageDetailView";
 import { useAuth } from "@/hooks/useAuth";
@@ -219,6 +219,9 @@ const BookingPage = () => {
 
   const currentService = services?.find((s) => s.id === selectedService);
   const { data: addonServices } = useAddonServices();
+  // The extras offered with this treatment: every add-on except the ones it
+  // already includes (Admin → Services → "Extras already included").
+  const offeredExtras = extrasOfferedWith(addonServices, currentService);
   // In-session extras add their minutes to the treatment, so slot availability
   // must reflect the FULL length (treatment + extras).
   const extrasMinutes = selectedExtras.reduce((m, id) => m + Number(addonServices?.find((a) => a.id === id)?.duration_minutes ?? 0), 0);
@@ -1060,12 +1063,12 @@ const BookingPage = () => {
                   <div>
                     <h2 className="spa-heading-md text-foreground mb-6">{t("booking.dateTime.title")}</h2>
 
-                    {allowAddons && (addonServices?.length ?? 0) > 0 && (
+                    {allowAddons && offeredExtras.length > 0 && (
                       <div className="mb-6 rounded-2xl border border-border p-4">
                         <p className="font-heading text-base font-medium text-foreground">Enhance your treatment (optional)</p>
                         <p className="font-body text-xs text-muted-foreground mb-3">Added to this same appointment — extends the time and price.</p>
                         <div className="space-y-2">
-                          {addonServices!.map((a) => {
+                          {offeredExtras.map((a) => {
                             const on = selectedExtras.includes(a.id);
                             return (
                               <button
