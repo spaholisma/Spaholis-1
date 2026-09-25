@@ -49,6 +49,20 @@ export function useServices() {
 
 /** Add-on extras (attach to a treatment) — kept out of useServices so they
  *  never show as standalone bookable services. */
+/**
+ * The add-on extras offered with a treatment: all of them except the ones the
+ * treatment already includes (services.included_addon_ids) — the Somato
+ * Awareness System Massage, say, comes with the Aromatherapy with Kinesiology
+ * Test, so it is not sold to its guests again.
+ */
+export function extrasOfferedWith<T extends { id: string }>(
+  extras: T[] | null | undefined,
+  treatment: object | null | undefined,
+): T[] {
+  const included = new Set((treatment as any)?.included_addon_ids ?? []);
+  return (extras ?? []).filter((e) => !included.has(e.id));
+}
+
 export function useAddonServices() {
   const { language } = useLanguage();
   return useQuery({

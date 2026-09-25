@@ -40,6 +40,8 @@ interface ServiceRow {
   is_addon: boolean;
   request_only?: boolean;
   location_available?: boolean;
+  /** Add-on extras this treatment already includes — not offered with it. */
+  included_addon_ids?: string[];
   sort_order: number;
   type: string | null;
 }
@@ -68,6 +70,7 @@ const emptyService: Draft = {
   is_addon: false,
   request_only: false,
   location_available: true,
+  included_addon_ids: [],
   sort_order: 0,
   type: "treatment",
 };
@@ -139,6 +142,8 @@ export function AdminServicesManager() {
       is_addon: editing.is_addon,
       request_only: editing.request_only ?? false,
       location_available: editing.location_available ?? true,
+      // An extra cannot include extras.
+      included_addon_ids: editing.is_addon ? [] : (editing.included_addon_ids ?? []),
       sort_order: editing.sort_order,
     };
 
@@ -414,6 +419,33 @@ export function AdminServicesManager() {
                   <span className="block text-xs text-muted-foreground">Offered as an extra inside a booking, not listed on its own.</span>
                 </span>
               </label>
+              {/* Extras this treatment already includes: not offered with it. */}
+              {!editing.is_addon && services.some((s) => s.is_addon && s.id !== editing.id) && (
+                <div className="space-y-1.5">
+                  <p className="font-body text-sm text-foreground">
+                    Extras already included
+                    <span className="block text-xs text-muted-foreground">Ticked extras are not offered with this treatment when guests book it.</span>
+                  </p>
+                  {services.filter((s) => s.is_addon && s.id !== editing.id).map((a) => {
+                    const on = (editing.included_addon_ids ?? []).includes(a.id);
+                    return (
+                      <label key={a.id} className="flex items-center gap-2 text-sm font-body">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={(e) => setEditing({
+                            ...editing,
+                            included_addon_ids: e.target.checked
+                              ? [...(editing.included_addon_ids ?? []), a.id]
+                              : (editing.included_addon_ids ?? []).filter((id) => id !== a.id),
+                          })}
+                        />
+                        {a.title}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
               <div>
                 <label className="font-body text-xs font-medium text-muted-foreground mb-1 block">Order in its category (lower shows first)</label>
                 <Input type="number" value={editing.sort_order} onChange={(e) => setEditing({ ...editing, sort_order: Number(e.target.value) })} />
