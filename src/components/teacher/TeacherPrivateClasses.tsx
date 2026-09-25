@@ -9,9 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
-import { useSiteContent } from "@/hooks/useSiteContent";
-import { content as defaults } from "@/data/content";
-import { privatePriceUsd, privatePricing } from "@/lib/otherOfferings";
+import { TeacherPrivateOfferingsEditor } from "@/components/teacher/TeacherPrivateOfferingsEditor";
 
 const sb = supabase as any;
 
@@ -27,6 +25,8 @@ interface RequestRow {
   preferred: string | null;
   status: string;
   note: string | null;
+  /** Her price for what they asked, worked out on the server from her offering. */
+  quoted_price: number | null;
 }
 
 const STATUSES = [
@@ -44,20 +44,16 @@ const statusColor: Record<string, string> = {
 };
 
 /**
- * Private classes for a teacher: the requests that named her (she answers the
- * guest by email), her own note about what she offers, and the studio's prices
- * — read-only, because Holis sets those.
+ * Private classes for a teacher: her own private classes and prices, her note
+ * on when she is free, and the requests that named her (she answers the guest
+ * by email).
  */
-export function TeacherPrivateClasses({ teacherId, note }: { teacherId: string; note: string | null }) {
+export function TeacherPrivateClasses({ teacherId, teacherName, note }: { teacherId: string; teacherName: string; note: string | null }) {
   const [rows, setRows] = useState<RequestRow[] | null>(null);
   const [draftNote, setDraftNote] = useState(note ?? "");
   const [savingNote, setSavingNote] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
-
-  const { data: siteContent } = useSiteContent();
-  const ps: any = (siteContent as any)?.privateSessions || defaults.privateSessions;
-  const pricing = privatePricing(ps);
 
   const load = useCallback(async () => {
     const { data, error } = await sb.rpc("teacher_private_class_requests");
@@ -90,52 +86,24 @@ export function TeacherPrivateClasses({ teacherId, note }: { teacherId: string; 
     load();
   };
 
-  const priceRows = [
-    { label: "1 person", value: pricing.onePerson },
-    { label: "2 people", value: pricing.twoPeople },
-    { label: "Up to 4", value: pricing.upToFour },
-    { label: "Each extra person", value: pricing.extraPerson },
-  ];
-
   return (
     <div className="space-y-4">
-      {/* What the studio charges — hers to know, not to change. */}
-      <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="font-heading text-lg text-foreground">Private classes</h3>
-            <p className="font-body text-xs text-muted-foreground">
-              Guests ask for a private class on the website and can pick you. Holis sets the prices; you agree the day and time with the guest.
-            </p>
-          </div>
-          <Badge variant="secondary" className="shrink-0">Prices set by Holis</Badge>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {priceRows.map((p) => (
-            <div key={p.label} className="rounded-xl border border-border bg-background p-3 text-center">
-              <p className="font-heading text-lg font-semibold text-foreground">{formatCRCWithUsd(p.value * USD_RATE)}</p>
-              <p className="font-body text-[11px] text-muted-foreground">{p.label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 font-body text-[11px] text-muted-foreground">
-          A group of 6, for example, pays ${privatePriceUsd(6, pricing)} — up to 4 plus 2 extra people.
-        </p>
-      </Card>
+      {/* Her private classes and her prices. */}
+      <TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} />
 
       {/* Her own words: what she offers privately. */}
       <Card className="p-5 space-y-3">
         <div>
-          <h4 className="font-heading text-base text-foreground">What you offer privately</h4>
+          <h4 className="font-heading text-base text-foreground">When you're free, and anything else</h4>
           <p className="font-body text-xs text-muted-foreground">
-            Your own note — what you teach one-on-one, for couples or for a group, and the days you usually have free. The Holis team reads it when a guest asks for you.
+            Your own note — the days and times you usually have free for private classes, or anything else. The Holis team reads it when a guest asks for you.
           </p>
         </div>
         <Textarea
           value={draftNote}
           onChange={(e) => setDraftNote(e.target.value)}
           rows={4}
-          placeholder="e.g. One-on-one and couples Vinyasa, mornings before 10am; aerial only on Thursdays."
+          placeholder="e.g. Mornings before 10am; aerial only on Thursdays."
         />
         <Button size="sm" onClick={saveNote} disabled={savingNote}>
           {savingNote ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />} Save
@@ -169,6 +137,7 @@ export function TeacherPrivateClasses({ teacherId, note }: { teacherId: string; 
                       {r.kind_title || "Private class"}
                       {r.class_title ? ` · ${r.class_title}` : ""}
                       {r.people ? ` · ${r.people} ${r.people === 1 ? "person" : "people"}` : ""}
+                      {r.quoted_price != null ? ` · ${formatCRCWithUsd(Number(r.quoted_price) * USD_RATE)}` : ""}
                     </p>
                   </div>
                   <p className="shrink-0 font-body text-xs text-muted-foreground">

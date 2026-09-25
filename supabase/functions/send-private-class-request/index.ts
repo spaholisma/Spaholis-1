@@ -124,7 +124,26 @@ Deno.serve(async (req) => {
     let classTitle = "";
     let teacherName = "";
     let teacherEmail = "";
-    if (typeof pc.class_id === "string" && UUID_RE.test(pc.class_id)) {
+    let price: number | null = null;
+    // One of a teacher's own private classes: hers, at her price — both read
+    // from the database. Anything that does not check out is treated as "no
+    // specific class", and the team sorts it out.
+    const offeringId = typeof pc.offering_id === "string" && UUID_RE.test(pc.offering_id) ? pc.offering_id : null;
+    if (offeringId) {
+      const { data: o } = await admin.from("teacher_private_offerings")
+        .select("title, active, teachers(display_name, email, active)")
+        .eq("id", offeringId).maybeSingle();
+      const t: any = (o as any)?.teachers;
+      if (o && (o as any).active && t?.active) {
+        classTitle = clean((o as any).title);
+        teacherName = clean(t.display_name);
+        teacherEmail = clean(t.email);
+        const { data: p } = await admin.rpc("private_offering_price", {
+          _offering_id: offeringId, _kind: String(pc.kind ?? ""), _people: people,
+        });
+        price = p == null ? null : Number(p);
+      }
+    } else if (typeof pc.class_id === "string" && UUID_RE.test(pc.class_id)) {
       const { data: cls } = await admin.from("classes").select("id, title, instructor").eq("id", pc.class_id).maybeSingle();
       if (cls) {
         classTitle = clean((cls as any).title);
@@ -148,6 +167,7 @@ Deno.serve(async (req) => {
       row("People", esc(peopleText)) +
       row("Class", classText) +
       row("Teacher", teacherText) +
+      row("Price", price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price` : "") +
       row("Preferred date & time", esc(preferred));
     const guestRows =
       row("Name", esc(guestName)) +

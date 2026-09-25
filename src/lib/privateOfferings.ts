@@ -1,0 +1,77 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { PrivateKind } from "@/lib/privateClassRequest";
+
+// A teacher's private classes and her own prices (table teacher_private_offerings,
+// edited in her Teacher Panel). The website reads them through
+// public_private_offerings(); the price of a request is worked out again on the
+// server by private_offering_price(), which this mirrors.
+
+export interface PrivateOffering {
+  id: string;
+  teacher_id: string;
+  teacher_name: string;
+  teacher_photo: string | null;
+  class_id: string | null;
+  title: string;
+  description: string | null;
+  duration_minutes: number | null;
+  price_one: number | null;
+  price_two: number | null;
+  price_group: number | null;
+  price_extra: number | null;
+}
+
+const num = (v: unknown): number | null => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** Her price for a kind and a number of people — null when she does not offer it. */
+export function offeringPrice(o: Pick<PrivateOffering, "price_one" | "price_two" | "price_group" | "price_extra">, kind: PrivateKind, people: number): number | null {
+  if (kind === "oneOnOne") return num(o.price_one);
+  if (kind === "couples") return num(o.price_two);
+  const group = num(o.price_group);
+  if (group == null || people < 1) return null;
+  if (people <= 4) return group;
+  const extra = num(o.price_extra);
+  return extra == null ? null : group + (people - 4) * extra;
+}
+
+/** The kinds she offers, in the order the website lists them. */
+export function kindsOffered(o: PrivateOffering): PrivateKind[] {
+  return (["oneOnOne", "couples", "group"] as const).filter((k) => offeringPrice(o, k, k === "group" ? 4 : 1) != null);
+}
+
+/** The largest group she takes: four when she set no price for extra people. */
+export const maxGroup = (o: PrivateOffering) => (num(o.price_extra) == null ? 4 : 20);
+
+/** Her lowest price, for a "from $X". */
+export function fromPrice(o: PrivateOffering): number | null {
+  const list = [num(o.price_one), num(o.price_two), num(o.price_group)].filter((n): n is number => n != null);
+  return list.length ? Math.min(...list) : null;
+}
+
+export const sameName = (a: string | null | undefined, b: string | null | undefined) =>
+  (a ?? "").trim().replace(/\s+/g, " ").toLowerCase() === (b ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+/** Every teacher's active private classes. */
+export function usePrivateOfferings() {
+  return useQuery({
+    queryKey: ["public-private-offerings"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("public_private_offerings");
+      if (error) throw error;
+      return ((data ?? []) as PrivateOffering[]).map((o) => ({
+        ...o,
+        price_one: num(o.price_one), price_two: num(o.price_two),
+        price_group: num(o.price_group), price_extra: num(o.price_extra),
+      }));
+    },
+    staleTime: 60_000,
+  });
+}
+
+/** One teacher's, with the one for this class first when there is one. */
+export function offeringsOf(all: PrivateOffering[], teacherName: string, classId?: string | null): PrivateOffering[] {
+  const mine = all.filter((o) => sameName(o.teacher_name, teacherName));
+  if (!classId) return mine;
+  return [...mine.filter((o) => o.class_id === classId), ...mine.filter((o) => o.class_id !== classId)];
+}

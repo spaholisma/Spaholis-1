@@ -16,10 +16,10 @@ import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as contentDefaults } from "@/data/content";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
-import { privatePriceUsd, privatePricing } from "@/lib/otherOfferings";
 import {
-  clampPeople, parsePrivateKind, privateClassIntake, type PrivateClassOption,
+  clampPeople, parsePrivateKind, privateClassIntake,
 } from "@/lib/privateClassRequest";
+import { offeringPrice, type PrivateOffering } from "@/lib/privateOfferings";
 import { Users } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,16 +37,22 @@ export const ConsultationForm = () => {
   // and teacher, and the request is emailed to that teacher too.
   const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
   const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
-  const [classChoice, setClassChoice] = useState<PrivateClassOption | null>(null);
+  const [classChoice, setClassChoice] = useState<PrivateOffering | null>(null);
   // From a teacher's portfolio: her class and her name come along.
+  const preselectOffering = privateKind ? searchParams.get("offering")?.trim() || "" : "";
   const preselectClass = privateKind ? searchParams.get("class")?.trim() || "" : "";
-  const preselect = preselectClass
-    ? { classId: preselectClass, teacherName: searchParams.get("teacher")?.trim() || null }
+  const preselect = preselectOffering || preselectClass
+    ? {
+        offeringId: preselectOffering || null,
+        classId: preselectClass || null,
+        teacherName: searchParams.get("teacher")?.trim() || null,
+      }
     : null;
   const { data: siteContent } = useSiteContent();
   const ps: any = (siteContent as any)?.privateSessions || contentDefaults.privateSessions;
   const kindTitle: string = privateKind ? (ps.classes?.[privateKind]?.title || topic) : "";
-  const privatePrice = privateKind ? privatePriceUsd(people, privatePricing(ps)) * USD_RATE : 0;
+  // Each teacher sets her own prices: there is a price once her class is chosen.
+  const privatePrice = privateKind && classChoice ? offeringPrice(classChoice, privateKind, people) : null;
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
@@ -102,7 +108,7 @@ export const ConsultationForm = () => {
         // email function loads the request by this id.
         const bookingId = crypto.randomUUID();
         const classPart = classChoice
-          ? ` — Class: ${classChoice.classTitle}${classChoice.teacherName ? ` with ${classChoice.teacherName}` : ""}`
+          ? ` — Class: ${classChoice.title} with ${classChoice.teacher_name}`
           : " — No specific class";
         const { error } = await supabase.from("bookings").insert({
           id: bookingId,
@@ -113,7 +119,7 @@ export const ConsultationForm = () => {
           booking_time: "00:00",
           status: "pending",
           notes: `${topic}${classPart}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`,
-          intake_form: privateClassIntake({ kind: privateKind, kindTitle, people, option: classChoice, preferred: prettyPref }) as any,
+          intake_form: privateClassIntake({ kind: privateKind, kindTitle, people, offering: classChoice, preferred: prettyPref }) as any,
         });
         if (error) throw error;
         try {
@@ -182,8 +188,8 @@ export const ConsultationForm = () => {
             <h2 className="spa-heading-lg text-foreground mb-4">{t("consultation.thankYou")}</h2>
             <p className="font-body text-muted-foreground leading-relaxed">
               {privateKind
-                ? classChoice?.teacherName
-                  ? t("consultation.privateThankYouTeacher", { name: classChoice.teacherName, defaultValue: "Your request was sent to {{name}} and the Holis team. You'll hear back by email to arrange your private class — check your inbox for a copy." })
+                ? classChoice?.teacher_name
+                  ? t("consultation.privateThankYouTeacher", { name: classChoice.teacher_name, defaultValue: "Your request was sent to {{name}} and the Holis team. You'll hear back by email to arrange your private class — check your inbox for a copy." })
                   : t("consultation.privateThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email to arrange your private class — check your inbox for a copy." })
                 : isInfo
                 ? t("consultation.infoThankYou", { defaultValue: "Thank you! Our team will be in touch shortly with the course information — dates, pricing and how to register." })
@@ -245,9 +251,15 @@ export const ConsultationForm = () => {
                         : t("consultation.privatePeople", { count: people, defaultValue: "{{count}} people" })}
                     </p>
                   </div>
-                  <p className="shrink-0 font-heading text-xl font-semibold">{formatCRCWithUsd(privatePrice)}</p>
+                  {privatePrice != null ? (
+                    <p className="shrink-0 font-heading text-xl font-semibold">{formatCRCWithUsd(privatePrice * USD_RATE)}</p>
+                  ) : (
+                    <p className="shrink-0 max-w-[9rem] text-right font-body text-xs text-background/70">
+                      {t("consultation.privatePriceDepends", { defaultValue: "Price depends on the class and teacher" })}
+                    </p>
+                  )}
                 </div>
-                <PrivateClassPicker value={classChoice} onChange={setClassChoice} preselect={preselect} />
+                <PrivateClassPicker kind={privateKind} people={people} value={classChoice} onChange={setClassChoice} preselect={preselect} />
               </div>
             )}
 

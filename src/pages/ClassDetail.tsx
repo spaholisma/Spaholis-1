@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { RichText } from "@/components/ui/rich-text";
 import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
 import { PassChooser } from "@/components/PassChooser";
+import { TeacherPrivateSection } from "@/components/TeacherPrivateSection";
+import { offeringsOf, usePrivateOfferings } from "@/lib/privateOfferings";
 import { Loader2, ArrowLeft, MapPin, Clock, CalendarDays, Ticket } from "lucide-react";
 import { formatSpaDate, formatSpaTime, spaLocalParts } from "@/lib/businessHours";
 import { localizeRow } from "@/lib/localizeRow";
@@ -59,6 +61,7 @@ export default function ClassDetail() {
   const [passes, setPasses] = useState<Pass[]>([]);
   const [pick, setPick] = useState<PassPick | null>(null);
   const [loading, setLoading] = useState(true);
+  const { data: allPrivate = [] } = usePrivateOfferings();
 
   useEffect(() => {
     let alive = true;
@@ -85,6 +88,10 @@ export default function ClassDetail() {
     const fromSession = sessions.find((x) => x.instructor?.trim())?.instructor?.trim();
     return (fromSession || cls?.instructor?.trim() || "");
   }, [sessions, cls]);
+  const privateOfferings = useMemo(
+    () => (teacherName ? offeringsOf(allPrivate, teacherName, cls?.id) : []),
+    [allPrivate, teacherName, cls?.id],
+  );
 
   useEffect(() => {
     if (!teacherName) { setTeacher(null); setPasses([]); return; }
@@ -241,6 +248,15 @@ export default function ClassDetail() {
                   </div>
                   {teacher?.bio && (
                     <p className="spa-body-sm px-5 pb-5 whitespace-pre-line">{teacher.bio}</p>
+                  )}
+
+                  {/* Her private classes — all of them, this one first. */}
+                  {privateOfferings.length > 0 && (
+                    <TeacherPrivateSection
+                      teacherName={teacherName}
+                      offerings={privateOfferings}
+                      className="border-t border-border px-5 py-4"
+                    />
                   )}
 
                   {passes.length > 0 && (

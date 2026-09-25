@@ -68,27 +68,9 @@ const PrivateClassesPage = () => {
         </motion.div>
       </section>
 
-      {/* Pricing Guide */}
-      <section className="py-10 px-4 sm:px-6 lg:px-8 border-b border-border">
-        <div className="max-w-2xl mx-auto">
-          <motion.div {...fadeIn} className="text-center mb-6">
-            <h2 {...cmsEditProps("privateSessions.pricingTitle")} className="font-heading text-lg font-medium text-foreground">{ps.pricingTitle}</h2>
-          </motion.div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            {[
-              { label: (ps as any).pricingLabels?.onePerson, price: formatCRCWithUsd(pricing.onePerson * USD_RATE), path: "privateSessions.pricingLabels.onePerson" },
-              { label: (ps as any).pricingLabels?.twoPeople, price: formatCRCWithUsd(pricing.twoPeople * USD_RATE), path: "privateSessions.pricingLabels.twoPeople" },
-              { label: (ps as any).pricingLabels?.upToFour, price: formatCRCWithUsd(pricing.upToFour * USD_RATE), path: "privateSessions.pricingLabels.upToFour" },
-              { label: (ps as any).pricingLabels?.extraPerson, price: `+${formatCRCWithUsd(pricing.extraPerson * USD_RATE)}`, path: "privateSessions.pricingLabels.extraPerson" },
-            ].map((p) => (
-              <div key={p.label} className="bg-card border border-border rounded-xl p-4">
-                <p className="font-heading text-xl font-semibold text-foreground">{p.price}</p>
-                <p {...cmsEditProps(p.path)} className="font-body text-xs text-muted-foreground mt-1">{p.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* No price table: each teacher sets her own prices for her private
+          classes, so the price appears once the class and teacher are chosen
+          on the request page. */}
 
       {/* Class Options */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
@@ -171,10 +153,16 @@ const PrivateClassesPage = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="font-heading text-lg font-semibold text-foreground">
-                          {formatCRCWithUsd(price)}
-                        </span>
+                      <div className="flex items-center justify-between gap-3">
+                        {cls.i18nKey === "gyrotonic" ? (
+                          <span className="font-heading text-lg font-semibold text-foreground">
+                            {formatCRCWithUsd(price)}
+                          </span>
+                        ) : (
+                          <span className="font-body text-xs text-muted-foreground max-w-[12rem]">
+                            {t("privateSessions.priceDepends", { defaultValue: "The price depends on the class and teacher you choose" })}
+                          </span>
+                        )}
                         <Button asChild variant="spa" size="sm">
                           <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}${cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""}`}>
                             {(ps as any).ui?.bookNow}

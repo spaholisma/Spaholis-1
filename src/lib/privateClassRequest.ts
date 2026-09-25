@@ -117,7 +117,9 @@ export function privateClassIntake(input: {
   kind: PrivateKind;
   kindTitle: string;
   people: number;
-  option: PrivateClassOption | null;
+  /** The teacher's private class that was picked, if any. Its price is worked
+   *  out again on the server; nothing about money is stored from here. */
+  offering: { id: string; class_id: string | null; title: string; teacher_name: string } | null;
   preferred: string;
 }) {
   return {
@@ -125,9 +127,10 @@ export function privateClassIntake(input: {
       kind: input.kind,
       kind_title: input.kindTitle,
       people: input.people,
-      class_id: input.option?.classId ?? null,
-      class_title: input.option?.classTitle ?? null,
-      teacher_name: input.option?.teacherName ?? null,
+      offering_id: input.offering?.id ?? null,
+      class_id: input.offering?.class_id ?? null,
+      class_title: input.offering?.title ?? null,
+      teacher_name: input.offering?.teacher_name ?? null,
       preferred: input.preferred || null,
     },
   };
@@ -153,11 +156,13 @@ export function privateRequestPath(o: {
   kind: PrivateKind;
   kindTitle: string;
   people: number;
+  offeringId?: string | null;
   classId?: string | null;
   teacherName?: string | null;
 }): string {
   const topic = `Private Class: ${o.kindTitle} – ${o.people} ${o.people === 1 ? "person" : "people"}`;
   const q = new URLSearchParams({ service: "consultation", topic, private: o.kind, people: String(o.people) });
+  if (o.offeringId) q.set("offering", o.offeringId);
   if (o.classId) q.set("class", o.classId);
   if (o.teacherName) q.set("teacher", cleanName(o.teacherName));
   return `/book?${q.toString()}`;

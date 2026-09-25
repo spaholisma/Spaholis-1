@@ -34,11 +34,10 @@ describe("private classes in the Teacher Panel", () => {
     expect(sql).not.toMatch(/grant[^;]*on public\.bookings/i);
   });
 
-  it("shows the prices as read-only, set by Holis", () => {
-    expect(view).toContain("Prices set by Holis");
+  it("lets her set her own private classes and prices — never the studio's", () => {
+    expect(view).toContain("<TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} />");
+    expect(view).not.toContain("Prices set by Holis");
     expect(view).not.toMatch(/from\("services"\)[^;]*update|privateSessions[^;]*update/);
-    // The prices come from the same place the website uses.
-    expect(view).toContain("privatePricing(ps)");
   });
 
   it("matches the name as a person reads it, ignoring capitals and extra spaces", () => {

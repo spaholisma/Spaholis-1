@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "@/hooks/useClasses";
 import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
 import { PrivateClassDialog, type PrivatePick } from "@/components/PrivateClassDialog";
-import { canBookPrivately } from "@/lib/privateClassRequest";
+import { fromPrice, offeringsOf, usePrivateOfferings } from "@/lib/privateOfferings";
+import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -85,8 +86,9 @@ const byClass = (rows: ScheduleRow[]) =>
  */
 export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
   const [pick, setPick] = useState<PassPick | null>(null);
-  // A private class with a teacher, in one of her classes.
+  // A private class with a teacher: every private class she offers.
   const [privatePick, setPrivatePick] = useState<PrivatePick | null>(null);
+  const { data: allPrivate = [] } = usePrivateOfferings();
   const [passes, setPasses] = useState<Pass[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
 
@@ -252,21 +254,34 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                         Full — see other dates
                       </Link>
                     )}
-                    {/* The same class, just for you, with her. */}
-                    {isTeacher && canBookPrivately((cls as any).category) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="rounded-full"
-                        onClick={() => setPrivatePick({ classId: cls.id, classTitle: cls.title, teacherName: p.teacher })}
-                      >
-                        Private class
-                      </Button>
-                    )}
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* Her private classes, at her own prices. */}
+            {isTeacher && (() => {
+              const mine = offeringsOf(allPrivate, p.teacher);
+              if (mine.length === 0) return null;
+              const from = Math.min(...mine.map((o) => fromPrice(o) ?? Infinity));
+              return (
+                <div className="border-t border-border px-6 py-4 flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Private classes with {p.teacher.split(/\s+/)[0]}
+                    </span>
+                    <span className="block font-body text-xs text-muted-foreground">
+                      {mine.length} class{mine.length === 1 ? "" : "es"}
+                      {Number.isFinite(from) ? ` · from ${formatCRCWithUsd(from * USD_RATE)}` : ""}
+                    </span>
+                  </span>
+                  <Button size="sm" variant="outline" className="rounded-full shrink-0"
+                    onClick={() => setPrivatePick({ teacherName: p.teacher, offerings: mine })}>
+                    See & request
+                  </Button>
+                </div>
+              );
+            })()}
 
             {/* What she sells. Prices are hers; another teacher's differ. */}
             {p.passes.length > 0 && (
