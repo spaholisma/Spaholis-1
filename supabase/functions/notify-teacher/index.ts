@@ -5,9 +5,9 @@
 // who needs to know what happens to it — not Holis. This function emails her
 // when someone signs up or cancels, and confirms the changes she makes herself.
 //
-// It also handles the one message that goes OUTWARD: when a class is cancelled,
-// every student who had signed up (and left an email) is told. If nobody signed
-// up, nobody is emailed.
+// It also handles the messages that go OUTWARD: a cancelled or moved class
+// reaches the students who signed up, and a class that changes hands reaches the
+// teacher who is no longer teaching it.
 //
 // Called only by the database triggers in `notify_teacher_event()`, so every
 // path reaches the teacher: the website, PayPal, the admin calendar, her panel.
@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
   const scheduleId: string = body?.scheduleId;
   const teacherId: string = body?.teacherId;
   const studentName: string = (body?.studentName ?? "").toString().slice(0, 120);
+  // The booking the event is about (sent by the trigger for student events).
+  const bookingId: string | null = typeof body?.bookingId === "string" ? body.bookingId : null;
   // A pass request belongs to a teacher, not to a class on the calendar.
   if (!event || (!scheduleId && !teacherId)) return json({ ok: false, reason: "missing_fields" }, 400);
 
@@ -171,10 +173,22 @@ Deno.serve(async (req) => {
         .select("id, status").eq("schedule_id", scheduleId);
       const active = ((rows as any[]) ?? []).filter((r) => r.status !== "cancelled").length;
 
+      // A student who reserved online to pay her in cash: say so, and how much.
+      let cashLine: string | null = null;
+      if (event === "booking_created" && bookingId) {
+        const { data: bk } = await admin.from("class_bookings")
+          .select("payment_method, payment_status, total_price").eq("id", bookingId).maybeSingle();
+        const b: any = bk;
+        if (b?.payment_method === "cash" && b?.payment_status === "pending" && Number(b?.total_price) > 0) {
+          cashLine = `In cash, to you at the class — $${Number(b.total_price).toFixed(2)}`;
+        }
+      }
+
       const rowsHtml = [
         row("Class", title),
         row("When", when),
         ...(studentName ? [row("Student", studentName)] : []),
+        ...(cashLine ? [row("Pays", cashLine)] : []),
         row("Students signed up", String(active)),
         ...(cls.location ? [row("Location", cls.location)] : []),
       ];

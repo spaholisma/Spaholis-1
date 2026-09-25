@@ -1126,7 +1126,7 @@ export function AdminClassCalendarWithAttendees() {
                           <div className="text-right shrink-0 flex items-start gap-2">
                             <div>
                               <Badge variant={a.payment_status === "paid" ? "default" : a.payment_status === "pending" ? "secondary" : "outline"} className="text-[10px]">
-                                {a.payment_status}
+                                {a.payment_method === "cash" && a.payment_status === "pending" ? "cash due" : a.payment_status}
                               </Badge>
                               {a.total_price != null && a.total_price > 0 && (
                                 <p className="text-[10px] text-muted-foreground mt-1">${Number(a.total_price).toFixed(2)}</p>

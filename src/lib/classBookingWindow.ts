@@ -19,6 +19,9 @@ export function classCheckoutReasonMessage(reason: string | null | undefined): s
     case "class_full": return "This class just filled up.";
     case "class_day_closed": return "The studio is closed that day.";
     case "class_unavailable": return "This class is no longer available.";
+    case "phone_required": return "Please add a phone number so we can reach you.";
+    case "invalid_participants": return "Please add a name for each spot.";
+    case "too_many_spots": return "That is more spots than we can hold without payment. Please pay by card for the rest.";
     default: return null;
   }
 }

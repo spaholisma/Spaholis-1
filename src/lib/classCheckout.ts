@@ -7,6 +7,19 @@ export function cardTotal(price: number, quantity: number, discount: number): nu
 }
 
 /**
+ * What the guest brings to the class when paying in cash: every spot at the
+ * class price. Coupons are for online payment, so they do not apply.
+ */
+export function cashTotal(price: number, quantity: number): number {
+  return Math.max(0, Math.round(quantity * price * 100) / 100);
+}
+
+/** Who is paid in cash at the class: the teacher of that session, else the class's. */
+export function cashPayee(sessionInstructor?: string | null, classInstructor?: string | null): string | null {
+  return (sessionInstructor ?? "").trim() || (classInstructor ?? "").trim() || null;
+}
+
+/**
  * A coupon that covers the whole class leaves nothing to pay — and PayPal
  * cannot take a $0 payment, so its buttons are no way to book. Such a booking
  * is confirmed straight away by create-class-booking, which checks the coupon

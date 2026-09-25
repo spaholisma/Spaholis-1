@@ -692,6 +692,8 @@ export function buildClassCustomerHtml(ctx: {
   discountAmount: number | null;
   paymentStatus: string;
   whatsappUrl: string;
+  /** "To pay in cash" when the guest pays the teacher at the class. */
+  totalLabel?: string;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -702,7 +704,7 @@ export function buildClassCustomerHtml(ctx: {
   rows.push(tableRow("Payment Status", ctx.paymentStatus));
   rows.push(...priceRows({
     total: ctx.totalPrice, discount: ctx.discountAmount, couponCode: ctx.couponCode,
-    priceLabel: "Class Price", totalLabel: "Amount Paid", showNoCoupon: true,
+    priceLabel: "Class Price", totalLabel: ctx.totalLabel ?? "Amount Paid", showNoCoupon: true,
   }));
 
   return emailShell(
@@ -726,6 +728,7 @@ type ClassAdminCtx = {
   instructor: string | null;
   guestName: string;
   guestEmail: string;
+  guestPhone?: string | null;
   scheduleLabel: string;
   location: string | null;
   totalPrice: number | null;
@@ -751,6 +754,7 @@ export function classAdminRows(ctx: ClassAdminCtx): string[] {
   if (ctx.instructor) rows.push(tableRow("Instructor", ctx.instructor));
   rows.push(tableRow("Client Name", ctx.guestName));
   rows.push(tableRow("Email", ctx.guestEmail));
+  if (ctx.guestPhone) rows.push(tableRow("Phone", ctx.guestPhone));
   rows.push(tableRow("When", ctx.scheduleLabel));
   if (ctx.bookedAt) rows.push(tableRow("Booked on", ctx.bookedAt));
   if (ctx.location) rows.push(tableRow("Location", ctx.location));
@@ -770,10 +774,10 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     .from("class_bookings")
     .select(`
       id, status, payment_status, payment_method, payment_id,
-      guest_name, guest_email, coupon_code, discount_amount, total_price,
+      guest_name, guest_email, guest_phone, coupon_code, discount_amount, total_price,
       notification_sent_at, booking_group_id, created_at,
       schedule:class_schedule(
-        id, start_time, end_time,
+        id, start_time, end_time, instructor,
         class:classes(id, title, instructor, location, price, requires_payment)
       )
     `)
@@ -819,7 +823,8 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
 
   const cls: any = booking.schedule?.class ?? null;
   const className = cls?.title || "Class";
-  const instructor = cls?.instructor || null;
+  // The teacher of this session (a substitute may be named on it), else the class's.
+  const instructor = (booking.schedule?.instructor || "").trim() || cls?.instructor || null;
   const location = cls?.location || null;
 
   // Prices are stored in USD in the DB — render as dollars, never CRC math.
@@ -854,8 +859,11 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
 
   const reservationId = booking.id.slice(0, 8).toUpperCase();
   const paymentMethod = booking.payment_method || null;
+  // Reserved online, paid to the teacher in cash at the class.
+  const cashDue = paymentMethod === "cash" && booking.payment_status === "pending";
   const paymentStatusLabel =
     booking.payment_status === "paid" ? "Paid"
+    : cashDue ? `Pay in cash at the class${instructor ? ` — to ${instructor}` : ""}`
     : paymentMethod === "membership" ? "Covered by membership"
     : paymentMethod === "credit" || paymentMethod === "credits" ? "Redeemed with credits"
     : booking.status === "booked" ? "Confirmed"
@@ -870,10 +878,14 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     instructor,
     guestName: booking.guest_name || "Guest",
     guestEmail: booking.guest_email || "N/A",
+    guestPhone: booking.guest_phone || null,
     scheduleLabel,
     location,
     totalPrice: totalUsd,
-    paymentStatus: paymentStatusLabel,
+    // The team's copy says plainly that the money is still to be collected.
+    paymentStatus: cashDue && totalUsd != null
+      ? `CASH — collect ${formatCRC(totalUsd)} at the class${instructor ? ` (to ${instructor})` : ""}`
+      : paymentStatusLabel,
     paymentMethod,
     paymentId: booking.payment_id ?? null,
     couponCode,
@@ -888,7 +900,9 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     { footer: CLASS_FOOTER },
   );
   const adminHtml = teamTpl?.html ?? buildClassAdminHtml(classCtx);
-  const adminSubj = teamTpl?.subject ?? `New Class Booking — ${className} — ${guestLabel} (${reservationId})`;
+  const baseSubj = teamTpl?.subject ?? `New Class Booking — ${className} — ${guestLabel} (${reservationId})`;
+  // Whatever the template says, a cash booking is flagged in the subject line.
+  const adminSubj = cashDue && totalUsd != null ? `CASH to collect ${formatCRC(totalUsd)} · ${baseSubj}` : baseSubj;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] class admin email failed:", adminRes.error);
   const backupRes = await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
@@ -911,7 +925,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
       rows.push(tableRow("Payment Status", escHtml(paymentStatusLabel)));
       rows.push(...priceRows({
         total: totalUsd, discount: discountUsd, couponCode,
-        priceLabel: "Class Price", totalLabel: "Amount Paid", showNoCoupon: true,
+        priceLabel: "Class Price", totalLabel: cashDue ? "To pay in cash" : "Amount Paid", showNoCoupon: true,
       }));
       const built = buildFromTemplate(
         tpl,
@@ -948,6 +962,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
         discountAmount: discountUsd,
         paymentStatus: paymentStatusLabel,
         whatsappUrl,
+        totalLabel: cashDue ? "To pay in cash" : undefined,
       });
     }
     customerRes = await sendEmail(booking.guest_email, subject, customerHtml);

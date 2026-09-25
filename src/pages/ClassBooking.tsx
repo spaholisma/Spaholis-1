@@ -11,7 +11,7 @@ import { Footer } from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { Check, ChevronLeft, CreditCard, CalendarDays, Clock, MapPin, Users, Ticket, Infinity as InfinityIcon } from "lucide-react";
+import { Banknote, Check, ChevronLeft, CreditCard, CalendarDays, Clock, MapPin, Users, Ticket, Infinity as InfinityIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatSpaDateLong, formatSpaTime } from "@/lib/businessHours";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
+import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
@@ -47,7 +47,8 @@ function useScheduleEvent(scheduleId: string | null) {
   });
 }
 
-type PayMethod = "card" | "membership" | "credits";
+// "cash": reserved online, paid to the teacher at the class.
+type PayMethod = "card" | "cash" | "membership" | "credits";
 
 const ClassBookingPage = () => {
   const { t } = useTranslation();
@@ -77,11 +78,13 @@ const ClassBookingPage = () => {
   // covers this class.
   const [pendingPassCode, setPendingPassCode] = useState<string | null>(null);
   const invalidateOfferings = useInvalidateOfferings();
-  // How many spots to book at once (e.g. bringing friends). Multi-spot always
-  // pays by card — memberships/credits are personal and stay at one spot.
+  // How many spots to book at once (e.g. bringing friends). Multi-spot pays by
+  // card or in cash — memberships/credits are personal and stay at one spot.
   const [quantity, setQuantity] = useState(1);
   // Names of the extra participants (spots 2..N); spot 1 is the booker's name.
   const [extraNames, setExtraNames] = useState<string[]>([]);
+  // Set when the spot was reserved to be paid in cash at the class.
+  const [cashDue, setCashDue] = useState<{ amount: number; teacher: string | null } | null>(null);
   useEffect(() => {
     setExtraNames((prev) => Array.from({ length: Math.max(0, quantity - 1) }, (_, i) => prev[i] ?? ""));
   }, [quantity]);
@@ -98,6 +101,8 @@ const ClassBookingPage = () => {
   // Some classes are always paid in full — no pass, no membership, no coupon.
   // The database refuses them too; this only keeps the offer off the screen.
   const fullPriceOnly = !!(cls as any)?.full_price_only;
+  // Paying in cash means paying the teacher of this session at the class.
+  const payee = cashPayee((event as any)?.instructor, cls?.instructor);
 
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId && !fullPriceOnly
@@ -209,9 +214,11 @@ const ClassBookingPage = () => {
 
   // One name per spot: the booker first, then each extra participant.
   const participantNames = [formData.name, ...extraNames].slice(0, quantity);
+  // The phone is required: it is how we reach a guest, and its country code
+  // tells us whether they are visiting or live in Costa Rica.
   const canProceed =
     !!formData.name && !!formData.email &&
-    (!formData.phone || isValidPhoneNumber(formData.phone)) &&
+    !!formData.phone && isValidPhoneNumber(formData.phone) &&
     (!multi || extraNames.every((n) => n.trim().length > 0));
 
   const createClassBooking = async (opts: {
@@ -277,7 +284,7 @@ const ClassBookingPage = () => {
         }
         return;
       }
-      // Multiple spots always pay by card (memberships/credits are personal).
+      // Multiple spots pay by card or in cash (memberships/credits are personal).
       if (multi) {
         setPayMethod("card");
         setSelectedOfferingId(null);
@@ -365,6 +372,41 @@ const ClassBookingPage = () => {
 
       // total was $0 (100% coupon): server already confirmed + emailed.
       toast.success(t("booking.classBookedSuccess"));
+      setBookingComplete(true);
+      setStep(steps.length - 1);
+    } catch (err: any) {
+      toast.error(err.message || t("booking.classBookFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Reserve now, pay the teacher in cash at the class. The server makes the
+  // booking (price from the class, phone required, spots checked) and marks it
+  // as cash to collect; the team and the teacher are told by email.
+  const handleCashBooking = async () => {
+    if (submitting || !scheduleId) return;
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("book_class_pay_cash" as any, {
+        _schedule_id: scheduleId,
+        _guest_name: formData.name.trim(),
+        _guest_email: formData.email.trim(),
+        _guest_phone: formData.phone,
+        _participant_names: participantNames,
+      });
+      if (error) throw error;
+      const res = (data ?? {}) as { ok?: boolean; reason?: string; booking_id?: string; amount?: number; teacher?: string | null };
+      if (!res.ok || !res.booking_id) {
+        toast.error(classCheckoutReasonMessage(res.reason) ?? t("booking.classBookFailed"));
+        return;
+      }
+      // Fire-and-forget: the guest's confirmation + the team's "collect cash" email.
+      supabase.functions
+        .invoke("send-booking-notification", { body: { classBookingId: res.booking_id } })
+        .catch((e) => console.error("[class-booking] notify failed", e));
+      setCashDue({ amount: Number(res.amount ?? cashTotal(Number(cls?.price ?? 0), quantity)), teacher: res.teacher ?? payee });
+      toast.success(multi ? `Reserved ${quantity} spots!` : "Your spot is reserved!");
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
@@ -585,7 +627,7 @@ const ClassBookingPage = () => {
                               </li>
                             ))}
                             <li className="text-xs text-muted-foreground pt-1.5 border-t border-border mt-2">
-                              You can redeem one of these on the next step, or pay by card.
+                              You can redeem one of these on the next step, or pay by card or in cash.
                             </li>
                           </ul>
                         ) : (
@@ -601,7 +643,7 @@ const ClassBookingPage = () => {
                               </p>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              You can still pay {formatCRC(cls.price)} by card on the next step, or{" "}
+                              You can still pay {formatCRC(cls.price)} by card or in cash on the next step, or{" "}
                               <Link to="/classes#buy" className="underline">buy a pass</Link>.
                             </p>
                           </div>
@@ -624,7 +666,7 @@ const ClassBookingPage = () => {
                             )}
                           </div>
                           {multi && needsPayment && (
-                            <p className="text-xs text-muted-foreground mt-1.5 font-body">Multiple spots are paid by card.</p>
+                            <p className="text-xs text-muted-foreground mt-1.5 font-body">Multiple spots are paid by card or in cash.</p>
                           )}
                         </div>
                       )}
@@ -660,15 +702,17 @@ const ClassBookingPage = () => {
                         )}
                       </div>
                       <div>
-                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Phone</label>
+                        <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Phone *</label>
                         <PhoneField
                           value={formData.phone}
                           onChange={(v) => setFormData({ ...formData, phone: v })}
                           placeholder="8888 8888"
                           invalid={!!formData.phone && !isValidPhoneNumber(formData.phone)}
                         />
-                        {!!formData.phone && !isValidPhoneNumber(formData.phone) && (
+                        {!!formData.phone && !isValidPhoneNumber(formData.phone) ? (
                           <p className="text-xs text-destructive mt-1 font-body">Enter a valid phone number for the selected country.</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-1 font-body">Pick your country, so we can reach you about your class.</p>
                         )}
                       </div>
 
@@ -765,7 +809,7 @@ const ClassBookingPage = () => {
                           <p className="text-xs font-body text-muted-foreground">
                             Your existing memberships and passes don't cover{" "}
                             <span className="font-medium text-foreground">{cls.title}</span>.
-                            Pay by card below or{" "}
+                            Pay by card or in cash below, or{" "}
                             <Link to="/classes#buy" className="underline">view eligible passes</Link>.
                           </p>
                         </div>
@@ -780,6 +824,20 @@ const ClassBookingPage = () => {
                         selected={payMethod === "card"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
+
+                      {/* Cash: reserve now, pay the teacher at the class */}
+                      <PayOption
+                        icon={<Banknote className="h-4 w-4" />}
+                        title={multi
+                          ? `Pay ${formatCRC(cashTotal(Number(cls.price), quantity))} in cash at the class · ${quantity} spots`
+                          : `Pay ${formatCRC(cls.price)} in cash at the class`}
+                        selected={payMethod === "cash"}
+                        onClick={() => { setUseLinkMembership(false); setPayMethod("cash"); }}
+                      >
+                        <p className="text-xs font-body text-muted-foreground">
+                          Your spot is reserved now. Bring the cash and pay {payee ? <span className="font-medium text-foreground">{payee}</span> : "your teacher"} when you arrive.
+                        </p>
+                      </PayOption>
 
                       {!multi && !user && !tokenEligible && !fullPriceOnly && (
                         <p className="text-xs font-body text-muted-foreground px-1">
@@ -863,9 +921,13 @@ const ClassBookingPage = () => {
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
                               ? formatPrice(cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0))
+                              : payMethod === "cash" ? formatPrice(cashTotal(Number(cls.price), quantity))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>
+                        {payMethod === "cash" && (
+                          <p className="text-xs font-body text-muted-foreground mt-2 text-right">In cash, at the class</p>
+                        )}
                       </div>
 
                       {isFreeWithCoupon({
@@ -876,6 +938,10 @@ const ClassBookingPage = () => {
                         // The server checks the coupon again before confirming.
                         <Button className="w-full" onClick={handleCardCheckout} disabled={submitting || !formData.name || !formData.email}>
                           {submitting ? t("booking.booking") : t("booking.confirmBooking")}
+                        </Button>
+                      ) : payMethod === "cash" ? (
+                        <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
+                          {submitting ? t("booking.booking") : "Reserve — pay in cash at the class"}
                         </Button>
                       ) : payMethod === "card" ? (
                         <PayPalCheckout
@@ -913,6 +979,17 @@ const ClassBookingPage = () => {
                     <p className="spa-body max-w-sm mx-auto mb-8">
                       We'll send a confirmation to {formData.email}. See you there!
                     </p>
+                    {cashDue && (
+                      <div className="max-w-sm mx-auto mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
+                        <p className="flex items-center gap-2 font-body text-sm font-semibold text-foreground">
+                          <Banknote className="h-4 w-4" /> Pay in cash at the class
+                        </p>
+                        <p className="mt-1 text-sm font-body text-muted-foreground">
+                          Please bring <span className="font-medium text-foreground">{formatPrice(cashDue.amount)}</span> and
+                          pay {cashDue.teacher ? <span className="font-medium text-foreground">{cashDue.teacher}</span> : "your teacher"} when you arrive.
+                        </p>
+                      </div>
+                    )}
                     <div className="bg-card rounded-2xl p-6 border border-border max-w-sm mx-auto text-left space-y-3">
                       <div className="flex justify-between text-sm font-body">
                         <span className="text-muted-foreground">Class</span>
