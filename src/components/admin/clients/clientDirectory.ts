@@ -19,16 +19,23 @@ export type ClientRow = {
   user_id?: string | null;
   /** The login is blocked from signing in. */
   suspended?: boolean;
+  /** Their roles (user_roles): empty for a client, set for the team. */
+  roles?: string[] | null;
 };
 
-export type ClientFilter = "all" | "account" | "staff" | "active";
+export type ClientFilter = "all" | "account" | "staff" | "active" | "team";
 
 export const FILTER_LABELS: Record<ClientFilter, string> = {
   all: "Everyone",
   account: "Website account",
   staff: "Registered by staff",
   active: "Active membership",
+  team: "Team",
 };
+
+/** Someone with any access to the Admin Panel (not a teacher on their own). */
+export const isTeam = (row: Pick<ClientRow, "roles">) =>
+  (row.roles ?? []).some((r) => r !== "teacher" && r !== "client");
 
 /** Lower-case, accents off — so "Briceño" is found by typing "briceno". */
 export function fold(s: string | null | undefined): string {
@@ -54,6 +61,7 @@ export function matchesFilter(row: ClientRow, filter: ClientFilter): boolean {
     case "account": return row.has_account;
     case "staff": return !row.has_account;
     case "active": return row.memberships_active > 0;
+    case "team": return isTeam(row);
     default: return true;
   }
 }
@@ -78,6 +86,7 @@ export function countBy(rows: ClientRow[]): Record<ClientFilter, number> {
     account: rows.filter((r) => r.has_account).length,
     staff: rows.filter((r) => !r.has_account).length,
     active: rows.filter((r) => r.memberships_active > 0).length,
+    team: rows.filter(isTeam).length,
   };
 }
 

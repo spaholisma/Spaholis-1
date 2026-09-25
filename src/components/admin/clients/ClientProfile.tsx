@@ -9,12 +9,16 @@ import { formatCRC } from "@/lib/currency";
 import { displayName, shortDate } from "./clientDirectory";
 import { ClientDetailsDialog, ConfirmAccountAction, DeleteClientDialog, type DeleteScope } from "./ClientDialogs";
 import { deleteAccount, deleteClient, suspendAccount, unsuspendAccount } from "./clientAccounts";
+import { ClientAccess } from "./ClientAccess";
+import { accessLabel, accessLevelOf } from "./accessLevels";
 
 type History = {
   person: {
     name: string | null; email: string | null; phone: string | null;
     has_account: boolean; account_since: string | null; first_seen: string | null;
     user_id?: string | null; suspended?: boolean; last_sign_in?: string | null; is_staff?: boolean;
+    /** Their roles, and whether the person looking may change them / is them. */
+    roles?: string[]; can_manage_access?: boolean; is_self?: boolean;
   } | null;
   memberships: any[];
   classes: any[];
@@ -95,6 +99,7 @@ export function ClientProfile({
   const suspended = !!p.suspended;
   // Staff logins are never changed from here.
   const isStaff = !!p.is_staff;
+  const level = accessLevelOf(p.roles);
   const first = displayName(p).split(/\s+/)[0];
 
   const runDelete = async (scope: DeleteScope) => {
@@ -172,7 +177,9 @@ export function ClientProfile({
                 <Badge variant="outline" className="gap-1"><UserPlus className="h-3 w-3" /> Registered by staff</Badge>
               )}
               {suspended && <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" /> Suspended</Badge>}
-              {isStaff && <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" /> Staff</Badge>}
+              {level !== "client" ? (
+                <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" /> {accessLabel(level)}</Badge>
+              ) : isStaff && <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" /> Staff</Badge>}
             </div>
             <p className="text-xs text-muted-foreground font-body">Client since {shortDate(p.first_seen)}</p>
             {p.has_account && (
@@ -187,6 +194,7 @@ export function ClientProfile({
         {isStaff ? (
           <p className="mt-4 text-xs text-muted-foreground font-body">
             This is a staff login — it cannot be edited, suspended or deleted from Clients.
+            {level !== "client" && p.can_manage_access && !p.is_self ? " To do that, first set their access to Client below." : ""}
           </p>
         ) : (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -228,6 +236,18 @@ export function ClientProfile({
           ))}
         </div>
       </div>
+
+      {/* Who may use the Admin Panel — only for someone with a website login */}
+      {userId && (
+        <ClientAccess
+          userId={userId}
+          name={first}
+          roles={p.roles ?? []}
+          canManage={!!p.can_manage_access}
+          isSelf={!!p.is_self}
+          onChanged={() => changed(clientKey)}
+        />
+      )}
 
       {/* Memberships and passes */}
       <Section title="Memberships & passes" count={data.memberships.length} empty="No memberships or passes.">

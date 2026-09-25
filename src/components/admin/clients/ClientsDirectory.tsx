@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Globe, UserPlus, Ban, Plus } from "lucide-react";
+import { Search, Globe, UserPlus, Ban, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatCRC } from "@/lib/currency";
@@ -10,6 +10,7 @@ import {
   countBy, displayName, FILTER_LABELS, shortDate, visibleClients,
   type ClientFilter, type ClientRow,
 } from "./clientDirectory";
+import { accessLabel, accessLevelOf } from "./accessLevels";
 import { ClientProfile } from "./ClientProfile";
 import { ClientDetailsDialog } from "./ClientDialogs";
 
@@ -141,6 +142,11 @@ export function ClientsDirectory() {
                       )
                     ) : (
                       <Badge variant="outline" className="gap-1 whitespace-nowrap"><UserPlus className="h-3 w-3" /> By staff</Badge>
+                    )}
+                    {accessLevelOf(c.roles) !== "client" && (
+                      <Badge variant="outline" className="gap-1 whitespace-nowrap mt-1 flex w-fit">
+                        <ShieldCheck className="h-3 w-3" /> {accessLabel(accessLevelOf(c.roles))}
+                      </Badge>
                     )}
                   </td>
                   <td className="px-5 py-3 font-body text-sm text-foreground">{c.classes}</td>
