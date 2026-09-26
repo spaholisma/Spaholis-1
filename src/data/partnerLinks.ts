@@ -22,6 +22,13 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Emilio’s Café and would like more information about your wellness experiences. 🌿",
   },
+  "casa-fantastica": {
+    partner: "casa_fantastica",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Casa Fantastica and would like more information about your wellness experiences. 🌿",
+  },
 };
 
 // api.whatsapp.com rather than wa.me: wa.me's own redirect turns emoji (the

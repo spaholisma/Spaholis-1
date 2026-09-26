@@ -33,6 +33,23 @@ describe("the Emilio's Café link", () => {
   });
 });
 
+describe("the Casa Fantastica link", () => {
+  const link = PARTNER_LINKS["casa-fantastica"];
+
+  it("is counted as a scan of the printed material, headed to WhatsApp", () => {
+    expect(link).toMatchObject({ partner: "casa_fantastica", placement: "printed_material", destination: "whatsapp" });
+  });
+
+  it("opens the Holis WhatsApp with the whole message already typed", () => {
+    const url = new URL(partnerDestinationUrl(link));
+    expect(`${url.origin}${url.pathname}`).toBe("https://api.whatsapp.com/send");
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(
+      "Hello! I discovered Holis Wellness Center through Casa Fantastica and would like more information about your wellness experiences. 🌿",
+    );
+  });
+});
+
 describe("the /go page", () => {
   const page = read("src/pages/PartnerRedirect.tsx");
 
