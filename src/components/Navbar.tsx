@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, User, ShieldCheck, CalendarDays } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,8 @@ import { useSiteContent } from "@/hooks/useSiteContent";
 import { useNavMenu } from "@/hooks/useNavMenu";
 import { content as defaults } from "@/data/content";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ProfileMenu } from "@/components/ProfileMenu";
+import { useStaffRole } from "@/hooks/useStaffRole";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import holisLogo from "@/assets/holis-logo-clean.png";
 
@@ -80,6 +82,7 @@ export function Navbar() {
   const [openAccordion, setOpenAccordion] = useState<string | null>(null); // mobile accordion key
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const staff = useStaffRole();
   const { data: siteContent } = useSiteContent();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -216,14 +219,10 @@ export function Navbar() {
 
           <LanguageToggle />
           {user ? (
-            <div className="flex items-center gap-3">
-              <Link to={lp("/dashboard")} className="text-sm font-body font-medium text-muted-foreground hover:text-foreground">
-                {t("nav.myAccount", { defaultValue: nav.myAccountLabel })}
-              </Link>
-              <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label={t("nav.signOut")}>
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
+            <ProfileMenu
+              myAccountLabel={t("nav.myAccount", { defaultValue: nav.myAccountLabel })}
+              signOutLabel={t("nav.signOut", { defaultValue: nav.signOutLabel })}
+            />
           ) : (
             <Button variant="ghost" size="sm" asChild>
               <Link to={lp("/auth")}>{t("nav.signIn", { defaultValue: nav.signInLabel })}</Link>
@@ -234,6 +233,12 @@ export function Navbar() {
         {/* Mobile trigger */}
         <div className="lg:hidden flex items-center gap-1">
           <LanguageToggle compact />
+          {user && (
+            <ProfileMenu
+              myAccountLabel={t("nav.myAccount", { defaultValue: nav.myAccountLabel })}
+              signOutLabel={t("nav.signOut", { defaultValue: nav.signOutLabel })}
+            />
+          )}
           <button
             ref={triggerRef}
             type="button"
@@ -343,10 +348,28 @@ export function Navbar() {
                 {user ? (
                   <>
                     <li className="pt-2">
-                      <Link to={lp("/dashboard")} onClick={() => setOpen(false)} className="block py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">{t("nav.myAccount", { defaultValue: nav.myAccountLabel })}</Link>
+                      <Link to={lp("/dashboard")} onClick={() => setOpen(false)} className="flex items-center gap-2.5 py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">
+                        <User className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                        {t("nav.myAccount", { defaultValue: nav.myAccountLabel })}
+                      </Link>
                     </li>
+                    {staff && (
+                      <li>
+                        <Link to="/admin" onClick={() => setOpen(false)} className="flex items-center gap-2.5 py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">
+                          {staff === "admin"
+                            ? <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                            : <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
+                          {staff === "admin"
+                            ? t("nav.adminPanel", { defaultValue: "Admin Panel" })
+                            : t("nav.treatmentsCalendar", { defaultValue: "Treatments calendar" })}
+                        </Link>
+                      </li>
+                    )}
                     <li>
-                      <Button variant="ghost" size="sm" className="w-full justify-start px-0 font-body font-medium" onClick={() => { signOut(); setOpen(false); }}>{t("nav.signOut", { defaultValue: nav.signOutLabel })}</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 px-0 font-body font-medium text-destructive hover:text-destructive" onClick={() => { signOut(); setOpen(false); }}>
+                        <LogOut className="h-4 w-4" aria-hidden="true" />
+                        {t("nav.signOut", { defaultValue: nav.signOutLabel })}
+                      </Button>
                     </li>
                   </>
                 ) : (

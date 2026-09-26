@@ -27,6 +27,8 @@ import { toE164 } from "@/lib/phone";
 import { cardTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { FlowBackButton } from "@/components/FlowBackButton";
+import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
 
@@ -63,6 +65,8 @@ const ClassBookingPage = () => {
   const tokenOffering = tokenQuery.data ?? null;
 
   const [step, setStep] = useState(0);
+  // Out of the form: back to the class the guest was reading, else to Classes.
+  const leaveFlow = useLeaveFlow("/classes");
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [submitting, setSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
@@ -510,6 +514,15 @@ const ClassBookingPage = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+        {/* Back — at the top: from payment to the details, from the details out */}
+        {!bookingComplete && (
+          <div className="mb-2">
+            <FlowBackButton
+              disabled={submitting}
+              onClick={() => { if (step > 0) { setStep(0); window.scrollTo({ top: 0, behavior: "smooth" }); } else leaveFlow(); }}
+            />
+          </div>
+        )}
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <h1 className="spa-heading-lg text-foreground">Book Your Spot</h1>
         </motion.div>
@@ -900,6 +913,10 @@ const ClassBookingPage = () => {
                           {submitting ? t("booking.booking") : t("booking.confirmBooking")}
                         </Button>
                       )}
+
+                      <Button variant="ghost" className="w-full" onClick={() => { setStep(0); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={submitting}>
+                        <ChevronLeft className="h-4 w-4 mr-1" /> Back to your details
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -943,8 +960,8 @@ const ClassBookingPage = () => {
 
             {step === 0 && (
               <div className="flex justify-between mt-8">
-                <Button variant="ghost" asChild>
-                  <Link to="/classes"><ChevronLeft className="h-4 w-4 mr-1" /> Back</Link>
+                <Button variant="ghost" onClick={leaveFlow} disabled={submitting}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Back
                 </Button>
                 <Button variant="default" onClick={handleNext} disabled={!canProceed || submitting}>
                   {submitting ? "Booking..." : needsPayment ? "Continue to Payment" : "Book Now"}

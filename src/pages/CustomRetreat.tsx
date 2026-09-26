@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { useLeaveFlow } from "@/hooks/useLeaveFlow";
+import { FlowBackButton } from "@/components/FlowBackButton";
 
 const stepIcons = [Heart, CalendarDays, Sparkles, Pen];
 type Option = { value: string; label: string };
@@ -27,6 +29,12 @@ export default function CustomRetreat() {
   const stepNames: string[] = c.stepNames;
 
   const [step, setStep] = useState(0);
+  const leaveFlow = useLeaveFlow("/retreats");
+  const back = () => {
+    if (step === 0) { leaveFlow(); return; }
+    setStep((s) => s - 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -140,6 +148,9 @@ export default function CustomRetreat() {
       <Navbar />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-2xl mx-auto overflow-x-clip">
+        <div className="mb-2">
+          <FlowBackButton onClick={back} label={c.backLabel} />
+        </div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -209,8 +220,7 @@ export default function CustomRetreat() {
         <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
           <Button
             variant="ghost"
-            onClick={() => setStep((s) => s - 1)}
-            disabled={step === 0}
+            onClick={back}
             className="gap-2"
           >
             <ChevronLeft className="h-4 w-4" />

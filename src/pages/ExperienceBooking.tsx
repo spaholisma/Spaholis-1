@@ -19,6 +19,7 @@ import { CalendarDays, Clock, Users, MapPin, CheckCircle2, ArrowLeft, Minus, Plu
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 
 const steps = ["Select Date", "Choose Time", "Your Details", "Confirmation"];
 
@@ -46,6 +47,7 @@ export default function ExperienceBooking() {
   const guestSuffix = experienceId ? GUEST_LABEL_SUFFIX[experienceId] : undefined;
 
   const [step, setStep] = useState(0);
+  const leaveFlow = useLeaveFlow("/retreats?tab=experiences");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<DynamicExpSlot | null>(null);
   const [guests, setGuests] = useState(minGuests);
@@ -410,8 +412,7 @@ export default function ExperienceBooking() {
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-border">
           <Button
             variant="outline"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
+            onClick={() => (step === 0 ? leaveFlow() : setStep((s) => Math.max(0, s - 1)))}
           >
             Back
           </Button>

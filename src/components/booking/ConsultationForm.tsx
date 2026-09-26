@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Navbar } from "@/components/Navbar";
+import { FlowBackButton } from "@/components/FlowBackButton";
+import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { Footer } from "@/components/Footer";
 import { Check, Phone, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +26,9 @@ export const ConsultationForm = () => {
   const isRequest = topic.length > 0;
   // kind=info → an information request (e.g. a course), not an appointment.
   const isInfo = (searchParams.get("kind")?.trim() || "") === "info";
+  // Back: to the page the guest came from; else a private class request to
+  // Private Sessions, anything else to the treatments.
+  const leaveFlow = useLeaveFlow(/private class/i.test(topic) ? "/private-sessions" : "/treatments-therapies");
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
@@ -151,6 +156,9 @@ export const ConsultationForm = () => {
       <Navbar />
       <div className="spa-section">
         <div className="max-w-md mx-auto">
+          <div className="mb-2">
+            <FlowBackButton onClick={leaveFlow} disabled={submitting} />
+          </div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

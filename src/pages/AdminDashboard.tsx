@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
   TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Tent, Receipt, ClipboardList, Paintbrush,
-  GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw,
+  GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw, ChevronDown, Search,
 } from "lucide-react";
+import { groupIdOf, groupLinks, matchesLink } from "@/components/admin/adminSidebarGroups";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,6 +113,28 @@ const AdminDashboard = () => {
   const dragId = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
+  // ── Sections of the sidebar: which are open (remembered on this device) ──
+  const [menuQuery, setMenuQuery] = useState("");
+  const [openGroups, setOpenGroups] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("holis.adminSidebar.open") ?? "null");
+      if (Array.isArray(saved)) return saved.filter((x) => typeof x === "string");
+    } catch { /* storage unavailable */ }
+    return [];
+  });
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try { localStorage.setItem("holis.adminSidebar.open", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  // The section of the page on screen is always open.
+  useEffect(() => {
+    const g = groupIdOf(activeTab);
+    if (g) setOpenGroups((prev) => (prev.includes(g) ? prev : [...prev, g]));
+  }, [activeTab]);
+
   // Load the shared sidebar layout once.
   useEffect(() => {
     (supabase as any).from("site_content").select("content").eq("section_key", "admin_sidebar").maybeSingle()
@@ -187,6 +210,22 @@ const AdminDashboard = () => {
     : visibleLinks;
   const shownLinks = customize ? orderedLinks : orderedLinks.filter((l) => !hidden.includes(l.id));
 
+  const grouped = groupLinks(shownLinks);
+  const foundLinks = shownLinks.filter((l) => matchesLink(l.label, menuQuery));
+  const renderLink = (link: (typeof sidebarLinks)[number]) => (
+    <button
+      key={link.id}
+      onClick={() => { setActiveTab(link.id); setSidebarOpen(false); setMenuQuery(""); }}
+      className={cn(
+        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors",
+        activeTab === link.id ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+      )}
+    >
+      <link.icon className="h-4 w-4" />
+      {link.label}
+    </button>
+  );
+
   const toggleHidden = (id: string) => {
     const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
     setHidden(next);
@@ -260,7 +299,60 @@ const AdminDashboard = () => {
           <p className="px-6 text-[11px] text-muted-foreground mb-2 -mt-1">Drag <GripVertical className="h-3 w-3 inline" /> to reorder · click the eye to hide/show.</p>
         )}
         <nav className="flex-1 min-h-0 px-3 pb-6 space-y-1 overflow-y-auto overscroll-contain">
-          {shownLinks.map((link) => {
+          {/* A full admin's sidebar is in sections, with a search on top.
+              Reception and view-only keep their short list; "Edit" shows the
+              flat list to drag and hide. */}
+          {!customize && canCustomize && (
+            <div className="px-1 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  value={menuQuery}
+                  onChange={(e) => setMenuQuery(e.target.value)}
+                  placeholder="Search the menu…"
+                  aria-label="Search the menu"
+                  className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-sm font-body placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
+          )}
+          {!customize && canCustomize && (menuQuery.trim()
+            ? (foundLinks.length
+                ? foundLinks.map(renderLink)
+                : <p className="px-3 py-2 text-xs font-body text-muted-foreground">Nothing matches “{menuQuery.trim()}”.</p>)
+            : (
+              <>
+                {grouped.top.map(renderLink)}
+                {grouped.groups.map((g) => {
+                  const isOpen = openGroups.includes(g.id);
+                  const hasActive = g.links.some((l) => l.id === activeTab);
+                  return (
+                    <div key={g.id} className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(g.id)}
+                        aria-expanded={isOpen}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-body font-semibold uppercase tracking-wider transition-colors",
+                          hasActive ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                        )}
+                      >
+                        <g.icon className="h-4 w-4" />
+                        <span className="flex-1 text-left">{g.label}</span>
+                        {!isOpen && hasActive && <span className="h-1.5 w-1.5 rounded-full bg-spa-sage" aria-hidden="true" />}
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                      </button>
+                      {isOpen && (
+                        <div className="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
+                          {g.links.map(renderLink)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            ))}
+          {(customize || !canCustomize) && shownLinks.map((link) => {
             const isHidden = hidden.includes(link.id);
             if (customize) {
               return (
@@ -287,19 +379,7 @@ const AdminDashboard = () => {
                 </div>
               );
             }
-            return (
-              <button
-                key={link.id}
-                onClick={() => { setActiveTab(link.id); setSidebarOpen(false); }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-body font-medium transition-colors",
-                  activeTab === link.id ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-              >
-                <link.icon className="h-4 w-4" />
-                {link.label}
-              </button>
-            );
+            return renderLink(link);
           })}
         </nav>
       </aside>
@@ -309,7 +389,9 @@ const AdminDashboard = () => {
       <main className="flex-1 min-w-0">
         <header className="h-16 border-b border-border flex items-center px-4 sm:px-6 gap-4">
           <button className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button>
-          <h2 className="font-heading text-lg font-medium text-foreground capitalize">{activeTab}</h2>
+          <h2 className="font-heading text-lg font-medium text-foreground capitalize">
+            {sidebarLinks.find((l) => l.id === activeTab)?.label ?? activeTab}
+          </h2>
           <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to site
           </Button>
