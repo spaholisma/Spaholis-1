@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut, ChevronDown, User, ShieldCheck, CalendarDays } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, User, ShieldCheck, CalendarDays, GraduationCap } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -10,7 +10,7 @@ import { useNavMenu } from "@/hooks/useNavMenu";
 import { content as defaults } from "@/data/content";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ProfileMenu } from "@/components/ProfileMenu";
-import { useStaffRole } from "@/hooks/useStaffRole";
+import { useIsTeacher, useStaffRole } from "@/hooks/useStaffRole";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import holisLogo from "@/assets/holis-logo-clean.png";
 
@@ -82,6 +82,7 @@ export function Navbar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const staff = useStaffRole();
+  const isTeacher = useIsTeacher();
   const { data: siteContent } = useSiteContent();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -361,6 +362,14 @@ export function Navbar() {
                           {staff === "admin"
                             ? t("nav.adminPanel", { defaultValue: "Admin Panel" })
                             : t("nav.treatmentsCalendar", { defaultValue: "Treatments calendar" })}
+                        </Link>
+                      </li>
+                    )}
+                    {isTeacher && (
+                      <li>
+                        <Link to={lp("/teacher")} onClick={() => setOpen(false)} className="flex items-center gap-2.5 py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">
+                          <GraduationCap className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                          {t("nav.teacherPanel", { defaultValue: "Teacher Panel" })}
                         </Link>
                       </li>
                     )}

@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, LogOut, ShieldCheck, User, UserCog } from "lucide-react";
+import { CalendarDays, GraduationCap, LogOut, ShieldCheck, User, UserCog } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { useStaffRole } from "@/hooks/useStaffRole";
+import { useIsTeacher, useStaffRole } from "@/hooks/useStaffRole";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ export function ProfileMenu({ myAccountLabel, signOutLabel }: { myAccountLabel: 
   const { t } = useTranslation();
   const { language } = useLanguage();
   const staff = useStaffRole();
+  const isTeacher = useIsTeacher();
   if (!user) return null;
 
   const name = ((user.user_metadata as any)?.full_name as string | undefined)?.trim() || null;
@@ -75,6 +76,13 @@ export function ProfileMenu({ myAccountLabel, signOutLabel }: { myAccountLabel: 
               {calendarOnly
                 ? t("nav.treatmentsCalendar", { defaultValue: "Treatments calendar" })
                 : t("nav.adminPanel", { defaultValue: "Admin Panel" })}
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {isTeacher && (
+          <DropdownMenuItem asChild className={item}>
+            <Link to={lp("/teacher")}>
+              <GraduationCap className="h-4 w-4 text-muted-foreground" /> {t("nav.teacherPanel", { defaultValue: "Teacher Panel" })}
             </Link>
           </DropdownMenuItem>
         )}

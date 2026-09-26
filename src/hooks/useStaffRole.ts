@@ -18,6 +18,21 @@ export function staffRoleOf(roles: string[], email?: string | null): StaffRole {
   return null;
 }
 
+/** Whether the signed-in person teaches here (the teacher role) — for the Teacher Panel shortcut. */
+export function useIsTeacher(): boolean {
+  const { user } = useAuth();
+  const { data } = useQuery({
+    queryKey: ["my-teacher-role", user?.id],
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id).eq("role", "teacher" as any);
+      return (data ?? []).length > 0;
+    },
+  });
+  return !!user && !!data;
+}
+
 export function useStaffRole(): StaffRole {
   const { user } = useAuth();
   const { data } = useQuery({
