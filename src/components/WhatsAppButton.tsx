@@ -4,6 +4,7 @@ import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
 import { validateWhatsAppLink } from "@/lib/whatsapp";
+import { stripLangPrefix } from "@/i18n/LanguageProvider";
 
 export function WhatsAppButton() {
   const { data: content } = useSiteContent();
@@ -11,7 +12,8 @@ export function WhatsAppButton() {
   const wa = c.whatsapp;
   const { pathname } = useLocation();
 
-  if (!wa?.enabled || pathname.startsWith("/admin")) return null;
+  // Hidden on the /go partner links: that page opens WhatsApp itself, with its own message.
+  if (!wa?.enabled || pathname.startsWith("/admin") || stripLangPrefix(pathname).startsWith("/go/")) return null;
 
   const { url, valid } = validateWhatsAppLink(wa?.link);
   if (!valid && typeof window !== "undefined") {
