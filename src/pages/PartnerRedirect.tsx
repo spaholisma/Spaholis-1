@@ -33,6 +33,7 @@ const PartnerRedirect = () => {
     try {
       loadGtag()("event", "partner_qr_scan", {
         partner: link.partner,
+        ...(link.property ? { property: link.property } : {}),
         placement: link.placement,
         destination: link.destination,
         transport_type: "beacon",
