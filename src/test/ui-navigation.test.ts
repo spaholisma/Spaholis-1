@@ -22,7 +22,9 @@ describe("Back on the forms", () => {
   it("the treatment booking: one step back; a picked treatment back to the list; out from the first step", () => {
     const page = read("src/pages/Booking.tsx");
     expect(page).toMatch(/if \(step > 1\) setStep\(step - 1\);\s+else if \(step === 1 && !arrivedWithService\) \{ setSelectedService\(""\); setStep\(0\); \}\s+else \{ leaveFlow\(\); return; \}/);
-    expect(page).toMatch(/<FlowBackButton onClick=\{goBack\} disabled=\{submitting\} \/>/);
+    // Back sits at the bottom only, and works on the first step too.
+    expect(page).toMatch(/<Button variant="ghost" onClick=\{goBack\} disabled=\{submitting\}>/);
+    expect(page).not.toMatch(/FlowBackButton/);
     // The hook comes before the page's early return.
     expect(page.indexOf("const leaveFlow = useLeaveFlow(")).toBeLessThan(page.indexOf('if (preselected === "consultation")'));
     // The bottom Back no longer disappears on the first step.
@@ -31,8 +33,10 @@ describe("Back on the forms", () => {
 
   it("the class booking: payment back to the details, the details back out", () => {
     const page = read("src/pages/ClassBooking.tsx");
-    expect(page).toMatch(/if \(step > 0\) \{ setStep\(0\); window\.scrollTo\(\{ top: 0, behavior: "smooth" \}\); \} else leaveFlow\(\);/);
+    // Both at the bottom: the details step leaves, the payment step goes back to the details.
+    expect(page).toMatch(/<Button variant="ghost" onClick=\{leaveFlow\} disabled=\{submitting\}>/);
     expect(page).toMatch(/Back to your details/);
+    expect(page).not.toMatch(/FlowBackButton/);
     expect(page.indexOf("const leaveFlow = useLeaveFlow(")).toBeLessThan(page.indexOf("if (isLoading)"));
   });
 
@@ -41,7 +45,9 @@ describe("Back on the forms", () => {
     const retreat = read("src/pages/CustomRetreat.tsx");
     expect(retreat).toMatch(/if \(step === 0\) \{ leaveFlow\(\); return; \}/);
     expect(retreat).not.toMatch(/disabled=\{step === 0\}/);
-    expect(read("src/components/booking/ConsultationForm.tsx")).toMatch(/<FlowBackButton onClick=\{leaveFlow\} disabled=\{submitting\} \/>/);
+    const form = read("src/components/booking/ConsultationForm.tsx");
+    expect(form).toMatch(/<Button type="button" variant="ghost" onClick=\{leaveFlow\} disabled=\{submitting\}>/);
+    expect(form).not.toMatch(/FlowBackButton/);
   });
 });
 
