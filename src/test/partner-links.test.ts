@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ESCAPE_VILLAS_PROPERTIES, PARTNER_LINKS, partnerDestinationUrl } from "@/data/partnerLinks";
+import { ESCAPE_VILLAS_PROPERTIES, MAV_RENTALS_PROPERTIES, PARTNER_LINKS, partnerDestinationUrl } from "@/data/partnerLinks";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics";
 import { shouldShowPromo } from "@/lib/promoPopup";
 
@@ -110,6 +110,41 @@ describe("the Escape Villas links", () => {
       "Hello! I discovered Holis Wellness Center while staying at Rising and the 2 Tango Houses (Mango and Romeo) through Escape Villas, and I would like more information about your wellness experiences. 🌿",
     );
     expect(Object.keys(PARTNER_LINKS).filter((s) => /rising|tango|mango|romeo/.test(s))).toEqual(["escape-villas-rising-tango-houses"]);
+  });
+});
+
+describe("the MAV Rentals links", () => {
+  const houses = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("mav-rentals-"));
+
+  it("exactly 10 houses", () => {
+    expect(houses.map(([slug]) => slug)).toEqual([
+      "mav-rentals-beach-house",
+      "mav-rentals-casa-bellamar",
+      "mav-rentals-vista-hermosa",
+      "mav-rentals-casa-tranquilidad",
+      "mav-rentals-casa-bamboo",
+      "mav-rentals-casa-elsa",
+      "mav-rentals-casa-roja",
+      "mav-rentals-casa-calma",
+      "mav-rentals-casa-serena",
+      "mav-rentals-casa-prana",
+    ]);
+  });
+
+  it("each counts as mav_rentals with its own property, and names its house in the message", () => {
+    for (const p of MAV_RENTALS_PROPERTIES) {
+      expect(PARTNER_LINKS[`mav-rentals-${p.slug}`]).toEqual({
+        partner: "mav_rentals",
+        property: p.property,
+        placement: "printed_material",
+        destination: "whatsapp",
+        message: `Hello! I discovered Holis Wellness Center while staying at ${p.name} through MAV Rentals, and I would like more information about your wellness experiences. 🌿`,
+      });
+    }
+    expect(new Set(houses.map(([, l]) => l.property)).size).toBe(10);
+    expect(PARTNER_LINKS["mav-rentals-beach-house"].message).toBe(
+      "Hello! I discovered Holis Wellness Center while staying at Beach House through MAV Rentals, and I would like more information about your wellness experiences. 🌿",
+    );
   });
 });
 

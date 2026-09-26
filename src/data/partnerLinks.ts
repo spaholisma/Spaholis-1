@@ -33,6 +33,39 @@ export const ESCAPE_VILLAS_PROPERTIES = [
   { slug: "fantastica", property: "fantastica", name: "Fantastica" },
 ] as const;
 
+/** MAV Rentals houses. */
+export const MAV_RENTALS_PROPERTIES = [
+  { slug: "beach-house", property: "beach_house", name: "Beach House" },
+  { slug: "casa-bellamar", property: "casa_bellamar", name: "Casa Bellamar" },
+  { slug: "vista-hermosa", property: "vista_hermosa", name: "Vista Hermosa" },
+  { slug: "casa-tranquilidad", property: "casa_tranquilidad", name: "Casa Tranquilidad" },
+  { slug: "casa-bamboo", property: "casa_bamboo", name: "Casa Bamboo" },
+  { slug: "casa-elsa", property: "casa_elsa", name: "Casa Elsa" },
+  { slug: "casa-roja", property: "casa_roja", name: "Casa Roja" },
+  { slug: "casa-calma", property: "casa_calma", name: "Casa Calma" },
+  { slug: "casa-serena", property: "casa_serena", name: "Casa Serena" },
+  { slug: "casa-prana", property: "casa_prana", name: "Casa Prana" },
+] as const;
+
+type Property = { slug: string; property: string; name: string };
+
+/** One link per house of a rental company: /go/<prefix>-<slug>, counted as the
+ *  company with the house in `property`, the message naming both. */
+function propertyLinks(prefix: string, partner: string, company: string, houses: readonly Property[]) {
+  return Object.fromEntries(
+    houses.map((p) => [
+      `${prefix}-${p.slug}`,
+      {
+        partner,
+        property: p.property,
+        placement: "printed_material",
+        destination: "whatsapp",
+        message: `Hello! I discovered Holis Wellness Center while staying at ${p.name} through ${company}, and I would like more information about your wellness experiences. 🌿`,
+      } satisfies PartnerLink,
+    ]),
+  );
+}
+
 export const PARTNER_LINKS: Record<string, PartnerLink> = {
   "emilios-cafe": {
     partner: "emilios_cafe",
@@ -55,19 +88,8 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Costa Vida and would like more information about your wellness experiences. 🌿",
   },
-  // One link per Escape Villas property: /go/escape-villas-<slug>.
-  ...Object.fromEntries(
-    ESCAPE_VILLAS_PROPERTIES.map((p) => [
-      `escape-villas-${p.slug}`,
-      {
-        partner: "escape_villas",
-        property: p.property,
-        placement: "printed_material",
-        destination: "whatsapp",
-        message: `Hello! I discovered Holis Wellness Center while staying at ${p.name} through Escape Villas, and I would like more information about your wellness experiences. 🌿`,
-      } satisfies PartnerLink,
-    ]),
-  ),
+  ...propertyLinks("escape-villas", "escape_villas", "Escape Villas", ESCAPE_VILLAS_PROPERTIES),
+  ...propertyLinks("mav-rentals", "mav_rentals", "MAV Rentals", MAV_RENTALS_PROPERTIES),
 };
 
 // api.whatsapp.com rather than wa.me: wa.me's own redirect turns emoji (the
