@@ -21,6 +21,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import CardAuthorizationArchive from "./pages/CardAuthorizationArchive";
 import ClientDashboard from "./pages/ClientDashboard";
 import NotFound from "./pages/NotFound";
+import PartnerRedirect from "./pages/PartnerRedirect";
 import ResetPassword from "./pages/ResetPassword";
 import Retreats from "./pages/Retreats";
 import RetreatDetail from "./pages/RetreatDetail";
@@ -87,6 +88,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/private-gyrotonic-manuel-antonio", element: <Gyrotonic /> },
   { path: "/integrative-kinesiology-course", element: <Kinesiology /> },
   { path: "/contact", element: <Contact /> },
+  { path: "/go/:slug", element: <PartnerRedirect /> },
   { path: "/blog", element: <Blog /> },
   { path: "/blog/:slug", element: <BlogPost /> },
   { path: "/faqs", element: <Faqs /> },

@@ -14,6 +14,7 @@ const NO_PROMO = [
   /^\/teacher/,
   /^\/test-payment/,
   /^\/wellness-programs/,
+  /^\/go\//,
 ];
 
 // Once per visit: remembered for the browser tab's session, so a refresh or
