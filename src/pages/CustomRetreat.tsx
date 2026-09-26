@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
-import { FlowBackButton } from "@/components/FlowBackButton";
 
 const stepIcons = [Heart, CalendarDays, Sparkles, Pen];
 type Option = { value: string; label: string };
@@ -148,9 +147,6 @@ export default function CustomRetreat() {
       <Navbar />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-2xl mx-auto overflow-x-clip">
-        <div className="mb-2">
-          <FlowBackButton onClick={back} label={c.backLabel} />
-        </div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

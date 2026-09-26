@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField";
 import { ConsultationForm } from "@/components/booking/ConsultationForm";
-import { FlowBackButton } from "@/components/FlowBackButton";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { Calendar } from "@/components/ui/calendar";
 import { Navbar } from "@/components/Navbar";
@@ -745,12 +744,6 @@ const BookingPage = () => {
         {vacationActive && vacation && (
           <div className="mb-10">
             <VacationNotice vacation={vacation} />
-          </div>
-        )}
-        {/* Back — at the top, so nobody needs the browser's */}
-        {!(step === confirmationStepIdx && bookingComplete) && (
-          <div className="mb-2">
-            <FlowBackButton onClick={goBack} disabled={submitting} />
           </div>
         )}
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">

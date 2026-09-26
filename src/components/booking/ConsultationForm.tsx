@@ -5,10 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Navbar } from "@/components/Navbar";
-import { FlowBackButton } from "@/components/FlowBackButton";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { Footer } from "@/components/Footer";
-import { Check, Phone, MapPin } from "lucide-react";
+import { Check, Phone, MapPin, ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -156,9 +155,6 @@ export const ConsultationForm = () => {
       <Navbar />
       <div className="spa-section">
         <div className="max-w-md mx-auto">
-          <div className="mb-2">
-            <FlowBackButton onClick={leaveFlow} disabled={submitting} />
-          </div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -308,6 +304,13 @@ export const ConsultationForm = () => {
               <p className="font-body text-xs text-center text-muted-foreground/60">
                 {t("consultation.confirmSoon")}
               </p>
+
+              {/* Back — below the form, like every other form on the site */}
+              <div className="flex justify-center">
+                <Button type="button" variant="ghost" onClick={leaveFlow} disabled={submitting}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> {t("common.back", { defaultValue: "Back" })}
+                </Button>
+              </div>
             </form>
           </motion.div>
         </div>
