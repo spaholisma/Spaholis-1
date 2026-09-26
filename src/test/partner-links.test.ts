@@ -50,6 +50,36 @@ describe("the Casa Fantastica link", () => {
   });
 });
 
+describe("the Escape Villas links", () => {
+  it("Rising and the 2 Tango Houses is one property: one link, one message, one Analytics name", () => {
+    const link = PARTNER_LINKS["escape-villas-rising-tango-houses"];
+    expect(link).toMatchObject({ partner: "rising_tango_houses", placement: "printed_material", destination: "whatsapp" });
+    expect(new URL(partnerDestinationUrl(link)).searchParams.get("text")).toBe(
+      "Hello! I discovered Holis Wellness Center while staying at Rising and the 2 Tango Houses (Mango and Romeo) through Escape Villas, and I would like more information about your wellness experiences. 🌿",
+    );
+    expect(Object.keys(PARTNER_LINKS).filter((s) => /rising|tango|mango|romeo/.test(s))).toEqual(["escape-villas-rising-tango-houses"]);
+  });
+});
+
+describe("every partner link", () => {
+  const all = Object.entries(PARTNER_LINKS);
+
+  it("has a url-safe slug, its own Analytics name, and opens the Holis WhatsApp", () => {
+    const partners = all.map(([, l]) => l.partner);
+    expect(new Set(partners).size).toBe(partners.length);
+    for (const [slug, link] of all) {
+      expect(slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+      expect(link.partner).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
+      expect(link).toMatchObject({ placement: "printed_material", destination: "whatsapp" });
+      const url = new URL(partnerDestinationUrl(link));
+      expect(`${url.origin}${url.pathname}`).toBe("https://api.whatsapp.com/send");
+      expect(url.searchParams.get("phone")).toBe("50688146760");
+      expect(url.searchParams.get("text")).toBe(link.message);
+      expect(link.message.endsWith(" 🌿")).toBe(true);
+    }
+  });
+});
+
 describe("the /go page", () => {
   const page = read("src/pages/PartnerRedirect.tsx");
 

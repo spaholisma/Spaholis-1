@@ -29,6 +29,14 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Casa Fantastica and would like more information about your wellness experiences. 🌿",
   },
+  // Escape Villas properties
+  "escape-villas-rising-tango-houses": {
+    partner: "rising_tango_houses",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center while staying at Rising and the 2 Tango Houses (Mango and Romeo) through Escape Villas, and I would like more information about your wellness experiences. 🌿",
+  },
 };
 
 // api.whatsapp.com rather than wa.me: wa.me's own redirect turns emoji (the
