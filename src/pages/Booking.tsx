@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField";
 import { ConsultationForm } from "@/components/booking/ConsultationForm";
+import { FlowBackButton } from "@/components/FlowBackButton";
+import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { Calendar } from "@/components/ui/calendar";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -244,6 +246,9 @@ const BookingPage = () => {
     if (!locationAllowed && locationVisit) setLocationVisit(false);
   }, [locationAllowed, locationVisit]);
 
+  // Out of the form: back to the page the guest came from, else to its section.
+  const leaveFlow = useLeaveFlow(isRetreat ? "/retreats" : "/treatments-therapies");
+
   // Intercept consultation flow (after all hooks)
   if (preselected === "consultation") {
     return <ConsultationForm />;
@@ -296,6 +301,21 @@ const BookingPage = () => {
   const checkoutStepIdx = steps.indexOf("booking.steps.checkout");
   const needsPayment = checkoutStepIdx >= 0;
   const serviceLocked = !!selectedService;
+  // The treatment came in the link (from its own page), rather than being
+  // picked from the list on the first step.
+  const arrivedWithService = !!(preselected && preselected !== "consultation");
+
+  /**
+   * One step back. From the first step shown, out of the form: a treatment
+   * that came in the link goes back to its page; one picked here goes back to
+   * the list to pick another. Nothing already filled in is lost.
+   */
+  const goBack = () => {
+    if (step > 1) setStep(step - 1);
+    else if (step === 1 && !arrivedWithService) { setSelectedService(""); setStep(0); }
+    else { leaveFlow(); return; }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const isCouplesBooking = (() => {
     const t1 = (currentService?.title || "").toLowerCase();
     const notes = (formData.notes || "").toLowerCase();
@@ -725,6 +745,12 @@ const BookingPage = () => {
         {vacationActive && vacation && (
           <div className="mb-10">
             <VacationNotice vacation={vacation} />
+          </div>
+        )}
+        {/* Back — at the top, so nobody needs the browser's */}
+        {!(step === confirmationStepIdx && bookingComplete) && (
+          <div className="mb-2">
+            <FlowBackButton onClick={goBack} disabled={submitting} />
           </div>
         )}
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
@@ -1568,13 +1594,9 @@ const BookingPage = () => {
             {step < confirmationStepIdx
               && !(step === checkoutStepIdx && checkoutStepIdx > 0) && (
               <div className="flex justify-between mt-8">
-                {step > (serviceLocked ? 1 : 0) ? (
-                  <Button variant="ghost" onClick={() => setStep(Math.max(serviceLocked ? 1 : 0, step - 1))}>
-                    <ChevronLeft className="h-4 w-4 mr-1" /> {t("booking.nav.back")}
-                  </Button>
-                ) : (
-                  <span />
-                )}
+                <Button variant="ghost" onClick={goBack} disabled={submitting}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> {t("booking.nav.back")}
+                </Button>
                 <Button variant="default" onClick={handleNext} disabled={!canProceed() || submitting}>
                   {submitting
                     ? t("booking.nav.submitting")

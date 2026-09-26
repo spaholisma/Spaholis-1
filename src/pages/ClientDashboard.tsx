@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatCRC } from "@/lib/currency";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneField } from "@/components/booking/PhoneField";
@@ -99,6 +99,7 @@ const ClientDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <HashScroller ready={!loading} />
       <Navbar />
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <div className="mb-10">
@@ -332,3 +333,17 @@ function ProfileSection({ profile, email, onSaved }: { profile: any; email?: str
 }
 
 export default ClientDashboard;
+
+/**
+ * A link to a part of this page (the profile menu's "My profile" goes to
+ * #profile) scrolls there once the page has loaded its sections.
+ */
+function HashScroller({ ready }: { ready: boolean }) {
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!ready || !hash) return;
+    const el = document.getElementById(decodeURIComponent(hash.slice(1)));
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [ready, hash]);
+  return null;
+}
