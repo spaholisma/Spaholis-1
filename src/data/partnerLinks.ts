@@ -48,6 +48,13 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Casa Fantastica and would like more information about your wellness experiences. 🌿",
   },
+  "costa-vida": {
+    partner: "costa_vida",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Costa Vida and would like more information about your wellness experiences. 🌿",
+  },
   // One link per Escape Villas property: /go/escape-villas-<slug>.
   ...Object.fromEntries(
     ESCAPE_VILLAS_PROPERTIES.map((p) => [

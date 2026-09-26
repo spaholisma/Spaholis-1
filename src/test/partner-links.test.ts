@@ -50,6 +50,22 @@ describe("the Casa Fantastica link", () => {
   });
 });
 
+describe("the Costa Vida link", () => {
+  it("counts as costa_vida and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["costa-vida"];
+    expect(link).toEqual({
+      partner: "costa_vida",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through Costa Vida and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+  });
+});
+
 describe("the Escape Villas links", () => {
   const villas = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("escape-villas-"));
 
