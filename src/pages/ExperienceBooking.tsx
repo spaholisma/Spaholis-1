@@ -15,7 +15,7 @@ import { useServicesByType } from "@/hooks/useServices";
 import { useBookExperience } from "@/hooks/useExperienceAvailability";
 import { useExperienceDynamicSlots, ensureAvailabilityRecord, type DynamicExpSlot } from "@/hooks/useExperienceDynamicSlots";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarDays, Clock, Users, MapPin, CheckCircle2, ArrowLeft, Minus, Plus } from "lucide-react";
+import { CalendarDays, Clock, Users, MapPin, CheckCircle2, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -211,13 +211,6 @@ export default function ExperienceBooking() {
       <Navbar />
 
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto pb-16">
-        {/* Back */}
-        <Button variant="ghost" size="sm" asChild className="mb-6">
-          <Link to="/retreats?tab=experiences" className="flex items-center gap-1.5 text-muted-foreground">
-            <ArrowLeft className="h-4 w-4" /> Back to Experiences
-          </Link>
-        </Button>
-
         {/* Experience header */}
         <div className="bg-card rounded-2xl border border-border overflow-hidden mb-8">
           {experience.image_url && (

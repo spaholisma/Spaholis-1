@@ -41,7 +41,10 @@ describe("Back on the forms", () => {
   });
 
   it("experiences, custom retreats and the request form can be left from their first step", () => {
-    expect(read("src/pages/ExperienceBooking.tsx")).toMatch(/step === 0 \? leaveFlow\(\) : setStep/);
+    const experience = read("src/pages/ExperienceBooking.tsx");
+    expect(experience).toMatch(/step === 0 \? leaveFlow\(\) : setStep/);
+    // Only the Back at the bottom — no "Back to Experiences" at the top.
+    expect(experience).not.toMatch(/Back to Experiences/);
     const retreat = read("src/pages/CustomRetreat.tsx");
     expect(retreat).toMatch(/if \(step === 0\) \{ leaveFlow\(\); return; \}/);
     expect(retreat).not.toMatch(/disabled=\{step === 0\}/);
