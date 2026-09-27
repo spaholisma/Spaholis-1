@@ -82,6 +82,22 @@ describe("the Karabi Villas link", () => {
   });
 });
 
+describe("the Jungle Roost link", () => {
+  it("counts as jungle_roost and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["jungle-roost"];
+    expect(link).toEqual({
+      partner: "jungle_roost",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through Jungle Roost and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+  });
+});
+
 describe("the Escape Villas links", () => {
   const villas = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("escape-villas-"));
 
