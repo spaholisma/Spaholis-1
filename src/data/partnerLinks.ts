@@ -88,6 +88,49 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Costa Vida and would like more information about your wellness experiences. 🌿",
   },
+  "karabi-villas": {
+    partner: "karabi_villas",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Karabi Villas and would like more information about your wellness experiences. 🌿",
+  },
+  "jungle-roost": {
+    partner: "jungle_roost",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Jungle Roost and would like more information about your wellness experiences. 🌿",
+  },
+  "casa-kiskadee": {
+    partner: "casa_kiskadee",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Casa Kiskadee and would like more information about your wellness experiences. 🌿",
+  },
+  southern: {
+    partner: "southern",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Southern and would like more information about your wellness experiences. 🌿",
+  },
+  // Not the Escape Villas "Rising and the 2 Tango Houses" — a different place.
+  "rising-sun": {
+    partner: "rising_sun",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Rising Sun and would like more information about your wellness experiences. 🌿",
+  },
+  "casa-contee": {
+    partner: "casa_contee",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Casa Contee and would like more information about your wellness experiences. 🌿",
+  },
   ...propertyLinks("escape-villas", "escape_villas", "Escape Villas", ESCAPE_VILLAS_PROPERTIES),
   ...propertyLinks("mav-rentals", "mav_rentals", "MAV Rentals", MAV_RENTALS_PROPERTIES),
 };
