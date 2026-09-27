@@ -132,6 +132,30 @@ describe("the Southern link", () => {
   });
 });
 
+describe("the Rising Sun link", () => {
+  it("counts as rising_sun and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["rising-sun"];
+    expect(link).toEqual({
+      partner: "rising_sun",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through Rising Sun and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+  });
+
+  it("is its own link, apart from Escape Villas' Rising and the 2 Tango Houses", () => {
+    expect(Object.keys(PARTNER_LINKS).filter((s) => s.includes("rising"))).toEqual([
+      "rising-sun",
+      "escape-villas-rising-tango-houses",
+    ]);
+    expect(PARTNER_LINKS["escape-villas-rising-tango-houses"].property).toBe("rising_tango_houses");
+  });
+});
+
 describe("the Escape Villas links", () => {
   const villas = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("escape-villas-"));
 
@@ -175,7 +199,7 @@ describe("the Escape Villas links", () => {
     expect(new URL(partnerDestinationUrl(link)).searchParams.get("text")).toBe(
       "Hello! I discovered Holis Wellness Center while staying at Rising and the 2 Tango Houses (Mango and Romeo) through Escape Villas, and I would like more information about your wellness experiences. 🌿",
     );
-    expect(Object.keys(PARTNER_LINKS).filter((s) => /rising|tango|mango|romeo/.test(s))).toEqual(["escape-villas-rising-tango-houses"]);
+    expect(Object.keys(PARTNER_LINKS).filter((s) => s.startsWith("escape-villas-") && /rising|tango|mango|romeo/.test(s))).toEqual(["escape-villas-rising-tango-houses"]);
   });
 });
 
