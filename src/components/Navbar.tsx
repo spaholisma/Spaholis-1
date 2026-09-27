@@ -267,7 +267,7 @@ export function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
-            className="lg:hidden bg-background border-b border-border max-h-[85vh] overflow-y-auto"
+            className="lg:hidden bg-background border-b border-border max-h-[calc(100vh-4rem)] supports-[height:100dvh]:max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain"
           >
             <nav aria-label={t("nav.mobileNavigation", { defaultValue: "Mobile" })} className="px-4 py-4">
               <ul className="space-y-1">

@@ -102,7 +102,7 @@ const SignatureTreatments = () => {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative h-[50vh] min-h-[350px] overflow-hidden">
+      <section className="relative flex flex-col min-h-[max(350px,50vh)] overflow-hidden">
         {sig.heroImage && (
           <img
             src={sig.heroImage}
@@ -111,7 +111,7 @@ const SignatureTreatments = () => {
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-        <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-12">
+        <div className="relative z-10 flex flex-1 flex-col justify-end w-full px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pt-24 pb-12">
           <motion.p {...fade} className="font-body text-xs font-semibold uppercase tracking-[0.25em] text-white/80 mb-3">
             {sig.heroEyebrow}
           </motion.p>

@@ -141,7 +141,7 @@ const EducationalPage = () => {
       <Navbar />
 
       {/* ── Hero Banner ── */}
-      <div className="relative h-[50vh] min-h-[400px] flex items-center justify-center overflow-hidden">
+      <div className="relative min-h-[max(400px,50vh)] flex items-center justify-center overflow-hidden pt-24 pb-12">
         <img src={edu.heroImage} alt="Educational Programs" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-foreground/50" />
         <div className="relative z-10 text-center px-4 max-w-3xl">

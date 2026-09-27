@@ -96,7 +96,7 @@ const StudioRentalPage = () => {
 
       {/* Hero */}
       <div className="relative pt-16">
-        <div className="aspect-[21/9] max-h-[380px] w-full overflow-hidden">
+        <div className="aspect-[21/9] min-h-[260px] max-h-[380px] w-full overflow-hidden">
           <img src={c.heroImage} alt="Holis yoga studio" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-foreground/30" />
         </div>
