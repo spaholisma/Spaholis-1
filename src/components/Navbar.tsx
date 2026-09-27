@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut, ChevronDown, User, ShieldCheck, CalendarDays } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -10,7 +10,6 @@ import { useNavMenu } from "@/hooks/useNavMenu";
 import { content as defaults } from "@/data/content";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ProfileMenu } from "@/components/ProfileMenu";
-import { useStaffRole } from "@/hooks/useStaffRole";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import holisLogo from "@/assets/holis-logo-clean.png";
 
@@ -81,8 +80,7 @@ export function Navbar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null); // desktop dropdown key
   const [openAccordion, setOpenAccordion] = useState<string | null>(null); // mobile accordion key
   const location = useLocation();
-  const { user, signOut } = useAuth();
-  const staff = useStaffRole();
+  const { user } = useAuth();
   const { data: siteContent } = useSiteContent();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -345,34 +343,9 @@ export function Navbar() {
                   );
                 })}
 
-                {user ? (
-                  <>
-                    <li className="pt-2">
-                      <Link to={lp("/dashboard")} onClick={() => setOpen(false)} className="flex items-center gap-2.5 py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">
-                        <User className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                        {t("nav.myAccount", { defaultValue: nav.myAccountLabel })}
-                      </Link>
-                    </li>
-                    {staff && (
-                      <li>
-                        <Link to="/admin" onClick={() => setOpen(false)} className="flex items-center gap-2.5 py-2.5 text-sm font-body font-medium text-foreground hover:text-primary rounded">
-                          {staff === "admin"
-                            ? <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                            : <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
-                          {staff === "admin"
-                            ? t("nav.adminPanel", { defaultValue: "Admin Panel" })
-                            : t("nav.treatmentsCalendar", { defaultValue: "Treatments calendar" })}
-                        </Link>
-                      </li>
-                    )}
-                    <li>
-                      <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 px-0 font-body font-medium text-destructive hover:text-destructive" onClick={() => { signOut(); setOpen(false); }}>
-                        <LogOut className="h-4 w-4" aria-hidden="true" />
-                        {t("nav.signOut", { defaultValue: nav.signOutLabel })}
-                      </Button>
-                    </li>
-                  </>
-                ) : (
+                {/* Signed in: My Account, the Admin Panel and Sign Out live in the
+                    profile menu (the initials next to the menu button) — not repeated here. */}
+                {!user && (
                   <li className="pt-2">
                     <Button variant="ghost" size="sm" className="w-full justify-start px-0" asChild>
                       <Link to={lp("/auth")} onClick={() => setOpen(false)}>{t("nav.signIn", { defaultValue: nav.signInLabel })}</Link>
