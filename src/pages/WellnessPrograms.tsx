@@ -66,10 +66,10 @@ const WellnessProgramsPage = () => {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative h-[72vh] min-h-[480px] overflow-hidden">
+      <section className="relative flex flex-col min-h-[max(480px,72vh)] overflow-hidden">
         <img src={c.heroImage} alt={c.heroImageAlt} className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
-        <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-14">
+        <div className="relative z-10 flex flex-1 flex-col justify-end w-full px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pt-24 pb-14">
           <motion.p {...fade} className="font-body text-xs font-semibold uppercase tracking-[0.3em] text-white/80 mb-4">
             {c.heroEyebrow}
           </motion.p>

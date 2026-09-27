@@ -75,7 +75,7 @@ const Index = () => {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+      <section className="relative flex flex-col min-h-[max(600px,90vh)] overflow-hidden">
         <img
           src={hero.backgroundImage}
           alt={hero.backgroundAlt}
@@ -84,7 +84,7 @@ const Index = () => {
           height={1080}
         />
         <div className="absolute inset-0 bg-spa-charcoal/50" />
-        <div className="relative z-10 flex items-center justify-center h-full px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 flex flex-1 items-center justify-center px-4 sm:px-6 lg:px-8 pt-24 pb-16">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}

@@ -171,7 +171,7 @@ const ServicesPage = () => {
       <Navbar />
 
       <div className="relative pt-16">
-        <div className="aspect-[21/9] max-h-[420px] w-full overflow-hidden">
+        <div className="aspect-[21/9] min-h-[260px] max-h-[420px] w-full overflow-hidden">
           <img
             {...cmsEditProps("services.heroImage", "image")}
             src={svc.heroImage || heroSpaHolis}

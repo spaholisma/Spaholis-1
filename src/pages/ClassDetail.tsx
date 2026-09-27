@@ -150,7 +150,7 @@ export default function ClassDetail() {
       <Navbar />
 
       {/* Hero */}
-      <div className="relative h-[46vh] min-h-[300px] w-full overflow-hidden">
+      <div className="relative flex flex-col min-h-[max(300px,46vh)] w-full overflow-hidden">
         <img
           src={cls.image_url || fallbackImg}
           alt={cls.title}
@@ -161,7 +161,7 @@ export default function ClassDetail() {
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
-        <div className="absolute inset-x-0 bottom-0">
+        <div className="relative z-10 mt-auto w-full pt-24">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
             <Link
               to="/classes"

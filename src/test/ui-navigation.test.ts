@@ -74,6 +74,16 @@ describe("the profile menu", () => {
     expect(nav).toMatch(/<ProfileMenu\s+myAccountLabel=/);
     expect(nav).not.toMatch(/aria-label=\{t\("nav\.signOut"\)\}>\s*<LogOut/);
   });
+
+  it("the phone menu doesn't repeat My Account and Sign Out — the profile menu has them", () => {
+    const nav = read("src/components/Navbar.tsx");
+    // The profile menu sits next to the menu button on phones too.
+    expect(nav).toMatch(/<div className="lg:hidden flex items-center gap-1">\s*<LanguageToggle compact \/>\s*\{user && \(\s*<ProfileMenu/);
+    expect(nav).not.toMatch(/to=\{lp\("\/dashboard"\)\}/);
+    expect(nav).not.toMatch(/<LogOut/);
+    // Signed out, the menu still offers Sign In.
+    expect(nav).toMatch(/\{!user && \(\s*<li className="pt-2">\s*<Button[^>]*>\s*<Link to=\{lp\("\/auth"\)\}/);
+  });
 });
 
 describe("the Admin sidebar in sections", () => {

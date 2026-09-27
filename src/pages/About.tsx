@@ -84,7 +84,7 @@ const AboutPage = () => {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative h-[60vh] min-h-[400px] overflow-hidden">
+      <section className="relative flex flex-col min-h-[max(400px,60vh)] overflow-hidden">
         {(about as any).heroImage && (
           <img
             src={(about as any).heroImage}
@@ -93,7 +93,7 @@ const AboutPage = () => {
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-        <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-12">
+        <div className="relative z-10 flex flex-1 flex-col justify-end w-full px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pt-24 pb-12">
           <motion.p {...fade} className="font-body text-xs font-semibold uppercase tracking-[0.25em] text-white/80 mb-3">
             {about.heroEyebrow}
           </motion.p>

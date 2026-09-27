@@ -30,7 +30,7 @@ const DayRetreatsPage = () => {
 
       {/* Hero */}
       <div className="relative pt-16">
-        <div className="aspect-[21/9] max-h-[380px] w-full overflow-hidden">
+        <div className="aspect-[21/9] min-h-[260px] max-h-[380px] w-full overflow-hidden">
           <img src={c.heroImage} alt="Day retreat at Holis" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         </div>
