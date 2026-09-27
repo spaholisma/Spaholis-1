@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { PackageDetailView } from "@/components/booking/PackageDetailView";
 import { cn } from "@/lib/utils";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 // Real photography sourced from spaholis.com (replaces previous AI-generated assets)
 const heroSpaHolis = "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/1710017291666-GUTIMLDB1FIWKSMM99RF/spa-home.jpg?format=2500w";
 const imgMassage = "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg?format=1500w";
@@ -172,7 +173,7 @@ const ServicesPage = () => {
 
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[420px] w-full overflow-hidden">
-          <img
+          <img {...HERO_IMAGE_FIRST}
             {...cmsEditProps("services.heroImage", "image")}
             src={svc.heroImage || heroSpaHolis}
             alt="Traditional massage therapy at Holis Wellness Center"

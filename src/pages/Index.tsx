@@ -12,6 +12,8 @@ import { WellnessSection } from "@/components/WellnessSection";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaultContent } from "@/data/content";
 import { useTranslation } from "react-i18next";
+import { responsiveImage } from "@/lib/sizedImage";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 // Real photos sourced from spaholis.com (Squarespace CDN)
 const signatureImages = {
   signatureSomato: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
@@ -77,7 +79,8 @@ const Index = () => {
       {/* Hero */}
       <section className="relative flex flex-col min-h-[max(600px,90vh)] overflow-hidden">
         <img
-          src={hero.backgroundImage}
+          {...responsiveImage(hero.backgroundImage)}
+          {...HERO_IMAGE_FIRST}
           alt={hero.backgroundAlt}
           className="absolute inset-0 w-full h-full object-cover"
           width={1920}
@@ -171,7 +174,12 @@ const Index = () => {
               <div key={exp.title} className="group">
                 <div className="rounded-2xl overflow-hidden aspect-[4/5] mb-4 relative">
                   <img
-                    src={(exp as any).image || signatureImages[exp.imageKey]}
+                    {...responsiveImage(
+                      (exp as any).image || signatureImages[exp.imageKey],
+                      "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw",
+                      750,
+                      [500, 750, 1000],
+                    )}
                     alt={exp.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     loading="lazy"
@@ -227,7 +235,7 @@ const Index = () => {
       <section className="spa-section">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <motion.div {...fadeIn}>
-            <img
+            <img loading="lazy"
               {...cmsEditProps("movement.image", "image")}
               src={movement.image}
               alt={movement.imageAlt}

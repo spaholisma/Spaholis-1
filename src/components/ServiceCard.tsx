@@ -8,6 +8,7 @@ import type { ServiceRow } from "@/hooks/useServices";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { pickLocalized } from "@/lib/i18n-field";
+import { responsiveImage } from "@/lib/sizedImage";
 
 export function ServiceCard({ service }: { service: ServiceRow }) {
   const [open, setOpen] = useState(false);
@@ -33,7 +34,11 @@ export function ServiceCard({ service }: { service: ServiceRow }) {
       <div className="spa-card group cursor-pointer" onClick={() => setOpen(true)}>
         <div className="aspect-[4/3] overflow-hidden">
           <img
-            src={service.image_url || "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg"}
+            {...responsiveImage(
+              service.image_url || "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
+              "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw",
+              1000,
+            )}
             alt={title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"

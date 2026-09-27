@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -142,7 +143,7 @@ const EducationalPage = () => {
 
       {/* ── Hero Banner ── */}
       <div className="relative min-h-[max(400px,50vh)] flex items-center justify-center overflow-hidden pt-24 pb-12">
-        <img src={edu.heroImage} alt="Educational Programs" className="absolute inset-0 w-full h-full object-cover" />
+        <img {...HERO_IMAGE_FIRST} src={edu.heroImage} alt="Educational Programs" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-foreground/50" />
         <div className="relative z-10 text-center px-4 max-w-3xl">
           <motion.h1 {...cmsEditProps("education.heroTitle")} {...fadeIn} className="font-heading text-4xl md:text-5xl lg:text-6xl font-semibold text-background mb-4">
@@ -204,7 +205,7 @@ const EducationalPage = () => {
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-20">
               <motion.div {...fadeIn} className="rounded-2xl overflow-hidden">
-                <img {...cmsEditProps("education.somatoImage", "image")} src={edu.somatoImage} alt="Somato Awareness System" className="w-full h-full object-cover" />
+                <img loading="lazy" {...cmsEditProps("education.somatoImage", "image")} src={edu.somatoImage} alt="Somato Awareness System" className="w-full h-full object-cover" />
               </motion.div>
               <motion.div {...fadeIn} className="space-y-5">
                 <h2 {...cmsEditProps("education.sasHeading")} className="font-heading text-3xl md:text-4xl font-semibold text-foreground">
@@ -231,7 +232,7 @@ const EducationalPage = () => {
             {/* ── FECOPROBE Certification ── */}
             <motion.div {...fadeIn} className="max-w-3xl mx-auto mb-20">
               <div className="flex flex-col sm:flex-row items-center gap-6 rounded-2xl bg-muted/40 border border-border p-6 sm:p-8">
-                <img
+                <img loading="lazy"
                   src="/images/fecoprobe-certificacion.png"
                   alt="FECOPROBE Seal"
                   className="h-28 w-auto flex-shrink-0"
@@ -411,7 +412,7 @@ const EducationalPage = () => {
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                   <motion.div {...fadeIn} className="rounded-2xl overflow-hidden">
-                    <img {...cmsEditProps("education.couplesImage", "image")} src={edu.couplesImage} alt="Couple's & Connection Experience" className="w-full h-full object-cover" />
+                    <img loading="lazy" {...cmsEditProps("education.couplesImage", "image")} src={edu.couplesImage} alt="Couple's & Connection Experience" className="w-full h-full object-cover" />
                   </motion.div>
                   <motion.div {...fadeIn} className="space-y-5">
                     <h2 {...cmsEditProps("education.couplesHeading")} className="font-heading text-3xl md:text-4xl font-semibold text-foreground">

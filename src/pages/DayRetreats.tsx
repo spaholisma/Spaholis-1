@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { Sun, Leaf, HandHeart, UtensilsCrossed } from "lucide-react";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -31,7 +32,7 @@ const DayRetreatsPage = () => {
       {/* Hero */}
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[380px] w-full overflow-hidden">
-          <img src={c.heroImage} alt="Day retreat at Holis" className="w-full h-full object-cover" />
+          <img {...HERO_IMAGE_FIRST} src={c.heroImage} alt="Day retreat at Holis" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         </div>
         <div className="absolute bottom-8 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">

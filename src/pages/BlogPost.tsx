@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { localizeRow } from "@/lib/localizeRow";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -102,7 +103,7 @@ export default function BlogPostPage() {
         <section className="relative pt-16">
           <div className="aspect-[16/10] max-h-[560px] w-full overflow-hidden md:aspect-[21/9]">
             {post.cover_image && (
-              <img src={post.cover_image} alt={post.title} className="h-full w-full object-cover" />
+              <img {...HERO_IMAGE_FIRST} src={post.cover_image} alt={post.title} className="h-full w-full object-cover" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
           </div>

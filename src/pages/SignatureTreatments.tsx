@@ -8,6 +8,8 @@ import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { WellnessProgramsSection } from "@/components/WellnessProgramsSection";
+import { responsiveImage } from "@/lib/sizedImage";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fade = {
   initial: { opacity: 0, y: 24 } as const,
@@ -40,7 +42,7 @@ function TreatmentCard({ treatment, index }: { treatment: Treatment; index: numb
       <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-muted md:[direction:ltr]">
         {treatment.image && (
           <img
-            src={treatment.image}
+            {...responsiveImage(treatment.image, "(min-width: 768px) 50vw, 100vw", 1000)}
             alt={treatment.imageAlt || treatment.title}
             className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             loading="lazy"
@@ -104,8 +106,8 @@ const SignatureTreatments = () => {
       {/* Hero */}
       <section className="relative flex flex-col min-h-[max(350px,50vh)] overflow-hidden">
         {sig.heroImage && (
-          <img
-            src={sig.heroImage}
+          <img {...HERO_IMAGE_FIRST}
+            {...responsiveImage(sig.heroImage)}
             alt={sig.heroImageAlt || "Signature Treatments"}
             className="absolute inset-0 w-full h-full object-cover"
           />
