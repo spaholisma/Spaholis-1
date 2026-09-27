@@ -114,6 +114,24 @@ describe("the Casa Kiskadee link", () => {
   });
 });
 
+describe("the Southern link", () => {
+  it("counts as southern and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["southern"];
+    expect(link).toEqual({
+      partner: "southern",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through Southern and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+    // Only one Southern link.
+    expect(Object.keys(PARTNER_LINKS).filter((s) => s.includes("southern"))).toEqual(["southern"]);
+  });
+});
+
 describe("the Escape Villas links", () => {
   const villas = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("escape-villas-"));
 
