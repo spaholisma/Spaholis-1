@@ -22,6 +22,7 @@ import {
 } from "@/lib/privateClassRequest";
 import { offeringPrice, type PrivateChoice } from "@/lib/privateOfferings";
 import { Users } from "lucide-react";
+import { useHoneypot } from "@/components/Honeypot";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -84,8 +85,10 @@ export const ConsultationForm = () => {
     return out;
   })();
 
+  const hp = useHoneypot();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hp.isBot()) { setSubmitted(true); return; }
     if (!form.name.trim() || !form.email.trim()) {
       toast.error(t("consultation.errorMissingFields"));
       return;
@@ -271,6 +274,7 @@ export const ConsultationForm = () => {
 
             <div className={privateKind ? "rounded-3xl border border-border bg-card p-5 sm:p-7 shadow-sm" : ""}>
             <form onSubmit={handleSubmit} className={privateKind ? "space-y-5" : "space-y-6"}>
+              {hp.field}
               {/* Left in the page on purpose and put out of sight rather than
                   display:none, which the better scripts know to skip. Never
                   reached by keyboard or screen reader. */}

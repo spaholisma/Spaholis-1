@@ -25,14 +25,26 @@ function generateToken(): string {
     .join('')
 }
 
-// Auth note: this function uses verify_jwt = true in config.toml, so Supabase's
-// gateway validates the caller's JWT (anon or service_role) before the request
-// reaches this code. No in-function auth check is needed.
+// Auth: verify_jwt = true only proves the caller holds *a* valid key — and the
+// anon key is public (it ships in the website). Without a check here anyone
+// could make this send a Holis-branded email to any address. Nothing on the
+// site calls it, so only server-side callers (service role) are accepted.
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
+  }
+
+  // The gateway already verified the JWT signature, so its role claim is trustworthy.
+  const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+  let role = ''
+  try { role = JSON.parse(atob((bearer.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/'))).role || '' } catch { /* not a JWT */ }
+  if (role !== 'service_role') {
+    return new Response(JSON.stringify({ error: 'forbidden' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')

@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
+import { useHoneypot } from "@/components/Honeypot";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -85,8 +86,14 @@ const EducationalPage = () => {
     ...(workshops.length > 0 ? ([{ id: "couples", label: edu.tabCouples || "Couples & Connection" }] as const) : []),
   ];
 
+  const hp = useHoneypot();
   const handleEnroll = async () => {
     if (!enrollDialog) return;
+    if (hp.isBot()) {
+      toast.success("Request sent! Our team will contact you shortly.");
+      setEnrollDialog(null);
+      return;
+    }
     const email = formData.email.trim();
     const phone = formData.phone.trim();
     if (!email || !phone) {
@@ -479,6 +486,7 @@ const EducationalPage = () => {
             <Input placeholder={edu.dialogFullName} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             <Input placeholder={t("form.email", { defaultValue: "Email" })} type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
             <PhoneField placeholder="Phone / WhatsApp" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
+            {hp.field}
             {enrollDialog && (
               <Button
                 className="w-full"

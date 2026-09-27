@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
+import { useHoneypot } from "@/components/Honeypot";
 
 const stepIcons = [Heart, CalendarDays, Sparkles, Pen];
 type Option = { value: string; label: string };
@@ -65,7 +66,9 @@ export default function CustomRetreat() {
     return true;
   };
 
+  const hp = useHoneypot();
   const handleSubmit = async () => {
+    if (hp.isBot()) { setSubmitted(true); return; }
     setSubmitting(true);
     const { error } = await supabase.from("custom_retreat_inquiries").insert({
       full_name: form.contact_name.trim(),
@@ -214,6 +217,7 @@ export default function CustomRetreat() {
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+          {hp.field}
           <Button
             variant="ghost"
             onClick={back}

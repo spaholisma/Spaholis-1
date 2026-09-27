@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
+import { useHoneypot } from "@/components/Honeypot";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -96,8 +97,10 @@ function InquiryForm({ retreatId, retreatTitle }: { retreatId: string; retreatTi
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const hp = useHoneypot();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hp.isBot()) { setSubmitted(true); return; }
     if (!form.first_name || !form.last_name || !form.email) {
       toast.error(t("retreats.fillRequired"));
       return;
@@ -141,6 +144,7 @@ function InquiryForm({ retreatId, retreatTitle }: { retreatId: string; retreatTi
 
   return (
     <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-4">
+      {hp.field}
       <h3 className="font-heading text-lg font-medium text-foreground">{t("retreats.bookThisRetreat")}</h3>
       <p className="spa-body-sm">{t("retreats.concierge")}</p>
 
