@@ -98,6 +98,22 @@ describe("the Jungle Roost link", () => {
   });
 });
 
+describe("the Casa Kiskadee link", () => {
+  it("counts as casa_kiskadee and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["casa-kiskadee"];
+    expect(link).toEqual({
+      partner: "casa_kiskadee",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through Casa Kiskadee and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+  });
+});
+
 describe("the Escape Villas links", () => {
   const villas = Object.entries(PARTNER_LINKS).filter(([slug]) => slug.startsWith("escape-villas-"));
 

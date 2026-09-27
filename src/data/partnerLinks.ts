@@ -102,6 +102,13 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Jungle Roost and would like more information about your wellness experiences. 🌿",
   },
+  "casa-kiskadee": {
+    partner: "casa_kiskadee",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Casa Kiskadee and would like more information about your wellness experiences. 🌿",
+  },
   ...propertyLinks("escape-villas", "escape_villas", "Escape Villas", ESCAPE_VILLAS_PROPERTIES),
   ...propertyLinks("mav-rentals", "mav_rentals", "MAV Rentals", MAV_RENTALS_PROPERTIES),
 };
