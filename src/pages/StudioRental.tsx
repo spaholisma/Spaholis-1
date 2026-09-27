@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -97,7 +98,7 @@ const StudioRentalPage = () => {
       {/* Hero */}
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[380px] w-full overflow-hidden">
-          <img src={c.heroImage} alt="Holis yoga studio" className="w-full h-full object-cover" />
+          <img {...HERO_IMAGE_FIRST} src={c.heroImage} alt="Holis yoga studio" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-foreground/30" />
         </div>
         <div className="absolute inset-0 flex items-center justify-center pt-16">

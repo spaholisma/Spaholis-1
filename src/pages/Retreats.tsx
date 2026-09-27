@@ -16,6 +16,7 @@ import { useServicesByType, type ServiceRow } from "@/hooks/useServices";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
 import { CalendarDays, Users, MapPin, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -73,7 +74,7 @@ export default function RetreatsPage() {
       {/* Hero */}
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[420px] w-full overflow-hidden">
-          <img
+          <img {...HERO_IMAGE_FIRST}
             {...cmsEditProps("retreats.heroImage", "image")}
             src={rt.heroImage}
             alt="Retreat at Holis Wellness Center"

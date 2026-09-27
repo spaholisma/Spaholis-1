@@ -129,7 +129,7 @@ export function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 md:bg-background/80 md:backdrop-blur-md border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-2">
         <Link to={lp("/")} className="flex items-center gap-2 shrink-0">
           <img src={holisLogo} alt="Holis Wellness Center" className="h-14 w-auto" />

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -322,7 +323,7 @@ export default function RetreatDetailPage() {
       {/* Hero Image */}
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[400px] w-full overflow-hidden">
-          <img src={retreat.image_url || ""} alt={retreat.title} className="w-full h-full object-cover" />
+          <img {...HERO_IMAGE_FIRST} src={retreat.image_url || ""} alt={retreat.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
         </div>
         <div className="absolute bottom-6 left-0 right-0 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">

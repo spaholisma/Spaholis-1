@@ -7,6 +7,7 @@ import { RichText } from "@/components/ui/rich-text";
 import { cmsEditProps } from "@/lib/cmsEdit";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fade = {
   initial: { opacity: 0, y: 24 } as const,
@@ -86,7 +87,7 @@ const AboutPage = () => {
       {/* Hero */}
       <section className="relative flex flex-col min-h-[max(400px,60vh)] overflow-hidden">
         {(about as any).heroImage && (
-          <img
+          <img {...HERO_IMAGE_FIRST}
             src={(about as any).heroImage}
             alt={(about as any).heroImageAlt || "About Holis"}
             className="absolute inset-0 w-full h-full object-cover"

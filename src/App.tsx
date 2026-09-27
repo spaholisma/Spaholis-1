@@ -1,49 +1,114 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense, useEffect } from "react";
+import { MotionConfig } from "framer-motion";
 import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
 import Index from "./pages/Index";
-import About from "./pages/About";
-import SignatureTreatments from "./pages/SignatureTreatments";
-import Services from "./pages/Services";
-import Booking from "./pages/Booking";
-import BookingReturn from "./pages/BookingReturn";
-import Classes from "./pages/Classes";
-import ClassesCalendar from "./pages/ClassesCalendar";
-import PrivateClasses from "./pages/PrivateClasses";
-import ClassBooking from "./pages/ClassBooking";
-import Educational from "./pages/Educational";
-import GiftCards from "./pages/GiftCards";
-import Auth from "./pages/Auth";
-import AdminDashboard from "./pages/AdminDashboard";
-import CardAuthorizationArchive from "./pages/CardAuthorizationArchive";
-import ClientDashboard from "./pages/ClientDashboard";
 import NotFound from "./pages/NotFound";
 import PartnerRedirect from "./pages/PartnerRedirect";
-import ResetPassword from "./pages/ResetPassword";
-import Retreats from "./pages/Retreats";
-import RetreatDetail from "./pages/RetreatDetail";
-import CustomRetreat from "./pages/CustomRetreat";
-import ExperienceBooking from "./pages/ExperienceBooking";
-import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost";
-import Faqs from "./pages/Faqs";
-import Contact from "./pages/Contact";
-import StudioRental from "./pages/StudioRental";
-import DayRetreats from "./pages/DayRetreats";
-import WellnessPrograms from "./pages/WellnessPrograms";
-import CranioSacral from "./pages/CranioSacral";
-import Gyrotonic from "./pages/Gyrotonic";
-import Kinesiology from "./pages/Kinesiology";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import Refund from "./pages/Refund";
-import SasPractitioners from "./pages/SasPractitioners";
-import PractitionerProfile from "./pages/PractitionerProfile";
-import TestPayment from "./pages/TestPayment";
-import TestPaymentReturn from "./pages/TestPaymentReturn";
+// Pages load when first visited, so opening the site doesn't download and run
+// the whole Admin Panel and every booking form first (it was one 3 MB file).
+// The home page and the QR links (/go/...) stay in the first download.
+const pages = {
+  About: () => import("./pages/About"),
+  SignatureTreatments: () => import("./pages/SignatureTreatments"),
+  Services: () => import("./pages/Services"),
+  Booking: () => import("./pages/Booking"),
+  BookingReturn: () => import("./pages/BookingReturn"),
+  Classes: () => import("./pages/Classes"),
+  ClassesCalendar: () => import("./pages/ClassesCalendar"),
+  PrivateClasses: () => import("./pages/PrivateClasses"),
+  ClassBooking: () => import("./pages/ClassBooking"),
+  Educational: () => import("./pages/Educational"),
+  GiftCards: () => import("./pages/GiftCards"),
+  Auth: () => import("./pages/Auth"),
+  AdminDashboard: () => import("./pages/AdminDashboard"),
+  CardAuthorizationArchive: () => import("./pages/CardAuthorizationArchive"),
+  ClientDashboard: () => import("./pages/ClientDashboard"),
+  ResetPassword: () => import("./pages/ResetPassword"),
+  Retreats: () => import("./pages/Retreats"),
+  RetreatDetail: () => import("./pages/RetreatDetail"),
+  CustomRetreat: () => import("./pages/CustomRetreat"),
+  ExperienceBooking: () => import("./pages/ExperienceBooking"),
+  Blog: () => import("./pages/Blog"),
+  BlogPost: () => import("./pages/BlogPost"),
+  Faqs: () => import("./pages/Faqs"),
+  Contact: () => import("./pages/Contact"),
+  StudioRental: () => import("./pages/StudioRental"),
+  DayRetreats: () => import("./pages/DayRetreats"),
+  WellnessPrograms: () => import("./pages/WellnessPrograms"),
+  CranioSacral: () => import("./pages/CranioSacral"),
+  Gyrotonic: () => import("./pages/Gyrotonic"),
+  Kinesiology: () => import("./pages/Kinesiology"),
+  Terms: () => import("./pages/Terms"),
+  Privacy: () => import("./pages/Privacy"),
+  Refund: () => import("./pages/Refund"),
+  SasPractitioners: () => import("./pages/SasPractitioners"),
+  PractitionerProfile: () => import("./pages/PractitionerProfile"),
+  TestPayment: () => import("./pages/TestPayment"),
+  TestPaymentReturn: () => import("./pages/TestPaymentReturn"),
+};
+const About = lazy(pages.About);
+const SignatureTreatments = lazy(pages.SignatureTreatments);
+const Services = lazy(pages.Services);
+const Booking = lazy(pages.Booking);
+const BookingReturn = lazy(pages.BookingReturn);
+const Classes = lazy(pages.Classes);
+const ClassesCalendar = lazy(pages.ClassesCalendar);
+const PrivateClasses = lazy(pages.PrivateClasses);
+const ClassBooking = lazy(pages.ClassBooking);
+const Educational = lazy(pages.Educational);
+const GiftCards = lazy(pages.GiftCards);
+const Auth = lazy(pages.Auth);
+const AdminDashboard = lazy(pages.AdminDashboard);
+const CardAuthorizationArchive = lazy(pages.CardAuthorizationArchive);
+const ClientDashboard = lazy(pages.ClientDashboard);
+const ResetPassword = lazy(pages.ResetPassword);
+const Retreats = lazy(pages.Retreats);
+const RetreatDetail = lazy(pages.RetreatDetail);
+const CustomRetreat = lazy(pages.CustomRetreat);
+const ExperienceBooking = lazy(pages.ExperienceBooking);
+const Blog = lazy(pages.Blog);
+const BlogPost = lazy(pages.BlogPost);
+const Faqs = lazy(pages.Faqs);
+const Contact = lazy(pages.Contact);
+const StudioRental = lazy(pages.StudioRental);
+const DayRetreats = lazy(pages.DayRetreats);
+const WellnessPrograms = lazy(pages.WellnessPrograms);
+const CranioSacral = lazy(pages.CranioSacral);
+const Gyrotonic = lazy(pages.Gyrotonic);
+const Kinesiology = lazy(pages.Kinesiology);
+const Terms = lazy(pages.Terms);
+const Privacy = lazy(pages.Privacy);
+const Refund = lazy(pages.Refund);
+const SasPractitioners = lazy(pages.SasPractitioners);
+const PractitionerProfile = lazy(pages.PractitionerProfile);
+const TestPayment = lazy(pages.TestPayment);
+const TestPaymentReturn = lazy(pages.TestPaymentReturn);
+
+// Once the page is showing and the browser is idle, fetch the public pages in
+// the background, so moving around the site stays instant. The Admin, the
+// account and test pages are left to load when they are opened.
+const PUBLIC_PAGES = (Object.keys(pages) as (keyof typeof pages)[]).filter(
+  (k) => !["AdminDashboard", "Auth", "BookingReturn", "CardAuthorizationArchive", "ClientDashboard", "ResetPassword", "TestPayment", "TestPaymentReturn"].includes(k),
+);
+function PrefetchPages() {
+  useEffect(() => {
+    const idle = (cb: () => void) =>
+      typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(cb, { timeout: 4000 }) : setTimeout(cb, 2500);
+    const t = window.setTimeout(() => idle(() => PUBLIC_PAGES.forEach((k) => pages[k]().catch(() => {}))), 1500);
+    return () => window.clearTimeout(t);
+  }, []);
+  return null;
+}
+
+// Shown for the moment a page's code is still arriving: the page background,
+// so there is no flash.
+const PageFallback = () => <div className="min-h-screen bg-background" aria-busy="true" />;
+
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { PromoPopup } from "./components/PromoPopup";
 import { ScrollToTop } from "./components/ScrollToTop";
@@ -120,6 +185,8 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    {/* Phones set to "Reduce motion" get the page without slide/fade effects. */}
+    <MotionConfig reducedMotion="user">
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -130,6 +197,8 @@ const App = () => (
           <PreviewEditBridge />
           <WhatsAppButton />
           <PromoPopup />
+          <PrefetchPages />
+          <Suspense fallback={<PageFallback />}>
           <Routes>
             {routeDefs.map((r) => (
               <Route key={`en${r.path}`} path={r.path} element={r.element} />
@@ -143,9 +212,11 @@ const App = () => (
             ))}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </LanguageProvider>
       </BrowserRouter>
     </TooltipProvider>
+    </MotionConfig>
   </QueryClientProvider>
 );
 

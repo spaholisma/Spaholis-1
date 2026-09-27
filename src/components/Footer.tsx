@@ -15,7 +15,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
-            <img src={holisLogo} alt="Holis Wellness Center" className="h-12 w-auto mb-4 brightness-0 invert" />
+            <img loading="lazy" src={holisLogo} alt="Holis Wellness Center" className="h-12 w-auto mb-4 brightness-0 invert" />
             <p className="font-body text-sm text-spa-sand/90 max-w-sm leading-relaxed">
               <RichText value={footer.description} path="footer.description" />
             </p>

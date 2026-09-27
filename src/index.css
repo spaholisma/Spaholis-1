@@ -94,6 +94,17 @@
     @apply border-border;
   }
 
+  html {
+    /* No grey flash over whatever is tapped on iPhone — buttons show their own
+       pressed state instead. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Links and controls answer the first tap right away (no double-tap-zoom wait). */
+  a, button, [role="button"], input, select, textarea, label {
+    touch-action: manipulation;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);

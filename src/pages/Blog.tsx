@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { localizeRows } from "@/lib/localizeRow";
+import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -72,7 +73,7 @@ export default function BlogPage() {
       <div className="relative pt-16">
         <div className="aspect-[21/9] min-h-[260px] max-h-[420px] w-full overflow-hidden">
           {heroPost?.cover_image && (
-            <img
+            <img {...HERO_IMAGE_FIRST}
               src={heroPost.cover_image}
               alt={heroPost.title}
               className="h-full w-full object-cover"

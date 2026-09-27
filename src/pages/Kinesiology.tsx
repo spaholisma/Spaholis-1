@@ -199,7 +199,7 @@ const KinesiologyPage = () => {
           </div>
           {c.certificateLogo && (
             <div className="mt-6 flex justify-center">
-              <img src={c.certificateLogo} alt="FECOPROVE certification" className="h-24 w-auto bg-white rounded-xl p-3 shadow-sm" />
+              <img loading="lazy" src={c.certificateLogo} alt="FECOPROVE certification" className="h-24 w-auto bg-white rounded-xl p-3 shadow-sm" />
             </div>
           )}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
