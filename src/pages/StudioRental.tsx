@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
+import { useHoneypot } from "@/components/Honeypot";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -39,8 +40,10 @@ const StudioRentalPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const set = (k: keyof typeof form, v: string) => setForm((prev) => ({ ...prev, [k]: v }));
 
+  const hp = useHoneypot();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hp.isBot()) { setSubmitted(true); return; }
     const req = [form.firstName, form.lastName, form.email, form.phone, form.eventType, form.props, form.day, form.time, form.hours];
     if (req.some((v) => !v.trim())) {
       toast.error(f.requiredMessage);
@@ -170,6 +173,7 @@ const StudioRentalPage = () => {
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-5">
+              {hp.field}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="font-body text-sm">{f.firstNameLabel} *</Label>

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { PhoneField } from "@/components/booking/PhoneField";
+import { useHoneypot } from "@/components/Honeypot";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -55,8 +56,10 @@ export const ConsultationForm = () => {
     return out;
   })();
 
+  const hp = useHoneypot();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hp.isBot()) { setSubmitted(true); return; }
     if (!form.name.trim() || !form.email.trim()) {
       toast.error(t("consultation.errorMissingFields"));
       return;
@@ -177,6 +180,7 @@ export const ConsultationForm = () => {
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {hp.field}
               {/* Left in the page on purpose and put out of sight rather than
                   display:none, which the better scripts know to skip. Never
                   reached by keyboard or screen reader. */}
