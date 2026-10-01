@@ -133,6 +133,15 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
   },
   ...propertyLinks("escape-villas", "escape_villas", "Escape Villas", ESCAPE_VILLAS_PROPERTIES),
   ...propertyLinks("mav-rentals", "mav_rentals", "MAV Rentals", MAV_RENTALS_PROPERTIES),
+  // MAV Rentals' general QR (not tied to one house) — the houses keep their own links.
+  "mav-rentals": {
+    partner: "mav_rentals",
+    property: "general",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through MAV Rentals and would like more information about your wellness experiences. 🌿",
+  },
 };
 
 // api.whatsapp.com rather than wa.me: wa.me's own redirect turns emoji (the
