@@ -254,6 +254,33 @@ describe("the MAV Rentals links", () => {
   });
 });
 
+describe("the general MAV Rentals link", () => {
+  it("counts as mav_rentals with property general, and opens the Holis WhatsApp with its message", () => {
+    const link = PARTNER_LINKS["mav-rentals"];
+    expect(link).toEqual({
+      partner: "mav_rentals",
+      property: "general",
+      placement: "printed_material",
+      destination: "whatsapp",
+      message:
+        "Hello! I discovered Holis Wellness Center through MAV Rentals and would like more information about your wellness experiences. 🌿",
+    });
+    const url = new URL(partnerDestinationUrl(link));
+    expect(url.searchParams.get("phone")).toBe("50688146760");
+    expect(url.searchParams.get("text")).toBe(link.message);
+  });
+
+  it("sits beside the 10 houses without replacing or duplicating any of them", () => {
+    const mav = Object.keys(PARTNER_LINKS).filter((s) => s === "mav-rentals" || s.startsWith("mav-rentals-"));
+    expect(mav).toHaveLength(11);
+    expect(mav.filter((s) => s === "mav-rentals")).toHaveLength(1);
+    for (const p of MAV_RENTALS_PROPERTIES) {
+      expect(PARTNER_LINKS[`mav-rentals-${p.slug}`].property).toBe(p.property);
+    }
+    expect(MAV_RENTALS_PROPERTIES.some((p) => p.property === "general")).toBe(false);
+  });
+});
+
 describe("every partner link", () => {
   const all = Object.entries(PARTNER_LINKS);
 
