@@ -277,7 +277,7 @@ describe("the general MAV Rentals link", () => {
     for (const p of MAV_RENTALS_PROPERTIES) {
       expect(PARTNER_LINKS[`mav-rentals-${p.slug}`].property).toBe(p.property);
     }
-    expect(MAV_RENTALS_PROPERTIES.some((p) => p.property === "general")).toBe(false);
+    expect(MAV_RENTALS_PROPERTIES.map((p) => p.property as string)).not.toContain("general");
   });
 });
 
