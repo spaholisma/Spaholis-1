@@ -1017,12 +1017,16 @@ const ClassBookingPage = () => {
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
                               ? formatPrice(cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0))
-                              : payMethod === "cash" ? formatPrice(cashTotal(Number(cls.price), quantity))
+                              : payMethod === "cash" || payMethod === "compraclick"
+                                ? formatPrice(cashTotal(Number(cls.price), quantity))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
                         </div>
                         {payMethod === "cash" && (
                           <p className="text-xs font-body text-muted-foreground mt-2 text-right">In cash, at the class</p>
+                        )}
+                        {payMethod === "compraclick" && (
+                          <p className="text-xs font-body text-muted-foreground mt-2 text-right">With CompraClick, after you reserve</p>
                         )}
                       </div>
 
