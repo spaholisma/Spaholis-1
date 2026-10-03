@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Ticket, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 
 const sb = supabase as any;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -20,6 +22,8 @@ export interface PassPick {
   paymentLink?: string | null;
   classId?: string | null;
   classTitle?: string | null;
+  /** She has a PayPal account on file: the pass can be paid online, to her. */
+  acceptsPaypal?: boolean;
 }
 
 /**
@@ -38,13 +42,17 @@ export function PassRequestDialog({
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [paid, setPaid] = useState(false);
 
   useEffect(() => {
-    if (pick) { setForm({ name: "", email: "", phone: "" }); setDone(false); }
+    if (pick) { setForm({ name: "", email: "", phone: "" }); setDone(false); setPaid(false); }
   }, [pick]);
 
   if (!pick) return null;
   const first = pick.teacherName.split(/\s+/)[0];
+  // One of her own passes, and she takes PayPal: it can be bought right here.
+  const canBuyOnline = !!(pick.acceptsPaypal && pick.membershipId && Number(pick.price) > 0);
+  const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   const send = async () => {
     if (!form.name.trim()) { toast.error("Please tell her your name"); return; }
@@ -71,11 +79,24 @@ export function PassRequestDialog({
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading">
-            {done ? `${first} knows you are coming` : pick.membershipName}
+            {paid ? "Your pass is ready" : done ? `${first} knows you are coming` : pick.membershipName}
           </DialogTitle>
         </DialogHeader>
 
-        {done ? (
+        {paid ? (
+          <div className="space-y-4 text-center py-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-spa-sage/20">
+              <Check className="h-6 w-6 text-spa-sage" />
+            </div>
+            <p className="spa-body">
+              Paid — your <strong>{pick.membershipName}</strong> with <strong>{pick.teacherName}</strong> is ready.
+            </p>
+            <p className="spa-body-sm">
+              We emailed your pass code and booking link to <strong>{form.email.trim()}</strong>.
+            </p>
+            <Button className="rounded-full" onClick={() => onOpenChange(false)}>Close</Button>
+          </div>
+        ) : done ? (
           <div className="space-y-4 text-center py-2">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-spa-sage/20">
               <Check className="h-6 w-6 text-spa-sage" />
@@ -115,9 +136,40 @@ export function PassRequestDialog({
               )}
             </div>
 
+            {canBuyOnline && (
+              <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
+                <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pay {first} online
+                </p>
+                <Input placeholder="Your name *" value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input type="email" placeholder="Email *" value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  <Input placeholder="Phone (optional)" value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                </div>
+                <PayPalCheckout
+                  disabled={!contactReady}
+                  createOrderBody={() => contactReady
+                    ? {
+                        kind: "teacher_pass", membership_id: pick.membershipId,
+                        guest_name: form.name.trim(), guest_email: form.email.trim(),
+                        guest_phone: form.phone.trim() || null,
+                      }
+                    : null}
+                  onSuccess={() => setPaid(true)}
+                />
+                <p className="font-body text-[11px] text-muted-foreground">
+                  With PayPal or a card. The payment goes straight to {first}'s PayPal — Holis does not
+                  take it. Your pass code and booking link arrive by email right away.
+                </p>
+              </div>
+            )}
+
             <div className="rounded-xl border border-border p-4">
               <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                How to pay {first}
+                {canBuyOnline ? `Or pay ${first} another way` : `How to pay ${first}`}
               </p>
               {pick.paymentNote && (
                 <p className="font-body text-sm text-foreground whitespace-pre-line">{pick.paymentNote}</p>

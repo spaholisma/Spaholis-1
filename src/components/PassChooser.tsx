@@ -10,11 +10,13 @@ import {
   Loader2, Ticket, ArrowLeft, Check, Infinity as InfinityIcon, ExternalLink, CalendarDays,
 } from "lucide-react";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
+import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -27,6 +29,8 @@ interface TeacherPass {
   price: number | null; classes_included: number | null; valid_days: number | null;
   description: string | null; payment_link: string | null; payment_note: string | null;
   teacher_payment_instructions: string | null;
+  /** She has a PayPal account on file: the pass can be paid online, to her. */
+  teacher_accepts_paypal?: boolean | null;
 }
 interface Teacher { id: string; display_name: string }
 export interface ClassOption {
@@ -55,7 +59,7 @@ export function PassChooser({
   const [loading, setLoading] = useState(true);
 
   const [picked, setPicked] = useState<Offering | null>(null);
-  const [step, setStep] = useState<"class" | "pay" | "done">("class");
+  const [step, setStep] = useState<"class" | "pay" | "done" | "paid">("class");
   const [chosenClass, setChosenClass] = useState<ClassOption | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
@@ -158,6 +162,9 @@ export function PassChooser({
 
   const payInfo = herPass?.payment_note || herPass?.teacher_payment_instructions || null;
   const payLink = herPass?.payment_link || null;
+  // Her own pass, and she takes PayPal: it can be bought here, paid to her.
+  const canBuyOnline = !!(herPass && herPass.teacher_accepts_paypal && Number(herPass.price) > 0);
+  const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   return (
     <>
@@ -210,7 +217,7 @@ export function PassChooser({
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading">
-              {step === "done" ? "She knows you are coming" : picked?.name}
+              {step === "done" ? "She knows you are coming" : step === "paid" ? "Your pass is ready" : picked?.name}
             </DialogTitle>
           </DialogHeader>
 
@@ -276,10 +283,41 @@ export function PassChooser({
                 )}
               </div>
 
+              {canBuyOnline && herPass && (
+                <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
+                  <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pay {chosenClass.teacher.split(/\s+/)[0]} online
+                  </p>
+                  <Input placeholder="Your name *" value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Input type="email" placeholder="Email *" value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    <Input placeholder="Phone (optional)" value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  </div>
+                  <PayPalCheckout
+                    disabled={!contactReady}
+                    createOrderBody={() => contactReady
+                      ? {
+                          kind: "teacher_pass", membership_id: herPass.membership_id,
+                          guest_name: form.name.trim(), guest_email: form.email.trim(),
+                          guest_phone: form.phone.trim() || null,
+                        }
+                      : null}
+                    onSuccess={() => setStep("paid")}
+                  />
+                  <p className="font-body text-[11px] text-muted-foreground">
+                    With PayPal or a card. The payment goes straight to {chosenClass.teacher.split(/\s+/)[0]}'s PayPal —
+                    Holis does not take it. Your pass code and booking link arrive by email right away.
+                  </p>
+                </div>
+              )}
+
               {chosenClass.teacher ? (
                 <div className="rounded-xl border border-border p-4">
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    How to pay {chosenClass.teacher.split(/\s+/)[0]}
+                    {canBuyOnline ? "Or pay" : "How to pay"} {chosenClass.teacher.split(/\s+/)[0]}{canBuyOnline ? " another way" : ""}
                   </p>
                   {payInfo && (
                     <p className="font-body text-sm text-foreground whitespace-pre-line">{payInfo}</p>
@@ -330,6 +368,24 @@ export function PassChooser({
                 </p>
               </div>
               )}
+            </div>
+          )}
+
+          {step === "paid" && chosenClass && (
+            <div className="space-y-4 text-center py-2">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-spa-sage/20">
+                <Check className="h-6 w-6 text-spa-sage" />
+              </div>
+              <p className="spa-body">
+                Paid — your <strong>{herPass?.membership_name ?? picked?.name}</strong> with{" "}
+                <strong>{chosenClass.teacher}</strong> is ready.
+              </p>
+              <p className="spa-body-sm">
+                We emailed your pass code and booking link to <strong>{form.email.trim()}</strong>.
+              </p>
+              <Button className="rounded-full" asChild>
+                <Link to={`/classes/${chosenClass.class_id}`}>See the class</Link>
+              </Button>
             </div>
           )}
 

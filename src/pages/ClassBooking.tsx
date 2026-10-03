@@ -11,7 +11,7 @@ import { Footer } from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { Banknote, Check, ChevronLeft, CreditCard, CalendarDays, Clock, MapPin, Users, Ticket, Infinity as InfinityIcon } from "lucide-react";
+import { Banknote, Check, ChevronLeft, CreditCard, CalendarDays, Clock, Loader2, MapPin, Users, Ticket, Infinity as InfinityIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatSpaDateLong, formatSpaTime } from "@/lib/businessHours";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode } from "@/lib/classCheckout";
+import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute } from "@/lib/classCheckout";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
@@ -106,6 +106,23 @@ const ClassBookingPage = () => {
   const fullPriceOnly = !!(cls as any)?.full_price_only;
   // Paying in cash means paying the teacher of this session at the class.
   const payee = cashPayee((event as any)?.instructor, cls?.instructor);
+  // Paying online goes to that same teacher's PayPal when she has one; until
+  // she adds it, her students pay her in cash. Only "is there a PayPal" is
+  // public — never her email.
+  const { data: teacherList } = useQuery({
+    queryKey: ["public-teachers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("public_teachers" as any);
+      if (error) throw error;
+      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null }[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const payRoute = onlinePayRoute(payee, teacherList);
+  const canPayOnline = payRoute === "teacher" || payRoute === "holis";
+  useEffect(() => {
+    if (payRoute === "cash_only" && payMethod === "card") setPayMethod("cash");
+  }, [payRoute, payMethod]);
 
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId && !fullPriceOnly
@@ -818,15 +835,27 @@ const ClassBookingPage = () => {
                         </div>
                       )}
 
-                      {/* Card */}
+                      {/* Online: to the teacher's PayPal, or to Holis for a class with no teacher */}
+                      {canPayOnline && (
                       <PayOption
                         icon={<CreditCard className="h-4 w-4" />}
-                        title={multi
-                          ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
-                          : `Pay ${formatCRC(cls.price)} by card`}
+                        title={payRoute === "teacher"
+                          ? (multi
+                            ? `Pay ${formatCRC(quantity * Number(cls.price))} online to ${payee} · ${quantity} spots`
+                            : `Pay ${formatCRC(cls.price)} online to ${payee}`)
+                          : (multi
+                            ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
+                            : `Pay ${formatCRC(cls.price)} by card`)}
                         selected={payMethod === "card"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
-                      />
+                      >
+                        {payRoute === "teacher" && (
+                          <p className="text-xs font-body text-muted-foreground">
+                            With PayPal or a card. The payment goes straight to <span className="font-medium text-foreground">{payee}</span>.
+                          </p>
+                        )}
+                      </PayOption>
+                      )}
 
                       {/* Cash: reserve now, pay the teacher at the class */}
                       <PayOption
@@ -887,6 +916,11 @@ const ClassBookingPage = () => {
                                     return;
                                   }
                                   setValidatingCoupon(false);
+                                  // A Holis coupon discounts Holis money, never the teacher's.
+                                  if (payRoute === "teacher") {
+                                    toast.error(`Holis coupons don't apply when you pay ${payee} directly.`);
+                                    return;
+                                  }
                                   const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
                                   setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
                                   toast.success(`Coupon applied: ${label}`);
@@ -946,12 +980,15 @@ const ClassBookingPage = () => {
                         <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
                           {submitting ? t("booking.booking") : "Reserve — pay in cash at the class"}
                         </Button>
+                      ) : payMethod === "card" && !canPayOnline ? (
+                        // Still finding out whether this teacher takes PayPal.
+                        <div className="flex justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                       ) : payMethod === "card" ? (
                         <PayPalCheckout
                           disabled={!formData.name || !formData.email}
                           createOrderBody={() =>
                             formData.name && formData.email
-                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null, quantity, participant_names: participantNames }
+                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: payRoute === "teacher" ? null : (appliedCoupon?.code ?? null), quantity, participant_names: participantNames, pay_teacher: payRoute === "teacher" }
                               : null
                           }
                           onSuccess={() => {

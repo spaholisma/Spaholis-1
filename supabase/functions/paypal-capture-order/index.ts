@@ -2,8 +2,10 @@
 // Edge function: paypal-capture-order
 //
 // Captures an approved PayPal order, verifies with PayPal that it COMPLETED for
-// the exact amount we stored, then fulfils: confirms the class booking (with a
-// spot decrement + email) or grants the offering (membership / pass / drop-in).
+// the exact amount we stored — and, when it pays a teacher, that HER account
+// received it — then fulfils: confirms the class booking (with a spot decrement
+// + email), grants the offering (membership / pass / drop-in), or issues the
+// teacher's pass with its code and booking link.
 // Idempotent — a replayed capture returns the already-fulfilled result.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
@@ -96,6 +98,20 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "payment_not_completed" }, 402);
     }
 
+    // Paid to a teacher: confirm the money reached HER account, not another.
+    if (rec.payee_email) {
+      let paidTo: string = cap?.purchase_units?.[0]?.payee?.email_address ?? "";
+      if (!paidTo) {
+        const got = await fetch(`${PP_BASE}/v2/checkout/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+        paidTo = (await got.json())?.purchase_units?.[0]?.payee?.email_address ?? "";
+      }
+      if (paidTo.trim().toLowerCase() !== String(rec.payee_email).trim().toLowerCase()) {
+        await admin.from("paypal_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("order_id", orderId);
+        console.error("[paypal-capture-order] payee mismatch", { expected: rec.payee_email, paidTo });
+        return json({ ok: false, reason: "payee_mismatch" }, 402);
+      }
+    }
+
     const t = rec.target ?? {};
 
     if (rec.kind === "class") {
@@ -134,6 +150,41 @@ Deno.serve(async (req) => {
       // One confirmation email to the guest (covers all their spots).
       try { await admin.functions.invoke("send-booking-notification", { body: { classBookingId: bookingIds[0] } }); } catch (e) { console.error("[paypal-capture-order] notify failed", e); }
       return json({ ok: true, kind: "class", bookingId: bookingIds[0], bookingIds, quantity: qty, overbooked });
+    }
+
+    if (rec.kind === "teacher_pass") {
+      // The same pass the teacher would make by hand in her panel
+      // (create_teacher_membership_order), paid online to her PayPal.
+      const { data: m } = await admin.from("teacher_memberships")
+        .select("id, name, price, classes_included, valid_days, teacher_id, teachers(display_name)")
+        .eq("id", t.membership_id).maybeSingle();
+      if (!m) return json({ ok: false, reason: "pass_gone" }, 404);
+      const email = String(t.guest_email || "").trim().toLowerCase();
+      let userId: string | null = t.user_id ?? null;
+      if (!userId && email) {
+        const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", email).limit(1).maybeSingle();
+        userId = (prof as any)?.user_id ?? null;
+      }
+      const days = Number((m as any).valid_days) || 0;
+      const expires_at = days > 0 ? new Date(Date.now() + days * 86400000).toISOString() : null;
+      const credits = (m as any).classes_included;
+      const teacherName = (m as any).teachers?.display_name || "your teacher";
+      const { data: uo, error: uoErr } = await admin.from("user_offerings").insert({
+        user_id: userId, offering_id: null,
+        teacher_id: (m as any).teacher_id, teacher_membership_id: (m as any).id,
+        type: credits == null ? "membership" : "class_pass", name_snapshot: (m as any).name,
+        price_paid: Number(rec.amount), is_unlimited: credits == null,
+        credits_total: credits, credits_remaining: credits, expires_at,
+        status: "active", source: "purchase", payment_id: capId,
+        code: await uniqueCode(admin), access_token: randomToken(),
+        guest_name: t.guest_name || null, guest_email: email || null, guest_phone: t.guest_phone || null,
+        notes: `Paid online by PayPal to ${teacherName}`,
+      }).select("id").single();
+      if (uoErr) throw uoErr;
+
+      await admin.from("paypal_orders").update({ status: "captured", user_offering_id: uo.id, updated_at: new Date().toISOString() }).eq("order_id", orderId);
+      try { await admin.functions.invoke("send-membership-order-email", { body: { userOfferingId: uo.id } }); } catch (e) { console.error("[paypal-capture-order] teacher pass email failed", e); }
+      return json({ ok: true, kind: "teacher_pass", userOfferingId: uo.id });
     }
 
     // offering

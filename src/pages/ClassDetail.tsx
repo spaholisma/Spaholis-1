@@ -39,6 +39,7 @@ interface Pass {
   classes_included: number | null; valid_days: number | null; description: string | null;
   payment_link: string | null; payment_note: string | null;
   teacher_payment_instructions: string | null;
+  teacher_accepts_paypal?: boolean | null;
 }
 
 const initials = (name: string) =>
@@ -301,6 +302,7 @@ export default function ClassDetail() {
                                   price: p.price,
                                   paymentNote: p.payment_note ?? p.teacher_payment_instructions,
                                   paymentLink: p.payment_link,
+                                  acceptsPaypal: !!p.teacher_accepts_paypal,
                                   classId: cls.id,
                                   classTitle: cls.title,
                                 })}>

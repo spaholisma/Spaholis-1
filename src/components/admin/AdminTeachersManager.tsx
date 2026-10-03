@@ -26,6 +26,7 @@ const todayCR = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Cost
 interface Teacher {
   id: string; user_id: string | null; email: string; display_name: string;
   payment_instructions: string | null; studio_rate: number; active: boolean;
+  paypal_email: string | null;
 }
 interface Session {
   id: string; start_time: string; is_cancelled: boolean; instructor: string | null;
@@ -478,6 +479,21 @@ export function AdminTeachersManager() {
                         <Input type="number" defaultValue={r.teacher.studio_rate} className="h-8 w-28"
                           onBlur={(e) => Number(e.target.value) !== Number(r.teacher.studio_rate)
                             && patchTeacher(r.teacher.id, { studio_rate: Math.max(0, Number(e.target.value) || 0) })} />
+
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
+                          Her PayPal (students pay her online)
+                        </p>
+                        <Input type="email" defaultValue={r.teacher.paypal_email ?? ""} placeholder="none — her students pay in cash"
+                          className="h-8"
+                          onBlur={(e) => {
+                            const v = e.target.value.trim().toLowerCase();
+                            if (v === (r.teacher.paypal_email ?? "")) return;
+                            if (v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { toast.error("That PayPal email doesn't look right"); return; }
+                            patchTeacher(r.teacher.id, { paypal_email: v || null });
+                          }} />
+                        <p className="text-[11px] text-muted-foreground">
+                          Paid straight to her account — never to Holis. She can set it herself in her panel.
+                        </p>
 
                         <div className="flex items-center gap-2 pt-2">
                           <Switch checked={r.teacher.active}

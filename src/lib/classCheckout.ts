@@ -20,6 +20,27 @@ export function cashPayee(sessionInstructor?: string | null, classInstructor?: s
 }
 
 /**
+ * Where an online payment for a class goes (studio-rental model — Holis takes
+ * no student money):
+ *  - "teacher":   the session's teacher takes PayPal → paid straight to her
+ *  - "cash_only": she doesn't take PayPal yet → her students pay her in cash
+ *  - "holis":     nobody on the session is a teacher (e.g. a Holis event) → as before
+ *  - "loading":   the teachers are still being looked up — offer nothing yet
+ */
+export type OnlinePayRoute = "teacher" | "cash_only" | "holis" | "loading";
+export function onlinePayRoute(
+  payee: string | null,
+  teachers: { display_name: string; accepts_paypal?: boolean | null }[] | undefined,
+): OnlinePayRoute {
+  if (!payee) return "holis";
+  if (!teachers) return "loading";
+  const name = payee.trim().toLowerCase();
+  const teacher = teachers.find((t) => (t.display_name ?? "").trim().toLowerCase() === name);
+  if (!teacher) return "holis";
+  return teacher.accepts_paypal ? "teacher" : "cash_only";
+}
+
+/**
  * A coupon that covers the whole class leaves nothing to pay — and PayPal
  * cannot take a $0 payment, so its buttons are no way to book. Such a booking
  * is confirmed straight away by create-class-booking, which checks the coupon

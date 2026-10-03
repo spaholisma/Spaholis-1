@@ -10,7 +10,8 @@ const read = (p: string) => readFileSync(resolve(root, p), "utf8");
 
 describe("a pass bought online", () => {
   const capture = read("supabase/functions/paypal-capture-order/index.ts");
-  const insert = capture.slice(capture.indexOf('from("user_offerings").insert('));
+  // The Holis offering (the teacher-pass branch above it makes its own).
+  const insert = capture.slice(capture.indexOf('from("user_offerings").insert(', capture.indexOf("// offering")));
 
   it("gets a code and a no-login link like an Admin order", () => {
     expect(insert.slice(0, 900)).toMatch(/code: await uniqueCode\(admin\)/);

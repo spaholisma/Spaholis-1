@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, user_id, source")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, guest_phone, user_id, source, teacher_id")
     .eq("id", userOfferingId)
     .maybeSingle();
 
@@ -248,9 +248,18 @@ Deno.serve(async (req) => {
   // Admin copy (+ backup). Editable in Admin → Client Emails → Team
   // notifications ("New membership order" / "New purchase paid online"); the
   // built-in copy below when that template is missing or switched off.
-  const orderLines = isOrder
+  // A teacher's pass bought online was paid to HER PayPal — say so, so nobody
+  // looks for that money in Holis' account.
+  let teacher: { display_name: string; email: string | null } | null = null;
+  if ((o as any).teacher_id && isOnlinePurchase) {
+    const { data: t } = await supabase.from("teachers").select("display_name, email").eq("id", (o as any).teacher_id).maybeSingle();
+    teacher = (t as any) ?? null;
+  }
+  const orderLines = (isOrder
     ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
-    : "";
+    : "") + (teacher
+    ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
+    : "");
   const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
   let adminSubj: string;
   let adminHtml: string;
@@ -283,6 +292,23 @@ Deno.serve(async (req) => {
   await sendEmail(ADMIN_EMAIL, adminSubj, emailDocument(adminHtml, adminSubj));
   if (ADMIN_BACKUP_EMAIL && ADMIN_BACKUP_EMAIL !== ADMIN_EMAIL) {
     await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));
+  }
+
+  // The teacher hears about every pass of hers sold online.
+  if (teacher?.email) {
+    const who = String(o.guest_name || to);
+    const subj = `New pass sold online — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`;
+    const inner = `
+      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;"><strong>${esc(who)}</strong> just bought your <strong>${esc(o.name_snapshot)}</strong> on the website.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;">The payment went straight to <strong>your PayPal account</strong>. They already have their code and booking link.</p>
+      <div style="background:#f3f6f6;border-radius:12px;padding:16px;margin:16px 0;font-size:14px;line-height:1.6;">
+        <p style="margin:0;"><strong>Student:</strong> ${esc(who)} &lt;${esc(to)}&gt;${(o as any).guest_phone ? ` · ${esc((o as any).guest_phone)}` : ""}</p>
+        <p style="margin:0;"><strong>Pass:</strong> ${esc(o.name_snapshot)}</p>
+        ${o.code ? `<p style="margin:0;"><strong>Code:</strong> ${esc(o.code)}</p>` : ""}
+      </div>
+      <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You'll find them in your Teacher Panel → Members.</p>`;
+    const tRes = await sendEmail(teacher.email, subj, emailShell("A pass was sold online", inner));
+    if (!tRes.ok) console.error("[send-membership-order-email] teacher send failed", tRes.error);
   }
 
   if (!custRes.ok) {
