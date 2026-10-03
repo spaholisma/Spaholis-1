@@ -448,10 +448,18 @@ const ClassBookingPage = () => {
   };
 
   // Reserve now, pay the teacher on her CompraClick link. The server holds the
-  // spot as "pending · CompraClick" and hands back her link.
+  // spot as "pending · CompraClick" and hands back her link, and the guest is
+  // taken straight there. The tab is opened during the click itself — opened
+  // after the reservation comes back, a browser would block it as a pop-up.
+  // The confirmation (with the same button) stays behind as a fallback.
   const handleCompraClickBooking = async () => {
     if (submitting || !scheduleId) return;
     setSubmitting(true);
+    let payTab: Window | null = null;
+    try {
+      payTab = window.open("", "_blank");
+      if (payTab) payTab.document.title = "CompraClick…";
+    } catch { payTab = null; }
     try {
       const { data, error } = await supabase.rpc("book_class_pay_compraclick" as any, {
         _schedule_id: scheduleId,
@@ -463,12 +471,18 @@ const ClassBookingPage = () => {
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; reason?: string; booking_id?: string; amount?: number; teacher?: string | null; compraclick_url?: string };
       if (!res.ok || !res.booking_id || !res.compraclick_url) {
+        payTab?.close();
         toast.error(classCheckoutReasonMessage(res.reason) ?? t("booking.classBookFailed"));
         return;
       }
       supabase.functions
         .invoke("send-booking-notification", { body: { classBookingId: res.booking_id } })
         .catch((e) => console.error("[class-booking] notify failed", e));
+      if (payTab && !payTab.closed) {
+        // Her page must not be able to reach back into ours.
+        payTab.opener = null;
+        payTab.location.href = res.compraclick_url;
+      }
       setLinkDue({
         amount: Number(res.amount ?? cashTotal(Number(cls?.price ?? 0), quantity)),
         teacher: res.teacher ?? payee,
@@ -478,6 +492,7 @@ const ClassBookingPage = () => {
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
+      payTab?.close();
       toast.error(err.message || t("booking.classBookFailed"));
     } finally {
       setSubmitting(false);
@@ -1101,6 +1116,7 @@ const ClassBookingPage = () => {
                         <p className="mt-1 text-sm font-body text-muted-foreground">
                           Pay <span className="font-medium text-foreground">{formatPrice(linkDue.amount)}</span> to{" "}
                           {linkDue.teacher ? <span className="font-medium text-foreground">{linkDue.teacher}</span> : "your teacher"} on her secure BAC CompraClick page.
+                          {" "}We opened it in a new tab — if it didn't open, tap the button.
                         </p>
                         <CompraClickButton href={linkDue.url} className="mt-3" />
                       </div>

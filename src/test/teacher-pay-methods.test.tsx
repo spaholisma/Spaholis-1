@@ -126,6 +126,17 @@ describe("the pages", () => {
     expect(page).toMatch(/<CompraClickButton href=\{linkDue\.url\}/);
   });
 
+  it("class booking: reserving takes the guest straight to her CompraClick page", () => {
+    const page = read("src/pages/ClassBooking.tsx");
+    const fn = page.slice(page.indexOf("const handleCompraClickBooking"), page.indexOf("const handleRedeem"));
+    // Opened during the click (before any await), so no pop-up blocker stops it.
+    expect(fn.indexOf('window.open("", "_blank")')).toBeGreaterThan(-1);
+    expect(fn.indexOf('window.open("", "_blank")')).toBeLessThan(fn.indexOf("await supabase.rpc"));
+    expect(fn).toMatch(/payTab\.opener = null;\s*payTab\.location\.href = res\.compraclick_url;/);
+    // A failed reservation closes the empty tab.
+    expect(fn.match(/payTab\?\.close\(\);/g)).toHaveLength(2);
+  });
+
   it("class booking: a switch she just changed shows at once — no reload", () => {
     const page = read("src/pages/ClassBooking.tsx");
     const q = page.slice(page.indexOf('queryKey: ["public-teachers"]'), page.indexOf("const payRoute"));
