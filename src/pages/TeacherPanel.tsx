@@ -35,15 +35,18 @@ import { TeacherPassRequests } from "@/components/teacher/TeacherPassRequests";
 import { TeacherMembers } from "@/components/teacher/TeacherMembers";
 import { TeacherPrivateClasses } from "@/components/teacher/TeacherPrivateClasses";
 import { useConfirm } from "@/hooks/useConfirm";
+import { TeacherPaymentMethods } from "@/components/teacher/TeacherPaymentMethods";
 
 const sb = supabase as any;
-const isPaypalEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface TeacherRow {
   id: string; display_name: string; email: string;
   payment_instructions: string | null; studio_rate: number; active: boolean;
   paypal_email: string | null;
+  paypal_enabled: boolean | null;
+  compraclick_enabled: boolean | null;
+  compraclick_url: string | null;
   photo_url: string | null; bio: string | null;
 }
 type Session = SchedSession;
@@ -127,11 +130,7 @@ export default function TeacherPanel() {
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
-  const [payDraft, setPayDraft] = useState("");
-  // Her PayPal account: with it, students pay her online (straight to her).
-  const [paypalDraft, setPaypalDraft] = useState("");
   const [nameDraft, setNameDraft] = useState("");
-  const [savingPay, setSavingPay] = useState(false);
   const [savingName, setSavingName] = useState(false);
   // Adding / editing one of her classes from the list.
   const [classFormOpen, setClassFormOpen] = useState(false);
@@ -170,8 +169,6 @@ export default function TeacherPanel() {
       const { data } = await sb.from("teachers").select("*").eq("user_id", user.id).maybeSingle();
       if (!data) { setDenied(true); setLoading(false); return; }
       setTeacher(data as TeacherRow);
-      setPayDraft((data as TeacherRow).payment_instructions ?? "");
-      setPaypalDraft((data as TeacherRow).paypal_email ?? "");
       setNameDraft((data as TeacherRow).display_name);
     })();
   }, [user]);
@@ -373,22 +370,6 @@ export default function TeacherPanel() {
       toast.error(error.message);
       setAttendees((prev) => prev.map((x) => (x.id === a.id ? { ...x, attended: a.attended } : x)));
     }
-  };
-
-  const savePayment = async () => {
-    if (!teacher) return;
-    const paypal = paypalDraft.trim().toLowerCase();
-    if (paypal && !isPaypalEmail(paypal)) { toast.error("That PayPal email doesn't look right"); return; }
-    setSavingPay(true);
-    const values = { payment_instructions: payDraft, paypal_email: paypal || null };
-    const { error } = await sb.from("teachers").update(values).eq("id", teacher.id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success(paypal ? "Saved — students can now pay you online with PayPal" : "Payment details saved");
-      setTeacher({ ...teacher, ...values });
-      setPaypalDraft(paypal);
-    }
-    setSavingPay(false);
   };
 
   /** Renaming carries her classes with her — a database trigger moves them. */
@@ -771,42 +752,12 @@ export default function TeacherPanel() {
                       </div>
                     </Card>
 
-                    <Card className="p-4">
-                      <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" /> How your students pay you
-                      </h3>
-                      <p className="font-body text-xs text-muted-foreground mb-3">
-                        Shown to students when they reserve a spot. Holis does not process this money — they pay you directly.
-                      </p>
-                      <label className="font-body text-xs font-medium text-foreground">Your PayPal email</label>
-                      <Input
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        value={paypalDraft}
-                        onChange={(e) => setPaypalDraft(e.target.value)}
-                        placeholder="the email of your PayPal account"
-                        className="mt-1"
+                    {teacher && (
+                      <TeacherPaymentMethods
+                        teacher={teacher}
+                        onSaved={(patch) => setTeacher({ ...teacher, ...patch } as TeacherRow)}
                       />
-                      <p className="font-body text-[11px] text-muted-foreground mt-1 mb-3">
-                        {paypalDraft.trim()
-                          ? "Students can pay your classes and passes online — the money goes straight to this PayPal account (PayPal's fee comes out of it). Leave it empty to take cash only."
-                          : "Without it, your students pay you in cash at the class. Add it to let them pay online — straight to your PayPal."}
-                      </p>
-                      <label className="font-body text-xs font-medium text-foreground">Other ways to pay you</label>
-                      <Textarea
-                        value={payDraft}
-                        onChange={(e) => setPayDraft(e.target.value)}
-                        rows={3}
-                        placeholder="e.g. SINPE Movil 8888-8888 · or cash at the studio"
-                        className="mt-1"
-                      />
-                      <div className="mt-3 flex justify-end">
-                        <Button size="sm" onClick={savePayment} disabled={savingPay || (payDraft === (teacher?.payment_instructions ?? "") && paypalDraft.trim().toLowerCase() === (teacher?.paypal_email ?? ""))}>
-                          {savingPay ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
-                        </Button>
-                      </div>
-                    </Card>
+                    )}
                   </div>
                 )}
               </motion.div>
