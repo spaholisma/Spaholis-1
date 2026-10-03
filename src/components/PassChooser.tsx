@@ -49,9 +49,11 @@ export interface ClassOption {
  * her. The request lands in her panel so she knows who to expect.
  */
 export function PassChooser({
-  compact = false, forClass,
+  compact = false, forClass, only,
 }: {
   compact?: boolean;
+  /** Show only these kinds of pass (offerings.type), e.g. ["drop_in"]. */
+  only?: string[];
   /** Set when the chooser sits on a class page: skip straight to paying. */
   forClass?: ClassOption;
 }) {
@@ -80,7 +82,7 @@ export function PassChooser({
         sb.rpc("public_teachers"),
       ]);
 
-      setOfferings(((off ?? []) as Offering[]));
+      setOfferings(((off ?? []) as Offering[]).filter((o) => !only || only.includes(o.type)));
       setTeacherPasses(((tp ?? []) as TeacherPass[]));
       setTeachers(((th ?? []) as Teacher[]));
 
@@ -210,7 +212,7 @@ export function PassChooser({
         ))}
       </div>
 
-      {!compact && (
+      {!compact && !only && (
         <p className="spa-body-sm text-center mt-8 max-w-2xl mx-auto">
           These are the usual studio prices. Every pass is with a teacher and paid to her directly —
           pick one and we will show you who teaches what, and how to pay her.
