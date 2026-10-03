@@ -162,7 +162,9 @@ Deno.serve(async (req) => {
       const email = String(t.guest_email || "").trim().toLowerCase();
       let userId: string | null = t.user_id ?? null;
       if (!userId && email) {
-        const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", email).limit(1).maybeSingle();
+        // Case-insensitive but exact: % and _ in an address are not wildcards.
+        const exact = email.replace(/[\\%_]/g, (c) => `\\${c}`);
+        const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", exact).limit(1).maybeSingle();
         userId = (prof as any)?.user_id ?? null;
       }
       const days = Number((m as any).valid_days) || 0;
