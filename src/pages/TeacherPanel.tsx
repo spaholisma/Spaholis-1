@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Navbar } from "@/components/Navbar";
+import { BackToSiteButton } from "@/components/teacher/BackToSiteButton";
+import { ProfileMenu } from "@/components/ProfileMenu";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -113,6 +114,19 @@ function payLabel(a: Attendee): { text: string; tone: string } {
   if (a.payment_method === "cash" && Number(a.total_price) > 0)
     return { text: `Pays you in cash · $${Number(a.total_price).toFixed(2)}`, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-500" };
   return { text: "Pays you", tone: "bg-amber-500/15 text-amber-700 dark:text-amber-500" };
+}
+
+/** The top of the Teacher Panel: back to spaholis.com on the left, her account on the right. */
+function PanelTopBar({ wide = false }: { wide?: boolean }) {
+  return (
+    <header className={cn(
+      "mx-auto flex items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 pt-6",
+      wide ? "max-w-[100rem]" : "max-w-6xl",
+    )}>
+      <BackToSiteButton />
+      <ProfileMenu myAccountLabel="My Account" signOutLabel="Sign Out" />
+    </header>
+  );
 }
 
 export default function TeacherPanel() {
@@ -413,7 +427,7 @@ export default function TeacherPanel() {
   if (authLoading || (loading && !teacher && !denied)) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <PanelTopBar />
         <div className="flex items-center justify-center py-32 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading...
         </div>
@@ -424,7 +438,7 @@ export default function TeacherPanel() {
   if (denied) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <PanelTopBar />
         <div className="max-w-md mx-auto text-center py-32 px-4">
           <ShieldAlert className="h-14 w-14 text-destructive/60 mx-auto mb-4" />
           <h1 className="font-heading text-2xl text-foreground mb-2">Not a teacher account</h1>
@@ -440,11 +454,12 @@ export default function TeacherPanel() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      {/* Her workspace: no site navbar, just the way home and her account. */}
+      <PanelTopBar wide={tab === "calendar"} />
       {/* The week needs seven columns of room; every other tab reads better
           at a normal page width. */}
       <div className={cn(
-        "mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20",
+        "mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-20",
         tab === "calendar" ? "max-w-[100rem]" : "max-w-6xl",
       )}>
         <div className="mb-6">
