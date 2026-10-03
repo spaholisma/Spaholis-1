@@ -120,7 +120,12 @@ const ClassBookingPage = () => {
       if (error) throw error;
       return (data ?? []) as { display_name: string; accepts_paypal: boolean | null; compraclick_url?: string | null }[];
     },
-    staleTime: 5 * 60 * 1000,
+    // Always fresh: a teacher who just switched PayPal or CompraClick on (or
+    // off) must see it here at once — on opening the page, or on coming back
+    // to its tab — without reloading.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
   const payRoute = onlinePayRoute(payee, teacherList);
   // Her CompraClick link, when she has CompraClick switched on.

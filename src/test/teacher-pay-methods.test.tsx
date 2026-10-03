@@ -126,6 +126,14 @@ describe("the pages", () => {
     expect(page).toMatch(/<CompraClickButton href=\{linkDue\.url\}/);
   });
 
+  it("class booking: a switch she just changed shows at once — no reload", () => {
+    const page = read("src/pages/ClassBooking.tsx");
+    const q = page.slice(page.indexOf('queryKey: ["public-teachers"]'), page.indexOf("const payRoute"));
+    expect(q).toMatch(/staleTime: 0,/);
+    expect(q).toMatch(/refetchOnMount: "always",/);
+    expect(q).toMatch(/refetchOnWindowFocus: "always",/);
+  });
+
   it("passes: the CompraClick button sits with the other ways to pay her", () => {
     expect(read("src/components/PassRequestDialog.tsx")).toMatch(/<CompraClickButton href=\{pick\.compraclickUrl\}/);
     expect(read("src/components/PassChooser.tsx")).toMatch(/<CompraClickButton href=\{compraclickLink\}/);
