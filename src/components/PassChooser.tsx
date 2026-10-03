@@ -13,6 +13,7 @@ import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CompraClickButton } from "@/components/payments/CompraClickButton";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -31,6 +32,8 @@ interface TeacherPass {
   teacher_payment_instructions: string | null;
   /** She has a PayPal account on file: the pass can be paid online, to her. */
   teacher_accepts_paypal?: boolean | null;
+  /** Her CompraClick link, when she has CompraClick switched on. */
+  teacher_compraclick_url?: string | null;
 }
 interface Teacher { id: string; display_name: string }
 export interface ClassOption {
@@ -162,6 +165,7 @@ export function PassChooser({
 
   const payInfo = herPass?.payment_note || herPass?.teacher_payment_instructions || null;
   const payLink = herPass?.payment_link || null;
+  const compraclickLink = herPass?.teacher_compraclick_url || null;
   // Her own pass, and she takes PayPal: it can be bought here, paid to her.
   const canBuyOnline = !!(herPass && herPass.teacher_accepts_paypal && Number(herPass.price) > 0);
   const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
@@ -329,7 +333,10 @@ export function PassChooser({
                       </a>
                     </Button>
                   )}
-                  {!payInfo && !payLink && (
+                  {compraclickLink && (
+                    <CompraClickButton href={compraclickLink} className="mt-3" />
+                  )}
+                  {!payInfo && !payLink && !compraclickLink && (
                     <p className="font-body text-sm text-muted-foreground">
                       She will tell you at the studio — cash or SINPE.
                     </p>

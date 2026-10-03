@@ -107,6 +107,9 @@ function payLabel(a: Attendee): { text: string; tone: string } {
     return { text: "Free", tone: "bg-muted text-muted-foreground" };
   if (a.payment_status === "paid") return { text: "Paid online", tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" };
   // Reserved online to pay her in cash at the class.
+  // Reserved online to pay her on her CompraClick link — she checks it arrived.
+  if (a.payment_method === "compraclick" && Number(a.total_price) > 0)
+    return { text: `CompraClick · $${Number(a.total_price).toFixed(2)} — check it arrived`, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-500" };
   if (a.payment_method === "cash" && Number(a.total_price) > 0)
     return { text: `Pays you in cash · $${Number(a.total_price).toFixed(2)}`, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-500" };
   return { text: "Pays you", tone: "bg-amber-500/15 text-amber-700 dark:text-amber-500" };

@@ -861,9 +861,20 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   const paymentMethod = booking.payment_method || null;
   // Reserved online, paid to the teacher in cash at the class.
   const cashDue = paymentMethod === "cash" && booking.payment_status === "pending";
+  // Reserved online, paid to the teacher on her own CompraClick link.
+  const linkDue = paymentMethod === "compraclick" && booking.payment_status === "pending";
+  let compraclickUrl: string | null = null;
+  if (linkDue && instructor) {
+    const { data: tl } = await supabase.from("teachers")
+      .select("display_name, compraclick_url").eq("active", true).eq("compraclick_enabled", true);
+    compraclickUrl = ((tl ?? []) as any[]).find(
+      (t) => String(t.display_name || "").trim().toLowerCase() === instructor.trim().toLowerCase(),
+    )?.compraclick_url ?? null;
+  }
   const paymentStatusLabel =
     booking.payment_status === "paid" ? "Paid"
     : cashDue ? `Pay in cash at the class${instructor ? ` — to ${instructor}` : ""}`
+    : linkDue ? `Pay with CompraClick${instructor ? ` — to ${instructor}` : ""}`
     : paymentMethod === "membership" ? "Covered by membership"
     : paymentMethod === "credit" || paymentMethod === "credits" ? "Redeemed with credits"
     : booking.status === "booked" ? "Confirmed"
@@ -885,6 +896,8 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     // The team's copy says plainly that the money is still to be collected.
     paymentStatus: cashDue && totalUsd != null
       ? `CASH — collect ${formatCRC(totalUsd)} at the class${instructor ? ` (to ${instructor})` : ""}`
+      : linkDue && totalUsd != null
+      ? `COMPRACLICK — ${formatCRC(totalUsd)} to ${instructor || "the teacher"}'s link (she checks it arrived)`
       : paymentStatusLabel,
     paymentMethod,
     paymentId: booking.payment_id ?? null,
@@ -902,7 +915,9 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   const adminHtml = teamTpl?.html ?? buildClassAdminHtml(classCtx);
   const baseSubj = teamTpl?.subject ?? `New Class Booking — ${className} — ${guestLabel} (${reservationId})`;
   // Whatever the template says, a cash booking is flagged in the subject line.
-  const adminSubj = cashDue && totalUsd != null ? `CASH to collect ${formatCRC(totalUsd)} · ${baseSubj}` : baseSubj;
+  const adminSubj = cashDue && totalUsd != null ? `CASH to collect ${formatCRC(totalUsd)} · ${baseSubj}`
+    : linkDue && totalUsd != null ? `COMPRACLICK ${formatCRC(totalUsd)} · ${baseSubj}`
+    : baseSubj;
   const adminRes = await sendEmail(ADMIN_EMAIL, adminSubj, adminHtml);
   if (!adminRes.ok) console.error("[send-booking-notification] class admin email failed:", adminRes.error);
   const backupRes = await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, adminHtml);
@@ -923,9 +938,14 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
       rows.push(tableRow("When", escHtml(scheduleLabel)));
       if (location) rows.push(tableRow("Location", escHtml(location)));
       rows.push(tableRow("Payment Status", escHtml(paymentStatusLabel)));
+      if (linkDue && compraclickUrl) {
+        rows.push(tableRow("Pay here", `<a href="${escHtml(compraclickUrl)}" style="color:#c8102e;font-weight:bold;">CompraClick — pay ${escHtml(instructor || "your teacher")}</a>`));
+      }
       rows.push(...priceRows({
         total: totalUsd, discount: discountUsd, couponCode,
-        priceLabel: "Class Price", totalLabel: cashDue ? "To pay in cash" : "Amount Paid", showNoCoupon: true,
+        priceLabel: "Class Price",
+        totalLabel: cashDue ? "To pay in cash" : linkDue ? "To pay with CompraClick" : "Amount Paid",
+        showNoCoupon: true,
       }));
       const built = buildFromTemplate(
         tpl,
@@ -962,7 +982,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
         discountAmount: discountUsd,
         paymentStatus: paymentStatusLabel,
         whatsappUrl,
-        totalLabel: cashDue ? "To pay in cash" : undefined,
+        totalLabel: cashDue ? "To pay in cash" : linkDue ? "To pay with CompraClick" : undefined,
       });
     }
     customerRes = await sendEmail(booking.guest_email, subject, customerHtml);

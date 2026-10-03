@@ -27,6 +27,9 @@ interface Teacher {
   id: string; user_id: string | null; email: string; display_name: string;
   payment_instructions: string | null; studio_rate: number; active: boolean;
   paypal_email: string | null;
+  paypal_enabled: boolean | null;
+  compraclick_enabled: boolean | null;
+  compraclick_url: string | null;
 }
 interface Session {
   id: string; start_time: string; is_cancelled: boolean; instructor: string | null;
@@ -481,19 +484,43 @@ export function AdminTeachersManager() {
                             && patchTeacher(r.teacher.id, { studio_rate: Math.max(0, Number(e.target.value) || 0) })} />
 
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
-                          Her PayPal (students pay her online)
+                          How her students pay her online
                         </p>
-                        <Input type="email" defaultValue={r.teacher.paypal_email ?? ""} placeholder="none — her students pay in cash"
-                          className="h-8"
-                          onBlur={(e) => {
-                            const v = e.target.value.trim().toLowerCase();
-                            if (v === (r.teacher.paypal_email ?? "")) return;
-                            if (v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { toast.error("That PayPal email doesn't look right"); return; }
-                            patchTeacher(r.teacher.id, { paypal_email: v || null });
-                          }} />
-                        <p className="text-[11px] text-muted-foreground">
-                          Paid straight to her account — never to Holis. She can set it herself in her panel.
+                        <p className="text-[11px] text-muted-foreground -mt-1">
+                          Cash at the class is always on. Paid straight to her — never to Holis. She can set these herself in her panel.
                         </p>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={r.teacher.paypal_enabled !== false}
+                            onCheckedChange={(v) => {
+                              if (v && !(r.teacher.paypal_email ?? "").trim()) { toast.error("Add her PayPal email first"); return; }
+                              patchTeacher(r.teacher.id, { paypal_enabled: v });
+                            }} />
+                          <span className="text-xs text-muted-foreground w-24">PayPal</span>
+                          <Input type="email" defaultValue={r.teacher.paypal_email ?? ""} placeholder="her PayPal email"
+                            className="h-8"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim().toLowerCase();
+                              if (v === (r.teacher.paypal_email ?? "")) return;
+                              if (v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { toast.error("That PayPal email doesn't look right"); return; }
+                              patchTeacher(r.teacher.id, { paypal_email: v || null });
+                            }} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={!!r.teacher.compraclick_enabled}
+                            onCheckedChange={(v) => {
+                              if (v && !(r.teacher.compraclick_url ?? "").trim()) { toast.error("Add her CompraClick link first"); return; }
+                              patchTeacher(r.teacher.id, { compraclick_enabled: v });
+                            }} />
+                          <span className="text-xs text-muted-foreground w-24">CompraClick</span>
+                          <Input type="url" defaultValue={r.teacher.compraclick_url ?? ""} placeholder="https://… her CompraClick link"
+                            className="h-8"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v === (r.teacher.compraclick_url ?? "")) return;
+                              if (v && !/^https:\/\/\S+$/i.test(v)) { toast.error("The CompraClick link must start with https://"); return; }
+                              patchTeacher(r.teacher.id, v ? { compraclick_url: v } : { compraclick_url: null, compraclick_enabled: false });
+                            }} />
+                        </div>
 
                         <div className="flex items-center gap-2 pt-2">
                           <Switch checked={r.teacher.active}

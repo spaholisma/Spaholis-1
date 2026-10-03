@@ -90,7 +90,7 @@ describe("the emails", () => {
 
   it("the guest's copy says it is paid in cash, not already paid", () => {
     const src = read("supabase/functions/send-booking-notification/index.ts");
-    expect(src).toMatch(/totalLabel: cashDue \? "To pay in cash" : "Amount Paid"/);
+    expect(src).toMatch(/totalLabel: cashDue \? "To pay in cash" : linkDue \? "To pay with CompraClick" : "Amount Paid"/);
     expect(src).toMatch(/cashDue \? `Pay in cash at the class/);
   });
 

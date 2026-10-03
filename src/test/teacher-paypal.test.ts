@@ -137,7 +137,8 @@ describe("the pages", () => {
   });
 
   it("the teacher sets her PayPal in her panel; the admin can see and set it too", () => {
-    expect(read("src/pages/TeacherPanel.tsx")).toMatch(/paypal_email: paypal \|\| null/);
+    expect(read("src/pages/TeacherPanel.tsx")).toMatch(/<TeacherPaymentMethods\s+teacher=\{teacher\}/);
+    expect(read("src/components/teacher/TeacherPaymentMethods.tsx")).toMatch(/paypal_email: email \|\| null/);
     expect(read("src/components/admin/AdminTeachersManager.tsx")).toMatch(/patchTeacher\(r\.teacher\.id, \{ paypal_email: v \|\| null \}\)/);
   });
 });

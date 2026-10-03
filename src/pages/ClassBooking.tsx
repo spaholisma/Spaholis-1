@@ -24,7 +24,8 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute } from "@/lib/classCheckout";
+import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute, teacherCompraClick } from "@/lib/classCheckout";
+import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
@@ -49,7 +50,8 @@ function useScheduleEvent(scheduleId: string | null) {
 }
 
 // "cash": reserved online, paid to the teacher at the class.
-type PayMethod = "card" | "cash" | "membership" | "credits";
+// "compraclick": reserved online, paid on the teacher's own CompraClick link.
+type PayMethod = "card" | "cash" | "compraclick" | "membership" | "credits";
 
 const ClassBookingPage = () => {
   const { t } = useTranslation();
@@ -88,6 +90,8 @@ const ClassBookingPage = () => {
   const [extraNames, setExtraNames] = useState<string[]>([]);
   // Set when the spot was reserved to be paid in cash at the class.
   const [cashDue, setCashDue] = useState<{ amount: number; teacher: string | null } | null>(null);
+  // Set when the spot was reserved to be paid on the teacher's CompraClick link.
+  const [linkDue, setLinkDue] = useState<{ amount: number; teacher: string | null; url: string } | null>(null);
   useEffect(() => {
     setExtraNames((prev) => Array.from({ length: Math.max(0, quantity - 1) }, (_, i) => prev[i] ?? ""));
   }, [quantity]);
@@ -114,11 +118,13 @@ const ClassBookingPage = () => {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("public_teachers" as any);
       if (error) throw error;
-      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null }[];
+      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null; compraclick_url?: string | null }[];
     },
     staleTime: 5 * 60 * 1000,
   });
   const payRoute = onlinePayRoute(payee, teacherList);
+  // Her CompraClick link, when she has CompraClick switched on.
+  const compraclickUrl = teacherCompraClick(payee, teacherList);
   const canPayOnline = payRoute === "teacher" || payRoute === "holis";
   useEffect(() => {
     if (payRoute === "cash_only" && payMethod === "card") setPayMethod("cash");
@@ -427,6 +433,43 @@ const ClassBookingPage = () => {
         .catch((e) => console.error("[class-booking] notify failed", e));
       setCashDue({ amount: Number(res.amount ?? cashTotal(Number(cls?.price ?? 0), quantity)), teacher: res.teacher ?? payee });
       toast.success(multi ? `Reserved ${quantity} spots!` : "Your spot is reserved!");
+      setBookingComplete(true);
+      setStep(steps.length - 1);
+    } catch (err: any) {
+      toast.error(err.message || t("booking.classBookFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Reserve now, pay the teacher on her CompraClick link. The server holds the
+  // spot as "pending · CompraClick" and hands back her link.
+  const handleCompraClickBooking = async () => {
+    if (submitting || !scheduleId) return;
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("book_class_pay_compraclick" as any, {
+        _schedule_id: scheduleId,
+        _guest_name: formData.name.trim(),
+        _guest_email: formData.email.trim(),
+        _guest_phone: formData.phone,
+        _participant_names: participantNames,
+      });
+      if (error) throw error;
+      const res = (data ?? {}) as { ok?: boolean; reason?: string; booking_id?: string; amount?: number; teacher?: string | null; compraclick_url?: string };
+      if (!res.ok || !res.booking_id || !res.compraclick_url) {
+        toast.error(classCheckoutReasonMessage(res.reason) ?? t("booking.classBookFailed"));
+        return;
+      }
+      supabase.functions
+        .invoke("send-booking-notification", { body: { classBookingId: res.booking_id } })
+        .catch((e) => console.error("[class-booking] notify failed", e));
+      setLinkDue({
+        amount: Number(res.amount ?? cashTotal(Number(cls?.price ?? 0), quantity)),
+        teacher: res.teacher ?? payee,
+        url: res.compraclick_url,
+      });
+      toast.success(multi ? `Reserved ${quantity} spots — now pay with CompraClick` : "Your spot is reserved — now pay with CompraClick");
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
@@ -871,6 +914,22 @@ const ClassBookingPage = () => {
                         </p>
                       </PayOption>
 
+                      {/* CompraClick: reserve now, pay on the teacher's own link */}
+                      {compraclickUrl && (
+                        <PayOption
+                          icon={<CreditCard className="h-4 w-4" />}
+                          title={multi
+                            ? `Pay ${formatCRC(cashTotal(Number(cls.price), quantity))} with CompraClick · ${quantity} spots`
+                            : `Pay ${formatCRC(cls.price)} with CompraClick`}
+                          selected={payMethod === "compraclick"}
+                          onClick={() => { setUseLinkMembership(false); setPayMethod("compraclick"); }}
+                        >
+                          <p className="text-xs font-body text-muted-foreground">
+                            Your spot is reserved now, then you pay {payee ? <span className="font-medium text-foreground">{payee}</span> : "your teacher"} on her CompraClick page (BAC).
+                          </p>
+                        </PayOption>
+                      )}
+
                       {!multi && !user && !tokenEligible && !fullPriceOnly && (
                         <p className="text-xs font-body text-muted-foreground px-1">
                           <Link to="/auth" className="underline">Sign in</Link> to use a membership or class credits.
@@ -980,6 +1039,10 @@ const ClassBookingPage = () => {
                         <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
                           {submitting ? t("booking.booking") : "Reserve — pay in cash at the class"}
                         </Button>
+                      ) : payMethod === "compraclick" && compraclickUrl ? (
+                        <Button className="w-full" onClick={handleCompraClickBooking} disabled={submitting || !canProceed}>
+                          {submitting ? t("booking.booking") : "Reserve — then pay with CompraClick"}
+                        </Button>
                       ) : payMethod === "card" && !canPayOnline ? (
                         // Still finding out whether this teacher takes PayPal.
                         <div className="flex justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -1023,6 +1086,16 @@ const ClassBookingPage = () => {
                     <p className="spa-body max-w-sm mx-auto mb-8">
                       We'll send a confirmation to {formData.email}. See you there!
                     </p>
+                    {linkDue && (
+                      <div className="max-w-sm mx-auto mb-6 rounded-2xl border border-border bg-card p-4 text-left">
+                        <p className="font-body text-sm font-semibold text-foreground">Your spot is held — now pay with CompraClick</p>
+                        <p className="mt-1 text-sm font-body text-muted-foreground">
+                          Pay <span className="font-medium text-foreground">{formatPrice(linkDue.amount)}</span> to{" "}
+                          {linkDue.teacher ? <span className="font-medium text-foreground">{linkDue.teacher}</span> : "your teacher"} on her secure BAC CompraClick page.
+                        </p>
+                        <CompraClickButton href={linkDue.url} className="mt-3" />
+                      </div>
+                    )}
                     {cashDue && (
                       <div className="max-w-sm mx-auto mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
                         <p className="flex items-center gap-2 font-body text-sm font-semibold text-foreground">

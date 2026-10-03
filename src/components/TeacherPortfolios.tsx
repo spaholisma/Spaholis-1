@@ -24,6 +24,7 @@ interface Pass {
   payment_link: string | null; payment_note: string | null;
   teacher_payment_instructions: string | null;
   teacher_accepts_paypal?: boolean | null;
+  teacher_compraclick_url?: string | null;
 }
 interface TeacherRow { id: string; display_name: string; photo_url: string | null; bio: string | null }
 interface ClassBlock {
@@ -317,6 +318,7 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
                               paymentNote: pass.payment_note ?? pass.teacher_payment_instructions,
                               paymentLink: pass.payment_link,
                               acceptsPaypal: !!pass.teacher_accepts_paypal,
+                              compraclickUrl: pass.teacher_compraclick_url ?? null,
                             })}>
                             Get it
                           </Button>

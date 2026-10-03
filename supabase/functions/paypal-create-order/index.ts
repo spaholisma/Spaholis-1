@@ -77,12 +77,14 @@ async function couponDiscount(admin: any, code: string | null | undefined, base:
 async function sessionTeacher(admin: any, sessionName?: string | null, className?: string | null) {
   const name = (sessionName || "").trim() || (className || "").trim();
   if (!name) return null;
-  const { data } = await admin.from("teachers").select("id, display_name, paypal_email, active").eq("active", true);
+  const { data } = await admin.from("teachers").select("id, display_name, paypal_email, paypal_enabled, active").eq("active", true);
   return ((data ?? []) as any[]).find((t) => String(t.display_name || "").trim().toLowerCase() === name.toLowerCase()) ?? null;
 }
 
+/** Her PayPal account — only while she has PayPal switched on. */
 const paypalOf = (t: any): string | null => {
-  const e = String(t?.paypal_email || "").trim();
+  if (!t || t.paypal_enabled === false) return null;
+  const e = String(t.paypal_email || "").trim();
   return e ? e : null;
 };
 
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
         return json({ ok: false, reason: "missing_contact", message: "Your name and email are needed to send you the pass." }, 400);
       }
       const { data: m } = await admin.from("teacher_memberships")
-        .select("id, name, price, is_active, teacher_id, teachers(id, display_name, paypal_email, active)")
+        .select("id, name, price, is_active, teacher_id, teachers(id, display_name, paypal_email, paypal_enabled, active)")
         .eq("id", body.membership_id).maybeSingle();
       const teacher: any = (m as any)?.teachers;
       if (!m || !(m as any).is_active || !teacher?.active) return json({ ok: false, reason: "pass_unavailable" }, 404);

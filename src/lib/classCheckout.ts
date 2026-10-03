@@ -41,6 +41,21 @@ export function onlinePayRoute(
 }
 
 /**
+ * The session's teacher's CompraClick link, when she has CompraClick switched
+ * on (the public list only carries the link while it is on).
+ */
+export function teacherCompraClick(
+  payee: string | null,
+  teachers: { display_name: string; compraclick_url?: string | null }[] | undefined,
+): string | null {
+  if (!payee || !teachers) return null;
+  const name = payee.trim().toLowerCase();
+  const t = teachers.find((x) => (x.display_name ?? "").trim().toLowerCase() === name);
+  const url = (t?.compraclick_url ?? "").trim();
+  return url || null;
+}
+
+/**
  * A coupon that covers the whole class leaves nothing to pay — and PayPal
  * cannot take a $0 payment, so its buttons are no way to book. Such a booking
  * is confirmed straight away by create-class-booking, which checks the coupon

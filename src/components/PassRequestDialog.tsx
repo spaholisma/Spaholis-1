@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Loader2, Ticket, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { CompraClickButton } from "@/components/payments/CompraClickButton";
 
 const sb = supabase as any;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,6 +25,8 @@ export interface PassPick {
   classTitle?: string | null;
   /** She has a PayPal account on file: the pass can be paid online, to her. */
   acceptsPaypal?: boolean;
+  /** Her CompraClick link, when she has CompraClick switched on. */
+  compraclickUrl?: string | null;
 }
 
 /**
@@ -181,7 +184,10 @@ export function PassRequestDialog({
                   </a>
                 </Button>
               )}
-              {!pick.paymentNote && !pick.paymentLink && (
+              {pick.compraclickUrl && (
+                <CompraClickButton href={pick.compraclickUrl} className="mt-3" />
+              )}
+              {!pick.paymentNote && !pick.paymentLink && !pick.compraclickUrl && (
                 <p className="font-body text-sm text-muted-foreground">
                   She will tell you at the studio — cash or SINPE.
                 </p>
