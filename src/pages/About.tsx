@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -63,21 +63,7 @@ const AboutPage = () => {
   const founderBio: string[] = (about as any).founderBio || defaults.about.founderBio;
   const founderSections: { title: string; text: string }[] = (about as any).founderSections || defaults.about.founderSections;
 
-  // Scroll to #story / #founder / #team when linked from the menu. Content and
-  // images load async, so retry a few times until the target settles.
-  useEffect(() => {
-    const id = window.location.hash.replace("#", "");
-    if (!id) return;
-    let tries = 0;
-    const timers: number[] = [];
-    const go = () => {
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-      if (tries++ < 6) timers.push(window.setTimeout(go, 250));
-    };
-    timers.push(window.setTimeout(go, 120));
-    return () => timers.forEach(clearTimeout);
-  }, [siteContent]);
+  // #story / #founder / #team from the menu: ScrollToTop takes you there.
 
   return (
     <div className="min-h-screen bg-background">

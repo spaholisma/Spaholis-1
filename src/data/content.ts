@@ -385,8 +385,8 @@ export const content = {
     managementEyebrow: "Your Welcome Team",
     managementTitle: "Management & Reception",
     management: [
-      { name: "Siany", role: "Reception & Retreat Coordinator", bio: "Coordinating retreats and welcoming guests with warmth and care.", image: "" },
-      { name: "Francesca", role: "Reception", bio: "Creating a warm first impression for every visitor.", image: "" },
+      { name: "Mario", role: "Reception & Retreat Coordinator", bio: "Coordinating retreats and welcoming guests with warmth and care.", image: "" },
+      { name: "Maryeling", role: "Reception", bio: "Creating a warm first impression for every visitor.", image: "" },
       { name: "Alejandra", role: "Reception", bio: "Ensuring every guest feels welcomed and supported.", image: "" },
     ],
   },
