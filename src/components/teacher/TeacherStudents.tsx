@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Loader2, Users, Search, Download, Ticket, UserPlus, Save, Trash2, Check, Copy,
+  Loader2, Users, Search, Download, Ticket, UserPlus, Save, Trash2, Check, Copy, Pencil, Undo2,
 } from "lucide-react";
 import { formatSpaDate } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
@@ -337,7 +337,7 @@ export function TeacherStudents({
                       {pass.status !== "active" && ` · ${pass.status}`}
                     </span>
                   )}
-                  <span className="mt-1 flex items-center gap-2">
+                  <span className="mt-2.5 flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => {
                           setEditing(s);
@@ -348,13 +348,14 @@ export function TeacherStudents({
                           setResult(null);
                           setOpen(true);
                         }}
-                        className="font-body text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-spa-sage/50 bg-spa-sage/15 px-3 py-1.5 font-body text-xs font-semibold text-foreground transition-colors hover:bg-spa-sage hover:text-white [&>svg]:text-spa-sage hover:[&>svg]:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        Edit
+                        <Pencil className="h-3.5 w-3.5" /> Edit
                       </button>
                       {s.bookId && (
                         <button onClick={() => remove(s)}
-                          className="font-body text-[11px] font-semibold uppercase tracking-wider text-destructive hover:underline">
+                          className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 px-3 py-1.5 font-body text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {s.edited ? <Undo2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                           {s.edited ? "Undo changes" : "Remove"}
                         </button>
                       )}
