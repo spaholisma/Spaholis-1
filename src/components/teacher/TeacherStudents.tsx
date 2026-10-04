@@ -23,6 +23,8 @@ interface BookingRow {
 interface BookRow {
   id: string; name: string; email: string | null; phone: string | null;
   client_type: string | null; note: string | null;
+  /** Set when this is her edit of a student who came from a booking. */
+  source_key: string | null;
 }
 interface SoldPass {
   id: string; name_snapshot: string; guest_email: string | null; guest_name: string | null;
@@ -32,9 +34,11 @@ interface Pass { id: string; name: string; price: number | null; classes_include
 interface Student {
   key: string; name: string; email: string; phone: string;
   classes: number; attended: number; last: string | null; type: string | null;
-  /** Set when she added them herself — those can be edited or removed. */
+  /** Her own record of them: someone she added, or her edit of a booked student. */
   bookId?: string;
   note?: string | null;
+  /** She edited a student who came from a booking (the booking is unchanged). */
+  edited?: boolean;
 }
 
 const blank = () => ({ name: "", email: "", phone: "", client_type: "", note: "", passId: "" });
@@ -74,7 +78,7 @@ export function TeacherStudents({
       sb.from("class_bookings")
         .select("id, guest_name, guest_email, guest_phone, status, client_type, attended, class_schedule(start_time, classes(title))")
         .order("created_at", { ascending: false }),
-      sb.from("teacher_students").select("id, name, email, phone, client_type, note")
+      sb.from("teacher_students").select("id, name, email, phone, client_type, note, source_key")
         .eq("teacher_id", teacherId).order("created_at", { ascending: false }),
       sb.from("user_offerings")
         .select("id, name_snapshot, guest_email, guest_name, is_unlimited, credits_remaining, expires_at, status")
@@ -116,8 +120,24 @@ export function TeacherStudents({
       }
     }
 
+    // Her edits of booked students: her version of the details wins, the
+    // bookings stay as they were.
+    for (const b of book) {
+      if (!b.source_key) continue;
+      const cur = map.get(b.source_key);
+      if (!cur) continue;
+      cur.bookId = b.id;
+      cur.edited = true;
+      cur.name = b.name.trim() || cur.name;
+      cur.email = (b.email ?? "").trim().toLowerCase() || cur.email;
+      cur.phone = (b.phone ?? "").trim() || cur.phone;
+      cur.type = b.client_type || cur.type;
+      cur.note = b.note;
+    }
+
     // The ones she wrote down herself, merged onto the same person.
     for (const b of book) {
+      if (b.source_key && map.get(b.source_key)?.bookId === b.id) continue;
       const email = (b.email ?? "").trim().toLowerCase();
       const key = keyOf(email, b.name.trim());
       const cur = map.get(key);
@@ -167,6 +187,16 @@ export function TeacherStudents({
       }).eq("id", editing.bookId);
       if (error) { toast.error(error.message); setSaving(false); return; }
       toast.success("Saved");
+    } else if (editing) {
+      // A student who came from a booking: her edit becomes her own record,
+      // tied to them. The booking itself is not changed.
+      const { error } = await sb.from("teacher_students").insert({
+        teacher_id: teacherId, source_key: editing.key, name,
+        email: draft.email.trim() || null, phone: draft.phone.trim() || null,
+        client_type: draft.client_type || null, note: draft.note.trim() || null,
+      });
+      if (error) { toast.error(error.message); setSaving(false); return; }
+      toast.success("Saved");
     } else {
       const { error } = await sb.from("teacher_students").insert({
         teacher_id: teacherId, name,
@@ -207,13 +237,19 @@ export function TeacherStudents({
 
   const remove = async (s: Student) => {
     if (!s.bookId) return;
-    if (!(await confirm({
-      title: `Remove ${s.name} from your list?`,
-      description: "Their class history stays — only the entry you wrote is removed.",
-      confirmLabel: "Remove", destructive: true,
-    }))) return;
+    if (!(await confirm(s.edited
+      ? {
+          title: `Undo your changes to ${s.name}?`,
+          description: "They go back to the details from their booking.",
+          confirmLabel: "Undo changes", destructive: true,
+        }
+      : {
+          title: `Remove ${s.name} from your list?`,
+          description: "Their class history stays — only the entry you wrote is removed.",
+          confirmLabel: "Remove", destructive: true,
+        }))) return;
     const { error } = await sb.from("teacher_students").delete().eq("id", s.bookId);
-    if (error) toast.error(error.message); else { toast.success("Removed"); load(); }
+    if (error) toast.error(error.message); else { toast.success(s.edited ? "Changes undone" : "Removed"); load(); }
   };
 
   const exportCsv = () => {
@@ -301,8 +337,7 @@ export function TeacherStudents({
                       {pass.status !== "active" && ` · ${pass.status}`}
                     </span>
                   )}
-                  {s.bookId && (
-                    <span className="mt-1 flex items-center gap-2">
+                  <span className="mt-1 flex items-center gap-2">
                       <button
                         onClick={() => {
                           setEditing(s);
@@ -317,12 +352,13 @@ export function TeacherStudents({
                       >
                         Edit
                       </button>
-                      <button onClick={() => remove(s)}
-                        className="font-body text-[11px] font-semibold uppercase tracking-wider text-destructive hover:underline">
-                        Remove
-                      </button>
+                      {s.bookId && (
+                        <button onClick={() => remove(s)}
+                          className="font-body text-[11px] font-semibold uppercase tracking-wider text-destructive hover:underline">
+                          {s.edited ? "Undo changes" : "Remove"}
+                        </button>
+                      )}
                     </span>
-                  )}
                 </div>
                 {s.type && (
                   <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
@@ -372,6 +408,11 @@ export function TeacherStudents({
             </div>
           ) : (
             <div className="space-y-3">
+              {editing && editing.classes > 0 && (
+                <p className="font-body text-[11px] text-muted-foreground">
+                  This changes how they appear in your list. Their bookings stay as they were.
+                </p>
+              )}
               <Input autoFocus placeholder="Name *" value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
