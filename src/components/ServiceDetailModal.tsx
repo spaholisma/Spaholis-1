@@ -1,9 +1,12 @@
+import { Fragment } from "react";
 import { Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Clock, Users, CalendarDays, MapPin, CheckCircle2 } from "lucide-react";
 import type { ServiceRow } from "@/hooks/useServices";
+import { descriptionBlocks, isStructured } from "@/lib/descriptionBlocks";
 
 function durationLabel(mins: number) {
   if (mins >= 480) return "Full Day";
@@ -52,74 +55,147 @@ interface Props {
 }
 
 export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
+  const reduce = useReducedMotion();
   if (!service) return null;
 
   const { main, includes } = extractIncludes(service.description);
+  const blocks = descriptionBlocks(main);
+  const structured = isStructured(blocks);
+  const features = blocks.filter((b) => b.kind === "feature");
+  const fade = (i: number) => (reduce ? {} : {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.45, delay: 0.08 + i * 0.06, ease: [0.16, 1, 0.3, 1] as const },
+  });
+
+  const chips = [
+    { icon: Clock, text: durationLabel(service.duration_minutes) },
+    ...(service.capacity && service.capacity > 1 ? [{ icon: Users, text: `Up to ${service.capacity} people` }] : []),
+    ...(service.sessions > 1 ? [{ icon: CalendarDays, text: `${service.sessions} sessions` }] : []),
+    ...(service.type === "experience" || service.type === "program"
+      ? [{ icon: MapPin, text: "Manuel Antonio, Costa Rica" }] : []),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
-        {/* Image */}
-        {service.image_url && (
-          <div className="aspect-[16/9] w-full overflow-hidden">
-            <img
+        {/* Photo, with the category resting on it */}
+        {service.image_url ? (
+          <div className="relative aspect-[16/9] w-full overflow-hidden">
+            <motion.img
               src={service.image_url}
               alt={service.title}
               className="w-full h-full object-cover"
+              initial={reduce ? false : { scale: 1.08 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
             />
-          </div>
-        )}
-
-        <div className="p-6 sm:p-8 space-y-5">
-          {/* Header */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-body font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+            <div className="absolute left-6 sm:left-8 bottom-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-body font-semibold uppercase tracking-wider text-foreground">
                 {service.category}
               </span>
-              {service.type && service.type !== "treatment" && (
-                <span className="text-[11px] font-body font-semibold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  {service.type}
-                </span>
-              )}
             </div>
-            <DialogTitle className="font-heading text-2xl font-medium text-foreground whitespace-pre-line">
+          </div>
+        ) : null}
+
+        <div className="p-6 sm:p-8 space-y-6">
+          {/* Header */}
+          <motion.div {...fade(0)}>
+            {!service.image_url && (
+              <span className="mb-2 inline-block text-xs font-body font-semibold uppercase tracking-wider text-muted-foreground">
+                {service.category}
+              </span>
+            )}
+            <DialogTitle className="font-heading text-2xl sm:text-3xl font-medium text-foreground whitespace-pre-line">
               {service.title}
             </DialogTitle>
-          </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {chips.map(({ icon: Icon, text }) => (
+                <span key={text} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-body text-foreground/80">
+                  <Icon className="h-3.5 w-3.5 text-spa-sage" />
+                  {text}
+                </span>
+              ))}
+            </div>
+          </motion.div>
 
-          {/* Meta chips */}
-          <div className="flex flex-wrap items-center gap-3 text-sm font-body text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4" />
-              {durationLabel(service.duration_minutes)}
-            </span>
-            {service.capacity && service.capacity > 1 && (
-              <span className="flex items-center gap-1.5">
-                <Users className="h-4 w-4" />
-                Up to {service.capacity} people
-              </span>
-            )}
-            {service.sessions > 1 && (
-              <span className="flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4" />
-                {service.sessions} sessions
-              </span>
-            )}
-            {(service.type === "experience" || service.type === "program") && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" />
-                Manuel Antonio, Costa Rica
-              </span>
-            )}
-          </div>
-
-          {/* Full Description */}
-          <div className="space-y-3">
-            <p className="font-body text-base text-foreground/90 leading-relaxed whitespace-pre-line">
-              {main}
-            </p>
-          </div>
+          {/* Description — laid out when it has highlights, plain text otherwise */}
+          {structured ? (
+            <div className="space-y-6">
+              {blocks.map((b, i) => {
+                if (b.kind === "lead") {
+                  return (
+                    <motion.p key={i} {...fade(1)} className="font-heading text-xl sm:text-2xl leading-snug text-foreground">
+                      {b.text}
+                    </motion.p>
+                  );
+                }
+                if (b.kind === "para") {
+                  return (
+                    <motion.p key={i} {...fade(2)} className="font-body text-base text-foreground/80 leading-relaxed whitespace-pre-line">
+                      {b.text}
+                    </motion.p>
+                  );
+                }
+                if (b.kind === "feature") {
+                  // The highlights sit together in one grid, drawn at the first of them.
+                  if (features[0] !== b) return null;
+                  return (
+                    <div key={i} className="grid gap-3 sm:grid-cols-2">
+                      {features.map((f, j) => f.kind === "feature" && (
+                        <motion.div
+                          key={f.title}
+                          {...fade(3 + j)}
+                          className="group rounded-2xl border border-border bg-card p-4 transition-colors hover:border-spa-sage/50"
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-spa-sage/15 text-xl transition-transform group-hover:scale-110" aria-hidden="true">
+                              {f.icon}
+                            </span>
+                            <h3 className="font-heading text-base font-medium text-foreground leading-tight">{f.title}</h3>
+                          </div>
+                          <p className="font-body text-sm text-muted-foreground leading-relaxed">{f.text}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  );
+                }
+                if (b.kind === "tagline") {
+                  return (
+                    <motion.div key={i} {...fade(8)} className="flex items-center gap-3">
+                      <span className="h-px flex-1 bg-spa-sage/40" />
+                      <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 font-body text-xs font-semibold uppercase tracking-[0.25em] text-spa-sage">
+                        {b.words.map((w, k) => (
+                          <Fragment key={w}>
+                            {k > 0 && <span className="h-1 w-1 rounded-full bg-spa-sage/60" aria-hidden="true" />}
+                            <span>{w}</span>
+                          </Fragment>
+                        ))}
+                      </p>
+                      <span className="h-px flex-1 bg-spa-sage/40" />
+                    </motion.div>
+                  );
+                }
+                return (
+                  <motion.div key={i} {...fade(9)} className="flex flex-wrap gap-2">
+                    {b.items.map((t) => (
+                      <span key={t} className="inline-flex items-center gap-1.5 rounded-full bg-spa-sage/10 px-3 py-1.5 font-body text-xs font-medium text-foreground">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-spa-sage" />
+                        {t}
+                      </span>
+                    ))}
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-body text-base text-foreground/90 leading-relaxed whitespace-pre-line">
+                {main}
+              </p>
+            </div>
+          )}
 
           {/* Long-form rich description (What to Expect / Benefits) */}
           {(service as any).description_rich?.html && (
@@ -149,29 +225,26 @@ export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
               </ul>
             </div>
           )}
+        </div>
 
-          {/* Price & CTA */}
-          <div className="flex items-center justify-between pt-3 border-t border-border">
-            <div>
-              <p className="font-heading text-2xl font-semibold text-foreground">
-                {formatCRCWithUsd(service.price)}
-              </p>
-              {service.type === "experience" && (
-                <p className="text-xs font-body text-muted-foreground">per person · tax included</p>
-              )}
-              {service.type !== "experience" && (
-                <p className="text-xs font-body text-muted-foreground">tax included</p>
-              )}
-            </div>
-            <Button variant="default" size="lg" asChild>
-              <Link
-                to={ctaHref(service)}
-                onClick={() => onOpenChange(false)}
-              >
-                {ctaLabel(service)}
-              </Link>
-            </Button>
+        {/* Price & CTA — stays in view while reading */}
+        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-4 border-t border-border bg-background/95 px-6 sm:px-8 py-4 backdrop-blur">
+          <div>
+            <p className="font-heading text-2xl font-semibold text-foreground leading-none">
+              {formatCRCWithUsd(service.price)}
+            </p>
+            <p className="mt-1 text-xs font-body text-muted-foreground">
+              {service.type === "experience" ? "per person · tax included" : "tax included"}
+            </p>
           </div>
+          <Button variant="default" size="lg" className="rounded-full px-7" asChild>
+            <Link
+              to={ctaHref(service)}
+              onClick={() => onOpenChange(false)}
+            >
+              {ctaLabel(service)}
+            </Link>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,14 @@ const typeLabel: Record<string, string> = {
   workshop: "Workshop",
 };
 
-export function AdminServicesManager() {
+export function AdminServicesManager({
+  editServiceId, onEditorClose,
+}: {
+  /** Open straight on this service's editor (the Retreats panel uses this). */
+  editServiceId?: string;
+  /** Called when that editor is closed. */
+  onEditorClose?: () => void;
+} = {}) {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [packages, setPackages] = useState<LinkedPackage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,12 +120,21 @@ export function AdminServicesManager() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Opened from another panel on one service: go straight to its editor.
+  const openedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editServiceId || loading || openedFor.current === editServiceId) return;
+    const s = services.find((x) => x.id === editServiceId);
+    if (s) { openedFor.current = editServiceId; setEditing(s as unknown as Draft); }
+  }, [editServiceId, loading, services]);
+
   const packageFor = (serviceId?: string) => packages.find((p) => p.service_id && p.service_id === serviceId);
 
   const closeEditor = () => {
     setEditing(null);
     setLang("en");
     setTagRefresh((n) => n + 1);
+    if (onEditorClose) { onEditorClose(); return; }
     load();
   };
 
@@ -231,6 +247,15 @@ export function AdminServicesManager() {
   }
 
   // ─────────────────────────── Editor ───────────────────────────
+  // Opened on one service from elsewhere: nothing else to show here.
+  if (editServiceId && !editing) {
+    return (
+      <div className="py-16 text-center text-sm text-muted-foreground">
+        <Loader2 className="inline h-4 w-4 mr-2 animate-spin" />Loading…
+      </div>
+    );
+  }
+
   if (editing) {
     const isNew = !editing.id;
     const pkg = packageFor(editing.id);
