@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -14,7 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRetreats } from "@/hooks/useRetreats";
 import { useServicesByType, type ServiceRow } from "@/hooks/useServices";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
-import { CalendarDays, Users, MapPin, Clock } from "lucide-react";
+import { CalendarDays, Users, MapPin, Clock, Tent, Leaf, Waves } from "lucide-react";
+import { JourneyCard } from "@/components/retreats/JourneyCard";
 import { cn } from "@/lib/utils";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
 
@@ -35,15 +36,23 @@ export default function RetreatsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const { data: siteContent } = useSiteContent();
   const rt = (siteContent as any)?.retreats || (defaults as any).retreats;
-  const tabs: { key: TabKey; label: string; path: string }[] = [
-    { key: "retreats", label: rt.tabRetreats, path: "retreats.tabRetreats" },
-    { key: "packages", label: rt.tabPackages, path: "retreats.tabPackages" },
-    { key: "experiences", label: rt.tabExperiences, path: "retreats.tabExperiences" },
-  ];
-
   const { data: retreats, isLoading: retreatsLoading } = useRetreats();
   const { data: programs, isLoading: programsLoading } = useServicesByType("program");
   const { data: experiences, isLoading: experiencesLoading } = useServicesByType("experience");
+
+  const tabs: { key: TabKey; label: string; path: string; icon: typeof Tent; count: number }[] = [
+    { key: "retreats", label: rt.tabRetreats, path: "retreats.tabRetreats", icon: Tent, count: retreats?.length ?? 0 },
+    { key: "packages", label: rt.tabPackages, path: "retreats.tabPackages", icon: Leaf, count: programs?.length ?? 0 },
+    { key: "experiences", label: rt.tabExperiences, path: "retreats.tabExperiences", icon: Waves, count: experiences?.length ?? 0 },
+  ];
+  const reduce = useReducedMotion();
+  // Which way the content slides: toward the tab you picked.
+  const [direction, setDirection] = useState(1);
+  const pick = (key: TabKey) => {
+    if (key === activeTab) return;
+    setDirection(tabKeys.indexOf(key) > tabKeys.indexOf(activeTab) ? 1 : -1);
+    setActiveTab(key);
+  };
 
   const isLoading = retreatsLoading || programsLoading || experiencesLoading;
   const [detailService, setDetailService] = useState<ServiceRow | null>(null);
@@ -106,218 +115,148 @@ export default function RetreatsPage() {
           </div>
         </motion.div>
 
-        {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-10 border-b border-border pb-4">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              {...cmsEditProps(tab.path)}
-              onClick={() => {
-                setActiveTab(tab.key);
-                window.scrollTo({ top: 400, behavior: "smooth" });
-              }}
-              className={cn(
-                "px-5 py-2.5 rounded-full font-body text-sm font-medium transition-all",
-                activeTab === tab.key
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Tabs — a pill that slides to the one you pick */}
+        <div className="mb-10">
+          <div role="tablist" aria-label={rt.heroTitle} className="flex w-full flex-col gap-1 rounded-3xl border border-border bg-muted/50 p-1.5 sm:inline-flex sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:rounded-full">
+            {tabs.map((tab) => {
+              const on = activeTab === tab.key;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  role="tab"
+                  aria-selected={on}
+                  {...cmsEditProps(tab.path)}
+                  onClick={() => pick(tab.key)}
+                  className={cn(
+                    "relative inline-flex items-center gap-2 rounded-full px-4 sm:px-5 py-2.5 font-body text-sm font-medium transition-colors text-left",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    on ? "text-background" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {on && (
+                    <motion.span
+                      layoutId="retreats-tab-pill"
+                      className="absolute inset-0 rounded-full bg-foreground shadow-sm"
+                      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                    />
+                  )}
+                  <Icon className="relative h-4 w-4" aria-hidden="true" />
+                  <span className="relative">{tab.label}</span>
+                  {!isLoading && (
+                    <span className={cn(
+                      "relative rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                      on ? "bg-background/20 text-background" : "bg-background text-muted-foreground",
+                    )}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-[420px] rounded-2xl" />
+              <Skeleton key={i} className="h-[420px] rounded-3xl" />
             ))}
           </div>
         ) : (
-          <>
-            {/* Wellness Retreats Tab */}
-            {activeTab === "retreats" && (
-              <motion.div
-                key="retreats"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
+          <AnimatePresence mode="wait" custom={direction} initial={false}>
+            <motion.div
+              key={activeTab}
+              custom={direction}
+              initial={reduce ? false : { opacity: 0, x: direction * 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, x: direction * -40 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {/* Wellness Retreats */}
+              {activeTab === "retreats" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {retreats?.map((retreat) => {
+                  {retreats?.map((retreat, i) => {
                     const startPrice = getStartingPrice(retreat);
                     return (
-                      <motion.div key={retreat.id} {...fadeIn}>
-                        <Link
-                          to={`/retreats/${retreat.slug}`}
-                          className="group block bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow"
-                        >
-                          <div className="aspect-[16/10] overflow-hidden">
-                            <img
-                              src={retreat.image_url || ""}
-                              alt={retreat.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              loading="lazy"
-                            />
-                          </div>
-                          <div className="p-6 space-y-3">
-                            <div className="flex items-center gap-3 text-xs font-body text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <CalendarDays className="h-3.5 w-3.5" />
-                                {retreat.duration_days} {rt.ui?.days}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Users className="h-3.5 w-3.5" />
-                                {rt.ui?.audience}
-                              </span>
-                            </div>
-                            <h2 className="font-heading text-xl font-medium text-foreground group-hover:text-primary transition-colors">
-                              {retreat.title}
-                            </h2>
-                            <p className="spa-body-sm line-clamp-2">
-                              {retreat.short_description}
-                            </p>
-                            <div className="flex items-center justify-between pt-2">
-                              {startPrice && (
-                                <p className="font-heading text-lg font-semibold text-foreground">
-                                  {rt.ui?.from} ${startPrice.toLocaleString()}{" "}
-                                  <span className="text-xs font-body font-normal text-muted-foreground">{rt.ui?.usd}</span>
-                                </p>
-                              )}
-                              <Button variant="default" size="sm">
-                                {rt.ui?.viewRetreat}
-                              </Button>
-                            </div>
-                          </div>
-                        </Link>
-                      </motion.div>
+                      <JourneyCard
+                        key={retreat.id}
+                        index={i}
+                        wide
+                        href={`/retreats/${retreat.slug}`}
+                        image={retreat.image_url}
+                        title={retreat.title}
+                        description={retreat.short_description}
+                        chips={[
+                          { icon: CalendarDays, text: `${retreat.duration_days} ${rt.ui?.days}` },
+                          { icon: Users, text: rt.ui?.audience },
+                        ]}
+                        price={startPrice ? `${rt.ui?.from} $${startPrice.toLocaleString("en-US")}` : null}
+                        priceNote={startPrice ? rt.ui?.usd : undefined}
+                        cta={{ label: rt.ui?.viewRetreat, to: `/retreats/${retreat.slug}` }}
+                      />
                     );
                   })}
                 </div>
-              </motion.div>
-            )}
+              )}
 
-            {/* Wellness Packages Tab */}
-            {activeTab === "packages" && (
-              <motion.div
-                key="packages"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="mb-6 max-w-3xl">
-                  <p {...cmsEditProps("retreats.packagesIntro")} className="spa-body leading-relaxed">
-                    {rt.packagesIntro}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {programs.map((program) => (
-                    <motion.div key={program.id} {...fadeIn}>
-                      <div
-                        onClick={() => setDetailService(program)}
-                        className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col cursor-pointer"
-                      >
-                        {program.image_url && (
-                          <div className="aspect-[16/10] overflow-hidden">
-                            <img
-                              src={program.image_url}
-                              alt={program.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                        )}
-                        <div className="p-6 space-y-3 flex-1 flex flex-col">
-                          <div className="flex items-center gap-2 text-xs font-body text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            {durationLabel(program.duration_minutes)}
-                          </div>
-                          <h2 className="font-heading text-xl font-medium text-foreground">
-                            {program.title}
-                          </h2>
-                          <p className="spa-body-sm line-clamp-3 flex-1">
-                            {program.description}
-                          </p>
-                          <div className="flex items-center justify-between pt-2">
-                            <p className="font-heading text-lg font-semibold text-foreground">
-                              {formatCRCWithUsd(program.price)}
-                            </p>
-                            <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                              <Link to={`/book?service=${program.id}`}>{rt.ui?.requestProgram}</Link>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
+              {/* Wellness Packages */}
+              {activeTab === "packages" && (
+                <>
+                  <div className="mb-6 max-w-3xl">
+                    <p {...cmsEditProps("retreats.packagesIntro")} className="spa-body leading-relaxed">
+                      {rt.packagesIntro}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {programs.map((program, i) => (
+                      <JourneyCard
+                        key={program.id}
+                        index={i}
+                        onOpen={() => setDetailService(program)}
+                        image={program.image_url}
+                        title={program.title}
+                        description={program.description}
+                        chips={[{ icon: Clock, text: durationLabel(program.duration_minutes) }]}
+                        price={formatCRCWithUsd(program.price)}
+                        cta={{ label: rt.ui?.requestProgram, to: `/book?service=${program.id}` }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
 
-            {/* Manuel Antonio Experiences Tab */}
-            {activeTab === "experiences" && (
-              <motion.div
-                key="experiences"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="mb-6 max-w-3xl">
-                  <p {...cmsEditProps("retreats.experiencesIntro")} className="spa-body leading-relaxed">
-                    {rt.experiencesIntro}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {experiences.map((exp) => (
-                    <motion.div key={exp.id} {...fadeIn}>
-                      <div
-                        onClick={() => setDetailService(exp)}
-                        className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col cursor-pointer"
-                      >
-                        {exp.image_url && (
-                          <div className="aspect-[16/10] overflow-hidden">
-                            <img
-                              src={exp.image_url}
-                              alt={exp.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                        )}
-                        <div className="p-6 space-y-3 flex-1 flex flex-col">
-                          <div className="flex items-center gap-3 text-xs font-body text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <CalendarDays className="h-3.5 w-3.5" />
-                              {rt.ui?.fullDay}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3.5 w-3.5" />
-                              {exp.capacity ? `${rt.ui?.upTo} ${exp.capacity}` : rt.ui?.soloGroups}
-                            </span>
-                          </div>
-                          <h2 className="font-heading text-xl font-medium text-foreground">
-                            {exp.title}
-                          </h2>
-                          <p className="spa-body-sm line-clamp-3 flex-1">
-                            {exp.description}
-                          </p>
-                          <div className="flex items-center justify-between pt-2">
-                            <p className="font-heading text-lg font-semibold text-foreground">
-                              {formatCRCWithUsd(exp.price)} <span className="text-xs font-body font-normal text-muted-foreground">{rt.ui?.perPerson}</span>
-                            </p>
-                            <Button variant="default" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                              <Link to={`/experience-booking?experience=${exp.id}`}>{rt.ui?.bookExperience}</Link>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </>
+              {/* Manuel Antonio Experiences */}
+              {activeTab === "experiences" && (
+                <>
+                  <div className="mb-6 max-w-3xl">
+                    <p {...cmsEditProps("retreats.experiencesIntro")} className="spa-body leading-relaxed">
+                      {rt.experiencesIntro}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {experiences.map((exp, i) => (
+                      <JourneyCard
+                        key={exp.id}
+                        index={i}
+                        onOpen={() => setDetailService(exp)}
+                        image={exp.image_url}
+                        title={exp.title}
+                        description={exp.description}
+                        chips={[
+                          { icon: CalendarDays, text: rt.ui?.fullDay },
+                          { icon: Users, text: exp.capacity ? `${rt.ui?.upTo} ${exp.capacity}` : rt.ui?.soloGroups },
+                        ]}
+                        price={formatCRCWithUsd(exp.price)}
+                        priceNote={rt.ui?.perPerson}
+                        cta={{ label: rt.ui?.bookExperience, to: `/experience-booking?experience=${exp.id}` }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
         )}
 
         {/* Custom retreat CTA */}
