@@ -28,6 +28,7 @@ const steps = ["Select Date", "Choose Time", "Your Details", "Confirmation"];
 const MIN_GUESTS_BY_SERVICE_ID: Record<string, number> = {
   "fcc474e2-d2bf-468d-8b59-3101cf26506b": 4, // Friends & Family Experience — min 4 people
   "d7146894-6875-4193-a1c0-d17f020b2279": 2, // Share the Moment — min 2 (couples)
+  "9b3d99d5-3f0a-4189-9f79-482fcc9d8343": 4, // Private Ocean & Wellness Experience — min 4 ($1,280)
 };
 
 // Optional label appended after guest count, e.g. "2 guests (couples)".
