@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   ArrowDown, ArrowUp, CalendarDays, ExternalLink, Image as ImageIcon, Loader2, Mail, Phone, Plus, Tent, Trash2, Users, X,
+  Waves, Leaf,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,22 @@ import {
 } from "@/lib/adminRetreats";
 import { GalleryEditor } from "./GalleryEditor";
 import { MediaPickerDialog } from "./MediaLibrary";
+import { AdminServicesManager } from "./AdminServicesManager";
+import { serviceWebsitePath } from "@/lib/adminServices";
+
+/** A Wellness Package or a Manuel Antonio Experience (a row of `services`). */
+interface RetreatService {
+  id: string; title: string; type: string; category: string; price: number;
+  duration_minutes: number; capacity: number | null; image_url: string | null;
+  is_active: boolean; is_addon: boolean; sort_order: number | null;
+  description_es: string | null;
+}
+
+/** The three tabs of the Retreats page, in the same order. */
+const SERVICE_GROUPS = [
+  { type: "program", title: "Wellness Packages", hint: "The \"Wellness Packages\" tab of the Retreats page.", icon: Leaf },
+  { type: "experience", title: "Manuel Antonio Experiences", hint: "The \"Manuel Antonio Experiences\" tab — full-day experiences booked online.", icon: Waves },
+] as const;
 
 interface Inquiry {
   id: string;
@@ -65,14 +82,21 @@ export function AdminRetreatsManager() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<RetreatDraft | null>(null);
   const [original, setOriginal] = useState("");
+  // The packages and experiences shown on the Retreats page (rows of `services`).
+  const [offers, setOffers] = useState<RetreatService[]>([]);
+  const [serviceEdit, setServiceEdit] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [{ data, error }, { data: inq }] = await Promise.all([
+    const [{ data, error }, { data: inq }, { data: svc }] = await Promise.all([
       supabase.from("retreats").select("*").order("sort_order"),
       inquiriesTable().select("*").order("created_at", { ascending: false }),
+      supabase.from("services")
+        .select("id, title, type, category, price, duration_minutes, capacity, image_url, is_active, is_addon, sort_order, description_es")
+        .in("type", ["program", "experience"]).order("sort_order"),
     ]);
     if (error) toast.error(error.message);
     setRetreats(((data as any[]) ?? []).map(toRetreatDraft));
+    setOffers((svc as unknown as RetreatService[]) ?? []);
     setInquiries((inq as Inquiry[]) ?? []);
     setLoading(false);
   }, []);
@@ -91,7 +115,20 @@ export function AdminRetreatsManager() {
     toast.success(active ? `"${r.title}" is visible on the website` : `"${r.title}" is hidden from the website`);
   };
 
+  const setOfferActive = async (s: RetreatService, active: boolean) => {
+    setOffers((list) => list.map((x) => (x.id === s.id ? { ...x, is_active: active } : x)));
+    const { error } = await supabase.from("services").update({ is_active: active }).eq("id", s.id);
+    if (error) { toast.error(error.message); load(); return; }
+    toast.success(active ? `"${s.title}" is visible on the website` : `"${s.title}" is hidden from the website`);
+  };
+
   const newCount = inquiries.filter((i) => i.status === "new").length;
+  const totalOnPage = retreats.length + offers.length;
+
+  // A package or experience: the same editor as in Services, opened right here.
+  if (serviceEdit) {
+    return <AdminServicesManager editServiceId={serviceEdit} onEditorClose={() => { setServiceEdit(null); load(); }} />;
+  }
 
   if (editing) {
     return (
@@ -110,7 +147,7 @@ export function AdminRetreatsManager() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {([
-          ["retreats", `Retreats (${retreats.length})`],
+          ["retreats", `Retreats (${totalOnPage})`],
           ["inquiries", "Inquiries"],
         ] as const).map(([id, label]) => (
           <button
@@ -130,12 +167,13 @@ export function AdminRetreatsManager() {
       </div>
 
       {view === "retreats" ? (
+        <div className="space-y-4">
         <div className="bg-card rounded-2xl border border-border">
           <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-heading text-lg font-medium text-foreground">Retreats</h3>
               <p className="font-body text-xs text-muted-foreground">
-                The multi-day retreats on the Retreats page. Wellness Programs and Manuel Antonio Experiences are edited in <strong>Services</strong>.
+                The multi-day retreats — the "Wellness Retreats" tab of the Retreats page.
               </p>
             </div>
             <Button size="sm" onClick={() => open(newRetreatDraft((retreats.at(-1)?.sort_order ?? 0) + 1))}>
@@ -183,6 +221,62 @@ export function AdminRetreatsManager() {
               })
             )}
           </div>
+        </div>
+
+        {/* The other two tabs of the Retreats page. */}
+        {SERVICE_GROUPS.map((g) => {
+          const rows = offers.filter((s) => s.type === g.type);
+          const Icon = g.icon;
+          return (
+            <div key={g.type} className="bg-card rounded-2xl border border-border">
+              <div className="p-5 border-b border-border">
+                <h3 className="font-heading text-lg font-medium text-foreground">{g.title} ({rows.length})</h3>
+                <p className="font-body text-xs text-muted-foreground">{g.hint}</p>
+              </div>
+              <div className="divide-y divide-border">
+                {loading ? (
+                  <p className="p-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 mr-2 animate-spin" />Loading…</p>
+                ) : rows.length === 0 ? (
+                  <p className="p-8 text-center text-sm text-muted-foreground">None yet — add them in Services.</p>
+                ) : rows.map((s) => {
+                  const website = serviceWebsitePath(s as any);
+                  const hours = s.duration_minutes >= 480 ? "Full day" : `${Math.round((s.duration_minutes / 60) * 10) / 10}h`;
+                  return (
+                    <div key={s.id} className={cn("flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors", !s.is_active && "opacity-70")}>
+                      <button onClick={() => setServiceEdit(s.id)} className="shrink-0" aria-label={`Edit ${s.title}`}>
+                        {s.image_url ? (
+                          <img src={s.image_url} alt="" className="w-24 h-16 rounded-lg object-cover" />
+                        ) : (
+                          <div className="w-24 h-16 rounded-lg bg-muted flex items-center justify-center"><Icon className="h-5 w-5 text-muted-foreground" /></div>
+                        )}
+                      </button>
+                      <button onClick={() => setServiceEdit(s.id)} className="flex-1 min-w-0 text-left">
+                        <p className="font-body text-sm font-medium text-foreground truncate">{s.title}</p>
+                        <p className="font-body text-xs text-muted-foreground">
+                          {usd(Number(s.price))}{g.type === "experience" ? " per person" : ""} · {hours}
+                          {s.capacity ? ` · up to ${s.capacity}` : ""}
+                        </p>
+                        {!s.description_es && (
+                          <p className="font-body text-[11px] text-muted-foreground mt-0.5">Spanish description not added yet (English is shown)</p>
+                        )}
+                      </button>
+                      <label className="hidden sm:flex items-center gap-2 text-xs font-body text-muted-foreground">
+                        <Switch checked={s.is_active} onCheckedChange={(v) => setOfferActive(s, v)} aria-label={`Show ${s.title} on the website`} />
+                        <span className="w-12">{s.is_active ? "On" : "Hidden"}</span>
+                      </label>
+                      {s.is_active && website ? (
+                        <a href={website} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-muted rounded-lg" title="View on website">
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        </a>
+                      ) : <span className="w-8" />}
+                      <Button variant="outline" size="sm" onClick={() => setServiceEdit(s.id)}>Edit</Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
         </div>
       ) : (
         <InquiriesPanel inquiries={inquiries} onChanged={load} />
