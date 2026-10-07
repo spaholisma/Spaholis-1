@@ -11,8 +11,9 @@ const MAX_WAIT_MS = 1500;
 
 /**
  * /go/<slug> — the page a partner's QR code opens. Counts the scan in Google
- * Analytics (`partner_qr_scan`), then goes straight on to WhatsApp. If the
- * phone doesn't follow the redirect, the button does the same.
+ * Analytics (`partner_qr_scan`), then goes straight on to WhatsApp (or to the
+ * Google "write a review" form). If the phone doesn't follow the redirect, the
+ * button does the same.
  */
 const PartnerRedirect = () => {
   const { slug = "" } = useParams();
@@ -47,6 +48,7 @@ const PartnerRedirect = () => {
   }, [link]);
 
   if (!link) return <NotFound />;
+  const reviews = link.destination === "google_reviews";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -56,12 +58,16 @@ const PartnerRedirect = () => {
           className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
           aria-hidden="true"
         />
-        <p className="mb-6 font-heading text-xl text-foreground">Connecting you with Holis Wellness Center...</p>
+        <p className="mb-6 font-heading text-xl text-foreground">
+          {reviews
+            ? "Thank you for sharing your experience with Holis Wellness Center."
+            : "Connecting you with Holis Wellness Center..."}
+        </p>
         <a
           href={partnerDestinationUrl(link)}
           className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 font-body text-sm font-medium text-primary-foreground hover:opacity-90"
         >
-          Continue to WhatsApp
+          {reviews ? "Leave a Google Review" : "Continue to WhatsApp"}
         </a>
       </div>
     </div>
