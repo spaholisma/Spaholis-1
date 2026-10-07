@@ -11,9 +11,11 @@ export type PartnerLink = {
   /** Which of the partner's places the QR hangs in (e.g. one Escape Villas house). */
   property?: string;
   placement: string;
-  destination: "whatsapp";
-  /** Message already typed in WhatsApp when the chat opens. */
-  message: string;
+  destination: "whatsapp" | "google_reviews";
+  /** WhatsApp: the message already typed when the chat opens. */
+  message?: string;
+  /** Google Reviews: the direct "write a review" link. */
+  url?: string;
 };
 
 /** Escape Villas houses. "Rising and the 2 Tango Houses" is ONE property. */
@@ -124,6 +126,30 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I discovered Holis Wellness Center through Rising Sun and would like more information about your wellness experiences. 🌿",
   },
+  cocos: {
+    partner: "cocos",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Cocos and would like more information about your wellness experiences. 🌿",
+  },
+  lambretta: {
+    partner: "lambretta",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I discovered Holis Wellness Center through Lambretta and would like more information about your wellness experiences. 🌿",
+  },
+  // Holis' own general QR (flyers, the front desk…) — no partner behind it.
+  whatsapp: {
+    partner: "holis_general",
+    placement: "printed_material",
+    destination: "whatsapp",
+    message:
+      "Hello! I would like more information about the wellness experiences available at Holis Wellness Center. 🌿",
+  },
+  // "google-reviews" (partner holis_general, destination google_reviews) is added
+  // once the direct write-a-review link has been given and checked.
   "casa-contee": {
     partner: "casa_contee",
     placement: "printed_material",
@@ -145,7 +171,8 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
 };
 
 // api.whatsapp.com rather than wa.me: wa.me's own redirect turns emoji (the
-// 🌿 at the end of the message) into "�"; this address keeps them.
+// 🌿 at the end of the message) into "�"; this address keeps them. Same number.
 export function partnerDestinationUrl(link: PartnerLink): string {
-  return `https://api.whatsapp.com/send?phone=${HOLIS_WHATSAPP_NUMBER}&text=${encodeURIComponent(link.message)}`;
+  if (link.destination === "google_reviews") return link.url ?? "";
+  return `https://api.whatsapp.com/send?phone=${HOLIS_WHATSAPP_NUMBER}&text=${encodeURIComponent(link.message ?? "")}`;
 }

@@ -281,22 +281,67 @@ describe("the general MAV Rentals link", () => {
   });
 });
 
+describe("Cocos, Lambretta and the general Holis WhatsApp QR", () => {
+  const cases: [string, string, string][] = [
+    ["cocos", "cocos", "Hello! I discovered Holis Wellness Center through Cocos and would like more information about your wellness experiences. 🌿"],
+    ["lambretta", "lambretta", "Hello! I discovered Holis Wellness Center through Lambretta and would like more information about your wellness experiences. 🌿"],
+    ["whatsapp", "holis_general", "Hello! I would like more information about the wellness experiences available at Holis Wellness Center. 🌿"],
+  ];
+  for (const [slug, partner, message] of cases) {
+    it(`/go/${slug} counts as ${partner} and opens the Holis WhatsApp with its message`, () => {
+      const link = PARTNER_LINKS[slug];
+      expect(link).toEqual({ partner, placement: "printed_material", destination: "whatsapp", message });
+      const url = new URL(partnerDestinationUrl(link));
+      expect(url.searchParams.get("phone")).toBe("50688146760");
+      expect(url.searchParams.get("text")).toBe(message);
+      expect(partnerDestinationUrl(link)).toMatch(/%20%F0%9F%8C%BF$/);
+    });
+  }
+
+  it("Emilio's Café is still there once, unchanged", () => {
+    expect(Object.keys(PARTNER_LINKS).filter((s) => s.includes("emilio"))).toEqual(["emilios-cafe"]);
+  });
+});
+
+describe("Google Reviews QR", () => {
+  it("is not published until the direct write-a-review link is given", () => {
+    expect(PARTNER_LINKS["google-reviews"]).toBeUndefined();
+  });
+
+  it("when it is, the page goes straight to that link", () => {
+    const link = { partner: "holis_general", placement: "printed_material", destination: "google_reviews" as const, url: "https://g.page/r/example/review" };
+    expect(partnerDestinationUrl(link)).toBe("https://g.page/r/example/review");
+  });
+
+  it("its page thanks them and offers the button", () => {
+    const page = read("src/pages/PartnerRedirect.tsx");
+    expect(page).toMatch(/Thank you for sharing your experience with Holis Wellness Center\./);
+    expect(page).toMatch(/Leave a Google Review/);
+  });
+});
+
 describe("every partner link", () => {
   const all = Object.entries(PARTNER_LINKS);
 
   it("has a url-safe slug, its own Analytics name, and opens the Holis WhatsApp", () => {
-    const names = all.map(([, l]) => `${l.partner}/${l.property ?? ""}`);
+    // holis_general has two QRs (WhatsApp, Google Reviews): told apart by destination.
+    const names = all.map(([, l]) => `${l.partner}/${l.property ?? ""}/${l.destination}`);
     expect(new Set(names).size).toBe(names.length);
     for (const [slug, link] of all) {
       expect(slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       expect(link.partner).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
       if (link.property !== undefined) expect(link.property).toMatch(/^[a-z0-9]+(_[a-z0-9]+)*$/);
-      expect(link).toMatchObject({ placement: "printed_material", destination: "whatsapp" });
+      expect(link.placement).toBe("printed_material");
+      if (link.destination === "google_reviews") {
+        expect(link.url).toMatch(/^https:\/\//);
+        continue;
+      }
+      expect(link.destination).toBe("whatsapp");
       const url = new URL(partnerDestinationUrl(link));
       expect(`${url.origin}${url.pathname}`).toBe("https://api.whatsapp.com/send");
       expect(url.searchParams.get("phone")).toBe("50688146760");
       expect(url.searchParams.get("text")).toBe(link.message);
-      expect(link.message.endsWith(" 🌿")).toBe(true);
+      expect(link.message!.endsWith(" 🌿")).toBe(true);
     }
   });
 });
