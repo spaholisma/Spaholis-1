@@ -304,8 +304,18 @@ describe("Cocos, Lambretta and the general Holis WhatsApp QR", () => {
 });
 
 describe("Google Reviews QR", () => {
-  it("is not published until the direct write-a-review link is given", () => {
-    expect(PARTNER_LINKS["google-reviews"]).toBeUndefined();
+  it("/go/google-reviews counts as holis_general and opens the write-a-review form", () => {
+    const link = PARTNER_LINKS["google-reviews"];
+    expect(link).toEqual({
+      partner: "holis_general", placement: "printed_material", destination: "google_reviews",
+      url: "https://g.page/r/CW74D3rqtfooEAI/review",
+    });
+    expect(partnerDestinationUrl(link)).toBe("https://g.page/r/CW74D3rqtfooEAI/review");
+  });
+
+  it("the general WhatsApp QR and the reviews QR are both holis_general, one each", () => {
+    const general = Object.values(PARTNER_LINKS).filter((l) => l.partner === "holis_general");
+    expect(general.map((l) => l.destination).sort()).toEqual(["google_reviews", "whatsapp"]);
   });
 
   it("when it is, the page goes straight to that link", () => {

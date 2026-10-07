@@ -148,8 +148,14 @@ export const PARTNER_LINKS: Record<string, PartnerLink> = {
     message:
       "Hello! I would like more information about the wellness experiences available at Holis Wellness Center. 🌿",
   },
-  // "google-reviews" (partner holis_general, destination google_reviews) is added
-  // once the direct write-a-review link has been given and checked.
+  // Holis' QR for reviews: straight to Google's "write a review" form for
+  // Holis Wellness Center (checked: same place id as the Maps listing).
+  "google-reviews": {
+    partner: "holis_general",
+    placement: "printed_material",
+    destination: "google_reviews",
+    url: "https://g.page/r/CW74D3rqtfooEAI/review",
+  },
   "casa-contee": {
     partner: "casa_contee",
     placement: "printed_material",
