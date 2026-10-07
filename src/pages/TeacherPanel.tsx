@@ -15,7 +15,7 @@ import {
   CalendarDays, Users, Wallet, Loader2, ChevronLeft, ChevronRight,
   Save, CreditCard, ShieldAlert, UserPlus, Ticket, Plus, Trash2, Ban, Undo2,
   NotebookPen, Settings as SettingsIcon, CalendarRange, ListChecks, BadgeCheck, HandCoins,
-  ClipboardList, HeartHandshake,
+  ClipboardList, HeartHandshake, Sparkles,
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths, addDays, subDays, parseISO, isSameMonth,
@@ -37,6 +37,7 @@ import { TeacherMembers } from "@/components/teacher/TeacherMembers";
 import { TeacherPrivateClasses } from "@/components/teacher/TeacherPrivateClasses";
 import { useConfirm } from "@/hooks/useConfirm";
 import { TeacherPaymentMethods } from "@/components/teacher/TeacherPaymentMethods";
+import { TeacherEvents } from "@/components/teacher/TeacherEvents";
 
 const sb = supabase as any;
 const usd = (n: number) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -69,6 +70,7 @@ const TABS = [
   { value: "calendar", label: "Calendar", icon: CalendarRange },
   { value: "classes", label: "My classes", icon: ListChecks },
   { value: "record", label: "My month", icon: ClipboardList },
+  { value: "events", label: "Events", icon: Sparkles },
   { value: "private", label: "Private classes", icon: HeartHandshake },
   { value: "students", label: "Students", icon: Users },
   { value: "notes", label: "Notebook", icon: NotebookPen },
@@ -668,6 +670,11 @@ export default function TeacherPanel() {
                 )}
 
                 {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}
+
+                {/* ── Events: her workshops and special events ── */}
+                {tab === "events" && teacher && (
+                  <TeacherEvents teacherId={teacher.id} teacherName={teacher.display_name} />
+                )}
 
                 {tab === "memberships" && teacher && (
                   <div className="space-y-4">
