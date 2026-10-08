@@ -65,7 +65,10 @@ export function usePrivateOfferings() {
         price_group: num(o.price_group), price_extra: num(o.price_extra),
       }));
     },
-    staleTime: 60_000,
+    // Always asked again when a page opens or the tab comes back, so a class a
+    // teacher just added shows without refreshing the site.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
 

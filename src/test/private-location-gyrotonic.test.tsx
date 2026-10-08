@@ -209,3 +209,29 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     expect(read("src/App.tsx")).toMatch(/\{ path: "\/teachers\/:slug", element: <TeacherProfile \/> \}/);
   });
 });
+
+describe("4. A teacher's change shows on the website without refreshing", () => {
+  it("the private classes are read again when a page opens — not kept from earlier", async () => {
+    const { usePrivateOfferings } = await import("@/lib/privateOfferings");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Probe = () => {
+      const { data = [] } = usePrivateOfferings();
+      return <p>{data.map((o) => o.title).join(", ") || "none"}</p>;
+    };
+    db.rpc = { ...db.rpc, public_private_offerings: [] };
+    const first = render(<QueryClientProvider client={client}><Probe /></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByText("none")).toBeTruthy());
+    first.unmount();
+    // She adds one in her panel; the guest opens the request page a moment later.
+    db.rpc = { ...db.rpc, public_private_offerings: [offering({ title: "Cardio Vascular Breathwork" })] };
+    render(<QueryClientProvider client={client}><Probe /></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByText("Cardio Vascular Breathwork")).toBeTruthy());
+  });
+
+  it("saving in her panel refreshes what the website shows, and the other teacher lists stay fresh", () => {
+    const ed = read("src/components/teacher/TeacherPrivateOfferingsEditor.tsx");
+    expect(ed).toMatch(/queryClient\.invalidateQueries\(\{ queryKey: \["public-private-offerings"\] \}\)/);
+    expect(read("src/lib/privateOfferings.ts")).toMatch(/staleTime: 0,\s+refetchOnWindowFocus: true,/);
+    expect(read("src/components/TeacherPortfolios.tsx").match(/staleTime: 0/g)).toHaveLength(2);
+  });
+});

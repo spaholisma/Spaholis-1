@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,13 +58,16 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
+  const queryClient = useQueryClient();
 
   const load = useCallback(async () => {
     const { data, error } = await sb.from("teacher_private_offerings")
       .select("*").eq("teacher_id", teacherId).order("sort_order").order("created_at");
     if (error) { toast.error(error.message); setRows([]); return; }
     setRows((data ?? []) as Row[]);
-  }, [teacherId]);
+    // What the website shows is read again too: her change is on the site at once.
+    queryClient.invalidateQueries({ queryKey: ["public-private-offerings"] });
+  }, [teacherId, queryClient]);
 
   useEffect(() => { load(); }, [load]);
 

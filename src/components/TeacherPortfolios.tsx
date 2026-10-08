@@ -66,7 +66,8 @@ export function usePublicTeachers() {
       if (error) throw error;
       return (data ?? []) as TeacherRow[];
     },
-    staleTime: 60_000,
+    staleTime: 0, // fresh on every page: a teacher's change shows at once
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -79,7 +80,8 @@ function useTeacherPasses() {
       if (error) throw error;
       return (data ?? []) as Pass[];
     },
-    staleTime: 60_000,
+    staleTime: 0, // fresh on every page: a teacher's change shows at once
+    refetchOnWindowFocus: true,
   });
 }
 
