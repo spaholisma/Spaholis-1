@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { formatCRCWithUsd } from "@/lib/currency";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, Users, CalendarDays, MapPin, CheckCircle2 } from "lucide-react";
 import type { ServiceRow } from "@/hooks/useServices";
 import { descriptionBlocks, isStructured } from "@/lib/descriptionBlocks";
+import { trackViewService } from "@/lib/analytics";
 
 function durationLabel(mins: number) {
   if (mins >= 480) return "Full Day";
@@ -56,6 +57,15 @@ interface Props {
 
 export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
   const reduce = useReducedMotion();
+  // Counted each time the window opens on a service.
+  useEffect(() => {
+    if (!open || !service) return;
+    trackViewService({
+      booking_type: service.type === "experience" ? "experience" : service.type === "program" ? "retreat" : "treatment",
+      item_id: service.id, item_name: service.title, item_category: service.category, value: Number(service.price ?? 0),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, service?.id]);
   if (!service) return null;
 
   const { main, includes } = extractIncludes(service.description);

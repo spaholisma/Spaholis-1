@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { SEO } from "@/components/SEO";
 import NotFound from "@/pages/NotFound";
 import { PARTNER_LINKS, partnerDestinationUrl } from "@/data/partnerLinks";
-import { loadGtag } from "@/lib/analytics";
+import { startAnalytics, trackPageView } from "@/lib/analytics";
 
 // How long to wait for Google Analytics before leaving anyway (ad blockers,
 // slow networks) — the visitor must never be stuck here.
@@ -30,9 +30,12 @@ const PartnerRedirect = () => {
       gone = true;
       window.location.replace(url);
     };
+    // Cookie-free unless the visitor already accepted analytics (see lib/analytics).
+    if (!startAnalytics({ cookieless: true }) || !window.gtag) { go(); return; }
     const timer = window.setTimeout(go, MAX_WAIT_MS);
     try {
-      loadGtag()("event", "partner_qr_scan", {
+      trackPageView();
+      window.gtag("event", "partner_qr_scan", {
         partner: link.partner,
         ...(link.property ? { property: link.property } : {}),
         placement: link.placement,

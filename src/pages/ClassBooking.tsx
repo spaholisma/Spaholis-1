@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { trackBeginBooking, trackBookingComplete } from "@/lib/analytics";
 import { formatCRC, formatPrice } from "@/lib/currency";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -64,6 +65,8 @@ const ClassBookingPage = () => {
   const tokenOffering = tokenQuery.data ?? null;
 
   const [step, setStep] = useState(0);
+  // begin_booking is sent once per visit to this page.
+  const beganRef = useRef(false);
   // Out of the form: back to the class the guest was reading, else to Classes.
   const leaveFlow = useLeaveFlow("/classes");
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
@@ -259,9 +262,18 @@ const ClassBookingPage = () => {
     return rows[0].id as string;
   };
 
+  // What every class event says about the class (never who is booking).
+  const classItem = () => ({
+    booking_type: "class" as const, item_id: cls?.id, item_name: cls?.title,
+    item_category: cls?.category, quantity,
+  });
   const handleNext = async () => {
     if (submitting) return; // guard against double-submit (free/direct booking path)
     if (step === 0 && canProceed) {
+      if (!beganRef.current) {
+        beganRef.current = true;
+        trackBeginBooking({ ...classItem(), value: Number(cls?.price ?? 0) * quantity });
+      }
       if (!needsPayment) {
         setSubmitting(true);
         try {
@@ -271,6 +283,7 @@ const ClassBookingPage = () => {
             .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
             .catch((e) => console.error("[class-booking] notify failed", e));
           toast.success(multi ? `Booked ${quantity} spots!` : t("booking.classBookedSuccess"));
+          trackBookingComplete({ ...classItem(), transaction_id: bookingId, value: 0, payment_method: "free", payment_status: "confirmed" });
           setBookingComplete(true);
           setStep(steps.length - 1);
         } catch (err: any) {
@@ -368,6 +381,9 @@ const ClassBookingPage = () => {
 
       // total was $0 (100% coupon): server already confirmed + emailed.
       toast.success(t("booking.classBookedSuccess"));
+      if (data.bookingId) {
+        trackBookingComplete({ ...classItem(), transaction_id: data.bookingId, value: 0, payment_method: "coupon", payment_status: "confirmed" });
+      }
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
@@ -402,6 +418,7 @@ const ClassBookingPage = () => {
         .invoke("send-booking-notification", { body: { classBookingId: bookingId } })
         .catch((e) => console.error("[class-booking] notify failed", e));
       toast.success(payMethod === "membership" ? t("booking.bookedWithMembership") : t("booking.bookedWithCredit"));
+      trackBookingComplete({ ...classItem(), transaction_id: bookingId, value: 0, payment_method: payMethod, payment_status: "confirmed" });
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
@@ -434,6 +451,7 @@ const ClassBookingPage = () => {
         .catch((e) => console.error("[class-booking] notify failed", e));
       tokenQuery.refetch();
       toast.success(tokenMethod === "membership" ? t("booking.bookedWithMembership") : t("booking.bookedWithCredit"));
+      trackBookingComplete({ ...classItem(), transaction_id: bookingId, value: 0, payment_method: tokenMethod, payment_status: "confirmed" });
       setBookingComplete(true);
       setStep(steps.length - 1);
     } catch (err: any) {
@@ -888,7 +906,15 @@ const ClassBookingPage = () => {
                               ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: appliedCoupon?.code ?? null, quantity, participant_names: participantNames }
                               : null
                           }
-                          onSuccess={() => {
+                          onSuccess={(res: any) => {
+                            // Called only after paypal-capture-order verified the payment on our server.
+                            if (res?.bookingId) {
+                              trackBookingComplete({
+                                ...classItem(), transaction_id: res.bookingId,
+                                value: cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0),
+                                payment_method: "paypal", payment_status: "paid",
+                              });
+                            }
                             toast.success(multi ? `Booked ${quantity} spots!` : t("booking.classBookedSuccess"));
                             setBookingComplete(true);
                             setStep(steps.length - 1);

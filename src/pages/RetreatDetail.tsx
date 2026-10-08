@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { trackViewService } from "@/lib/analytics";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -257,6 +258,9 @@ export default function RetreatDetailPage() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const { data: retreat, isLoading } = useRetreatBySlug(slug);
+  useEffect(() => {
+    if (retreat) trackViewService({ booking_type: "retreat", item_id: retreat.id, item_name: retreat.title, item_category: "Wellness Retreats" });
+  }, [retreat?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [activeTab, setActiveTab] = useState<"overview" | "itinerary" | "pricing">("overview");
 
   if (isLoading) {

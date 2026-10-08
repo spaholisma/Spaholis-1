@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { HOLIS_WHATSAPP_URL } from "@/lib/whatsapp";
+import { trackBookingComplete } from "@/lib/analytics";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
@@ -126,8 +127,18 @@ const BookingReturn = () => {
   // so a failed customer can still trigger the retry CTA below.
   useEffect(() => {
     if (finalStatus === "paid") {
+      // "paid" comes from finalize-booking / finalize-class-booking checking the
+      // payment on our server — coming back to this page alone proves nothing.
+      if (pending.bookingId) {
+        trackBookingComplete({
+          transaction_id: pending.bookingId, booking_type: pending.type === "class" ? "class" : "treatment",
+          item_name: pending.serviceTitle, value: Number(pending.amount ?? 0),
+          payment_method: "bac_compraclick", payment_status: "paid",
+        });
+      }
       try { sessionStorage.removeItem("holis:pending_booking"); } catch {}
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finalStatus]);
 
   const handleRetry = async () => {

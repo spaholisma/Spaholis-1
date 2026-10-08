@@ -112,6 +112,8 @@ const PageFallback = () => <div className="min-h-screen bg-background" aria-busy
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { PromoPopup } from "./components/PromoPopup";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { AnalyticsTracker } from "./components/AnalyticsTracker";
+import { ConsentBanner } from "./components/ConsentBanner";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
 const queryClient = new QueryClient();
@@ -193,6 +195,8 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
           <ScrollToTop />
+          <AnalyticsTracker />
+          <ConsentBanner />
           <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />

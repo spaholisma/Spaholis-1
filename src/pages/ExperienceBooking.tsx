@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { trackBeginBooking, trackBookingComplete } from "@/lib/analytics";
 import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +49,7 @@ export default function ExperienceBooking() {
   const guestSuffix = experienceId ? GUEST_LABEL_SUFFIX[experienceId] : undefined;
 
   const [step, setStep] = useState(0);
+  const beganRef = useRef(false);
   const leaveFlow = useLeaveFlow("/retreats?tab=experiences");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<DynamicExpSlot | null>(null);
@@ -98,7 +100,7 @@ export default function ExperienceBooking() {
         defaultCapacity
       );
 
-      await bookMutation.mutateAsync({
+      const saved = await bookMutation.mutateAsync({
         availability_id: availId,
         guest_name: form.name,
         guest_email: form.email,
@@ -124,6 +126,14 @@ export default function ExperienceBooking() {
         });
       } catch {}
 
+      // Saved as confirmed; it is paid later, so a booking — not revenue.
+      if (saved?.id) {
+        trackBookingComplete({
+          transaction_id: saved.id, booking_type: "experience", item_id: experience.id,
+          item_name: experience.title, item_category: experience.category, value: experience.price * guests,
+          quantity: guests, payment_method: "pay_later", payment_status: "confirmed",
+        });
+      }
       setSubmitted(true);
     } catch (err: any) {
       toast.error(err.message || t("booking.experienceBookFailed"));
@@ -411,7 +421,19 @@ export default function ExperienceBooking() {
             Back
           </Button>
           {step < 2 ? (
-            <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
+            <Button
+              onClick={() => {
+                if (step === 0 && !beganRef.current && experience) {
+                  beganRef.current = true;
+                  trackBeginBooking({
+                    booking_type: "experience", item_id: experience.id, item_name: experience.title,
+                    item_category: experience.category, value: experience.price * guests, quantity: guests,
+                  });
+                }
+                setStep((s) => s + 1);
+              }}
+              disabled={!canProceed()}
+            >
               Continue
             </Button>
           ) : (

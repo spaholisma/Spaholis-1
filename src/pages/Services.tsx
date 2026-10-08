@@ -18,6 +18,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { categoryFromSlug, slugifyCategory, treatmentCategoryPath } from "@/lib/treatmentCategories";
 import { CheckCircle2, Clock } from "lucide-react";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
+import { trackViewService } from "@/lib/analytics";
 import {
   Accordion,
   AccordionContent,
@@ -383,6 +384,17 @@ function MassageTherapyAccordion({
         collapsible
         defaultValue={groupEntries[0]?.[0]}
         className="w-full"
+        // Opening a treatment is viewing it (the one open by default is not a choice).
+        onValueChange={(v) => {
+          const g = v ? groups.get(v) : undefined;
+          const first = g?.items[0];
+          if (g && first) {
+            trackViewService({
+              booking_type: "treatment", item_id: first.id, item_name: g.display,
+              item_category: first.category, value: Number(first.price ?? 0),
+            });
+          }
+        }}
       >
         {groupEntries.map(([key, { display, items }]) => {
           const rep = items.find((i) => i.description) ?? items[0];
