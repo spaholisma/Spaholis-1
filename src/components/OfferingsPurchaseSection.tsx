@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
+import { trackBookingComplete } from "@/lib/analytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -212,7 +213,15 @@ export function OfferingsPurchaseSection({ defaultTab = "all", redirectAfterPurc
               </div>
               <PayPalCheckout
                 createOrderBody={() => (user ? { kind: "offering", offering_id: selected.id, user_id: user.id } : null)}
-                onSuccess={() => {
+                onSuccess={(res: any) => {
+                  // After paypal-capture-order verified the payment on our server.
+                  if (res?.userOfferingId) {
+                    trackBookingComplete({
+                      transaction_id: res.userOfferingId, booking_type: "membership", item_id: selected.id,
+                      item_name: selected.name, item_category: selected.type, value: Number(selected.price ?? 0),
+                      payment_method: "paypal", payment_status: "paid_online",
+                    });
+                  }
                   invalidate();
                   toast.success(`${selected.name} added to your account.`);
                   setSelected(null);

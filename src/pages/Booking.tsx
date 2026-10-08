@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { formatCRC, formatPrice } from "@/lib/currency";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { trackBeginBooking, trackBookingComplete } from "@/lib/analytics";
+import { AnalyticsPause } from "@/components/AnalyticsTracker";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,6 +146,8 @@ const BookingPage = () => {
   const isFilterLocked = !!(preselected && preselected !== "consultation") || !!categoryParam;
 
   const [step, setStep] = useState(preselected && preselected !== "consultation" ? 1 : 0);
+  // begin_booking is sent once per visit to this page.
+  const beganRef = useRef(false);
   const [selectedService, setSelectedService] = useState(preselected && preselected !== "consultation" ? preselected : "");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -571,7 +575,17 @@ const BookingPage = () => {
     // CompraClick redirect. From the Summary step just advance to the card step
     // (below) — the booking is created and confirmed there, in handleCardAuthorize.
 
-    if (step < steps.length - 1 && canProceed()) setStep(step + 1);
+    if (step < steps.length - 1 && canProceed()) {
+      // A date and time were chosen and the guest goes on: the booking has started.
+      if (step === dateStepIdx && !beganRef.current && currentService) {
+        beganRef.current = true;
+        trackBeginBooking({
+          booking_type: "treatment", item_id: currentService.id, item_name: currentService.title,
+          item_category: currentService.category, value: grandTotal,
+        });
+      }
+      setStep(step + 1);
+    }
   };
 
   const handleSlotTaken = () => {
@@ -616,6 +630,12 @@ const BookingPage = () => {
         await authorizeCard(addonId);
       }
       setConfirmationCode((bookingId || "").slice(0, 8).toUpperCase());
+      // Confirmed by save_card_authorization (card on file, paid at the visit): a booking, not revenue.
+      trackBookingComplete({
+        transaction_id: bookingId, booking_type: "treatment", item_id: currentService?.id,
+        item_name: currentService?.title, item_category: currentService?.category,
+        value: grandTotal, quantity: 1 + addons.length, payment_method: "card_on_file", payment_status: "pay_later",
+      });
       setBookingComplete(true);
       setStep(confirmationStepIdx);
     } catch (err: any) {
@@ -1004,6 +1024,7 @@ const BookingPage = () => {
                 {/* Card Authorization */}
                 {step === cardAuthStepIdx && (
                   <div>
+                    <AnalyticsPause />
                     <div className="flex items-center gap-3 mb-6">
                       <ShieldCheck className="h-6 w-6 text-spa-sage" />
                       <h2 className="spa-heading-md text-foreground">{t("booking.cardAuth.title")}</h2>
@@ -1426,6 +1447,7 @@ const BookingPage = () => {
                     step is retained as a payment marker but is not rendered. */}
                 {step === checkoutStepIdx && checkoutStepIdx > 0 && (
                   <div>
+                    <AnalyticsPause />
                     <h2 className="spa-heading-md text-foreground mb-2">Card authorization</h2>
                     <p className="spa-body-sm mb-6">
                       No charge is made now. Your card is kept on file only to apply the cancellation policy below.
