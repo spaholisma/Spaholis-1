@@ -129,7 +129,10 @@ describe("the pages", () => {
     // The card leads to her portfolio; her private classes are asked for there.
     expect(src).toMatch(/<Link to=\{teacherPath\(p\.teacher, "private"\)\}>Private classes<\/Link>/);
     expect(src).not.toMatch(/canBookPrivately/);
-    expect(read("src/pages/TeacherProfile.tsx")).toMatch(/setPrivatePick\(\{ teacherName: p\.teacher, offerings: p\.privates, initialOfferingId: o\.id \}\)/);
+    // On her page: all her private classes in the request, the one tapped first.
+    const page = read("src/pages/TeacherProfile.tsx");
+    expect(page).toMatch(/onPrivate\(\{ teacherName: p\.teacher, offerings: p\.privates, initialOfferingId: offeringId \?\? p\.privates\[0\]\?\.id \}\)/);
+    expect(page).toMatch(/onClick=\{\(\) => askPrivate\(o\.id\)\}/);
   });
 
   it("the Private Sessions page no longer lists fixed prices, except for GYROTONIC", () => {

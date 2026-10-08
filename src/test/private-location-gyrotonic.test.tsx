@@ -13,6 +13,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 //  3. Every teacher's portfolio shows, also in a week with no class of hers.
 
 const db = vi.hoisted(() => ({ rpc: {} as Record<string, unknown[]> }));
+// The test browser has no IntersectionObserver (the page's reveal-on-scroll uses it).
+if (!(globalThis as any).IntersectionObserver) {
+  (globalThis as any).IntersectionObserver = class {
+    observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
+  };
+}
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: async (name: string) => ({ data: db.rpc[name] ?? [], error: null }) },
 }));
@@ -30,7 +36,7 @@ import { locationsFor, locationLine, beachAllowed, LOCATION_LABEL } from "@/lib/
 import { privateClassIntake } from "@/lib/privateClassRequest";
 import { gyrotonicOfferings, isGyrotonic, GYROTONIC_TITLE, type PrivateOffering } from "@/lib/privateOfferings";
 import { TeacherPortfolios } from "@/components/TeacherPortfolios";
-import TeacherProfile from "@/pages/TeacherProfile";
+import TeacherProfile, { splitBio } from "@/pages/TeacherProfile";
 
 const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8").replace(/\r\n/g, "\n");
 
@@ -187,13 +193,30 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     expect(screen.getByText(/No group classes on the schedule right now/)).toBeTruthy();
     expect(screen.getByText("Private classes with Evelina")).toBeTruthy();
     expect(screen.getByText("GYROTONIC®")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Request a private class" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Request a private class/ }).length).toBeGreaterThan(0);
     expect(screen.getByText("Passes with Evelina")).toBeTruthy();
     expect(screen.getByText("5-Class Pass")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Get it" })).toBeTruthy();
     expect(document.getElementById("classes")).toBeTruthy();
     expect(document.getElementById("private")).toBeTruthy();
     expect(document.getElementById("passes")).toBeTruthy();
+  });
+
+  it("her bio is read as greeting, what she teaches, and her story", () => {
+    const b = splitBio([
+      "Meet Evelina Bolognini",
+      "GYROKINESIS® · GYROTONIC® · Cardiovascular Breathwork Instructor",
+      "",
+      "With over 30 years…",
+      "",
+      "Originally from Italy…",
+    ].join("\n"));
+    expect(b.intro).toBe("Meet Evelina Bolognini");
+    expect(b.specialties).toEqual(["GYROKINESIS®", "GYROTONIC®", "Cardiovascular Breathwork Instructor"]);
+    expect(b.story).toEqual(["With over 30 years…", "Originally from Italy…"]);
+    // One plain paragraph is all story; no bio, nothing.
+    expect(splitBio("I teach yoga.")).toEqual({ intro: null, specialties: [], story: ["I teach yoga."] });
+    expect(splitBio(null)).toEqual({ intro: null, specialties: [], story: [] });
   });
 
   it("a name that is not a teacher says so", async () => {
