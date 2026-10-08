@@ -1,16 +1,19 @@
 /**
  * Google Analytics 4 for the whole site — one place, one tag, one stream.
  *
- * - Nothing loads until the visitor accepts analytics cookies (the banner).
- *   The only exception is a partner QR scan (/go/...): that page lives for a
- *   second before WhatsApp, so it sends the scan cookie-free and without any
- *   identifier (Consent Mode "denied") unless the visitor already accepted.
+ * - Nothing loads until the visitor accepts analytics cookies (the banner) —
+ *   QR scans included: without consent they are counted on our own server
+ *   (lib/qrScans), never sent to Google.
+ * - Only the real site reports (www.spaholis.com): previews and local copies
+ *   never do, unless ?ga_debug=1 — and then every hit is marked debug_mode,
+ *   which GA's "Developer traffic" filter keeps out of the reports.
  * - Every page counts once: page_view is sent by hand on each route change
  *   (GA's automatic one is switched off with send_page_view: false).
  * - Addresses are cleaned before they leave the browser: only campaign and
  *   harmless navigation parameters are kept — never tokens, emails or names.
- * - A booking is counted once per transaction id, and revenue (`purchase`)
- *   only when the payment was verified by our server.
+ * - Three separate numbers: confirmed bookings (`booking_complete`), paid
+ *   transactions and revenue (`purchase`, only when our server verified the
+ *   payment). Each counted once per transaction, under a one-way id.
  */
 import { initialUrl } from "@/lib/initialUrl";
 
@@ -30,8 +33,11 @@ declare global {
 
 // ─────────────────────────── Environment ───────────────────────────
 
+/** The only addresses that report to the production property. */
+export const PRODUCTION_HOSTS = ["www.spaholis.com", "spaholis.com"];
+
 let allowInDev = false;
-/** Local development never reports to the live property, unless ?ga_debug=1 (or a test) asks. */
+/** Tests run on localhost: they may switch reporting on. */
 export function setAnalyticsEnvironment(opts: { allowInDev?: boolean }) {
   if (opts.allowInDev !== undefined) allowInDev = opts.allowInDev;
 }
@@ -48,7 +54,9 @@ function debugRequested(): boolean {
   }
 }
 
-const devBlocked = () => import.meta.env.DEV && !allowInDev && !debugRequested();
+/** Previews (*.vercel.app), local copies and any other host stay silent. */
+export const isProductionHost = (host = window.location.hostname) => PRODUCTION_HOSTS.includes(host);
+const devBlocked = () => !allowInDev && !debugRequested() && !isProductionHost();
 
 // ─────────────────────────── Clean addresses ───────────────────────────
 
@@ -156,23 +164,20 @@ const consent = () => remembered ?? getConsent();
 
 // ─────────────────────────── The tag ───────────────────────────
 
-let mode: null | "full" | "cookieless" = null;
+let mode: null | "full" = null;
 
-/** True once the tag is running (after consent, or cookie-free on a QR page). */
+/** True once the tag is running (after consent, on the real site). */
 export const analyticsActive = () => mode !== null;
 
 function gtag(...args: unknown[]) {
   window.gtag?.(...args);
 }
 
-/**
- * Starts the tag once. Without consent it refuses — except `cookieless`, used
- * only by the QR page, which runs it with analytics storage denied.
- */
-export function startAnalytics(opts: { cookieless?: boolean } = {}): boolean {
+/** Starts the tag once — only after the visitor accepted, and only on the real site. */
+export function startAnalytics(): boolean {
   if (typeof window === "undefined" || devBlocked()) return false;
   const granted = consent() === "granted";
-  if (!granted && !opts.cookieless) return false;
+  if (!granted) return false;
 
   if (mode === null) {
     window.dataLayer = window.dataLayer || [];
@@ -184,7 +189,7 @@ export function startAnalytics(opts: { cookieless?: boolean } = {}): boolean {
       };
     }
     gtag("consent", "default", {
-      analytics_storage: granted ? "granted" : "denied",
+      analytics_storage: "granted",
       ad_storage: "denied",
       ad_user_data: "denied",
       ad_personalization: "denied",
@@ -200,18 +205,9 @@ export function startAnalytics(opts: { cookieless?: boolean } = {}): boolean {
     s.async = true;
     s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA4_MEASUREMENT_ID)}`;
     document.head.appendChild(s);
-    mode = granted ? "full" : "cookieless";
-  } else if (mode === "cookieless" && granted) {
-    gtag("consent", "update", { analytics_storage: "granted" });
     mode = "full";
   }
   return true;
-}
-
-/** Kept for older callers: starts the tag the QR way and hands back gtag. */
-export function loadGtag(): Gtag {
-  startAnalytics({ cookieless: true });
-  return (...args: unknown[]) => gtag(...args);
 }
 
 // ─────────────────────────── Page views ───────────────────────────
@@ -254,18 +250,35 @@ export interface BookingItem {
   quantity?: number;
 }
 
-const itemParams = (b: BookingItem) => defined({
+const round = (n: number) => Math.round(n * 100) / 100;
+
+// `value` is GA's money field: only `purchase` carries it, so GA's revenue is
+// only money really paid. Views and starts say the price; bookings their value.
+const itemParams = (b: BookingItem, money: "price" | "booking_value") => defined({
   booking_type: b.booking_type,
   item_id: b.item_id ?? undefined,
   item_name: b.item_name ?? undefined,
   item_category: b.item_category ?? undefined,
-  value: b.value !== undefined ? Math.round(b.value * 100) / 100 : undefined,
+  [money]: b.value !== undefined ? round(b.value) : undefined,
   currency: b.value !== undefined ? "USD" : undefined,
   quantity: b.quantity,
 });
 
-export const trackViewService = (b: BookingItem) => track("view_service", itemParams(b));
-export const trackBeginBooking = (b: BookingItem) => track("begin_booking", itemParams(b));
+export const trackViewService = (b: BookingItem) => track("view_service", itemParams(b, "price"));
+export const trackBeginBooking = (b: BookingItem) => track("begin_booking", itemParams(b, "price"));
+
+/**
+ * A one-way id for a booking (FNV-1a, 64 bits). GA gets this instead of the
+ * booking id, whose first 8 characters are the guest's confirmation code.
+ */
+export function transactionKey(id: string): string {
+  let h = 0xcbf29ce484222325n;
+  for (const ch of id) {
+    h ^= BigInt(ch.codePointAt(0)!);
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return "tx_" + h.toString(16).padStart(16, "0");
+}
 
 function alreadySent(txId: string): boolean {
   try {
@@ -284,42 +297,50 @@ function markSent(txId: string) {
 const sentThisVisit = new Set<string>();
 
 /**
- * A confirmed booking. Call it only after the confirmation really happened:
- *  - payment_status "paid": our server verified the payment (PayPal capture,
- *    BAC finalize) — also sends GA's `purchase`, so it shows as revenue;
- *  - "confirmed": booked and confirmed, paid later or nothing to pay
- *    (card on file, a membership or credits, a free class) — booking only.
+ * How a confirmed booking is settled:
+ *  - "paid_online": our server verified the payment (PayPal capture, BAC finalize);
+ *  - "pay_later":   confirmed, paid at the visit (card on file, experiences);
+ *  - "covered":     paid earlier with a membership or class credits;
+ *  - "free":        nothing to pay (free class, 100% coupon).
+ */
+export type PaymentStatus = "paid_online" | "pay_later" | "covered" | "free";
+
+/**
+ * A confirmed booking. Call it only after the confirmation really happened.
+ * Sends `booking_complete` (every confirmed booking, with its booking_value),
+ * and — only for "paid_online" with money — `purchase`, GA's revenue event.
  * The same transaction is never counted twice.
  */
 export function trackBookingComplete(b: BookingItem & {
   transaction_id: string;
   payment_method: string;
-  payment_status: "paid" | "confirmed";
+  payment_status: PaymentStatus;
 }): boolean {
   if (!analyticsActive() || !b.transaction_id) return false;
-  if (sentThisVisit.has(b.transaction_id) || alreadySent(b.transaction_id)) return false;
-  sentThisVisit.add(b.transaction_id);
-  markSent(b.transaction_id);
+  const tx = transactionKey(b.transaction_id);
+  if (sentThisVisit.has(tx) || alreadySent(tx)) return false;
+  sentThisVisit.add(tx);
+  markSent(tx);
 
   track("booking_complete", {
-    ...itemParams(b),
-    transaction_id: b.transaction_id,
+    ...itemParams(b, "booking_value"),
+    transaction_id: tx,
     payment_method: b.payment_method,
     payment_status: b.payment_status,
   });
   const value = Number(b.value ?? 0);
-  if (b.payment_status === "paid" && value > 0) {
+  if (b.payment_status === "paid_online" && value > 0) {
     const qty = Math.max(1, b.quantity ?? 1);
     track("purchase", {
-      transaction_id: b.transaction_id,
-      value: Math.round(value * 100) / 100,
+      transaction_id: tx,
+      value: round(value),
       currency: "USD",
       payment_type: b.payment_method,
       items: [defined({
         item_id: b.item_id ?? undefined,
         item_name: b.item_name ?? undefined,
         item_category: b.item_category ?? b.booking_type,
-        price: Math.round((value / qty) * 100) / 100,
+        price: round(value / qty),
         quantity: qty,
       })],
     });

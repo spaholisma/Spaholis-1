@@ -23,7 +23,22 @@ export default function Privacy() {
           <p>
             When you book a service or create an account we collect your name,
             email, phone number, and the health/intake information you provide.
-            processor (BAC CompraClick) — we never store full card numbers.
+          </p>
+
+          <h2 className="font-heading text-2xl mt-8">Payment Cards</h2>
+          <p>
+            To hold a treatment booking we ask for a card and your authorization
+            under our cancellation policy. We keep that card on file in
+            encrypted form, together with the cardholder name, card type, last
+            four digits and expiry date. Only authorized staff can reveal it,
+            and only to charge a cancellation or no-show fee as described in
+            the policy you accept. We never store the card's security code
+            (CVV). To have a card on file deleted after your visit, email us.
+          </p>
+          <p>
+            Online payments for classes, passes and memberships are made on the
+            secure pages of PayPal or BAC CompraClick; those card numbers are
+            entered there and never reach us.
           </p>
 
           <h2 className="font-heading text-2xl mt-8">How We Use It</h2>
@@ -65,9 +80,11 @@ export default function Privacy() {
             not use it for advertising.
           </p>
           <p>
-            When you scan one of our partners' QR codes, the scan is counted
-            without cookies and without any identifier, even if you have not
-            chosen yet, so we know which partner sent you.
+            When you scan one of our partners' QR codes, we count the scan on
+            our own server — which partner's code it was and when, nothing
+            about you (no IP address, device or cookie) — so we know which
+            partner sent you. It is sent to Google Analytics only if you have
+            accepted analytics cookies.
           </p>
           <p>
             You can change your choice at any time here. Google's own policy:{" "}
@@ -95,9 +112,11 @@ export default function Privacy() {
               privados, y no lo usamos para publicidad.
             </p>
             <p>
-              Cuando escanea el código QR de uno de nuestros socios, el escaneo
-              se cuenta sin cookies y sin ningún identificador, aunque todavía
-              no haya elegido, para saber qué socio le recomendó.
+              Cuando escanea el código QR de uno de nuestros socios, contamos el
+              escaneo en nuestro propio servidor — de qué socio era el código y
+              cuándo, nada sobre usted (ni IP, ni dispositivo, ni cookies) —
+              para saber qué socio le recomendó. Solo se envía a Google
+              Analytics si aceptó las cookies de análisis.
             </p>
             <p>Puede cambiar su elección en cualquier momento con los botones de arriba.</p>
           </div>

@@ -131,7 +131,7 @@ export default function ExperienceBooking() {
         trackBookingComplete({
           transaction_id: saved.id, booking_type: "experience", item_id: experience.id,
           item_name: experience.title, item_category: experience.category, value: experience.price * guests,
-          quantity: guests, payment_method: "pay_later", payment_status: "confirmed",
+          quantity: guests, payment_method: "pay_at_experience", payment_status: "pay_later",
         });
       }
       setSubmitted(true);

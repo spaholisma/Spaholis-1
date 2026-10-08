@@ -633,7 +633,7 @@ const BookingPage = () => {
       trackBookingComplete({
         transaction_id: bookingId, booking_type: "treatment", item_id: currentService?.id,
         item_name: currentService?.title, item_category: currentService?.category,
-        value: grandTotal, quantity: 1 + addons.length, payment_method: "card_on_file", payment_status: "confirmed",
+        value: grandTotal, quantity: 1 + addons.length, payment_method: "card_on_file", payment_status: "pay_later",
       });
       setBookingComplete(true);
       setStep(confirmationStepIdx);

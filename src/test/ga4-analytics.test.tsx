@@ -63,17 +63,37 @@ describe("consent", () => {
     expect((config[2] as any).send_page_view).toBe(false); // page_view is sent by hand, once
   });
 
-  it("a QR scan without a choice runs cookie-free (analytics storage denied)", () => {
-    expect(ga.startAnalytics({ cookieless: true })).toBe(true);
-    const consent = calls().find((c) => c[0] === "consent" && c[1] === "default")![2] as any;
-    expect(consent.analytics_storage).toBe("denied");
+  it("there is no cookie-free mode any more: without consent, nothing — QR pages included", () => {
+    expect(read("src/lib/analytics.ts")).not.toMatch(/cookieless/);
+    expect(ga.startAnalytics()).toBe(false);
+  });
+});
+
+describe("previews and test copies never reach the production property", () => {
+  it("only www.spaholis.com and spaholis.com report", () => {
+    expect(ga.isProductionHost("www.spaholis.com")).toBe(true);
+    expect(ga.isProductionHost("spaholis.com")).toBe(true);
+    expect(ga.isProductionHost("spaholis-1-git-ga4-tracking-spaholis.vercel.app")).toBe(false);
+    expect(ga.isProductionHost("localhost")).toBe(false);
   });
 
-  it("local development never reports to the live property", () => {
-    ga.setAnalyticsEnvironment({ allowInDev: false });
+  it("on any other host nothing loads, even after Accept", () => {
+    ga.setAnalyticsEnvironment({ allowInDev: false }); // jsdom runs on localhost
     ga.setConsent("granted");
     expect(ga.startAnalytics()).toBe(false);
     expect(gaScripts()).toBe(0);
+  });
+
+  it("?ga_debug=1 is the only way in, and then every hit is marked debug_mode", () => {
+    ga.setAnalyticsEnvironment({ allowInDev: false });
+    window.history.replaceState(null, "", "/?ga_debug=1");
+    ga.setConsent("granted");
+    expect(ga.startAnalytics()).toBe(true);
+    expect((calls().find((c) => c[0] === "config")![2] as any).debug_mode).toBe(true);
+    // …and the flag itself never reaches Google
+    ga.trackPageView();
+    expect(JSON.stringify(events("page_view"))).not.toMatch(/ga_debug/);
+    window.history.replaceState(null, "", "/");
   });
 });
 
@@ -160,14 +180,46 @@ describe("campaign attribution", () => {
 describe("booking conversions", () => {
   const paid = {
     transaction_id: "b1", booking_type: "class" as const, item_id: "c1", item_name: "Vinyasa",
-    value: 23, payment_method: "paypal", payment_status: "paid" as const,
+    value: 23, payment_method: "paypal", payment_status: "paid_online" as const,
   };
 
   it("a verified paid booking sends booking_complete and purchase (revenue), in USD", () => {
     ga.setConsent("granted");
     expect(ga.trackBookingComplete(paid)).toBe(true);
-    expect(events("booking_complete")[0][2]).toMatchObject({ transaction_id: "b1", value: 23, currency: "USD", payment_status: "paid" });
-    expect(events("purchase")[0][2]).toMatchObject({ transaction_id: "b1", value: 23, currency: "USD" });
+    const tx = ga.transactionKey("b1");
+    expect(events("booking_complete")[0][2]).toMatchObject({ transaction_id: tx, booking_value: 23, currency: "USD", payment_status: "paid_online" });
+    expect(events("purchase")[0][2]).toMatchObject({ transaction_id: tx, value: 23, currency: "USD" });
+  });
+
+  it("bookings, payments and revenue stay apart: only purchase carries GA's money field", () => {
+    ga.setConsent("granted");
+    ga.trackBookingComplete(paid);
+    ga.trackViewService({ booking_type: "treatment", item_id: "s", item_name: "Pure Bliss", value: 101 });
+    ga.trackBeginBooking({ booking_type: "treatment", item_id: "s", item_name: "Pure Bliss", value: 101 });
+    const withValue = events().filter((e) => (e[2] as any)?.value !== undefined).map((e) => e[1]);
+    expect(withValue).toEqual(["purchase"]);
+    expect((events("view_service")[0][2] as any).price).toBe(101);
+    expect((events("booking_complete")[0][2] as any).value).toBeUndefined();
+  });
+
+  it("GA never sees the booking id (its first 8 characters are the guest's confirmation code)", () => {
+    ga.setConsent("granted");
+    const id = "7aa1c831-474b-43c2-89a9-9964ba0feab3";
+    ga.trackBookingComplete({ ...paid, transaction_id: id });
+    const sent = JSON.stringify(calls());
+    expect(sent).not.toMatch(/7aa1c831/i);
+    expect(ga.transactionKey(id)).toMatch(/^tx_[0-9a-f]{16}$/);
+    expect(ga.transactionKey(id)).toBe(ga.transactionKey(id));
+    expect(ga.transactionKey(id)).not.toBe(ga.transactionKey("7aa1c831-474b-43c2-89a9-9964ba0feab4"));
+    expect(localStorage.getItem("holis_ga_sent_tx")).not.toMatch(/7aa1c831/i);
+  });
+
+  it("each way of settling has its own status", () => {
+    expect(read("src/pages/Booking.tsx")).toMatch(/payment_method: "card_on_file", payment_status: "pay_later"/);
+    expect(read("src/pages/ExperienceBooking.tsx")).toMatch(/payment_status: "pay_later"/);
+    const classes = read("src/pages/ClassBooking.tsx");
+    expect(classes).toMatch(/payment_method: "free", payment_status: "free"/);
+    expect(classes).toMatch(/payment_method: payMethod, payment_status: "covered"/);
   });
 
   it("the same transaction is never counted twice — not even after a reload", () => {
@@ -184,7 +236,7 @@ describe("booking conversions", () => {
 
   it("a confirmed booking paid later is a booking, not revenue", () => {
     ga.setConsent("granted");
-    ga.trackBookingComplete({ ...paid, transaction_id: "b2", payment_method: "card_on_file", payment_status: "confirmed" });
+    ga.trackBookingComplete({ ...paid, transaction_id: "b2", payment_method: "card_on_file", payment_status: "pay_later" });
     expect(events("booking_complete")).toHaveLength(1);
     expect(events("purchase")).toHaveLength(0);
   });
@@ -196,12 +248,11 @@ describe("booking conversions", () => {
 
   it("each flow reports only after its real confirmation", () => {
     const classes = read("src/pages/ClassBooking.tsx");
-    expect(classes).toMatch(/Called only after paypal-capture-order verified the payment[\s\S]{0,500}payment_method: "paypal", payment_status: "paid"/);
+    expect(classes).toMatch(/Called only after paypal-capture-order verified the payment[\s\S]{0,500}payment_method: "paypal", payment_status: "paid_online"/);
     const ret = read("src/pages/BookingReturn.tsx");
     expect(ret).toMatch(/if \(finalStatus === "paid"\) \{[\s\S]{0,400}trackBookingComplete\(/);
     expect(ret.match(/trackBookingComplete\(/g)).toHaveLength(1);
-    expect(read("src/pages/Booking.tsx")).toMatch(/payment_method: "card_on_file", payment_status: "confirmed"/);
-    expect(read("src/components/OfferingsPurchaseSection.tsx")).toMatch(/res\?\.userOfferingId[\s\S]{0,600}payment_status: "paid"/);
+        expect(read("src/components/OfferingsPurchaseSection.tsx")).toMatch(/res\?\.userOfferingId[\s\S]{0,600}payment_status: "paid_online"/);
   });
 
   it("the BAC redirect itself is never counted", () => {
@@ -286,9 +337,18 @@ describe("the consent banner", () => {
 });
 
 describe("QR scans stay counted", () => {
-  it("the /go page sends one page_view and partner_qr_scan with its three parameters", () => {
+  it("every scan is counted on our server; Google hears of it only with consent", () => {
     const page = read("src/pages/PartnerRedirect.tsx");
-    expect(page).toMatch(/startAnalytics\(\{ cookieless: true \}\)/);
+    expect(page).toMatch(/const counted = recordQrScan\(slug, link\);/);
+    expect(page).toMatch(/if \(!startAnalytics\(\) \|\| !window\.gtag\) \{/);
+    const sql = read("supabase/migrations/20261008120000_partner_qr_scans.sql");
+    expect(sql).not.toMatch(/(ip|user_agent|cookie|device|email|phone)\s+(text|inet)/i);
+    expect(sql).toMatch(/grant execute on function public\.record_partner_qr_scan\(text, text, text, text\) to anon, authenticated;/);
+    expect(sql).toMatch(/for select using \(\s+public\.has_role\(auth\.uid\(\), 'super_admin'/);
+  });
+
+  it("with consent, the /go page still sends one page_view and partner_qr_scan with its three parameters", () => {
+    const page = read("src/pages/PartnerRedirect.tsx");
     expect(page).toMatch(/trackPageView\(\);\s+window\.gtag\("event", "partner_qr_scan", \{\s+partner: link\.partner,\s+\.\.\.\(link\.property \? \{ property: link\.property \} : \{\}\),\s+placement: link\.placement,\s+destination: link\.destination,/);
   });
 
@@ -309,5 +369,18 @@ describe("treatment pages", () => {
     const page = read("src/pages/Services.tsx");
     expect(page).toMatch(/onValueChange=\{\(v\) => \{[\s\S]{0,300}trackViewService\(/);
     expect(page).toMatch(/defaultValue=\{groupEntries\[0\]\?\.\[0\]\}/);
+  });
+});
+
+describe("the privacy policy says what really happens", () => {
+  const p = read("src/pages/Privacy.tsx");
+  it("cards on file: stored encrypted, never the CVV — no longer 'we never store full card numbers'", () => {
+    expect(p).not.toMatch(/never store full card numbers/);
+    expect(p).toMatch(/in\s+encrypted form/);
+    expect(p).toMatch(/never store the card's security code\s+\(CVV\)/);
+  });
+  it("QR scans: counted on our server; Google only with consent", () => {
+    expect(p).toMatch(/count the scan on\s+our own server/);
+    expect(p).toMatch(/contamos el\s+escaneo en nuestro propio servidor/);
   });
 });

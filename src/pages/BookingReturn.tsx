@@ -133,7 +133,7 @@ const BookingReturn = () => {
         trackBookingComplete({
           transaction_id: pending.bookingId, booking_type: pending.type === "class" ? "class" : "treatment",
           item_name: pending.serviceTitle, value: Number(pending.amount ?? 0),
-          payment_method: "bac_compraclick", payment_status: "paid",
+          payment_method: "bac_compraclick", payment_status: "paid_online",
         });
       }
       try { sessionStorage.removeItem("holis:pending_booking"); } catch {}

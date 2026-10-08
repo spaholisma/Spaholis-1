@@ -219,7 +219,7 @@ export function OfferingsPurchaseSection({ defaultTab = "all", redirectAfterPurc
                     trackBookingComplete({
                       transaction_id: res.userOfferingId, booking_type: "membership", item_id: selected.id,
                       item_name: selected.name, item_category: selected.type, value: Number(selected.price ?? 0),
-                      payment_method: "paypal", payment_status: "paid",
+                      payment_method: "paypal", payment_status: "paid_online",
                     });
                   }
                   invalidate();

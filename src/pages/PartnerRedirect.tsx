@@ -4,16 +4,18 @@ import { SEO } from "@/components/SEO";
 import NotFound from "@/pages/NotFound";
 import { PARTNER_LINKS, partnerDestinationUrl } from "@/data/partnerLinks";
 import { startAnalytics, trackPageView } from "@/lib/analytics";
+import { recordQrScan } from "@/lib/qrScans";
 
 // How long to wait for Google Analytics before leaving anyway (ad blockers,
 // slow networks) — the visitor must never be stuck here.
 const MAX_WAIT_MS = 1500;
 
 /**
- * /go/<slug> — the page a partner's QR code opens. Counts the scan in Google
- * Analytics (`partner_qr_scan`), then goes straight on to WhatsApp (or to the
- * Google "write a review" form). If the phone doesn't follow the redirect, the
- * button does the same.
+ * /go/<slug> — the page a partner's QR code opens. Every scan is counted on
+ * our own server (no cookie, no personal data). If the visitor already accepted
+ * analytics, it also goes to Google Analytics as `partner_qr_scan`. Then it goes
+ * straight on to WhatsApp (or to the Google "write a review" form); if the phone
+ * doesn't follow the redirect, the button does the same.
  */
 const PartnerRedirect = () => {
   const { slug = "" } = useParams();
@@ -30,8 +32,14 @@ const PartnerRedirect = () => {
       gone = true;
       window.location.replace(url);
     };
-    // Cookie-free unless the visitor already accepted analytics (see lib/analytics).
-    if (!startAnalytics({ cookieless: true }) || !window.gtag) { go(); return; }
+    // Our own count, for every scan. Leave as soon as it is saved (or after the wait).
+    const counted = recordQrScan(slug, link);
+    // Google only with the visitor's consent (lib/analytics refuses otherwise).
+    if (!startAnalytics() || !window.gtag) {
+      const timer = window.setTimeout(go, MAX_WAIT_MS);
+      counted.finally(go);
+      return () => window.clearTimeout(timer);
+    }
     const timer = window.setTimeout(go, MAX_WAIT_MS);
     try {
       trackPageView();
