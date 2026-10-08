@@ -33,6 +33,9 @@ const FROM_ADDRESS = "Holis Wellness <info@spaholis.com>";
 const SITE = "https://www.spaholis.com";
 const MAX_AGE_MINUTES = 30;
 const MAX_GUEST_COPIES_PER_HOUR = 3;
+// Teachers who give private classes on the beach (same list as the website's
+// src/lib/privateLocation.ts).
+const BEACH_TEACHERS = ["evelina"];
 
 const esc = (v: unknown) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -158,6 +161,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Where the guest would like it. Checked again here: the beach only with a
+    // teacher who gives it there, GYROTONIC® only at the studio (the tower).
+    const place = ["studio", "client", "beach"].includes(String(pc.location)) ? String(pc.location) : "";
+    const address = clean(pc.location_address).slice(0, 300);
+    const studioOnly = /gyrotonic/i.test(classTitle);
+    const locationText =
+      !place ? ""
+      : place === "studio" || studioOnly ? "Holis Wellness Studio"
+      : place === "client" ? `Client's location — ${address ? esc(address) : "address to be confirmed"}`
+      : BEACH_TEACHERS.includes(norm(teacherName)) ? "Beach"
+      : "Beach — to be confirmed with the teacher";
+
     const peopleText = people === 1 ? "1 person" : `${people} people`;
     const mail = (e: string) => (e ? `<a href="mailto:${esc(e)}" style="color:#5e7d67">${esc(e)}</a>` : "");
     const classText = classTitle ? esc(classTitle) : "No specific class — help them choose";
@@ -167,6 +182,7 @@ Deno.serve(async (req) => {
       row("People", esc(peopleText)) +
       row("Class", classText) +
       row("Teacher", teacherText) +
+      row("Location", locationText) +
       row("Price",
         price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price`
         : teacherName ? `To be confirmed by ${esc(teacherName)}` : "") +

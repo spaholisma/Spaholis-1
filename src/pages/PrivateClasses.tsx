@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
 import { privatePriceUsd, privatePricing } from "@/lib/otherOfferings";
+import { gyrotonicOfferings, usePrivateOfferings } from "@/lib/privateOfferings";
+import { privateRequestPath } from "@/lib/privateClassRequest";
+import { TeacherPortfolios } from "@/components/TeacherPortfolios";
+import { EVENT_CATEGORIES, useUpcomingEvents } from "@/hooks/useClasses";
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -30,6 +34,8 @@ const privateClasses = [
   { id: "gyrotonic-expansion-system", i18nKey: "gyrotonic", fixed: 1 },
 ] as const;
 
+const GYRO_NAME = "GYROTONIC®";
+
 const benefitKeys = ["personalized", "faster", "custom", "flexible"] as const;
 
 const PrivateClassesPage = () => {
@@ -42,6 +48,13 @@ const PrivateClassesPage = () => {
   // Prices are edited in Admin > Services > Private Classes (USD).
   const pricing = privatePricing(ps as any);
   const getPrice = (participants: number) => privatePriceUsd(participants, pricing) * USD_RATE;
+  // GYROTONIC® goes to the teacher who lists it in her Teacher Panel, at her
+  // price; until one does, it stays a request to Holis at the studio price.
+  const { data: allPrivate = [] } = usePrivateOfferings();
+  const gyro = gyrotonicOfferings(allPrivate)[0] ?? null;
+  // The teachers, with their classes and the private classes they offer.
+  const { data: events = [] } = useUpcomingEvents();
+  const weekly = events.filter((e) => !EVENT_CATEGORIES.has(e.classes.category));
 
   const getCount = (cls: typeof privateClasses[number]) => {
     if (cls.fixed !== null && cls.fixed !== undefined) return cls.fixed;
@@ -155,8 +168,15 @@ const PrivateClassesPage = () => {
 
                       <div className="flex items-center justify-between gap-3">
                         {cls.i18nKey === "gyrotonic" ? (
-                          <span className="font-heading text-lg font-semibold text-foreground">
-                            {formatCRCWithUsd(price)}
+                          <span className="min-w-0">
+                            <span className="block font-heading text-lg font-semibold text-foreground">
+                              {formatCRCWithUsd(gyro ? Number(gyro.price_one) * USD_RATE : price)}
+                            </span>
+                            {gyro && (
+                              <span className="block font-body text-xs text-muted-foreground">
+                                {t("privateSessions.withTeacher", { name: gyro.teacher_name, defaultValue: "with {{name}}" })}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span className="font-body text-xs text-muted-foreground max-w-[12rem]">
@@ -164,7 +184,9 @@ const PrivateClassesPage = () => {
                           </span>
                         )}
                         <Button asChild variant="spa" size="sm">
-                          <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={`/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}${cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""}`}>
+                          <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={cls.i18nKey === "gyrotonic" && gyro
+                            ? privateRequestPath({ kind: "oneOnOne", kindTitle: (ps as any).classes?.gyrotonic?.title || GYRO_NAME, people: 1, offeringId: gyro.id })
+                            : `/book?service=consultation&topic=${encodeURIComponent(`Private Class: ${((ps as any).classes?.[cls.i18nKey]?.title || cls.id)} – ${count} ${count === 1 ? "person" : "people"}`)}${cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""}`}>
                             {(ps as any).ui?.bookNow}
                           </Link>
                         </Button>
@@ -175,6 +197,21 @@ const PrivateClassesPage = () => {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Our teachers — every one of them, also with no class this week */}
+      <section className="pb-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeIn} className="text-center mb-10">
+            <h2 className="spa-heading-lg text-foreground">
+              {t("privateSessions.teachersTitle", { defaultValue: "Our Teachers" })}
+            </h2>
+            <p className="spa-body text-muted-foreground mt-3 max-w-xl mx-auto">
+              {t("privateSessions.teachersSubtitle", { defaultValue: "Meet the teachers and the private classes each of them offers." })}
+            </p>
+          </motion.div>
+          <TeacherPortfolios sessions={weekly} teachersOnly />
         </div>
       </section>
 

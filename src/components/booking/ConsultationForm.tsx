@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Navbar } from "@/components/Navbar";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { Footer } from "@/components/Footer";
-import { Check, Phone, MapPin, ChevronLeft } from "lucide-react";
+import { Check, Phone, MapPin, ChevronLeft, Building2, Home, Waves } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,7 @@ import {
   clampPeople, parsePrivateKind, privateClassIntake,
 } from "@/lib/privateClassRequest";
 import { offeringPrice, type PrivateChoice } from "@/lib/privateOfferings";
+import { LOCATION_LABEL, locationLine, locationsFor, type PrivateLocation } from "@/lib/privateLocation";
 import { Users } from "lucide-react";
 import { useHoneypot } from "@/components/Honeypot";
 
@@ -40,6 +41,12 @@ export const ConsultationForm = () => {
   const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
   const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
   const [classChoice, setClassChoice] = useState<PrivateChoice | null>(null);
+  // Where the private class happens. The beach only with the teachers who give it there.
+  const [place, setPlace] = useState<PrivateLocation>("studio");
+  const [address, setAddress] = useState("");
+  const places = locationsFor(classChoice?.teacherName, classChoice?.title);
+  // Picking another teacher can take the beach away: then it is the studio.
+  const where: PrivateLocation = places.includes(place) ? place : "studio";
   // From a teacher's portfolio: her class and her name come along.
   const preselectOffering = privateKind ? searchParams.get("offering")?.trim() || "" : "";
   const preselectClass = privateKind ? searchParams.get("class")?.trim() || "" : "";
@@ -98,6 +105,11 @@ export const ConsultationForm = () => {
       return;
     }
 
+    if (privateKind && where === "client" && address.trim().length < 3) {
+      toast.error(t("consultation.locationAddressMissing", { defaultValue: "Please tell us the address, hotel or villa for your class." }));
+      return;
+    }
+
     // Caught by the hidden field: pretend it worked and write nothing, so the
     // script has no signal to adapt to.
     if (website.trim()) { setSubmitted(true); return; }
@@ -125,8 +137,11 @@ export const ConsultationForm = () => {
           booking_date: new Date().toISOString().split("T")[0],
           booking_time: "00:00",
           status: "pending",
-          notes: `${topic}${classPart}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`,
-          intake_form: privateClassIntake({ kind: privateKind, kindTitle, people, choice: classChoice, preferred: prettyPref }) as any,
+          notes: `${topic}${classPart} — Location: ${locationLine(where, address)}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`,
+          intake_form: privateClassIntake({
+            kind: privateKind, kindTitle, people, choice: classChoice, preferred: prettyPref,
+            location: { place: where, label: LOCATION_LABEL[where], address: where === "client" ? address.trim().slice(0, 300) : null },
+          }) as any,
         });
         if (error) throw error;
         try {
@@ -362,6 +377,65 @@ export const ConsultationForm = () => {
                   </label>
                 </RadioGroup>
               </div>
+              )}
+
+              {privateKind && (
+                <div className="space-y-3">
+                  <Label className="font-body text-sm">
+                    {t("consultation.locationLabel", { defaultValue: "Where would you like your class?" })} *
+                  </Label>
+                  <RadioGroup
+                    value={where}
+                    onValueChange={(v) => setPlace(v as PrivateLocation)}
+                    className={`grid gap-3 ${places.length === 3 ? "sm:grid-cols-3" : places.length === 2 ? "sm:grid-cols-2" : ""}`}
+                  >
+                    {places.map((p) => {
+                      const Icon = p === "studio" ? Building2 : p === "client" ? Home : Waves;
+                      const label = p === "studio"
+                        ? t("consultation.locationStudio", { defaultValue: "Holis Wellness Studio" })
+                        : p === "client"
+                          ? t("consultation.locationClient", { defaultValue: "Your location" })
+                          : t("consultation.locationBeach", { defaultValue: "Beach" });
+                      return (
+                        <label
+                          key={p}
+                          className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
+                            where === p ? "border-spa-sage bg-spa-sage/5" : "border-border"
+                          }`}
+                        >
+                          <RadioGroupItem value={p} id={`place-${p}`} />
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="font-body text-sm">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
+                  {where === "client" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="place-address" className="font-body text-sm">
+                        {t("consultation.locationAddress", { defaultValue: "Address, hotel or villa" })} *
+                      </Label>
+                      <Input
+                        id="place-address"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder={t("consultation.locationAddressPlaceholder", { defaultValue: "e.g. Villa Sol, Manuel Antonio" })}
+                        maxLength={300}
+                        required
+                      />
+                    </div>
+                  )}
+                  {places.length === 1 && (
+                    <p className="font-body text-xs text-muted-foreground">
+                      {t("consultation.locationStudioOnly", { defaultValue: "This class is taught on the studio's equipment." })}
+                    </p>
+                  )}
+                  {places.includes("beach") && (
+                    <p className="font-body text-xs text-muted-foreground">
+                      {t("consultation.locationBeachNote", { name: classChoice?.teacherName?.split(" ")[0], defaultValue: "{{name}} also gives private classes on the beach." })}
+                    </p>
+                  )}
+                </div>
               )}
 
               {isRequest && !isInfo && (

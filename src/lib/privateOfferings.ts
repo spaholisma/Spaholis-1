@@ -126,3 +126,18 @@ export function findChoice(
   const mine = choices.filter((c) => c.classId === pre.classId && sameName(c.teacherName, pre.teacherName));
   return mine.find((c) => c.offering) ?? mine[0] ?? null;
 }
+
+/**
+ * GYROTONIC® is taught on the studio's tower, not on the class schedule, so a
+ * teacher adds it to her private classes by name. Whoever lists it receives
+ * the GYROTONIC requests from the Private Sessions page.
+ */
+export const GYROTONIC_TITLE = "GYROTONIC®";
+export const isGyrotonic = (title: string | null | undefined) => /gyrotonic/i.test(title ?? "");
+
+/** The GYROTONIC private classes teachers offer for one person, cheapest first. */
+export function gyrotonicOfferings(all: PrivateOffering[]): PrivateOffering[] {
+  return all
+    .filter((o) => isGyrotonic(o.title) && o.price_one != null)
+    .sort((a, b) => Number(a.price_one) - Number(b.price_one) || a.teacher_name.localeCompare(b.teacher_name));
+}

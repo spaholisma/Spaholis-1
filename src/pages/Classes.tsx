@@ -6,9 +6,9 @@ import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
-import { useUpcomingEvents } from "@/hooks/useClasses";
+import { EVENT_CATEGORIES, useUpcomingEvents } from "@/hooks/useClasses";
 import { EventCard } from "@/components/EventCard";
-import { TeacherPortfolios } from "@/components/TeacherPortfolios";
+import { TeacherPortfolios, usePublicTeachers } from "@/components/TeacherPortfolios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag , Ticket } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -46,9 +46,11 @@ const ClassesPage = () => {
   }, [hash, navigate]);
 
   // One-off events (workshops, special events, etc.) vs regular weekly classes.
-  const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
   const specialEvents = events?.filter((e) => EVENT_CATEGORIES.has(e.classes.category)) ?? [];
   const regularEvents = events?.filter((e) => !EVENT_CATEGORIES.has(e.classes.category)) ?? [];
+  // The teachers always show, also in a week with no class on the schedule.
+  const { data: teachers = [] } = usePublicTeachers();
+  const showPortfolios = regularEvents.length > 0 || teachers.length > 0;
 
 
   return (
@@ -164,7 +166,7 @@ const ClassesPage = () => {
               <Skeleton key={i} className="h-64 rounded-2xl" />
             ))}
           </div>
-        ) : specialEvents.length === 0 && regularEvents.length === 0 ? (
+        ) : specialEvents.length === 0 && regularEvents.length === 0 && !showPortfolios ? (
           <motion.div {...fadeIn} className="text-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
@@ -188,12 +190,29 @@ const ClassesPage = () => {
               </motion.div>
             )}
 
-            {/* Regular weekly classes */}
-            {regularEvents.length > 0 && (
+            {/* No class on the schedule yet: say so, then the teachers. */}
+            {specialEvents.length === 0 && regularEvents.length === 0 && (
+              <motion.div {...fadeIn} className="text-center pt-16">
+                <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
+                <p {...cmsEditProps("classes.emptyDescription")} className="spa-body max-w-md mx-auto">
+                  {cls.emptyDescription}
+                </p>
+              </motion.div>
+            )}
+
+            {/* Regular weekly classes, by teacher */}
+            {showPortfolios && (
               <motion.div {...fadeIn} className="mt-20">
                 <div className="text-center mb-8">
-                  <h2 className="spa-heading-lg text-foreground">{(cls as any).weeklyClassesTitle || "Weekly Classes"}</h2>
-                  <p className="spa-body mt-3 max-w-xl mx-auto">{(cls as any).weeklyClassesSubtitle}</p>
+                  <h2 className="spa-heading-lg text-foreground">
+                    {regularEvents.length > 0
+                      ? (cls as any).weeklyClassesTitle || "Weekly Classes"
+                      : t("classes.ourTeachers", { defaultValue: "Our Teachers" })}
+                  </h2>
+                  {regularEvents.length > 0 && (
+                    <p className="spa-body mt-3 max-w-xl mx-auto">{(cls as any).weeklyClassesSubtitle}</p>
+                  )}
                   <Link
                     to="/classes/schedule"
                     className="inline-flex items-center gap-1 mt-3 font-body text-sm font-semibold text-spa-sage hover:underline"

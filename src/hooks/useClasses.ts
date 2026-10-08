@@ -39,6 +39,9 @@ export interface ScheduleRow {
 
 const CLASS_I18N_FIELDS = ["title", "description", "location", "instructor", "payment_instructions"];
 
+/** One-off events (workshops, special events…), apart from the weekly classes. */
+export const EVENT_CATEGORIES = new Set(["Workshop", "Special Event", "Sound Bath", "Breathwork", "Meditation", "Retreat"]);
+
 export function useClasses() {
   const { language } = useLanguage();
   return useQuery({

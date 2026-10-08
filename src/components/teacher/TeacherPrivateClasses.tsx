@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CalendarClock, Loader2, Mail, Phone, Save, Users } from "lucide-react";
+import { CalendarClock, Loader2, Mail, MapPin, Phone, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,6 +27,9 @@ interface RequestRow {
   note: string | null;
   /** Her price for what they asked, worked out on the server from her offering. */
   quoted_price: number | null;
+  /** Where they would like it: studio, their place (with the address) or the beach. */
+  location_label?: string | null;
+  location_address?: string | null;
 }
 
 const STATUSES = [
@@ -144,6 +147,13 @@ export function TeacherPrivateClasses({ teacherId, teacherName, note }: { teache
                     {format(new Date(r.created_at), "MMM d, yyyy")}
                   </p>
                 </div>
+
+                {r.location_label && (
+                  <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    {r.location_label}{r.location_address ? `: ${r.location_address}` : ""}
+                  </p>
+                )}
 
                 {r.preferred && (
                   <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">

@@ -121,6 +121,8 @@ export function privateClassIntake(input: {
    *  nothing about money is stored from here), or her class on the schedule. */
   choice: { offering: { id: string } | null; classId: string | null; title: string; teacherName: string | null } | null;
   preferred: string;
+  /** Where it happens; the address only for the guest's own place. */
+  location?: { place: "studio" | "client" | "beach"; label: string; address: string | null } | null;
 }) {
   return {
     private_class: {
@@ -132,6 +134,9 @@ export function privateClassIntake(input: {
       class_title: input.choice?.title ?? null,
       teacher_name: input.choice?.teacherName ?? null,
       preferred: input.preferred || null,
+      location: input.location?.place ?? null,
+      location_label: input.location?.label ?? null,
+      location_address: input.location?.place === "client" ? (input.location.address?.trim() || null) : null,
     },
   };
 }

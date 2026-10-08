@@ -327,6 +327,7 @@
     "paymentFailed": "Pago fallido. Inténtalo de nuevo."
   },
   "classes": {
+    "ourTeachers": "Nuestros profesores",
     "title": "Clases",
     "schedule": "Horario",
     "instructor": "Instructor",
@@ -591,6 +592,9 @@
     }
   },
   "privateSessions": {
+    "withTeacher": "con {{name}}",
+    "teachersTitle": "Nuestros profesores",
+    "teachersSubtitle": "Conozca a los profesores y las clases privadas que ofrece cada uno.",
     "pricing": {
       "1person": "1 persona",
       "2people": "2 personas",
@@ -663,6 +667,15 @@
     "infoThankYou": "¡Gracias! Nuestro equipo se pondrá en contacto contigo en breve con la información del curso — fechas, precio y cómo inscribirte.",
     "confirmSoon": "Nos pondremos en contacto personalmente para confirmar tu horario.",
     "privateLabel": "Clase privada",
+    "locationLabel": "¿Dónde le gustaría su clase?",
+    "locationStudio": "Estudio Holis Wellness",
+    "locationClient": "Su ubicación",
+    "locationBeach": "Playa",
+    "locationAddress": "Dirección, hotel o villa",
+    "locationAddressPlaceholder": "ej. Villa Sol, Manuel Antonio",
+    "locationAddressMissing": "Por favor indíquenos la dirección, hotel o villa para su clase.",
+    "locationBeachNote": "{{name}} también da clases privadas en la playa.",
+    "locationStudioOnly": "Esta clase se imparte con el equipo del estudio.",
     "privateOnePerson": "1 persona",
     "privatePeople": "{{count}} personas",
     "privateEyebrow": "Hazla tuya",

@@ -64,6 +64,8 @@ describe("the panel", () => {
     expect(panel).toMatch(/<TeacherEvents teacherId=\{teacher\.id\} teacherName=\{teacher\.display_name\} \/>/);
   });
   it("events land where the Classes page shows them", () => {
-    expect(read("src/pages/Classes.tsx")).toMatch(/"Special Event"/);
+    // The one-off categories the Classes page splits out live with the class hooks.
+    expect(read("src/hooks/useClasses.ts")).toMatch(/EVENT_CATEGORIES = new Set\(\[[^\]]*"Special Event"/);
+    expect(read("src/pages/Classes.tsx")).toMatch(/EVENT_CATEGORIES\.has\(e\.classes\.category\)/);
   });
 });

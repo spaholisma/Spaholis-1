@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +48,19 @@ interface Portfolio {
   passes: Pass[];
 }
 
+/** Every active teacher, for the portfolios — also the ones with no class this week. */
+export function usePublicTeachers() {
+  return useQuery({
+    queryKey: ["public-teachers"],
+    queryFn: async () => {
+      const { data, error } = await sb.rpc("public_teachers");
+      if (error) throw error;
+      return (data ?? []) as TeacherRow[];
+    },
+    staleTime: 60_000,
+  });
+}
+
 /** A teacher's name for a session: the per-session one wins, else the class's. */
 const instructorOf = (s: ScheduleRow) =>
   ((s as any).instructor?.trim() || s.classes.instructor?.trim() || "");
@@ -86,17 +100,20 @@ const byClass = (rows: ScheduleRow[]) =>
  * being swept into one giant studio card, so the page reads well while teachers
  * are still being assigned to sessions.
  */
-export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
+export function TeacherPortfolios({ sessions, teachersOnly = false }: {
+  sessions: ScheduleRow[];
+  /** Only the teachers' cards — no card for a class with nobody named on it. */
+  teachersOnly?: boolean;
+}) {
   const [pick, setPick] = useState<PassPick | null>(null);
   // A private class with a teacher: every private class she offers.
   const [privatePick, setPrivatePick] = useState<PrivatePick | null>(null);
   const { data: allPrivate = [] } = usePrivateOfferings();
   const [passes, setPasses] = useState<Pass[]>([]);
-  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const { data: teachers = [] } = usePublicTeachers();
 
   useEffect(() => {
     sb.rpc("public_teacher_portfolios").then(({ data }: any) => setPasses((data ?? []) as Pass[]));
-    sb.rpc("public_teachers").then(({ data }: any) => setTeachers((data ?? []) as TeacherRow[]));
   }, []);
 
   const portfolios: Portfolio[] = useMemo(() => {
@@ -130,6 +147,32 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
         };
       });
 
+    // Every teacher has her card, also in a week she has no class on the
+    // schedule: who she is, her private classes and her passes.
+    const named = new Set(teacherCards.map((c) => c.teacher.trim().toLowerCase()));
+    const quietCards: Portfolio[] = teachers
+      .filter((t) => t.display_name?.trim() && !named.has(t.display_name.trim().toLowerCase()))
+      .map((t) => {
+        const name = t.display_name.trim();
+        const privateCount = offeringsOf(allPrivate, name).length;
+        return {
+          key: `teacher:${name}`,
+          teacher: name,
+          title: name,
+          subtitle: privateCount
+            ? `${privateCount} private class${privateCount === 1 ? "" : "es"}`
+            : "Holis Wellness Center",
+          image: t.photo_url || null,
+          portrait: !!t.photo_url,
+          bio: t.bio ?? null,
+          teacherId: t.id,
+          classes: [],
+          passes: passes.filter((p) => p.teacher_name.trim().toLowerCase() === name.toLowerCase()),
+        };
+      });
+    const allTeachers = [...teacherCards, ...quietCards].sort((a, b) => a.teacher.localeCompare(b.teacher));
+    if (teachersOnly) return allTeachers;
+
     // One card per class for the ones with no teacher on them yet.
     const orphanCards: Portfolio[] = byClass(byTeacher.get("") ?? [])
       .map(toBlock)
@@ -147,8 +190,8 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
         passes: [],
       }));
 
-    return [...teacherCards, ...orphanCards];
-  }, [sessions, passes, teachers]);
+    return [...allTeachers, ...orphanCards];
+  }, [sessions, passes, teachers, allPrivate, teachersOnly]);
 
   if (portfolios.length === 0) return null;
 
@@ -229,6 +272,11 @@ export function TeacherPortfolios({ sessions }: { sessions: ScheduleRow[] }) {
             <div className="flex flex-1 flex-col gap-4 px-6 py-5">
               {p.bio && (
                 <p className="spa-body-sm line-clamp-3 whitespace-pre-line">{p.bio}</p>
+              )}
+              {isTeacher && p.classes.length === 0 && (
+                <p className="font-body text-xs text-muted-foreground">
+                  No group classes on the schedule right now.
+                </p>
               )}
               {p.classes.map(({ cls, bookable, when }) => (
                 <div key={cls.id} className="border-b border-border/60 pb-4 last:border-0 last:pb-0">

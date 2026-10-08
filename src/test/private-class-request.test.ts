@@ -86,7 +86,8 @@ describe("which private classes get the picker", () => {
 
   it("saves 'no specific class' as the default choice", () => {
     expect(privateClassIntake({ kind: "couples", kindTitle: "Couple's Private Class", people: 2, choice: null, preferred: "" }).private_class)
-      .toEqual({ kind: "couples", kind_title: "Couple's Private Class", people: 2, offering_id: null, class_id: null, class_title: null, teacher_name: null, preferred: null });
+      .toEqual({ kind: "couples", kind_title: "Couple's Private Class", people: 2, offering_id: null, class_id: null, class_title: null, teacher_name: null, preferred: null,
+        location: null, location_label: null, location_address: null });
   });
 
   it("the Private Sessions page passes the kind, except for GYROTONIC", () => {
