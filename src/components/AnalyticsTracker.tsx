@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { stripLangPrefix } from "@/i18n/LanguageProvider";
-import { getConsent, onConsentChange, startAnalytics, track, trackPageView } from "@/lib/analytics";
+import { getConsent, onConsentChange, pauseAnalytics, startAnalytics, track, trackPageView } from "@/lib/analytics";
 
 /** Pages whose visits are not about the public website: the team's tools, test pages, QR hops. */
 export function isUntrackedPath(pathname: string): boolean {
@@ -85,5 +85,14 @@ export function AnalyticsTracker() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
+  return null;
+}
+
+/**
+ * Put inside a step where a card number is typed: Google Analytics is off for
+ * as long as it is on screen (see pauseAnalytics). Renders nothing.
+ */
+export function AnalyticsPause() {
+  useEffect(() => pauseAnalytics(), []);
   return null;
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { formatCRC, formatPrice } from "@/lib/currency";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { trackBeginBooking, trackBookingComplete } from "@/lib/analytics";
+import { AnalyticsPause } from "@/components/AnalyticsTracker";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1023,6 +1024,7 @@ const BookingPage = () => {
                 {/* Card Authorization */}
                 {step === cardAuthStepIdx && (
                   <div>
+                    <AnalyticsPause />
                     <div className="flex items-center gap-3 mb-6">
                       <ShieldCheck className="h-6 w-6 text-spa-sage" />
                       <h2 className="spa-heading-md text-foreground">{t("booking.cardAuth.title")}</h2>
@@ -1445,6 +1447,7 @@ const BookingPage = () => {
                     step is retained as a payment marker but is not rendered. */}
                 {step === checkoutStepIdx && checkoutStepIdx > 0 && (
                   <div>
+                    <AnalyticsPause />
                     <h2 className="spa-heading-md text-foreground mb-2">Card authorization</h2>
                     <p className="spa-body-sm mb-6">
                       No charge is made now. Your card is kept on file only to apply the cancellation policy below.

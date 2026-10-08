@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import * as ga from "@/lib/analytics";
-import { AnalyticsTracker, bookingLinkType, isUntrackedPath, isWhatsAppHref } from "@/components/AnalyticsTracker";
+import { AnalyticsPause, AnalyticsTracker, bookingLinkType, isUntrackedPath, isWhatsAppHref } from "@/components/AnalyticsTracker";
 import { ConsentBanner } from "@/components/ConsentBanner";
 
 // Google Analytics 4: one stream, nothing before consent, one page_view per
@@ -437,5 +437,71 @@ describe("measuring never breaks a booking or a payment", () => {
     }
     // The card-on-file call is exactly as before.
     expect(read("src/pages/Booking.tsx")).toMatch(/supabase\.rpc\("save_card_authorization" as any, \{\s+_booking_id: bookingId,\s+_cardholder: cardAuth\.cardholder_name\.trim\(\),\s+_card_number: cardDigitsValue,/);
+  });
+});
+
+describe("Google Analytics is off while a card number is on screen", () => {
+  const flag = () => (window as any)["ga-disable-G-W4GMPQKK5N"];
+  const booking = { transaction_id: "card1", booking_type: "treatment" as const, value: 120, payment_method: "card_on_file", payment_status: "pay_later" as const };
+
+  it("with the tag running: Google's opt-out flag is on, nothing is sent, and our events go out once the form is gone", () => {
+    ga.setConsent("granted");
+    const resume = ga.pauseAnalytics();
+    expect(flag()).toBe(true);
+    const before = calls().length;
+    expect(ga.trackBookingComplete(booking)).toBe(true);
+    ga.track("click_whatsapp");
+    expect(calls().length).toBe(before); // held, not sent
+    resume();
+    expect(flag()).toBe(false);
+    expect(events("booking_complete")).toHaveLength(1);
+    expect(events("purchase")).toHaveLength(0); // card on file is not revenue
+    expect(events("click_whatsapp")).toHaveLength(1);
+    resume(); // calling twice changes nothing
+    expect(events("booking_complete")).toHaveLength(1);
+  });
+
+  it("accepting cookies on the card step does not load Google until the step is left", () => {
+    const resume = ga.pauseAnalytics();
+    ga.setConsent("granted");
+    ga.trackPageView("https://www.spaholis.com/book");
+    expect(gaScripts()).toBe(0);
+    expect(window.dataLayer ?? []).toHaveLength(0);
+    resume();
+    expect(gaScripts()).toBe(1);
+    const order = calls().map((c) => `${c[0]}:${String(c[1]).slice(0, 12)}`);
+    expect(order.indexOf("config:G-W4GMPQKK5N")).toBeLessThan(order.indexOf("event:page_view"));
+  });
+
+  it("declining while on the card step drops what was waiting", () => {
+    ga.setConsent("granted");
+    const resume = ga.pauseAnalytics();
+    ga.track("click_whatsapp");
+    ga.setConsent("denied");
+    resume();
+    expect(events("click_whatsapp")).toHaveLength(0);
+  });
+
+  it("<AnalyticsPause /> switches it off while mounted, back on when unmounted", async () => {
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+    try {
+      await act(async () => { root.render(<AnalyticsPause />); });
+      expect(ga.analyticsPaused()).toBe(true);
+      expect(flag()).toBe(true);
+    } finally {
+      await act(async () => { root.unmount(); });
+      el.remove();
+    }
+    expect(ga.analyticsPaused()).toBe(false);
+    expect(flag()).toBe(false);
+  });
+
+  it("both card-entry steps of /book carry it, and nothing else on the page changed", () => {
+    const src = read("src/pages/Booking.tsx");
+    expect(src).toMatch(/\{step === cardAuthStepIdx && \(\s+<div>\s+<AnalyticsPause \/>/);
+    expect(src).toMatch(/\{step === checkoutStepIdx && checkoutStepIdx > 0 && \(\s+<div>\s+<AnalyticsPause \/>/);
+    expect(src.match(/<AnalyticsPause \/>/g)).toHaveLength(2);
   });
 });

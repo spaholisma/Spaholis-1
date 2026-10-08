@@ -188,7 +188,38 @@ let mode: null | "full" = null;
 let withdrawn = false;
 
 /** True while the tag is running and the visitor still agrees — a later "Decline" stops every event. */
-export const analyticsActive = () => mode !== null && consent() === "granted";
+export const analyticsActive = () => (mode !== null || (paused > 0 && startWaiting)) && consent() === "granted";
+
+// ─────────────────────────── Card-entry pause ───────────────────────────
+// While a card number is on screen, Google Analytics is off: gtag.js is not
+// loaded if it wasn't yet, and Google's own opt-out flag blocks every hit —
+// automatic ones (scroll, form, clicks) included. Our events wait and go out
+// once the card form is gone (e.g. the booking_complete sent as it closes).
+
+let paused = 0;
+let startWaiting = false;
+let held: unknown[][] = [];
+const GA_DISABLE_FLAG = `ga-disable-${GA4_MEASUREMENT_ID}`;
+
+/** Turns analytics off until the returned function is called. Safe to nest. */
+export const pauseAnalytics = safely(function pauseAnalytics(): () => void {
+  paused++;
+  (window as any)[GA_DISABLE_FLAG] = true;
+  let resumed = false;
+  return safely(() => {
+    if (resumed) return;
+    resumed = true;
+    paused = Math.max(0, paused - 1);
+    if (paused > 0) return;
+    (window as any)[GA_DISABLE_FLAG] = false;
+    if (startWaiting) { startWaiting = false; startAnalytics(); }
+    const out = held;
+    held = [];
+    if (consent() === "granted") out.forEach((args) => window.gtag?.(...args));
+  }, undefined);
+}, () => undefined);
+
+export const analyticsPaused = () => paused > 0;
 
 /** Removes Google Analytics' own cookies (_ga, _ga_<stream>) when the visitor declines. */
 function clearAnalyticsCookies(): void {
@@ -203,6 +234,7 @@ function clearAnalyticsCookies(): void {
 }
 
 function gtag(...args: unknown[]) {
+  if (paused > 0) { held.push(args); return; }
   window.gtag?.(...args);
 }
 
@@ -211,6 +243,8 @@ export const startAnalytics = safely(function startAnalytics(): boolean {
   if (typeof window === "undefined" || devBlocked()) return false;
   const granted = consent() === "granted";
   if (!granted) return false;
+  // Accepted while the card form is open: load Google only once it is gone.
+  if (paused > 0 && mode === null) { startWaiting = true; return true; }
 
   if (mode === null) {
     window.dataLayer = window.dataLayer || [];
@@ -396,6 +430,10 @@ export const trackBookingComplete = safely(function trackBookingComplete(b: Book
 export function __resetAnalyticsForTests() {
   mode = null;
   withdrawn = false;
+  paused = 0;
+  startWaiting = false;
+  held = [];
+  delete (window as any)[GA_DISABLE_FLAG];
   lastPage = "";
   firstPageSent = false;
   remembered = null;
