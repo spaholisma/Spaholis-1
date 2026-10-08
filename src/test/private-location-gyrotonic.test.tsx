@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Three updates on the Teachers branch:
@@ -16,11 +16,21 @@ const db = vi.hoisted(() => ({ rpc: {} as Record<string, unknown[]> }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: async (name: string) => ({ data: db.rpc[name] ?? [], error: null }) },
 }));
+// The schedule: no class this week. The page chrome is not under test here.
+vi.mock("@/hooks/useClasses", () => ({
+  EVENT_CATEGORIES: new Set(["Special Event"]),
+  useUpcomingEvents: () => ({ data: [], isLoading: false }),
+}));
+vi.mock("@/components/Navbar", () => ({ Navbar: () => null }));
+vi.mock("@/components/Footer", () => ({ Footer: () => null }));
+vi.mock("@/components/PassRequestDialog", () => ({ PassRequestDialog: () => null }));
+vi.mock("@/components/PrivateClassDialog", () => ({ PrivateClassDialog: () => null }));
 
 import { locationsFor, locationLine, beachAllowed, LOCATION_LABEL } from "@/lib/privateLocation";
 import { privateClassIntake } from "@/lib/privateClassRequest";
 import { gyrotonicOfferings, isGyrotonic, GYROTONIC_TITLE, type PrivateOffering } from "@/lib/privateOfferings";
 import { TeacherPortfolios } from "@/components/TeacherPortfolios";
+import TeacherProfile from "@/pages/TeacherProfile";
 
 const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8").replace(/\r\n/g, "\n");
 
@@ -115,31 +125,41 @@ describe("2. Where the private class happens", () => {
   });
 });
 
-describe("3. Every teacher's portfolio shows", () => {
-  const renderIt = (props: Parameters<typeof TeacherPortfolios>[0]) =>
+describe("3. Every teacher's portfolio shows, and opens her page", () => {
+  const renderIt = (ui: React.ReactElement, path = "/") =>
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter><TeacherPortfolios {...props} /></MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>
       </QueryClientProvider>,
     );
 
   db.rpc = {
     public_teachers: [
       { id: "t-eve", display_name: "Evelina", photo_url: null, bio: "Gyrotonic and CranioSacral." },
-      { id: "t-zc", display_name: "Zhijian Chen", photo_url: null, bio: null },
+      { id: "t-zz", display_name: "Zoe Ñandú", photo_url: null, bio: null },
     ],
     public_private_offerings: [offering({})],
-    public_teacher_portfolios: [],
+    public_teacher_portfolios: [{
+      membership_id: "m1", teacher_name: "Evelina", membership_name: "5-Class Pass", price: 101,
+      classes_included: 5, valid_days: 30, description: null, payment_link: null, payment_note: null,
+      teacher_payment_instructions: null,
+    }],
   };
 
-  it("with no class on the schedule: each teacher, her bio and her private classes", async () => {
-    renderIt({ sessions: [] });
+  it("with no class on the schedule: each teacher's card, and it opens her portfolio", async () => {
+    renderIt(<TeacherPortfolios sessions={[]} />);
     await waitFor(() => expect(screen.getByText("Evelina")).toBeTruthy());
-    expect(screen.getByText("Zhijian Chen")).toBeTruthy();
+    expect(screen.getByText("Zoe Ñandú")).toBeTruthy();
     expect(screen.getByText("Gyrotonic and CranioSacral.")).toBeTruthy();
-    expect(screen.getByText("1 private class")).toBeTruthy();
-    expect(screen.getByText(/Private classes with Evelina/)).toBeTruthy();
     expect(screen.getAllByText("No group classes on the schedule right now.")).toHaveLength(2);
+    const card = screen.getByRole("link", { name: /Evelina — classes, private classes and passes/ });
+    expect(card.getAttribute("href")).toBe("/teachers/evelina");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Private classes" }).getAttribute("href")).toBe("/teachers/evelina#private"));
+    expect(screen.getByRole("link", { name: "Passes" }).getAttribute("href")).toBe("/teachers/evelina#passes");
+    // Nothing to book inside the card any more: it is all on her page.
+    expect(screen.queryByText("Get it")).toBeNull();
+    expect(screen.queryByText("See & request")).toBeNull();
+    expect(screen.getByRole("link", { name: /Zoe Ñandú/ }).getAttribute("href")).toBe("/teachers/zoe-nandu");
   });
 
   it("on Private Sessions only the teachers — no card for a class nobody is named on", async () => {
@@ -148,12 +168,37 @@ describe("3. Every teacher's portfolio shows", () => {
       id: "s1", class_id: "c1", start_time: soon, spots_remaining: 5, instructor: null,
       classes: { id: "c1", title: "Hatha Yoga", instructor: null, image_url: null, description: null, location: null },
     } as any;
-    const { unmount } = renderIt({ sessions: [orphan], teachersOnly: true });
+    const { unmount } = renderIt(<TeacherPortfolios sessions={[orphan]} teachersOnly />);
     await waitFor(() => expect(screen.getByText("Evelina")).toBeTruthy());
     expect(screen.queryByText("Hatha Yoga")).toBeNull();
     unmount();
-    renderIt({ sessions: [orphan] });
-    await waitFor(() => expect(screen.getByText("Hatha Yoga")).toBeTruthy()); // the Classes page keeps it
+    renderIt(<TeacherPortfolios sessions={[orphan]} />);
+    await waitFor(() => expect(screen.getByText("Hatha Yoga")).toBeTruthy()); // the Classes page keeps it, with Reserve
+    expect(screen.getByRole("link", { name: "Reserve" }).getAttribute("href")).toBe("/classes/c1");
+  });
+
+  it("her page: bio, classes, private classes with prices and the request, passes", async () => {
+    renderIt(
+      <Routes><Route path="/teachers/:slug" element={<TeacherProfile />} /></Routes>,
+      "/teachers/evelina",
+    );
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Evelina" })).toBeTruthy());
+    expect(screen.getByText("Gyrotonic and CranioSacral.")).toBeTruthy();
+    expect(screen.getByText(/No group classes on the schedule right now/)).toBeTruthy();
+    expect(screen.getByText("Private classes with Evelina")).toBeTruthy();
+    expect(screen.getByText("GYROTONIC®")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Request a private class" })).toBeTruthy();
+    expect(screen.getByText("Passes with Evelina")).toBeTruthy();
+    expect(screen.getByText("5-Class Pass")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Get it" })).toBeTruthy();
+    expect(document.getElementById("classes")).toBeTruthy();
+    expect(document.getElementById("private")).toBeTruthy();
+    expect(document.getElementById("passes")).toBeTruthy();
+  });
+
+  it("a name that is not a teacher says so", async () => {
+    renderIt(<Routes><Route path="/teachers/:slug" element={<TeacherProfile />} /></Routes>, "/teachers/nobody");
+    await waitFor(() => expect(screen.getByText("Teacher not found")).toBeTruthy());
   });
 
   it("the Classes page shows the teachers also in a week with no class, and Private Sessions lists them", () => {
@@ -161,5 +206,6 @@ describe("3. Every teacher's portfolio shows", () => {
     expect(classes).toMatch(/const showPortfolios = regularEvents\.length > 0 \|\| teachers\.length > 0;/);
     expect(classes).toMatch(/\{showPortfolios && \(/);
     expect(read("src/pages/PrivateClasses.tsx")).toMatch(/<TeacherPortfolios sessions=\{weekly\} teachersOnly \/>/);
+    expect(read("src/App.tsx")).toMatch(/\{ path: "\/teachers\/:slug", element: <TeacherProfile \/> \}/);
   });
 });

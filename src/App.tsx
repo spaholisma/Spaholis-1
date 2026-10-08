@@ -21,6 +21,7 @@ const pages = {
   Classes: () => import("./pages/Classes"),
   ClassesCalendar: () => import("./pages/ClassesCalendar"),
   ClassDetail: () => import("./pages/ClassDetail"),
+  TeacherProfile: () => import("./pages/TeacherProfile"),
   MembershipsPage: () => import("./pages/Memberships"),
   PrivateClasses: () => import("./pages/PrivateClasses"),
   ClassBooking: () => import("./pages/ClassBooking"),
@@ -62,6 +63,7 @@ const BookingReturn = lazy(pages.BookingReturn);
 const Classes = lazy(pages.Classes);
 const ClassesCalendar = lazy(pages.ClassesCalendar);
 const ClassDetail = lazy(pages.ClassDetail);
+const TeacherProfile = lazy(pages.TeacherProfile);
 const MembershipsPage = lazy(pages.MembershipsPage);
 const PrivateClasses = lazy(pages.PrivateClasses);
 const ClassBooking = lazy(pages.ClassBooking);
@@ -147,6 +149,7 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/classes", element: <Classes /> },
   { path: "/classes/schedule", element: <ClassesCalendar /> },
   { path: "/classes/:classId", element: <ClassDetail /> },
+  { path: "/teachers/:slug", element: <TeacherProfile /> },
   { path: "/private-sessions", element: <PrivateClasses /> },
   { path: "/class-booking", element: <ClassBooking /> },
   { path: "/education", element: <Educational /> },

@@ -126,8 +126,10 @@ describe("the pages", () => {
 
   it("the Classes page has one entry per teacher, not a button per class", () => {
     const src = read("src/components/TeacherPortfolios.tsx");
-    expect(src).toMatch(/setPrivatePick\(\{ teacherName: p\.teacher, offerings: mine \}\)/);
+    // The card leads to her portfolio; her private classes are asked for there.
+    expect(src).toMatch(/<Link to=\{teacherPath\(p\.teacher, "private"\)\}>Private classes<\/Link>/);
     expect(src).not.toMatch(/canBookPrivately/);
+    expect(read("src/pages/TeacherProfile.tsx")).toMatch(/setPrivatePick\(\{ teacherName: p\.teacher, offerings: p\.privates, initialOfferingId: o\.id \}\)/);
   });
 
   it("the Private Sessions page no longer lists fixed prices, except for GYROTONIC", () => {
