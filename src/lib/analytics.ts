@@ -31,6 +31,23 @@ declare global {
   }
 }
 
+// ─────────────────────────── Never in the way ───────────────────────────
+
+/**
+ * Measuring must never break what it measures: every function a page calls is
+ * wrapped, so a blocked browser, full storage or a script error inside
+ * Analytics just means "not counted" — the booking or payment carries on.
+ */
+function safely<A extends unknown[], R>(fn: (...args: A) => R, fallback: R): (...args: A) => R {
+  return (...args: A) => {
+    try {
+      return fn(...args);
+    } catch {
+      return fallback;
+    }
+  };
+}
+
 // ─────────────────────────── Environment ───────────────────────────
 
 /** The only addresses that report to the production property. */
@@ -150,13 +167,16 @@ export function onConsentChange(fn: (c: Consent | null) => void): () => void {
 }
 
 /** The visitor's choice from the banner (or the privacy page). */
-export function setConsent(choice: Consent) {
+export const setConsent = safely(function setConsent(choice: Consent): void {
   try { localStorage.setItem(CONSENT_STORAGE_KEY, choice); } catch { /* private mode: applies to this visit */ }
   remembered = choice;
   if (choice === "granted") startAnalytics();
-  else if (mode) window.gtag?.("consent", "update", { analytics_storage: "denied" });
-  listeners.forEach((l) => l(choice));
-}
+  else {
+    if (mode) { window.gtag?.("consent", "update", { analytics_storage: "denied" }); withdrawn = true; }
+    clearAnalyticsCookies();
+  }
+  listeners.forEach((l) => { try { l(choice); } catch { /* one listener can't stop the others */ } });
+}, undefined);
 
 // The choice also lives in memory, so a browser that blocks storage still honours it.
 let remembered: Consent | null = null;
@@ -165,16 +185,29 @@ const consent = () => remembered ?? getConsent();
 // ─────────────────────────── The tag ───────────────────────────
 
 let mode: null | "full" = null;
+let withdrawn = false;
 
-/** True once the tag is running (after consent, on the real site). */
-export const analyticsActive = () => mode !== null;
+/** True while the tag is running and the visitor still agrees — a later "Decline" stops every event. */
+export const analyticsActive = () => mode !== null && consent() === "granted";
+
+/** Removes Google Analytics' own cookies (_ga, _ga_<stream>) when the visitor declines. */
+function clearAnalyticsCookies(): void {
+  try {
+    const parts = window.location.hostname.split(".");
+    const domains = [""];
+    for (let i = 0; i < parts.length - 1; i++) domains.push(`; domain=.${parts.slice(i).join(".")}`);
+    document.cookie.split(";").map((c) => c.split("=")[0].trim())
+      .filter((name) => name === "_ga" || name.startsWith("_ga_"))
+      .forEach((name) => domains.forEach((d) => { document.cookie = `${name}=; Max-Age=0; path=/${d}`; }));
+  } catch { /* nothing to clear */ }
+}
 
 function gtag(...args: unknown[]) {
   window.gtag?.(...args);
 }
 
 /** Starts the tag once — only after the visitor accepted, and only on the real site. */
-export function startAnalytics(): boolean {
+export const startAnalytics = safely(function startAnalytics(): boolean {
   if (typeof window === "undefined" || devBlocked()) return false;
   const granted = consent() === "granted";
   if (!granted) return false;
@@ -206,9 +239,13 @@ export function startAnalytics(): boolean {
     s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA4_MEASUREMENT_ID)}`;
     document.head.appendChild(s);
     mode = "full";
+  } else if (withdrawn) {
+    // Accepted again after a "Decline" earlier in the same visit.
+    gtag("consent", "update", { analytics_storage: "granted" });
+    withdrawn = false;
   }
   return true;
-}
+}, false);
 
 // ─────────────────────────── Page views ───────────────────────────
 
@@ -216,7 +253,7 @@ let lastPage = "";
 let firstPageSent = false;
 
 /** One page_view per page. The same address twice in a row is not a new visit. */
-export function trackPageView(href = window.location.href, title = document.title): boolean {
+export const trackPageView = safely(function trackPageView(href: string = window.location.href, title: string = document.title): boolean {
   if (!analyticsActive()) return false;
   const url = safeUrl(href);
   if (url === lastPage) return false;
@@ -228,16 +265,16 @@ export function trackPageView(href = window.location.href, title = document.titl
   }));
   firstPageSent = true;
   return true;
-}
+}, false);
 
 // ─────────────────────────── Events ───────────────────────────
 
 /** Any event, scrubbed of personal data. Does nothing before consent. */
-export function track(event: string, params: Record<string, unknown> = {}): boolean {
+export const track = safely(function track(event: string, params: Record<string, unknown> = {}): boolean {
   if (!analyticsActive()) return false;
   gtag("event", event, scrubParams(params));
   return true;
-}
+}, false);
 
 export type BookingType = "treatment" | "class" | "experience" | "membership" | "retreat";
 
@@ -268,16 +305,22 @@ export const trackViewService = (b: BookingItem) => track("view_service", itemPa
 export const trackBeginBooking = (b: BookingItem) => track("begin_booking", itemParams(b, "price"));
 
 /**
- * A one-way id for a booking (FNV-1a, 64 bits). GA gets this instead of the
- * booking id, whose first 8 characters are the guest's confirmation code.
+ * A one-way id for a booking (cyrb53 hash, plain numbers — no BigInt, which
+ * older iPhones can't even read). GA gets this instead of the booking id,
+ * whose first 8 characters are the guest's confirmation code.
  */
 export function transactionKey(id: string): string {
-  let h = 0xcbf29ce484222325n;
-  for (const ch of id) {
-    h ^= BigInt(ch.codePointAt(0)!);
-    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  let h1 = 0xdeadbeef ^ 0x5bd1e995;
+  let h2 = 0x41c6ce57 ^ 0x5bd1e995;
+  for (let i = 0; i < id.length; i++) {
+    const ch = id.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
   }
-  return "tx_" + h.toString(16).padStart(16, "0");
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+  return "tx_" + hex(h2) + hex(h1);
 }
 
 function alreadySent(txId: string): boolean {
@@ -311,7 +354,7 @@ export type PaymentStatus = "paid_online" | "pay_later" | "covered" | "free";
  * and — only for "paid_online" with money — `purchase`, GA's revenue event.
  * The same transaction is never counted twice.
  */
-export function trackBookingComplete(b: BookingItem & {
+export const trackBookingComplete = safely(function trackBookingComplete(b: BookingItem & {
   transaction_id: string;
   payment_method: string;
   payment_status: PaymentStatus;
@@ -346,12 +389,13 @@ export function trackBookingComplete(b: BookingItem & {
     });
   }
   return true;
-}
+}, false);
 
 // ─────────────────────────── For tests ───────────────────────────
 
 export function __resetAnalyticsForTests() {
   mode = null;
+  withdrawn = false;
   lastPage = "";
   firstPageSent = false;
   remembered = null;

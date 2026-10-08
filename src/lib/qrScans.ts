@@ -10,14 +10,19 @@ import type { PartnerLink } from "@/data/partnerLinks";
  * Never holds the visitor up: resolves when saved, on error, or after `waitMs`.
  */
 export function recordQrScan(slug: string, link: PartnerLink, waitMs = 1200): Promise<void> {
-  const saved = Promise.resolve(
-    (supabase as any).rpc("record_partner_qr_scan", {
-      _slug: slug,
-      _partner: link.partner,
-      _property: link.property ?? null,
-      _destination: link.destination,
-    }),
-  ).then(() => undefined, () => undefined);
+  let saved: Promise<void>;
+  try {
+    saved = Promise.resolve(
+      (supabase as any).rpc("record_partner_qr_scan", {
+        _slug: slug,
+        _partner: link.partner,
+        _property: link.property ?? null,
+        _destination: link.destination,
+      }),
+    ).then(() => undefined, () => undefined);
+  } catch {
+    saved = Promise.resolve(); // the visitor still goes on to WhatsApp
+  }
   const timeout = new Promise<void>((r) => setTimeout(r, waitMs));
   return Promise.race([saved, timeout]);
 }

@@ -16,7 +16,7 @@ export function CookieChoice() {
       ? (es ? "Ha rechazado las cookies de análisis." : "You have declined analytics cookies.")
       : (es ? "Todavía no ha elegido." : "You have not chosen yet.");
 
-  const btn = "rounded-full px-4 py-2 font-body text-sm font-medium transition-colors";
+  const btn = "min-h-11 rounded-full px-4 py-2.5 font-body text-sm font-medium transition-colors";
   return (
     <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-3">
       <p className="font-body text-sm text-foreground" aria-live="polite">{label}</p>

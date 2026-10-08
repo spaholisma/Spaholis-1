@@ -63,6 +63,29 @@ describe("consent", () => {
     expect((config[2] as any).send_page_view).toBe(false); // page_view is sent by hand, once
   });
 
+  it("declining after accepting stops every event, clears GA's cookies, and accepting again resumes", () => {
+    ga.setConsent("granted");
+    expect(ga.track("click_whatsapp")).toBe(true);
+    document.cookie = "_ga=GA1.1.123.456; path=/";
+    document.cookie = "_ga_W4GMPQKK5N=GS1.1.789; path=/";
+    document.cookie = "holis_keep=1; path=/";
+
+    ga.setConsent("denied");
+    expect(calls().some((c) => c[0] === "consent" && c[1] === "update" && (c[2] as any).analytics_storage === "denied")).toBe(true);
+    expect(document.cookie).not.toMatch(/_ga/);
+    expect(document.cookie).toMatch(/holis_keep=1/); // only Google's cookies go
+    const before = calls().length;
+    expect(ga.track("click_whatsapp")).toBe(false);
+    expect(ga.trackPageView("https://www.spaholis.com/classes")).toBe(false);
+    expect(calls().length).toBe(before);
+
+    ga.setConsent("granted");
+    expect(calls().some((c) => c[0] === "consent" && c[1] === "update" && (c[2] as any).analytics_storage === "granted")).toBe(true);
+    expect(gaScripts()).toBe(1); // the tag is not loaded twice
+    expect(ga.track("click_whatsapp")).toBe(true);
+    document.cookie = "holis_keep=; Max-Age=0; path=/";
+  });
+
   it("there is no cookie-free mode any more: without consent, nothing — QR pages included", () => {
     expect(read("src/lib/analytics.ts")).not.toMatch(/cookieless/);
     expect(ga.startAnalytics()).toBe(false);
@@ -382,5 +405,37 @@ describe("the privacy policy says what really happens", () => {
   it("QR scans: counted on our server; Google only with consent", () => {
     expect(p).toMatch(/count the scan on\s+our own server/);
     expect(p).toMatch(/contamos el\s+escaneo en nuestro propio servidor/);
+  });
+});
+
+describe("measuring never breaks a booking or a payment", () => {
+  it("if Google's script throws, every call just returns false", () => {
+    ga.setConsent("granted");
+    window.gtag = () => { throw new Error("blocked"); };
+    expect(() => ga.trackPageView("https://www.spaholis.com/x")).not.toThrow();
+    expect(() => ga.track("click_whatsapp")).not.toThrow();
+    expect(() => ga.trackBookingComplete({ transaction_id: "z1", booking_type: "class", value: 23, payment_method: "paypal", payment_status: "paid_online" })).not.toThrow();
+    expect(ga.track("click_whatsapp")).toBe(false);
+  });
+
+  it("if the browser's storage is full or blocked, nothing throws either", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceeded"); });
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("SecurityError"); });
+    expect(() => ga.setConsent("granted")).not.toThrow();
+    expect(() => ga.trackBookingComplete({ transaction_id: "z2", booking_type: "class", value: 23, payment_method: "paypal", payment_status: "paid_online" })).not.toThrow();
+    spy.mockRestore(); get.mockRestore();
+  });
+
+  it("the one-way key works without BigInt (older iPhones can't read BigInt)", () => {
+    expect(read("src/lib/analytics.ts")).not.toMatch(/BigInt\(|\b(0x[0-9a-f]+|\d+)n\b/);
+    expect(ga.transactionKey("7aa1c831-474b-43c2-89a9-9964ba0feab3")).toMatch(/^tx_[0-9a-f]{16}$/);
+  });
+
+  it("the booking and payment files only gained measurement — nothing about payments or cards changed", () => {
+    for (const f of ["src/pages/Booking.tsx", "src/pages/ClassBooking.tsx", "src/pages/BookingReturn.tsx"]) {
+      expect(read(f)).not.toMatch(/save_card_authorization[\s\S]{0,40}track/);
+    }
+    // The card-on-file call is exactly as before.
+    expect(read("src/pages/Booking.tsx")).toMatch(/supabase\.rpc\("save_card_authorization" as any, \{\s+_booking_id: bookingId,\s+_cardholder: cardAuth\.cardholder_name\.trim\(\),\s+_card_number: cardDigitsValue,/);
   });
 });

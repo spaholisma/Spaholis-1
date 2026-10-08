@@ -57,6 +57,9 @@ export function AnalyticsTracker() {
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
+      try { onLinkClick(e); } catch { /* measuring never gets in the way of a click */ }
+    };
+    const onLinkClick = (e: MouseEvent) => {
       if (isUntrackedPath(window.location.pathname)) return;
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a) return;
