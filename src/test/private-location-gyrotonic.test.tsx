@@ -62,10 +62,8 @@ describe("1. GYROTONIC with a teacher", () => {
 
   it("the teacher picks it in her panel; it is saved with no schedule class", () => {
     const ed = read("src/components/teacher/TeacherPrivateOfferingsEditor.tsx");
-    expect(ed).toMatch(/<option value=\{GYRO\}>\{GYROTONIC_TITLE\} \(on the tower\)<\/option>/);
-    expect(ed).toMatch(/class_id: draft\.class_id && draft\.class_id !== GYRO \? draft\.class_id : null/);
-    // Editing it again shows it picked.
-    expect(ed).toMatch(/class_id: r\.class_id \?\? \(isGyrotonic\(r\.title\) \? GYRO : ""\)/);
+    expect(ed).toMatch(/namedPrivateClassesFor\(teacherName\)\.map/);
+    expect(ed).toMatch(/class_id: draft\.class_id && !namedKey\(draft\.class_id\) \? draft\.class_id : null/);
   });
 
   it("the Private Sessions card goes to her, at her price — and stays as before until a teacher lists it", () => {
@@ -75,6 +73,18 @@ describe("1. GYROTONIC with a teacher", () => {
     expect(page).toMatch(/formatCRCWithUsd\(gyro \? Number\(gyro\.price_one\) \* USD_RATE : price\)/);
     // The old link is still there for when nobody lists it.
     expect(page).toContain('cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""');
+  });
+});
+
+describe("1b. Named private classes in her panel", () => {
+  it("every teacher can pick GYROTONIC; Couple's & Connection and Kinesiology are Evelina's", async () => {
+    const { namedPrivateClassesFor, namedPrivateClassOf } = await import("@/lib/privateOfferings");
+    expect(namedPrivateClassesFor("Evelina").map((n) => n.title)).toEqual(["GYROTONIC®", "Couple's & Connection", "Kinesiology"]);
+    expect(namedPrivateClassesFor("Ashley").map((n) => n.title)).toEqual(["GYROTONIC®"]);
+    // A saved one is recognised again by its title when she edits it.
+    expect(namedPrivateClassOf("couple's & connection")?.key).toBe("couples-connection");
+    expect(namedPrivateClassOf("Private Gyrotonic")?.key).toBe("gyrotonic");
+    expect(namedPrivateClassOf("Aerial Yoga")).toBeNull();
   });
 });
 

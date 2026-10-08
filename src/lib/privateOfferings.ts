@@ -144,3 +144,23 @@ export function gyrotonicOfferings(all: PrivateOffering[]): PrivateOffering[] {
     .filter((o) => isGyrotonic(o.title) && o.price_one != null)
     .sort((a, b) => Number(a.price_one) - Number(b.price_one) || a.teacher_name.localeCompare(b.teacher_name));
 }
+
+/**
+ * Private classes a teacher picks by name in her panel because they are not
+ * on the class schedule. `teachers` limits one to the teachers who give it
+ * (left out: every teacher sees it). Saved with no class, under this title.
+ */
+export interface NamedPrivateClass { key: string; title: string; label: string; teachers?: string[] }
+export const NAMED_PRIVATE_CLASSES: NamedPrivateClass[] = [
+  { key: "gyrotonic", title: GYROTONIC_TITLE, label: `${GYROTONIC_TITLE} (on the tower)` },
+  { key: "couples-connection", title: "Couple's & Connection", label: "Couple's & Connection", teachers: ["Evelina"] },
+  { key: "kinesiology", title: "Kinesiology", label: "Kinesiology", teachers: ["Evelina"] },
+];
+
+/** The named private classes this teacher can pick. */
+export const namedPrivateClassesFor = (teacherName: string | null | undefined) =>
+  NAMED_PRIVATE_CLASSES.filter((n) => !n.teachers || n.teachers.some((t) => sameName(t, teacherName)));
+
+/** The named private class a saved one is — matched by its title. */
+export const namedPrivateClassOf = (title: string | null | undefined) =>
+  NAMED_PRIVATE_CLASSES.find((n) => n.key === "gyrotonic" ? isGyrotonic(title) : sameName(n.title, title)) ?? null;

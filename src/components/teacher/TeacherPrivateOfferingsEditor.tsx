@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
-import { GYROTONIC_TITLE, isGyrotonic, sameName } from "@/lib/privateOfferings";
+import { NAMED_PRIVATE_CLASSES, namedPrivateClassOf, namedPrivateClassesFor, sameName } from "@/lib/privateOfferings";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -30,16 +30,18 @@ interface Row {
 
 type Draft = {
   id: string | null;
-  class_id: string; // "" = something else, GYRO = GYROTONIC®
+  class_id: string; // "" = something else, "named:<key>" = a named private class (GYROTONIC®…)
   title: string;
   description: string;
   duration: string;
   one: string; two: string; group: string; extra: string;
 };
 
-// GYROTONIC® is not on the class schedule (it is taught on the tower), so it is
-// offered by name: saved with no class, titled GYROTONIC®.
-const GYRO = "gyrotonic";
+// Classes that are not on the schedule (GYROTONIC® on the tower, Couple's &
+// Connection, Kinesiology…) are picked by name: saved with no class, under
+// their own title. See NAMED_PRIVATE_CLASSES.
+const NAMED = "named:";
+const namedKey = (v: string) => (v.startsWith(NAMED) ? v.slice(NAMED.length) : null);
 
 const EMPTY: Draft = { id: null, class_id: "", title: "", description: "", duration: "60", one: "", two: "", group: "", extra: "" };
 const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
@@ -88,7 +90,7 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
   }, [teacherName]);
 
   const edit = (r: Row) => setDraft({
-    id: r.id, class_id: r.class_id ?? (isGyrotonic(r.title) ? GYRO : ""), title: r.title, description: r.description ?? "",
+    id: r.id, class_id: r.class_id ?? (namedPrivateClassOf(r.title) ? `${NAMED}${namedPrivateClassOf(r.title)!.key}` : ""), title: r.title, description: r.description ?? "",
     duration: r.duration_minutes ? String(r.duration_minutes) : "",
     one: r.price_one == null ? "" : String(r.price_one),
     two: r.price_two == null ? "" : String(r.price_two),
@@ -99,8 +101,11 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
   const pickClass = (id: string) => {
     if (!draft) return;
     // The name follows the class picked, unless she already typed her own.
-    const auto = !draft.title.trim() || draft.title === GYROTONIC_TITLE || myClasses.some((c) => c.title === draft.title);
-    const title = id === GYRO ? GYROTONIC_TITLE : myClasses.find((c) => c.id === id)?.title;
+    const auto = !draft.title.trim()
+      || NAMED_PRIVATE_CLASSES.some((n) => n.title === draft.title)
+      || myClasses.some((c) => c.title === draft.title);
+    const key = namedKey(id);
+    const title = key ? NAMED_PRIVATE_CLASSES.find((n) => n.key === key)?.title : myClasses.find((c) => c.id === id)?.title;
     setDraft({ ...draft, class_id: id, title: title && auto ? title : draft.title });
   };
 
@@ -119,7 +124,7 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
     }
     const payload = {
       teacher_id: teacherId,
-      class_id: draft.class_id && draft.class_id !== GYRO ? draft.class_id : null,
+      class_id: draft.class_id && !namedKey(draft.class_id) ? draft.class_id : null,
       title,
       description: draft.description.trim() || null,
       duration_minutes: duration,
@@ -228,7 +233,9 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
                 className="h-9 w-full rounded-md border border-input bg-background px-2 font-body text-sm">
                 <option value="">Something else (not on the schedule)</option>
                 {myClasses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                <option value={GYRO}>{GYROTONIC_TITLE} (on the tower)</option>
+                {namedPrivateClassesFor(teacherName).map((n) => (
+                  <option key={n.key} value={`${NAMED}${n.key}`}>{n.label}</option>
+                ))}
               </select>
             </div>
             <div>
