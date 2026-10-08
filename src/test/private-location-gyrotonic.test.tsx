@@ -181,6 +181,8 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     renderIt(<TeacherPortfolios sessions={[orphan]} />);
     await waitFor(() => expect(screen.getByText("Hatha Yoga")).toBeTruthy()); // the Classes page keeps it, with Reserve
     expect(screen.getByRole("link", { name: "Reserve" }).getAttribute("href")).toBe("/classes/c1");
+    // The whole card opens the class too, with its description as plain words.
+    expect(screen.getByRole("link", { name: /Hatha Yoga — see the class and its dates/ }).getAttribute("href")).toBe("/classes/c1");
   });
 
   it("her page: bio, classes, private classes with prices and the request, passes", async () => {
@@ -256,5 +258,14 @@ describe("4. A teacher's change shows on the website without refreshing", () => 
     expect(ed).toMatch(/queryClient\.invalidateQueries\(\{ queryKey: \["public-private-offerings"\] \}\)/);
     expect(read("src/lib/privateOfferings.ts")).toMatch(/staleTime: 0,\s+refetchOnWindowFocus: true,/);
     expect(read("src/components/TeacherPortfolios.tsx").match(/staleTime: 0/g)).toHaveLength(2);
+  });
+});
+
+describe("5. A class card's preview text", () => {
+  it("keeps the words of links and emphasis, without the markup", async () => {
+    const { richTextToPlain } = await import("@/components/ui/rich-text");
+    expect(richTextToPlain("Bring a **mat** — see [our studio](https://www.spaholis.com/studio-rental), *gently*."))
+      .toBe("Bring a mat — see our studio, gently.");
+    expect(richTextToPlain(null)).toBe("");
   });
 });

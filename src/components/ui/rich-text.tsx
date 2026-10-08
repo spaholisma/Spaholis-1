@@ -141,6 +141,14 @@ function renderLinks(text: string, key: string): ReactNode[] {
   );
 }
 
+/** The same copy as plain words — for a preview inside a card that is itself a link. */
+export function richTextToPlain(value: string | null | undefined): string {
+  return (value ?? "")
+    .replace(LINK_RE, "$1")
+    .replace(BOLD_RE, "$1")
+    .replace(ITALIC_RE, "$1");
+}
+
 export function parseRichText(value: string): ReactNode[] {
   return renderLinks(String(value ?? ""), "rt");
 }

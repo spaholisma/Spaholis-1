@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { RichText } from "@/components/ui/rich-text";
+import { richTextToPlain } from "@/components/ui/rich-text";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "@/hooks/useClasses";
@@ -320,35 +320,46 @@ function TeacherCard({ p }: { p: Portfolio }) {
   );
 }
 
-/** A class nobody is named on yet: the class itself, reserved from here. */
+/**
+ * A class nobody is named on yet: the whole card opens the class's own page
+ * (details, every date, booking). Once a teacher is put on its sessions it
+ * becomes part of her portfolio instead.
+ */
 function ClassCard({ p }: { p: Portfolio }) {
+  const block = p.classes[0];
+  if (!block) return <PortfolioHeader p={p} />;
+  const { cls, bookable, when } = block;
   return (
     <>
-      <PortfolioHeader p={p} />
-      <div className="flex flex-1 flex-col gap-4 px-6 py-5">
-        {p.classes.map(({ cls, bookable, when }) => (
-          <div key={cls.id}>
-            <p className="font-body text-xs text-muted-foreground mt-0.5">
-              {when}{cls.location && <> &nbsp;|&nbsp; {cls.location}</>}
-            </p>
-            {cls.description && (
-              <p className="spa-body-sm mt-2 line-clamp-3 whitespace-pre-line">
-                <RichText value={cls.description} />
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {bookable ? (
-                <Button size="sm" variant="outline" className="rounded-full" asChild>
-                  <Link to={`/classes/${cls.id}`}>Reserve</Link>
-                </Button>
-              ) : (
-                <Link to={`/classes/${cls.id}`} className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline">
-                  Full — see other dates
-                </Link>
-              )}
-            </div>
-          </div>
-        ))}
+      <Link
+        to={`/classes/${cls.id}`}
+        aria-label={`${cls.title} — see the class and its dates`}
+        className="flex flex-1 flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-spa-sage"
+      >
+        <PortfolioHeader p={p} />
+        <div className="flex flex-1 flex-col gap-2 px-6 py-5">
+          <p className="font-body text-xs text-muted-foreground">
+            {when}{cls.location && <> &nbsp;|&nbsp; {cls.location}</>}
+          </p>
+          {cls.description && (
+            // Plain words: the card is a link, and a link can't hold another.
+            <p className="spa-body-sm line-clamp-3 whitespace-pre-line">{richTextToPlain(cls.description)}</p>
+          )}
+          <span className="mt-auto inline-flex items-center gap-1 pt-2 font-body text-xs font-semibold uppercase tracking-wider text-primary">
+            See the class <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </Link>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border px-6 py-4">
+        {bookable ? (
+          <Button size="sm" variant="outline" className="rounded-full" asChild>
+            <Link to={`/classes/${cls.id}`}>Reserve</Link>
+          </Button>
+        ) : (
+          <Link to={`/classes/${cls.id}`} className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline">
+            Full — see other dates
+          </Link>
+        )}
       </div>
     </>
   );
