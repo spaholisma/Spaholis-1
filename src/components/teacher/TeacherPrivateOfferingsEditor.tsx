@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
-import { NAMED_PRIVATE_CLASSES, namedPrivateClassOf, namedPrivateClassesFor, sameName } from "@/lib/privateOfferings";
+import { choiceLabel, choiceOf, cleanChoices, sameName } from "@/lib/privateOfferings";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
@@ -30,7 +30,7 @@ interface Row {
 
 type Draft = {
   id: string | null;
-  class_id: string; // "" = something else, "named:<key>" = a named private class (GYROTONIC®…)
+  class_id: string; // "" = something else, "named:<title>" = one of her named private classes
   title: string;
   description: string;
   duration: string;
@@ -38,10 +38,10 @@ type Draft = {
 };
 
 // Classes that are not on the schedule (GYROTONIC® on the tower, Couple's &
-// Connection, Kinesiology…) are picked by name: saved with no class, under
-// their own title. See NAMED_PRIVATE_CLASSES.
+// Connection, Kinesiology…) are picked by name — the ones the team added for
+// her in Admin → Teachers → Details. Saved with no class, under that title.
 const NAMED = "named:";
-const namedKey = (v: string) => (v.startsWith(NAMED) ? v.slice(NAMED.length) : null);
+const namedTitle = (v: string) => (v.startsWith(NAMED) ? v.slice(NAMED.length) : null);
 
 const EMPTY: Draft = { id: null, class_id: "", title: "", description: "", duration: "60", one: "", two: "", group: "", extra: "" };
 const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
@@ -54,7 +54,13 @@ const money = (n: number | null) => (n == null ? "—" : formatCRCWithUsd(Number
  * groups for aerial, say. The website shows them on her class pages, and the
  * price of every request is worked out from what is saved here.
  */
-export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teacherId: string; teacherName: string }) {
+export function TeacherPrivateOfferingsEditor({ teacherId, teacherName, choices: rawChoices = [] }: {
+  teacherId: string;
+  teacherName: string;
+  /** The private classes the team added for her to pick by name. */
+  choices?: string[] | null;
+}) {
+  const choices = cleanChoices(rawChoices);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [myClasses, setMyClasses] = useState<{ id: string; title: string }[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -90,7 +96,7 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
   }, [teacherName]);
 
   const edit = (r: Row) => setDraft({
-    id: r.id, class_id: r.class_id ?? (namedPrivateClassOf(r.title) ? `${NAMED}${namedPrivateClassOf(r.title)!.key}` : ""), title: r.title, description: r.description ?? "",
+    id: r.id, class_id: r.class_id ?? (choiceOf(choices, r.title) ? `${NAMED}${choiceOf(choices, r.title)}` : ""), title: r.title, description: r.description ?? "",
     duration: r.duration_minutes ? String(r.duration_minutes) : "",
     one: r.price_one == null ? "" : String(r.price_one),
     two: r.price_two == null ? "" : String(r.price_two),
@@ -102,10 +108,9 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
     if (!draft) return;
     // The name follows the class picked, unless she already typed her own.
     const auto = !draft.title.trim()
-      || NAMED_PRIVATE_CLASSES.some((n) => n.title === draft.title)
+      || choices.some((c) => c === draft.title)
       || myClasses.some((c) => c.title === draft.title);
-    const key = namedKey(id);
-    const title = key ? NAMED_PRIVATE_CLASSES.find((n) => n.key === key)?.title : myClasses.find((c) => c.id === id)?.title;
+    const title = namedTitle(id) ?? myClasses.find((c) => c.id === id)?.title;
     setDraft({ ...draft, class_id: id, title: title && auto ? title : draft.title });
   };
 
@@ -124,7 +129,7 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
     }
     const payload = {
       teacher_id: teacherId,
-      class_id: draft.class_id && !namedKey(draft.class_id) ? draft.class_id : null,
+      class_id: draft.class_id && !namedTitle(draft.class_id) ? draft.class_id : null,
       title,
       description: draft.description.trim() || null,
       duration_minutes: duration,
@@ -233,8 +238,8 @@ export function TeacherPrivateOfferingsEditor({ teacherId, teacherName }: { teac
                 className="h-9 w-full rounded-md border border-input bg-background px-2 font-body text-sm">
                 <option value="">Something else (not on the schedule)</option>
                 {myClasses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                {namedPrivateClassesFor(teacherName).map((n) => (
-                  <option key={n.key} value={`${NAMED}${n.key}`}>{n.label}</option>
+                {choices.map((c) => (
+                  <option key={c} value={`${NAMED}${c}`}>{choiceLabel(c)}</option>
                 ))}
               </select>
             </div>

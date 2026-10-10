@@ -35,7 +35,8 @@ describe("private classes in the Teacher Panel", () => {
   });
 
   it("lets her set her own private classes and prices — never the studio's", () => {
-    expect(view).toContain("<TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} />");
+    // Her own private classes, with the named ones the team set for her.
+    expect(view).toContain("<TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} choices={choices} />");
     expect(view).not.toContain("Prices set by Holis");
     expect(view).not.toMatch(/from\("services"\)[^;]*update|privateSessions[^;]*update/);
   });

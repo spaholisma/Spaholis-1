@@ -666,7 +666,8 @@ export default function TeacherPanel() {
                 )}
 
                 {tab === "private" && teacher && (
-                  <TeacherPrivateClasses teacherId={teacher.id} teacherName={teacher.display_name} note={(teacher as any).private_class_note ?? null} />
+                  <TeacherPrivateClasses teacherId={teacher.id} teacherName={teacher.display_name} note={(teacher as any).private_class_note ?? null}
+                    choices={(teacher as any).private_class_choices ?? []} />
                 )}
 
                 {tab === "notes" && teacher && <TeacherNotes teacherId={teacher.id} />}

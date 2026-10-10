@@ -62,8 +62,8 @@ describe("1. GYROTONIC with a teacher", () => {
 
   it("the teacher picks it in her panel; it is saved with no schedule class", () => {
     const ed = read("src/components/teacher/TeacherPrivateOfferingsEditor.tsx");
-    expect(ed).toMatch(/namedPrivateClassesFor\(teacherName\)\.map/);
-    expect(ed).toMatch(/class_id: draft\.class_id && !namedKey\(draft\.class_id\) \? draft\.class_id : null/);
+    expect(ed).toMatch(/\{choices\.map\(\(c\) => \(/);
+    expect(ed).toMatch(/class_id: draft\.class_id && !namedTitle\(draft\.class_id\) \? draft\.class_id : null/);
   });
 
   it("the Private Sessions card goes to her, at her price — and stays as before until a teacher lists it", () => {
@@ -76,15 +76,25 @@ describe("1. GYROTONIC with a teacher", () => {
   });
 });
 
-describe("1b. Named private classes in her panel", () => {
-  it("every teacher can pick GYROTONIC; Couple's & Connection and Kinesiology are Evelina's", async () => {
-    const { namedPrivateClassesFor, namedPrivateClassOf } = await import("@/lib/privateOfferings");
-    expect(namedPrivateClassesFor("Evelina").map((n) => n.title)).toEqual(["GYROTONIC®", "Couple's & Connection", "Kinesiology"]);
-    expect(namedPrivateClassesFor("Ashley").map((n) => n.title)).toEqual(["GYROTONIC®"]);
-    // A saved one is recognised again by its title when she edits it.
-    expect(namedPrivateClassOf("couple's & connection")?.key).toBe("couples-connection");
-    expect(namedPrivateClassOf("Private Gyrotonic")?.key).toBe("gyrotonic");
-    expect(namedPrivateClassOf("Aerial Yoga")).toBeNull();
+describe("1b. Named private classes — set per teacher by the team", () => {
+  it("her list is cleaned, and a saved class is recognised again by its title", async () => {
+    const { cleanChoices, choiceOf, choiceLabel } = await import("@/lib/privateOfferings");
+    expect(cleanChoices([" Kinesiology ", "kinesiology", "", null, "Couple's  & Connection"])).toEqual(["Kinesiology", "Couple's & Connection"]);
+    expect(choiceOf(["GYROTONIC®", "Couple's & Connection"], "couple's & connection")).toBe("Couple's & Connection");
+    expect(choiceOf(["GYROTONIC®"], "Aerial Yoga")).toBeNull();
+    expect(choiceLabel("GYROTONIC®")).toBe("GYROTONIC® (on the tower)");
+    expect(choiceLabel("Kinesiology")).toBe("Kinesiology");
+  });
+
+  it("the column is added, Evelina keeps her three, and only the team can change a list", () => {
+    const sql = read("supabase/migrations/20261008170000_teacher_private_choices.sql");
+    expect(sql).toMatch(/add column if not exists private_class_choices text\[\] not null default '\{\}'/);
+    expect(sql).toMatch(/array\['GYROTONIC®', 'Couple''s & Connection', 'Kinesiology'\]/);
+    expect(sql).toMatch(/new\.private_class_choices := old\.private_class_choices;/);
+    // Everything the old protection did is still there.
+    for (const f of ["studio_rate", "user_id", "email", "active"]) expect(sql).toContain(`new.${f}`);
+    expect(read("src/pages/TeacherPanel.tsx")).toMatch(/choices=\{\(teacher as any\)\.private_class_choices \?\? \[\]\}/);
+    expect(read("src/components/admin/AdminTeachersManager.tsx")).toMatch(/onChange=\{\(next\) => patchTeacher\(r\.teacher\.id, \{ private_class_choices: next \}\)\}/);
   });
 });
 

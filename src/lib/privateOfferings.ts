@@ -146,21 +146,23 @@ export function gyrotonicOfferings(all: PrivateOffering[]): PrivateOffering[] {
 }
 
 /**
- * Private classes a teacher picks by name in her panel because they are not
- * on the class schedule. `teachers` limits one to the teachers who give it
- * (left out: every teacher sees it). Saved with no class, under this title.
+ * The private classes a teacher picks by name in her panel because they are
+ * not on the class schedule (GYROTONIC®, Couple's & Connection…). The team
+ * sets them per teacher (teachers.private_class_choices, Admin → Teachers →
+ * Details); she sees only hers. Saved with no class, under that title.
  */
-export interface NamedPrivateClass { key: string; title: string; label: string; teachers?: string[] }
-export const NAMED_PRIVATE_CLASSES: NamedPrivateClass[] = [
-  { key: "gyrotonic", title: GYROTONIC_TITLE, label: `${GYROTONIC_TITLE} (on the tower)` },
-  { key: "couples-connection", title: "Couple's & Connection", label: "Couple's & Connection", teachers: ["Evelina"] },
-  { key: "kinesiology", title: "Kinesiology", label: "Kinesiology", teachers: ["Evelina"] },
-];
+export const cleanChoices = (choices: readonly (string | null | undefined)[] | null | undefined): string[] => {
+  const out: string[] = [];
+  for (const c of choices ?? []) {
+    const t = (c ?? "").trim().replace(/\s+/g, " ");
+    if (t && !out.some((o) => sameName(o, t))) out.push(t);
+  }
+  return out;
+};
 
-/** The named private classes this teacher can pick. */
-export const namedPrivateClassesFor = (teacherName: string | null | undefined) =>
-  NAMED_PRIVATE_CLASSES.filter((n) => !n.teachers || n.teachers.some((t) => sameName(t, teacherName)));
+/** How a choice reads in her list — GYROTONIC® says where it is taught. */
+export const choiceLabel = (title: string) => (isGyrotonic(title) ? `${title} (on the tower)` : title);
 
-/** The named private class a saved one is — matched by its title. */
-export const namedPrivateClassOf = (title: string | null | undefined) =>
-  NAMED_PRIVATE_CLASSES.find((n) => n.key === "gyrotonic" ? isGyrotonic(title) : sameName(n.title, title)) ?? null;
+/** The choice a saved private class is, when it has no schedule class — matched by its title. */
+export const choiceOf = (choices: string[], title: string | null | undefined) =>
+  choices.find((c) => sameName(c, title)) ?? null;

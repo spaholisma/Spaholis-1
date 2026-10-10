@@ -51,7 +51,11 @@ const statusColor: Record<string, string> = {
  * on when she is free, and the requests that named her (she answers the guest
  * by email).
  */
-export function TeacherPrivateClasses({ teacherId, teacherName, note }: { teacherId: string; teacherName: string; note: string | null }) {
+export function TeacherPrivateClasses({ teacherId, teacherName, note, choices = [] }: {
+  teacherId: string; teacherName: string; note: string | null;
+  /** The private classes the team added for her to pick by name. */
+  choices?: string[] | null;
+}) {
   const [rows, setRows] = useState<RequestRow[] | null>(null);
   const [draftNote, setDraftNote] = useState(note ?? "");
   const [savingNote, setSavingNote] = useState(false);
@@ -92,7 +96,7 @@ export function TeacherPrivateClasses({ teacherId, teacherName, note }: { teache
   return (
     <div className="space-y-4">
       {/* Her private classes and her prices. */}
-      <TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} />
+      <TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} choices={choices} />
 
       {/* Her own words: what she offers privately. */}
       <Card className="p-5 space-y-3">

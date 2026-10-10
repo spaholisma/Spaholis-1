@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction, extractInvokeErrorMessage } from "@/lib/invokeEdgeFunction";
 import { AddTeacherCard } from "@/components/admin/AddTeacherCard";
+import { TeacherChoicesEditor } from "@/components/admin/TeacherChoicesEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -30,6 +31,8 @@ interface Teacher {
   paypal_enabled: boolean | null;
   compraclick_enabled: boolean | null;
   compraclick_url: string | null;
+  /** Private classes she picks by name in her panel (set here, by the team). */
+  private_class_choices?: string[] | null;
 }
 interface Session {
   id: string; start_time: string; is_cancelled: boolean; instructor: string | null;
@@ -482,6 +485,12 @@ export function AdminTeachersManager() {
                         <Input type="number" defaultValue={r.teacher.studio_rate} className="h-8 w-28"
                           onBlur={(e) => Number(e.target.value) !== Number(r.teacher.studio_rate)
                             && patchTeacher(r.teacher.id, { studio_rate: Math.max(0, Number(e.target.value) || 0) })} />
+
+                        <TeacherChoicesEditor
+                          teacherName={r.teacher.display_name}
+                          choices={r.teacher.private_class_choices ?? []}
+                          onChange={(next) => patchTeacher(r.teacher.id, { private_class_choices: next })}
+                        />
 
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
                           How her students pay her online
