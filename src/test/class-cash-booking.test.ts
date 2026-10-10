@@ -96,7 +96,17 @@ describe("the emails", () => {
 
   it("the teacher's new-signup email says the student pays her in cash", () => {
     const src = read("supabase/functions/notify-teacher/index.ts");
-    expect(src).toMatch(/row\("Pays", cashLine\)/);
-    expect(src).toMatch(/b\?\.payment_method === "cash" && b\?\.payment_status === "pending"/);
+    expect(src).toMatch(/row\("Pays", student\.pays\)/);
+    expect(src).toMatch(/method === "cash" && status === "pending" \? `In cash, to you at the class\$\{amount\}`/);
+  });
+
+  it("the teacher's email has the student's details: name, email, phone, client type", () => {
+    const src = read("supabase/functions/notify-teacher/index.ts");
+    expect(src).toMatch(/\.select\("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code"\)/);
+    expect(src).toMatch(/row\("Email", student\.email\)/);
+    expect(src).toMatch(/row\("Phone", student\.phone\)/);
+    expect(src).toMatch(/row\("Client type", student\.type\)/);
+    // Read from the booking itself, for every event about one student.
+    expect(src).toMatch(/\["booking_created", "booking_cancelled", "student_added", "student_updated"\]\.includes\(event\)/);
   });
 });

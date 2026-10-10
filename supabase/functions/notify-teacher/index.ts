@@ -227,22 +227,44 @@ Deno.serve(async (req) => {
         .select("id, status").eq("schedule_id", scheduleId);
       const active = ((rows as any[]) ?? []).filter((r) => r.status !== "cancelled").length;
 
-      // A student who reserved online to pay her in cash: say so, and how much.
-      let cashLine: string | null = null;
-      if (event === "booking_created" && bookingId) {
+      // The student's details — who is coming, how to reach them, how they pay —
+      // read from the booking itself, never from what the trigger was sent.
+      let student: { name: string; email: string; phone: string; type: string; pays: string } | null = null;
+      if (bookingId && ["booking_created", "booking_cancelled", "student_added", "student_updated"].includes(event)) {
         const { data: bk } = await admin.from("class_bookings")
-          .select("payment_method, payment_status, total_price").eq("id", bookingId).maybeSingle();
+          .select("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code")
+          .eq("id", bookingId).maybeSingle();
         const b: any = bk;
-        if (b?.payment_method === "cash" && b?.payment_status === "pending" && Number(b?.total_price) > 0) {
-          cashLine = `In cash, to you at the class — $${Number(b.total_price).toFixed(2)}`;
+        if (b) {
+          const amount = Number(b.total_price) > 0 ? ` — $${Number(b.total_price).toFixed(2)}` : "";
+          const method = String(b.payment_method ?? "");
+          const status = String(b.payment_status ?? "");
+          const pays =
+            method === "cash" && status === "pending" ? `In cash, to you at the class${amount}`
+            : method === "cash" ? `Cash${amount}${status && status !== "paid" ? ` (${status})` : ""}`
+            : method === "paypal" || method === "card" ? `Paid online${amount}`
+            : method === "compraclick" ? `CompraClick${amount}${status === "pending" ? " — not confirmed yet" : ""}`
+            : method === "membership" || method === "credits" || method === "offering" ? "With a pass or membership"
+            : method === "free" || method === "complimentary" ? (b.coupon_code ? `Free (coupon ${b.coupon_code})` : "Free")
+            : method ? `${method}${amount}` : "";
+          student = {
+            name: String(b.guest_name ?? "").trim() || studentName,
+            email: String(b.guest_email ?? "").trim(),
+            phone: String(b.guest_phone ?? "").trim(),
+            type: String(b.client_type ?? "").trim(),
+            pays,
+          };
         }
       }
 
       const rowsHtml = [
         row("Class", title),
         row("When", when),
-        ...(studentName ? [row("Student", studentName)] : []),
-        ...(cashLine ? [row("Pays", cashLine)] : []),
+        ...((student?.name || studentName) ? [row("Student", student?.name || studentName)] : []),
+        ...(student?.email ? [row("Email", student.email)] : []),
+        ...(student?.phone ? [row("Phone", student.phone)] : []),
+        ...(student?.type ? [row("Client type", student.type)] : []),
+        ...(student?.pays ? [row("Pays", student.pays)] : []),
         row("Students signed up", String(active)),
         ...(cls.location ? [row("Location", cls.location)] : []),
       ];

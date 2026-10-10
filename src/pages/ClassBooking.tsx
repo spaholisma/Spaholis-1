@@ -191,10 +191,10 @@ const ClassBookingPage = () => {
     return () => { live = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The booking is theirs: name and email come from the account (or from the
-  // pass behind the link) and cannot be changed, so a membership cannot book a
-  // friend in for free. What is missing can still be typed. The server
-  // (book_class_with_offering) holds to the same rule.
+  // Name and email are filled in from the account (or from the pass behind the
+  // link), and can still be changed. A membership still cannot book a friend
+  // in for free: with a pass or membership the server books in the owner's name
+  // (book_class_with_offering / the membership link) whatever is typed here.
   const locked = lockedDetails({
     signedIn: !!user,
     account,
@@ -780,9 +780,6 @@ const ClassBookingPage = () => {
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                           placeholder="Jane Doe"
-                          readOnly={!!locked.name}
-                          aria-readonly={!!locked.name}
-                          className={cn(locked.name && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
                         />
                       </div>
                       <div>
@@ -793,13 +790,11 @@ const ClassBookingPage = () => {
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="jane@example.com"
-                          readOnly={!!locked.email}
-                          aria-readonly={!!locked.email}
-                          className={cn(locked.email && "bg-muted/60 text-muted-foreground cursor-not-allowed focus-visible:ring-0")}
                         />
                         {(locked.name || locked.email) && (
                           <p className="text-xs text-muted-foreground mt-1.5 font-body">
-                            {user ? "From your account" : "From your membership"} — this booking is in your name.
+                            {user ? "Filled in from your account" : "Filled in from your membership"} — you can change it.
+                            {" "}A booking with a pass or membership is always in its owner's name.
                             {maxQty > 1 ? " Bringing someone? Add a spot for them above." : ""}
                           </p>
                         )}

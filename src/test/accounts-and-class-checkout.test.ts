@@ -95,10 +95,15 @@ describe("a signed-in guest and their pass", () => {
   const page = read("src/pages/ClassBooking.tsx");
   const sql = strip(read("supabase/migrations/20260926120000_membership_code_and_my_offerings.sql"));
 
-  it("fills in the details from their account, and locks name and email", () => {
+  it("fills in the details from their account — and they can still change them", () => {
     expect(page).toMatch(/from\("profiles"\)\.select\("full_name, email, phone"\)/);
-    expect(page).toMatch(/readOnly=\{!!locked\.name\}/);
-    expect(page).toMatch(/readOnly=\{!!locked\.email\}/);
+    expect(page).toMatch(/name: locked\.name \?\? f\.name,/);
+    expect(page).toMatch(/email: locked\.email \?\? f\.email,/);
+    // Editable: no read-only name or email any more.
+    expect(page).not.toMatch(/readOnly=\{!!locked\.(name|email)\}/);
+    expect(page).toMatch(/— you can change it\./);
+    // The owner rule stays on the server: a pass booking is in the owner's name.
+    expect(page).toMatch(/A booking with a pass or membership is always in its owner's name\./);
   });
 
   it("brings a pass sold at the desk into their account — only unowned ones, only their confirmed email", () => {
