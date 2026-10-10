@@ -317,7 +317,7 @@ export default function ClassDetail() {
                       {/* How she is paid: whatever she wrote on a pass wins, else her
                           general details. Holis never takes this money. */}
                       <p className="font-body text-[11px] text-muted-foreground mt-3 whitespace-pre-line">
-                        Paid directly to {teacherName.split(/\s+/)[0]}
+                        Online: paid to Holis Wellness Center. Other ways to pay {teacherName.split(/\s+/)[0]}
                         {(() => {
                           const how = passes.find((p) => p.payment_note)?.payment_note
                             ?? passes[0]?.teacher_payment_instructions;

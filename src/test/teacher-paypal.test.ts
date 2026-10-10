@@ -19,8 +19,8 @@ describe("who an online class payment goes to", () => {
     expect(onlinePayRoute("  evelina bolognini ", teachers)).toBe("teacher");
   });
 
-  it("a teacher without PayPal yet: her students pay her in cash", () => {
-    expect(onlinePayRoute("Petra", teachers)).toBe("cash_only");
+  it("a teacher without PayPal of her own: the class is paid online to Holis (never cash-only)", () => {
+    expect(onlinePayRoute("Petra", teachers)).toBe("holis");
   });
 
   it("a class with no teacher on it (e.g. a Holis event) is paid to Holis as before", () => {
@@ -60,11 +60,18 @@ describe("the database", () => {
 describe("paypal-create-order", () => {
   const fn = read("supabase/functions/paypal-create-order/index.ts");
 
-  it("only a class asked to pay the teacher — or a teacher's pass — names a payee", () => {
-    expect(fn).toMatch(/if \(body\.pay_teacher\) \{/);
+  it("only a class asked to pay the teacher — or a teacher's pass — names a payee, and only with payouts on", () => {
+    expect(fn).toMatch(/if \(body\.pay_teacher && TEACHER_PAYOUTS_ENABLED\) \{/);
     expect(fn).toMatch(/\.\.\.\(payee \? \{ payee: \{ email_address: payee\.email \} \} : \{\}\)/);
     // Without pay_teacher a class is paid to Holis exactly as before.
-    expect(fn.indexOf("payee = { teacherId: teacher.id, email };")).toBeGreaterThan(fn.indexOf("if (body.pay_teacher) {"));
+    expect(fn.indexOf("payee = { teacherId: teacher.id, email };")).toBeGreaterThan(fn.indexOf("if (body.pay_teacher && TEACHER_PAYOUTS_ENABLED) {"));
+  });
+
+  it("for now every class and pass is paid to Holis: teacher payouts are off", () => {
+    expect(fn).toMatch(/const TEACHER_PAYOUTS_ENABLED = false;/);
+    expect(fn).toMatch(/if \(!TEACHER_PAYOUTS_ENABLED\) return null;/);
+    // A teacher's pass with payouts off has no payee — Holis is paid.
+    expect(fn).toMatch(/payee = email \? \{ teacherId: teacher\.id, email \} : null;/);
   });
 
   it("refuses to pay a teacher who has no PayPal — cash at class instead", () => {
@@ -72,7 +79,7 @@ describe("paypal-create-order", () => {
   });
 
   it("a Holis coupon can never discount the teacher's money", () => {
-    const branch = fn.slice(fn.indexOf("if (body.pay_teacher) {"), fn.indexOf("const discount = await couponDiscount"));
+    const branch = fn.slice(fn.indexOf("if (body.pay_teacher && TEACHER_PAYOUTS_ENABLED) {"), fn.indexOf("const discount = await couponDiscount"));
     expect(branch).toMatch(/Holis coupons don't apply when you pay your teacher directly/);
   });
 
@@ -111,21 +118,27 @@ describe("paypal-capture-order", () => {
 describe("the pass email", () => {
   const fn = read("supabase/functions/send-membership-order-email/index.ts");
 
-  it("tells the teacher when one of her passes is sold online — and the team that it went to her", () => {
-    expect(fn).toMatch(/if \(\(o as any\)\.teacher_id && isOnlinePurchase\)/);
+  it("tells the teacher about every pass of hers — and the team who was paid (Holis, or her PayPal)", () => {
+    expect(fn).toMatch(/if \(\(o as any\)\.teacher_id\) \{/);
+    expect(fn).toMatch(/from\("paypal_orders"\)\.select\("payee_teacher_id"\)\.eq\("user_offering_id", o\.id\)/);
     expect(fn).toMatch(/'s PayPal — not Holis\./);
+    expect(fn).toMatch(/Holis \(PayPal\) — /);
     expect(fn).toMatch(/if \(teacher\?\.email\) \{/);
+    expect(fn).toMatch(/It was paid online to <strong>Holis<\/strong>/);
   });
 });
 
 describe("the pages", () => {
-  it("class booking: pays the teacher when she takes PayPal, cash only when she doesn't", () => {
+  it("class booking: pays the teacher when she takes PayPal, else Holis — cash only when she takes it", () => {
     const page = read("src/pages/ClassBooking.tsx");
     expect(page).toMatch(/const payRoute = onlinePayRoute\(payee, teacherList\);/);
     expect(page).toMatch(/\{canPayOnline && \(\s*<PayOption/);
     expect(page).toMatch(/pay_teacher: payRoute === "teacher"/);
     expect(page).toMatch(/coupon_code: payRoute === "teacher" \? null :/);
-    expect(page).toMatch(/if \(payRoute === "cash_only" && payMethod === "card"\) setPayMethod\("cash"\);/);
+    // "Pay cash in person" is her switch; with it off, cash is not offered.
+    expect(page).toMatch(/const canPayCash = cashAccepted\(payee, teacherList\);/);
+    expect(page).toMatch(/\{canPayCash && \(\s*<PayOption/);
+    expect(page).toMatch(/if \(!canPayCash && payMethod === "cash"\) setPayMethod\("card"\);/);
   });
 
   it("a teacher's pass can be bought online from the pass chooser and the class page", () => {

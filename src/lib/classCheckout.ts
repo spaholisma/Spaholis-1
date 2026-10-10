@@ -20,12 +20,14 @@ export function cashPayee(sessionInstructor?: string | null, classInstructor?: s
 }
 
 /**
- * Where an online payment for a class goes (studio-rental model — Holis takes
- * no student money):
- *  - "teacher":   the session's teacher takes PayPal → paid straight to her
- *  - "cash_only": she doesn't take PayPal yet → her students pay her in cash
- *  - "holis":     nobody on the session is a teacher (e.g. a Holis event) → as before
- *  - "loading":   the teachers are still being looked up — offer nothing yet
+ * Where an online payment for a class goes:
+ *  - "teacher": the session's teacher takes PayPal → paid straight to her
+ *    (only while teacher payouts are on — the database reports accepts_paypal
+ *    false for everyone while they are off, as they are for now)
+ *  - "holis":   anyone else, a registered teacher included → paid to Holis
+ *  - "loading": the teachers are still being looked up — offer nothing yet
+ * ("cash_only" is kept in the type but no longer returned: a class can always
+ * be paid online to Holis.)
  */
 export type OnlinePayRoute = "teacher" | "cash_only" | "holis" | "loading";
 export function onlinePayRoute(
@@ -36,8 +38,21 @@ export function onlinePayRoute(
   if (!teachers) return "loading";
   const name = payee.trim().toLowerCase();
   const teacher = teachers.find((t) => (t.display_name ?? "").trim().toLowerCase() === name);
-  if (!teacher) return "holis";
-  return teacher.accepts_paypal ? "teacher" : "cash_only";
+  return teacher?.accepts_paypal ? "teacher" : "holis";
+}
+
+/**
+ * Whether "pay cash in person" is offered: each teacher switches it on or off
+ * for her own classes. A class with no registered teacher keeps it.
+ */
+export function cashAccepted(
+  payee: string | null,
+  teachers: { display_name: string; accepts_cash?: boolean | null }[] | undefined,
+): boolean {
+  if (!payee || !teachers) return true;
+  const name = payee.trim().toLowerCase();
+  const t = teachers.find((x) => (x.display_name ?? "").trim().toLowerCase() === name);
+  return t?.accepts_cash !== false;
 }
 
 /**

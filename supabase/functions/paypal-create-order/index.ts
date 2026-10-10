@@ -7,8 +7,9 @@
 // so capture can re-verify it. Returns the PayPal order id for the JS SDK.
 //
 // Paying a teacher (studio-rental model): a class booked with `pay_teacher`, and
-// every teacher's pass, is paid to HER PayPal account (`payee`), never to Holis.
-// Without `pay_teacher` a class is paid to Holis exactly as before.
+// every teacher's pass, can be paid to HER PayPal account (`payee`). That is
+// switched off for now (TEACHER_PAYOUTS_ENABLED): every class and every
+// teacher's pass is paid to Holis, as a class always was without `pay_teacher`.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@3.25.76";
 
@@ -81,8 +82,15 @@ async function sessionTeacher(admin: any, sessionName?: string | null, className
   return ((data ?? []) as any[]).find((t) => String(t.display_name || "").trim().toLowerCase() === name.toLowerCase()) ?? null;
 }
 
-/** Her PayPal account — only while she has PayPal switched on. */
+/**
+ * Teachers paid straight to their own PayPal. Off for now: Holis takes every
+ * online payment. The database has the same switch (teacher_payouts_enabled()).
+ */
+const TEACHER_PAYOUTS_ENABLED = false;
+
+/** Her PayPal account — only while she has PayPal switched on (and payouts are on). */
 const paypalOf = (t: any): string | null => {
+  if (!TEACHER_PAYOUTS_ENABLED) return null;
   if (!t || t.paypal_enabled === false) return null;
   const e = String(t.paypal_email || "").trim();
   return e ? e : null;
@@ -126,7 +134,8 @@ Deno.serve(async (req) => {
       const qty = Math.max(1, Math.min(Number(body.quantity ?? 1), 10));
       if (Number(sched.spots_remaining) < qty) return json({ ok: false, reason: "class_full" }, 409);
       const base = Number(cls.price ?? 0);
-      if (body.pay_teacher) {
+      // With teacher payouts off, `pay_teacher` is ignored: the class is paid to Holis.
+      if (body.pay_teacher && TEACHER_PAYOUTS_ENABLED) {
         const teacher = await sessionTeacher(admin, (sched as any).instructor, cls.instructor);
         const email = paypalOf(teacher);
         if (!teacher || !email) {
@@ -155,12 +164,13 @@ Deno.serve(async (req) => {
         .eq("id", body.membership_id).maybeSingle();
       const teacher: any = (m as any)?.teachers;
       if (!m || !(m as any).is_active || !teacher?.active) return json({ ok: false, reason: "pass_unavailable" }, 404);
+      // Paid to her PayPal while payouts are on; to Holis for now.
       const email = paypalOf(teacher);
-      if (!email) return json({ ok: false, reason: "teacher_no_paypal", message: "This teacher does not take PayPal yet." }, 409);
+      if (TEACHER_PAYOUTS_ENABLED && !email) return json({ ok: false, reason: "teacher_no_paypal", message: "This teacher does not take PayPal yet." }, 409);
       amount = Math.round(Number((m as any).price ?? 0) * 100) / 100;
       if (amount <= 0) return json({ ok: false, reason: "invalid_amount" }, 400);
       description = `${(m as any).name} — with ${teacher.display_name}`;
-      payee = { teacherId: teacher.id, email };
+      payee = email ? { teacherId: teacher.id, email } : null;
       target = {
         membership_id: body.membership_id, teacher_id: teacher.id,
         guest_name: (body.guest_name || "").trim(), guest_email: (body.guest_email || "").trim().toLowerCase(),

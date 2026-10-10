@@ -53,8 +53,10 @@ export function PassRequestDialog({
 
   if (!pick) return null;
   const first = pick.teacherName.split(/\s+/)[0];
-  // One of her own passes, and she takes PayPal: it can be bought right here.
-  const canBuyOnline = !!(pick.acceptsPaypal && pick.membershipId && Number(pick.price) > 0);
+  // One of her own passes with a price: it can be bought right here — paid to
+  // her PayPal when she takes it (teacher payouts on), else to Holis (for now).
+  const canBuyOnline = !!(pick.membershipId && Number(pick.price) > 0);
+  const paysTeacher = !!pick.acceptsPaypal;
   const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   const send = async () => {
@@ -142,7 +144,7 @@ export function PassRequestDialog({
             {canBuyOnline && (
               <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pay {first} online
+                  {paysTeacher ? `Pay ${first} online` : "Pay online"}
                 </p>
                 <Input placeholder="Your name *" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -164,8 +166,10 @@ export function PassRequestDialog({
                   onSuccess={() => setPaid(true)}
                 />
                 <p className="font-body text-[11px] text-muted-foreground">
-                  With PayPal or a card. The payment goes straight to {first}'s PayPal — Holis does not
-                  take it. Your pass code and booking link arrive by email right away.
+                  {paysTeacher
+                    ? <>With PayPal or a card. The payment goes straight to {first}'s PayPal — Holis does not take it. </>
+                    : <>With PayPal or a card, paid to Holis Wellness Center. </>}
+                  Your pass code and booking link arrive by email right away.
                 </p>
               </div>
             )}

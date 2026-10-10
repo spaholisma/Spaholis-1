@@ -667,6 +667,8 @@
     "infoThankYou": "¡Gracias! Nuestro equipo se pondrá en contacto contigo en breve con la información del curso — fechas, precio y cómo inscribirte.",
     "confirmSoon": "Nos pondremos en contacto personalmente para confirmar tu horario.",
     "privateLabel": "Clase privada",
+    "privateRequestTitle": "Solicitar una clase privada",
+    "privateRequestSubtitle": "Déjenos sus datos y le contactaremos para coordinar su clase privada.",
     "locationLabel": "¿Dónde le gustaría su clase?",
     "locationStudio": "Estudio Holis Wellness",
     "locationClient": "Su ubicación",

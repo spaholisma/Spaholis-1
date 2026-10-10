@@ -25,7 +25,7 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute, teacherCompraClick } from "@/lib/classCheckout";
+import { cardTotal, cashAccepted, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute, teacherCompraClick } from "@/lib/classCheckout";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
@@ -121,7 +121,7 @@ const ClassBookingPage = () => {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("public_teachers" as any);
       if (error) throw error;
-      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null; compraclick_url?: string | null }[];
+      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null; compraclick_url?: string | null; accepts_cash?: boolean | null }[];
     },
     // Always fresh: a teacher who just switched PayPal or CompraClick on (or
     // off) must see it here at once — on opening the page, or on coming back
@@ -134,9 +134,11 @@ const ClassBookingPage = () => {
   // Her CompraClick link, when she has CompraClick switched on.
   const compraclickUrl = teacherCompraClick(payee, teacherList);
   const canPayOnline = payRoute === "teacher" || payRoute === "holis";
+  // "Pay cash in person" — each teacher switches it on or off for her classes.
+  const canPayCash = cashAccepted(payee, teacherList);
   useEffect(() => {
-    if (payRoute === "cash_only" && payMethod === "card") setPayMethod("cash");
-  }, [payRoute, payMethod]);
+    if (!canPayCash && payMethod === "cash") setPayMethod("card");
+  }, [canPayCash, payMethod]);
 
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId && !fullPriceOnly
@@ -938,7 +940,8 @@ const ClassBookingPage = () => {
                       </PayOption>
                       )}
 
-                      {/* Cash: reserve now, pay the teacher at the class */}
+                      {/* Cash: reserve now, pay the teacher at the class — when she takes cash */}
+                      {canPayCash && (
                       <PayOption
                         icon={<Banknote className="h-4 w-4" />}
                         title={multi
@@ -951,6 +954,7 @@ const ClassBookingPage = () => {
                           Your spot is reserved now. Bring the cash and pay {payee ? <span className="font-medium text-foreground">{payee}</span> : "your teacher"} when you arrive.
                         </p>
                       </PayOption>
+                      )}
 
                       {/* CompraClick: reserve now, pay on the teacher's own link */}
                       {compraclickUrl && (

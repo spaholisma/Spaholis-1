@@ -50,6 +50,8 @@ interface TeacherRow {
   compraclick_enabled: boolean | null;
   compraclick_url: string | null;
   photo_url: string | null; bio: string | null;
+  cash_enabled?: boolean | null;
+  manages_payments?: boolean | null;
 }
 type Session = SchedSession;
 interface Coupon {

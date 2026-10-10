@@ -168,8 +168,10 @@ export function PassChooser({
   const payInfo = herPass?.payment_note || herPass?.teacher_payment_instructions || null;
   const payLink = herPass?.payment_link || null;
   const compraclickLink = herPass?.teacher_compraclick_url || null;
-  // Her own pass, and she takes PayPal: it can be bought here, paid to her.
-  const canBuyOnline = !!(herPass && herPass.teacher_accepts_paypal && Number(herPass.price) > 0);
+  // Her own pass with a price: it can be bought here — paid to her PayPal when
+  // she takes it (teacher payouts on), else to Holis (for now).
+  const canBuyOnline = !!(herPass && Number(herPass.price) > 0);
+  const paysTeacher = !!herPass?.teacher_accepts_paypal;
   const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   return (
@@ -292,7 +294,7 @@ export function PassChooser({
               {canBuyOnline && herPass && (
                 <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Pay {chosenClass.teacher.split(/\s+/)[0]} online
+                    {paysTeacher ? `Pay ${chosenClass.teacher.split(/\s+/)[0]} online` : "Pay online"}
                   </p>
                   <Input placeholder="Your name *" value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -314,8 +316,10 @@ export function PassChooser({
                     onSuccess={() => setStep("paid")}
                   />
                   <p className="font-body text-[11px] text-muted-foreground">
-                    With PayPal or a card. The payment goes straight to {chosenClass.teacher.split(/\s+/)[0]}'s PayPal —
-                    Holis does not take it. Your pass code and booking link arrive by email right away.
+                    {paysTeacher
+                      ? <>With PayPal or a card. The payment goes straight to {chosenClass.teacher.split(/\s+/)[0]}'s PayPal — Holis does not take it. </>
+                      : <>With PayPal or a card, paid to Holis Wellness Center. </>}
+                    Your pass code and booking link arrive by email right away.
                   </p>
                 </div>
               )}

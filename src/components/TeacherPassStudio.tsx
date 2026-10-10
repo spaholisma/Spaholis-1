@@ -375,7 +375,9 @@ function HerPassCard({
   const payInfo = herPass.payment_note || herPass.teacher_payment_instructions || null;
   const payLink = herPass.payment_link || null;
   const compraclick = herPass.teacher_compraclick_url || null;
-  const canBuyOnline = !!herPass.teacher_accepts_paypal && price != null && price > 0;
+  // Bought online: to her PayPal when she takes it (teacher payouts on), else to Holis (for now).
+  const canBuyOnline = price != null && price > 0;
+  const paysTeacher = !!herPass.teacher_accepts_paypal;
   const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   const send = async () => {
@@ -528,7 +530,7 @@ function HerPassCard({
                 {canBuyOnline && (
                   <div className="rounded-2xl border border-spa-sage/40 p-4 space-y-2">
                     <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Pay {first} online
+                      {paysTeacher ? `Pay ${first} online` : "Pay online"}
                     </p>
                     <PayPalCheckout
                       disabled={!contactReady}
@@ -542,7 +544,7 @@ function HerPassCard({
                       onSuccess={() => setStage("paid")}
                     />
                     <p className="font-body text-[11px] text-muted-foreground">
-                      With PayPal or a card, straight to {first}'s PayPal. Your pass code and booking link arrive by email right away.
+                      {paysTeacher ? `With PayPal or a card, straight to ${first}'s PayPal.` : "With PayPal or a card, paid to Holis Wellness Center."} Your pass code and booking link arrive by email right away.
                     </p>
                   </div>
                 )}

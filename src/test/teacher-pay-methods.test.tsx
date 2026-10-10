@@ -31,25 +31,25 @@ describe("her payment settings", () => {
   it("saves the switches and keeps what she typed when one is off", () => {
     const res = validatePayMethods({
       paypalOn: false, paypalEmail: " Eve@Example.com ", compraclickOn: true,
-      compraclickUrl: " https://bac.example/pay/eve ", other: "SINPE",
+      compraclickUrl: " https://bac.example/pay/eve ", other: "SINPE", cashOn: true,
     });
     expect(res).toEqual({
       ok: true,
       values: {
         paypal_enabled: false, paypal_email: "eve@example.com",
         compraclick_enabled: true, compraclick_url: "https://bac.example/pay/eve",
-        payment_instructions: "SINPE",
+        payment_instructions: "SINPE", cash_enabled: true,
       },
     });
   });
 
-  it("shows PayPal and CompraClick switches — never cash", () => {
+  it("shows her cash switch, then PayPal and CompraClick — editable when she manages her payments", () => {
     const el = document.createElement("div");
     document.body.appendChild(el);
-    act(() => createRoot(el).render(<TeacherPaymentMethods teacher={row} onSaved={() => {}} />));
+    act(() => createRoot(el).render(<TeacherPaymentMethods teacher={{ ...row, manages_payments: true }} onSaved={() => {}} />));
     const switches = Array.from(el.querySelectorAll("[role=switch]")).map((s) => s.getAttribute("aria-label"));
-    expect(switches).toEqual(["PayPal", "CompraClick"]);
-    expect(el.textContent).toMatch(/always pay you in cash at the class/);
+    expect(switches).toEqual(["Pay cash in person", "PayPal", "CompraClick"]);
+    expect(el.textContent).toMatch(/Holis Wellness Center takes every online payment/);
     // PayPal is on, so its email box shows; CompraClick is off, so its link box doesn't.
     expect(el.querySelector('input[type="email"]')).not.toBeNull();
     expect(el.querySelector('input[type="url"]')).toBeNull();
@@ -155,5 +155,60 @@ describe("the pages", () => {
     const admin = read("src/components/admin/AdminTeachersManager.tsx");
     expect(admin).toMatch(/patchTeacher\(r\.teacher\.id, \{ paypal_enabled: v \}\)/);
     expect(admin).toMatch(/patchTeacher\(r\.teacher\.id, \{ compraclick_enabled: v \}\)/);
+  });
+});
+
+// ── For now: every online payment to Holis; cash in person is her switch;
+//    only the teachers the team allows (Evelina) change the rest. ──
+import { cashAccepted } from "@/lib/classCheckout";
+
+describe("payments to Holis for now — cash is her switch", () => {
+  const sql = read("supabase/migrations/20261010120000_teacher_payments_holis.sql");
+
+  it("a teacher who doesn't manage her payments sees them locked, but can switch cash", () => {
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    act(() => createRoot(el).render(<TeacherPaymentMethods teacher={{ ...row, manages_payments: false }} onSaved={() => {}} />));
+    expect(el.textContent).toMatch(/managed by Holis for now/);
+    const cash = el.querySelector('[aria-label="Pay cash in person"]') as HTMLButtonElement;
+    const paypal = el.querySelector('[aria-label="PayPal"]') as HTMLButtonElement;
+    expect(cash.disabled).toBe(false);
+    expect(paypal.disabled).toBe(true);
+    expect((el.querySelector("fieldset") as HTMLFieldSetElement).disabled).toBe(true);
+    // What she saves is her cash switch only.
+    expect(validatePayMethods({ ...draftFromRow(row), cashOn: false }, false)).toEqual({ ok: true, values: { cash_enabled: false } });
+  });
+
+  it("cash is offered unless her teacher switched it off; classes with no registered teacher keep it", () => {
+    const list = [{ display_name: "Evelina", accepts_cash: false }, { display_name: "Kerri", accepts_cash: true }];
+    expect(cashAccepted("Evelina", list)).toBe(false);
+    expect(cashAccepted("evelina ", list)).toBe(false);
+    expect(cashAccepted("Kerri", list)).toBe(true);
+    expect(cashAccepted("Victoria", list)).toBe(true);
+    expect(cashAccepted(null, list)).toBe(true);
+  });
+
+  it("the database: payouts off, cash and 'manages payments' per teacher, locked for the others", () => {
+    expect(sql).toMatch(/create or replace function public\.teacher_payouts_enabled\(\)\s+returns boolean language sql immutable as \$\$ select false \$\$;/);
+    expect(sql).toMatch(/add column if not exists cash_enabled boolean not null default true/);
+    expect(sql).toMatch(/add column if not exists manages_payments boolean not null default false/);
+    expect(sql).toMatch(/update public\.teachers set manages_payments = true\s+where id = '0839ddb9-ebec-4917-bc7e-570fe0ed9594';  -- Evelina/);
+    expect(sql).toMatch(/new\.manages_payments := old\.manages_payments;/);
+    expect(sql).toMatch(/if not coalesce\(old\.manages_payments, false\) then[\s\S]{0,400}new\.payment_instructions := old\.payment_instructions;/);
+    // The public lists only show her PayPal / CompraClick while payouts are on.
+    expect(sql.match(/public\.teacher_payouts_enabled\(\)\s+and \(t\.paypal_enabled/g)).toHaveLength(2);
+    expect(sql).toMatch(/t\.cash_enabled\n  from public\.teachers t/);
+    // The booking functions refuse cash when she switched it off, and her own CompraClick while payouts are off.
+    expect(sql).toContain(String.raw`\'reason\', \'cash_not_accepted\'`);
+    expect(sql).toMatch(/if not public\.teacher_payouts_enabled\(\) then v_link := null; end if;/);
+    expect(sql).toMatch(/raise exception 'book_class_pay_cash: place for the cash check not found'/);
+    expect(sql).toMatch(/grant execute on function public\.public_teachers\(\) to public, anon, authenticated;/);
+  });
+
+  it("the private class request is titled as one", () => {
+    const form = read("src/components/booking/ConsultationForm.tsx");
+    expect(form).toContain(String.raw`const isPrivateRequest = !!privateKind || /^private\b/i.test(topic);`);
+    expect(form).toMatch(/t\("consultation\.privateRequestTitle", \{ defaultValue: "Request a Private Class" \}\)/);
+    expect(read("src/i18n/locales/es.json")).toContain('"privateRequestTitle": "Solicitar una clase privada"');
   });
 });

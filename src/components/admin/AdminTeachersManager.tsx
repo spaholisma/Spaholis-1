@@ -33,6 +33,10 @@ interface Teacher {
   compraclick_url: string | null;
   /** Private classes she picks by name in her panel (set here, by the team). */
   private_class_choices?: string[] | null;
+  /** "Pay cash in person" for her classes (she can switch it too). */
+  cash_enabled?: boolean | null;
+  /** May she change her PayPal / CompraClick / instructions in her panel? */
+  manages_payments?: boolean | null;
 }
 interface Session {
   id: string; start_time: string; is_cancelled: boolean; instructor: string | null;
@@ -493,11 +497,22 @@ export function AdminTeachersManager() {
                         />
 
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
-                          How her students pay her online
+                          How her students pay
                         </p>
                         <p className="text-[11px] text-muted-foreground -mt-1">
-                          Cash at the class is always on. Paid straight to her — never to Holis. She can set these herself in her panel.
+                          For now Holis takes every online payment (PayPal, card, CompraClick) — nothing goes to her own
+                          account yet. Her PayPal / CompraClick below are kept for later.
                         </p>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={r.teacher.cash_enabled !== false}
+                            onCheckedChange={(v) => patchTeacher(r.teacher.id, { cash_enabled: v })} />
+                          <span className="text-xs text-muted-foreground">Pay cash in person at her classes <span className="opacity-70">(she can switch it too)</span></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={!!r.teacher.manages_payments}
+                            onCheckedChange={(v) => patchTeacher(r.teacher.id, { manages_payments: v })} />
+                          <span className="text-xs text-muted-foreground">She can change her payment settings in her panel</span>
+                        </div>
                         <div className="flex items-center gap-2">
                           <Switch checked={r.teacher.paypal_enabled !== false}
                             onCheckedChange={(v) => {

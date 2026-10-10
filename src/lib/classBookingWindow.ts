@@ -22,6 +22,7 @@ export function classCheckoutReasonMessage(reason: string | null | undefined): s
     case "phone_required": return "Please add a phone number so we can reach you.";
     case "invalid_participants": return "Please add a name for each spot.";
     case "teacher_no_compraclick": return "This teacher doesn't take CompraClick right now — please pick another way to pay.";
+    case "cash_not_accepted": return "This teacher doesn't take cash for this class — please pay online.";
     case "too_many_spots": return "That is more spots than we can hold without payment. Please pay by card for the rest.";
     default: return null;
   }

@@ -66,7 +66,7 @@ export default function MembershipsPage() {
           <TeacherPassStudio dropIn={<PassChooser compact only={["drop_in"]} />} />
 
           <p className="spa-body-sm text-center mt-10 max-w-xl mx-auto">
-            Each teacher sets her own price and is paid directly — Holis does not take the payment.{" "}
+            Each teacher sets her own price. Passes bought online are paid to Holis Wellness Center.{" "}
             <Link to="/classes" className="text-primary hover:underline">See who teaches what</Link>.
           </p>
         </motion.div>

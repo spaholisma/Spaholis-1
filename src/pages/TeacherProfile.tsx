@@ -348,7 +348,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
         {p.passes.length > 0 && (
           <motion.section {...reveal} id="passes" className="scroll-mt-32 border-t border-border py-16 sm:py-20">
             <SectionTitle icon={<Ticket className="h-5 w-5" />} eyebrow="Practice more, save more" title={`Passes with ${first}`}
-              note={`Paid directly to ${first}.`} />
+              note="Buy online with PayPal or a card — paid to Holis Wellness Center — or ask her about other ways to pay." />
             <div className="grid gap-5 sm:grid-cols-2">
               {p.passes.map((pass) => (
                 <article key={pass.membership_id} className="relative flex overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-lg">

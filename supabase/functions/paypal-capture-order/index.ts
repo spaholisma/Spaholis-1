@@ -154,7 +154,8 @@ Deno.serve(async (req) => {
 
     if (rec.kind === "teacher_pass") {
       // The same pass the teacher would make by hand in her panel
-      // (create_teacher_membership_order), paid online to her PayPal.
+      // (create_teacher_membership_order), paid online — to Holis for now, or to
+      // her PayPal when the order names her as payee.
       const { data: m } = await admin.from("teacher_memberships")
         .select("id, name, price, classes_included, valid_days, teacher_id, teachers(display_name)")
         .eq("id", t.membership_id).maybeSingle();
@@ -180,7 +181,8 @@ Deno.serve(async (req) => {
         status: "active", source: "purchase", payment_id: capId,
         code: await uniqueCode(admin), access_token: randomToken(),
         guest_name: t.guest_name || null, guest_email: email || null, guest_phone: t.guest_phone || null,
-        notes: `Paid online by PayPal to ${teacherName}`,
+        // Paid to her own PayPal only when the order had her as payee; otherwise to Holis.
+        notes: rec.payee_email ? `Paid online by PayPal to ${teacherName}` : `Paid online by PayPal to Holis — ${teacherName}'s pass`,
       }).select("id").single();
       if (uoErr) throw uoErr;
 

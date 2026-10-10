@@ -248,18 +248,27 @@ Deno.serve(async (req) => {
   // Admin copy (+ backup). Editable in Admin → Client Emails → Team
   // notifications ("New membership order" / "New purchase paid online"); the
   // built-in copy below when that template is missing or switched off.
-  // A teacher's pass bought online was paid to HER PayPal — say so, so nobody
-  // looks for that money in Holis' account.
+  // A teacher's pass: she gets her own copy, whoever made it (bought online,
+  // made in her panel, or by the team). Bought online it was paid to Holis —
+  // or to HER PayPal when the order named her as payee; say which, so nobody
+  // looks for the money in the wrong account.
   let teacher: { display_name: string; email: string | null } | null = null;
-  if ((o as any).teacher_id && isOnlinePurchase) {
+  let paidToTeacher = false;
+  if ((o as any).teacher_id) {
     const { data: t } = await supabase.from("teachers").select("display_name, email").eq("id", (o as any).teacher_id).maybeSingle();
     teacher = (t as any) ?? null;
+    if (isOnlinePurchase) {
+      const { data: po } = await supabase.from("paypal_orders").select("payee_teacher_id").eq("user_offering_id", o.id).maybeSingle();
+      paidToTeacher = !!(po as any)?.payee_teacher_id;
+    }
   }
   const orderLines = (isOrder
     ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
-    : "") + (teacher
-    ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
-    : "");
+    : "") + (teacher && isOnlinePurchase
+    ? (paidToTeacher
+      ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
+      : `<p><strong>Paid to:</strong> Holis (PayPal) — ${esc(teacher.display_name)}'s pass.</p>`)
+    : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "");
   const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
   let adminSubj: string;
   let adminHtml: string;
@@ -294,20 +303,27 @@ Deno.serve(async (req) => {
     await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));
   }
 
-  // The teacher hears about every pass of hers sold online.
+  // The teacher hears about every pass of hers — sold online or made by hand.
   if (teacher?.email) {
     const who = String(o.guest_name || to);
-    const subj = `New pass sold online — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`;
+    const subj = isOnlinePurchase
+      ? `New pass sold online — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
+      : `New pass for your student — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`;
+    const paidLine = !isOnlinePurchase
+      ? `It was made in the panel, so collect the payment as you agreed with them. They already have their code and booking link.`
+      : paidToTeacher
+        ? `The payment went straight to <strong>your PayPal account</strong>. They already have their code and booking link.`
+        : `It was paid online to <strong>Holis</strong>. They already have their code and booking link.`;
     const inner = `
-      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;"><strong>${esc(who)}</strong> just bought your <strong>${esc(o.name_snapshot)}</strong> on the website.</p>
-      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;">The payment went straight to <strong>your PayPal account</strong>. They already have their code and booking link.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;"><strong>${esc(who)}</strong> ${isOnlinePurchase ? "just bought" : "now has"} your <strong>${esc(o.name_snapshot)}</strong>${isOnlinePurchase ? " on the website" : ""}.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;">${paidLine}</p>
       <div style="background:#f3f6f6;border-radius:12px;padding:16px;margin:16px 0;font-size:14px;line-height:1.6;">
         <p style="margin:0;"><strong>Student:</strong> ${esc(who)} &lt;${esc(to)}&gt;${(o as any).guest_phone ? ` · ${esc((o as any).guest_phone)}` : ""}</p>
         <p style="margin:0;"><strong>Pass:</strong> ${esc(o.name_snapshot)}</p>
         ${o.code ? `<p style="margin:0;"><strong>Code:</strong> ${esc(o.code)}</p>` : ""}
       </div>
       <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You'll find them in your Teacher Panel → Members.</p>`;
-    const tRes = await sendEmail(teacher.email, subj, emailShell("A pass was sold online", inner));
+    const tRes = await sendEmail(teacher.email, subj, emailShell(isOnlinePurchase ? "A pass was sold online" : "A new pass", inner));
     if (!tRes.ok) console.error("[send-membership-order-email] teacher send failed", tRes.error);
   }
 

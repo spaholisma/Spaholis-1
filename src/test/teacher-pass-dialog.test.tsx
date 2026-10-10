@@ -71,10 +71,20 @@ describe("buying a teacher's pass online", () => {
     expect(body.textContent).toMatch(/emailed your pass code and booking link to ana@example\.com/);
   });
 
-  it("no PayPal on file: no online payment, only the usual way to pay her", () => {
+  it("no PayPal of her own (as for now, for every teacher): bought online, paid to Holis", () => {
     const body = mount({ ...pick, acceptsPaypal: false });
+    expect(body.querySelector("[data-testid=paypal]")).not.toBeNull();
+    expect(body.textContent).toMatch(/Pay online/);
+    expect(body.textContent).toMatch(/paid to Holis Wellness Center/);
+    expect(body.textContent).not.toMatch(/Pay Zhijian online/);
+    expect(body.textContent).not.toMatch(/straight to Zhijian's PayPal/);
+    // Her other ways to pay are still there.
+    expect(body.textContent).toMatch(/Or pay Zhijian another way/);
+  });
+
+  it("a pass with no price is never bought online", () => {
+    const body = mount({ ...pick, acceptsPaypal: false, price: null });
     expect(body.querySelector("[data-testid=paypal]")).toBeNull();
     expect(body.textContent).toMatch(/How to pay Zhijian/);
-    expect(body.textContent).not.toMatch(/Pay Zhijian online/);
   });
 });

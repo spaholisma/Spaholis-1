@@ -39,6 +39,8 @@ export const ConsultationForm = () => {
   // A one-on-one, couple's or group private class: the guest can pick a class
   // and teacher, and the request is emailed to that teacher too.
   const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
+  // A private class — a teacher's, or GYROTONIC at the studio price — is titled as one.
+  const isPrivateRequest = !!privateKind || /^private\b/i.test(topic);
   const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
   const [classChoice, setClassChoice] = useState<PrivateChoice | null>(null);
   // Where the private class happens. The beach only with the teachers who give it there.
@@ -242,6 +244,7 @@ export const ConsultationForm = () => {
             <h1 className="spa-heading-lg text-foreground mb-2 text-center">
               {isInfo
                 ? t("consultation.infoTitle", { defaultValue: "Request Course Information" })
+                : isPrivateRequest ? t("consultation.privateRequestTitle", { defaultValue: "Request a Private Class" })
                 : isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
             </h1>
             {isRequest && !privateKind ? (
@@ -252,6 +255,7 @@ export const ConsultationForm = () => {
             <p className={`font-body text-sm text-muted-foreground text-center leading-relaxed max-w-sm mx-auto ${privateKind ? "mb-8" : "mb-10"}`}>
               {isInfo
                 ? t("consultation.infoSubtitle", { defaultValue: "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register." })
+                : isPrivateRequest ? t("consultation.privateRequestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your private class." })
                 : isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
 
