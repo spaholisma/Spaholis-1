@@ -115,8 +115,16 @@ describe("the server", () => {
     const diff = execSync("git diff feature/teachers -- supabase/functions/notify-teacher", { cwd: root }).toString();
     const removed = diff.split("\n").filter((l) => l.startsWith("-") && !l.startsWith("---"));
     // Only lines that were reworded or widened — the cash, online and free
-    // payment lines, the student type, the select and the "Payment" label.
-    expect(removed.length).toBeLessThanOrEqual(6);
+    // payment lines, the student type, the select and the "Payment" label;
+    // then the cancellation emails: the import, the event list, the select
+    // (cancel_reason) and the cancelled/moved block split in two.
+    // The moved-class email keeps only its own words.
+    expect(removed.length).toBeLessThanOrEqual(30);
+    const nt = read("supabase/functions/notify-teacher/index.ts");
+    expect(nt).toMatch(/if \(event === "class_rescheduled"\) \{/);
+    expect(nt).toMatch(/sendEmail\(s\.guest_email, `New time: \$\{title\} — \$\{when\}`, html\)/);
+    expect(nt).toMatch(/If the new time does not work for you, please let your teacher know\./);
+    expect(nt).toMatch(/if \(event === "class_reassigned" && body\?\.previousTeacher\)/);
     const fn = read("supabase/functions/notify-teacher/index.ts");
     expect(fn).toMatch(/row\("Payment", student\.pays\)/);
     expect(fn).toMatch(/Free — coupon \$\{b\.coupon_code\}/);

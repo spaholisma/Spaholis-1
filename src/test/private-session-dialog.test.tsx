@@ -10,6 +10,9 @@ vi.mock("@/components/teacher/TeacherPrivateOfferingsEditor", () => ({ TeacherPr
 vi.mock("@/hooks/useConfirm", () => ({
   useConfirm: () => ({ confirm: async () => true, confirmDialog: null }),
 }));
+vi.mock("@/hooks/useReasonPrompt", () => ({
+  useReasonPrompt: () => ({ askReason: async () => ({ reason: "I am unwell", notify: true }), reasonDialog: null }),
+}));
 
 import { PrivateSessionDialog } from "@/components/teacher/TeacherPrivateClasses";
 
@@ -78,6 +81,17 @@ describe("her private class, opened from the calendar", () => {
     await act(async () => { remove.click(); });
     await flush();
     expect(db.rpc).toHaveBeenCalledWith("teacher_remove_private_session", { _id: "ps1" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("cancels it with her reason — the guest and Holis are emailed by the server", async () => {
+    const { body, onChanged, onOpenChange } = mount();
+    await flush();
+    const cancel = Array.from(body.querySelectorAll("button")).find((b) => b.textContent?.includes("Cancel this private class"))!;
+    await act(async () => { cancel.click(); });
+    await flush();
+    expect(db.rpc).toHaveBeenCalledWith("teacher_cancel_private_class", { _booking_id: "b1", _reason: "I am unwell" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onChanged).toHaveBeenCalled();
   });

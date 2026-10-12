@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
-  BadgeCheck, CalendarClock, CalendarPlus, IdCard, Loader2, Mail, MapPin, Phone, Ticket, Trash2, Users,
+  BadgeCheck, CalendarClock, CalendarPlus, CalendarX, IdCard, Loader2, Mail, MapPin, Phone, Ticket, Trash2, Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
 import { crToUtc, utcToCr } from "@/components/teacher/ClassFormDialog";
 import { TeacherPrivateOfferingsEditor } from "@/components/teacher/TeacherPrivateOfferingsEditor";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useReasonPrompt } from "@/hooks/useReasonPrompt";
 
 const sb = supabase as any;
 
@@ -62,7 +63,34 @@ const statusColor: Record<string, string> = {
   replied: "bg-yellow-100 text-yellow-800",
   scheduled: "bg-green-100 text-green-800",
   declined: "bg-muted text-muted-foreground",
+  cancelled: "bg-red-100 text-red-800",
 };
+/** Every status a request can show — "Cancelled" is set only by cancelling it. */
+export const statusLabel = (status: string) =>
+  status === "cancelled" ? "Cancelled" : STATUSES.find((s) => s.value === status)?.label ?? status;
+/** Still on: it can be put on the calendar, moved or cancelled. */
+export const privateClassOpen = (status: string) => status !== "declined" && status !== "cancelled";
+
+/**
+ * Cancel one of her private classes with a reason: off her calendar, and the
+ * guest, she and Holis are emailed (teacher_cancel_private_class).
+ */
+async function cancelPrivateClass(
+  askReason: ReturnType<typeof useReasonPrompt>["askReason"],
+  bookingId: string, guestName: string | null,
+): Promise<boolean> {
+  const a = await askReason({
+    title: "Cancel this private class?",
+    description: `${guestName || "The guest"}, you and Holis will be emailed with your reason. It comes off your calendar.`,
+    confirmLabel: "Cancel the private class",
+    placeholder: "e.g. I am unwell / the guest asked to cancel / the place is not available",
+  });
+  if (!a) return false;
+  const { error } = await sb.rpc("teacher_cancel_private_class", { _booking_id: bookingId, _reason: a.reason });
+  if (error) { toast.error(error.message); return false; }
+  toast.success("Private class cancelled — the guest and Holis have been emailed");
+  return true;
+}
 
 const usd = (n: number) => formatCRCWithUsd(Number(n) * USD_RATE);
 
@@ -89,6 +117,7 @@ export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: 
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [scheduling, setScheduling] = useState<RequestRow | null>(null);
   const { confirm, confirmDialog } = useConfirm();
+  const { askReason, reasonDialog } = useReasonPrompt();
 
   const load = useCallback(async () => {
     const { data, error } = await sb.rpc("teacher_private_class_requests");
@@ -157,7 +186,7 @@ export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: 
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-body text-sm font-medium text-foreground">{r.guest_name || "Guest"}</p>
                         <Badge className={cn("capitalize", statusColor[r.status] || "")}>
-                          {STATUSES.find((s) => s.value === r.status)?.label ?? r.status}
+                          {statusLabel(r.status)}
                         </Badge>
                       </div>
                       <p className="font-body text-xs text-muted-foreground">
@@ -253,8 +282,8 @@ export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: 
                     ))}
                   </div>
 
-                  {/* Agreed with the guest: put it on her calendar. */}
-                  {r.status !== "declined" && (
+                  {/* Agreed with the guest: put it on her calendar — or cancel it. */}
+                  {privateClassOpen(r.status) && (
                     <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                       <Button size="sm" className="text-xs" disabled={busy === r.booking_id} onClick={() => setScheduling(r)}>
                         <CalendarPlus className="h-3.5 w-3.5 mr-1.5" />
@@ -266,6 +295,15 @@ export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: 
                           <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remove from calendar
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="text-xs text-destructive hover:bg-destructive/10"
+                        disabled={busy === r.booking_id}
+                        onClick={async () => {
+                          setBusy(r.booking_id);
+                          if (await cancelPrivateClass(askReason, r.booking_id, r.guest_name)) await load();
+                          setBusy(null);
+                        }}>
+                        <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Cancel this private class
+                      </Button>
                     </div>
                   )}
                   <p className="flex items-center gap-1.5 font-body text-[11px] text-muted-foreground">
@@ -284,6 +322,7 @@ export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: 
         onSaved={() => { setScheduling(null); load(); }}
       />
       {confirmDialog}
+      {reasonDialog}
     </div>
   );
 }
@@ -404,7 +443,9 @@ export function PrivateSessionDialog({ slot, onOpenChange, onChanged }: {
   const [loading, setLoading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [scheduling, setScheduling] = useState<RequestRow | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
+  const { askReason, reasonDialog } = useReasonPrompt();
 
   useEffect(() => {
     setRow(null);
@@ -558,7 +599,23 @@ export function PrivateSessionDialog({ slot, onOpenChange, onChanged }: {
               {removing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
               Remove from calendar
             </Button>
+            {slot.booking_id && (
+              <Button size="sm" variant="ghost" className="text-xs text-destructive hover:bg-destructive/10"
+                disabled={cancelling}
+                onClick={async () => {
+                  setCancelling(true);
+                  const done = await cancelPrivateClass(askReason, slot.booking_id!, row?.guest_name ?? slot.guest_name);
+                  setCancelling(false);
+                  if (done) { onOpenChange(false); onChanged(); }
+                }}>
+                {cancelling ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CalendarX className="h-3.5 w-3.5 mr-1.5" />}
+                Cancel this private class
+              </Button>
+            )}
           </div>
+          <p className="font-body text-[11px] text-muted-foreground">
+            Remove from calendar only takes the date off your calendar. Cancel tells the guest and Holis, with your reason.
+          </p>
         </div>
 
         <SchedulePrivateClassDialog
@@ -567,6 +624,7 @@ export function PrivateSessionDialog({ slot, onOpenChange, onChanged }: {
           onSaved={() => { setScheduling(null); onOpenChange(false); onChanged(); }}
         />
         {confirmDialog}
+        {reasonDialog}
       </DialogContent>
     </Dialog>
   );

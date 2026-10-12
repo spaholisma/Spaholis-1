@@ -34,6 +34,7 @@ interface EmailTemplate {
 const CATEGORY_LABEL: Record<string, string> = {
   treatment: "Treatment appointments",
   class: "Yoga classes",
+  class_changes: "Class changes by teachers (cancellations & removals)",
   offering_purchase: "Membership purchases (online)",
   offering_order: "Membership orders (schedule link)",
   client_notify: "Appointment reminders & reviews",
@@ -46,7 +47,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   team: "Team notifications (sent to us)",
 };
 
-const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "treatment", "cancellation", "client_notify", "offering_expired", "receipts", "appointment_request", "account", "team"];
+const CATEGORY_ORDER = ["offering_purchase", "offering_order", "loyalty", "class", "class_changes", "treatment", "cancellation", "client_notify", "offering_expired", "receipts", "appointment_request", "account", "team"];
 
 // Variables available to each category. {{details}} and {{button}} expand to
 // HTML blocks the server builds from the real booking/offering data.
@@ -62,6 +63,7 @@ const CATEGORY_VARS: Record<string, string[]> = {
   loyalty: ["guest_name", "offering_name", "purchases", "threshold", "remaining", "reward_label", "details", "button"],
   cancellation: ["guest_name", "reservation_id", "service_name", "date", "time", "total", "fee", "details", "cancel_note", "policy"],
   account: ["first_name", "guest_name", "button"],
+  class_changes: ["first_name", "guest_name", "class_title", "when", "teacher_name", "reason", "payment_note", "details", "button"],
   team: ["details"],
 };
 
@@ -77,12 +79,16 @@ const TEMPLATE_VARS: Record<string, string[]> = {
   team_retreat_inquiry: ["retreat_title", "guest_name", "details", "message"],
   team_custom_retreat: ["guest_name", "details", "message"],
   team_daily_agenda: ["date", "bookings_count", "entries_count", "agenda"],
+  team_class_cancelled: ["class_title", "when", "teacher_name", "reason", "details", "students"],
+  team_student_removed: ["guest_name", "class_title", "when", "teacher_name", "reason", "details", "student_notice"],
+  team_private_class_cancelled: ["guest_name", "teacher_name", "class_title", "when", "reason", "details"],
+  private_class_cancelled_guest: ["first_name", "guest_name", "class_title", "teacher_name", "when", "reason", "details"],
 };
 
 /** Blocks of HTML the server builds — shown in the preview as they are. */
 const HTML_VARS = [
   "details", "button", "receipt_box", "preferred_line", "loyalty", "policy", "cancel_note",
-  "intake", "charge_note", "override_note", "order_details", "message", "agenda",
+  "intake", "charge_note", "override_note", "order_details", "message", "agenda", "students",
 ];
 
 // ---- Preview rendering (mirrors the edge functions so the preview is honest) ----
@@ -134,6 +140,24 @@ function sampleVars(category: string): Record<string, string> {
       retreat_title: "Pura Vida Retreat",
       message: `<p style="margin:18px 0 6px;color:#7a7a72;font-size:13px">Message</p><div style="background:#f4f1ec;border-radius:12px;padding:14px 16px;font-size:14px;">We would love to come in March.</div>`,
       bookings_count: "1", entries_count: "0", agenda, details,
+      teacher_name: "Evelina", reason: "I am unwell and cannot teach today.",
+      students: table([
+        row("Ana López", "ana@email.com<br>+506 8888 8888<br><strong>Paid online to Holis $23.00 — refund needed</strong><br>Emailed"),
+        row("Bo Smith", "bo@email.com<br><strong>Pass — the class is already back on the pass</strong><br>Emailed"),
+      ]),
+      student_notice: "The student has been emailed.",
+    };
+  }
+  if (category === "class_changes") {
+    const details = table([
+      row("Class", "Cardio Vascular Breathwork"), row("When", "Tuesday, October 13 at 5:00 PM"), row("Teacher", "Evelina"),
+    ]);
+    const button = `<p style="margin:18px 0;"><a href="#" style="display:inline-block;background:#2F2F2F;color:#ffffff;padding:12px 20px;border-radius:6px;font-size:15px;text-decoration:none;">See the class schedule</a></p>`;
+    return {
+      first_name: "Ana", guest_name: "Ana López", class_title: "Cardio Vascular Breathwork",
+      when: "Tuesday, October 13 at 5:00 PM", teacher_name: "Evelina", reason: "I am unwell and cannot teach today.",
+      payment_note: "You paid $23.00 online — Holis Wellness Center will contact you about your refund.",
+      details, button,
     };
   }
   if (category === "treatment") {

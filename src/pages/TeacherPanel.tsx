@@ -36,6 +36,7 @@ import { TeacherPassRequests } from "@/components/teacher/TeacherPassRequests";
 import { TeacherMembers } from "@/components/teacher/TeacherMembers";
 import { TeacherPrivateClasses } from "@/components/teacher/TeacherPrivateClasses";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useReasonPrompt } from "@/hooks/useReasonPrompt";
 import { TeacherPaymentMethods } from "@/components/teacher/TeacherPaymentMethods";
 import { TeacherEvents } from "@/components/teacher/TeacherEvents";
 
@@ -165,6 +166,7 @@ export default function TeacherPanel() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { confirm, confirmDialog } = useConfirm();
+  const { askReason, reasonDialog } = useReasonPrompt();
   const reduceMotion = useReducedMotion();
 
   const [teacher, setTeacher] = useState<TeacherRow | null>(null);
@@ -274,19 +276,26 @@ export default function TeacherPanel() {
    */
   const setCancelled = async (s: Session, cancel: boolean) => {
     const n = counts[s.id] ?? 0;
-    const msg = cancel
-      ? n > 0
-        ? `The ${n} student${n === 1 ? "" : "s"} signed up will be emailed.`
-        : "Nobody has signed up, so no one will be emailed."
-      : "It goes back on the schedule and students can book it again.";
-    if (!(await confirm({
-      title: cancel ? "Cancel this class?" : "Put this class back?",
-      description: msg,
-      confirmLabel: cancel ? "Cancel the class" : "Put it back",
-      destructive: cancel,
+    // Cancelling reaches the students and Holis, so it carries her reason.
+    let reason: string | null = null;
+    if (cancel) {
+      const a = await askReason({
+        title: "Cancel this class?",
+        description: (n > 0
+          ? `The ${n} student${n === 1 ? "" : "s"} signed up, you and Holis will be emailed with your reason.`
+          : "Nobody has signed up; you and Holis will be emailed with your reason.")
+          + " Classes paid with a pass go back on the pass; Holis arranges refunds of online payments.",
+        confirmLabel: "Cancel the class",
+      });
+      if (!a) return;
+      reason = a.reason;
+    } else if (!(await confirm({
+      title: "Put this class back?",
+      description: "It goes back on the schedule and students can book it again.",
+      confirmLabel: "Put it back",
     }))) return;
     setCancelling(s.id);
-    const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
+    const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel, cancel_reason: reason }).eq("id", s.id);
     if (error) { toast.error(error.message); setCancelling(null); return; }
     setSessions((prev) => prev.map((x) => (x.id === s.id ? { ...x, is_cancelled: cancel } : x)));
     toast.success(cancel
@@ -322,17 +331,25 @@ export default function TeacherPanel() {
     setSavingStudent(false);
   };
 
-  /** Remove a student from the class entirely. */
+  /**
+   * Remove a student from the class entirely — with her reason, which goes to
+   * Holis and (unless she unticks it) to the student. A class paid with a
+   * pass goes back on the pass.
+   */
   const removeStudent = async (a: Attendee) => {
-    if (!(await confirm({
+    const answer = await askReason({
       title: `Remove ${a.guest_name || "this student"}?`,
-      description: "They come off this class's list. This cannot be undone.",
+      description: "They come off this class's list. This cannot be undone. Holis is emailed with your reason.",
       confirmLabel: "Remove",
-      destructive: true,
-    }))) return;
-    const { error } = await sb.from("class_bookings").delete().eq("id", a.id);
+      placeholder: "e.g. booked the wrong class / asked to cancel / added by mistake",
+      notifyLabel: a.guest_email ? `Email ${a.guest_name?.split(/\s+/)[0] || "the student"} too` : undefined,
+    });
+    if (!answer) return;
+    const { error } = await sb.rpc("teacher_remove_class_student", {
+      _booking_id: a.id, _reason: answer.reason, _notify_student: !!a.guest_email && answer.notify,
+    });
     if (error) { toast.error(error.message); return; }
-    toast.success("Student removed");
+    toast.success(a.guest_email && answer.notify ? "Student removed — they and Holis have been emailed" : "Student removed — Holis has been emailed");
     if (openSession) await openAttendees(openSession);
     load();
   };
@@ -1016,6 +1033,7 @@ export default function TeacherPanel() {
       </Dialog>
 
       {confirmDialog}
+      {reasonDialog}
       <Footer />
     </div>
   );

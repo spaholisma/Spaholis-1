@@ -10,6 +10,7 @@ import { formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useReasonPrompt } from "@/hooks/useReasonPrompt";
 import { ClassFormDialog, utcToCr } from "@/components/teacher/ClassFormDialog";
 import { PrivateSessionDialog } from "@/components/teacher/TeacherPrivateClasses";
 
@@ -62,6 +63,7 @@ export function TeacherSchedule({
   // Her private class, opened from the calendar to see everything about it.
   const [openPrivate, setOpenPrivate] = useState<PrivateSlot | null>(null);
   const { confirm, confirmDialog } = useConfirm();
+  const { askReason, reasonDialog } = useReasonPrompt();
 
   const mine = (s: SchedSession) => teacherOf(s) === teacherName.trim().toLowerCase();
 
@@ -122,16 +124,23 @@ export function TeacherSchedule({
   };
 
   const setCancelled = async (s: SchedSession, cancel: boolean) => {
-    if (!(await confirm({
-      title: cancel ? "Cancel this class?" : "Put this class back?",
-      description: cancel
-        ? "Anyone signed up will be emailed."
-        : "It goes back on the schedule and students can book it again.",
-      confirmLabel: cancel ? "Cancel the class" : "Put it back",
-      destructive: cancel,
+    // Cancelling reaches the students and Holis, so it carries her reason.
+    let reason: string | null = null;
+    if (cancel) {
+      const a = await askReason({
+        title: "Cancel this class?",
+        description: "Everyone signed up, you and Holis are emailed with your reason. Classes paid with a pass go back on the pass; Holis arranges refunds of online payments.",
+        confirmLabel: "Cancel the class",
+      });
+      if (!a) return;
+      reason = a.reason;
+    } else if (!(await confirm({
+      title: "Put this class back?",
+      description: "It goes back on the schedule and students can book it again.",
+      confirmLabel: "Put it back",
     }))) return;
     setBusyId(s.id);
-    const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel }).eq("id", s.id);
+    const { error } = await sb.from("class_schedule").update({ is_cancelled: cancel, cancel_reason: reason }).eq("id", s.id);
     if (error) toast.error(error.message);
     else { toast.success(cancel ? "Class cancelled" : "Class is back on"); load(); onChanged?.(); }
     setBusyId(null);
@@ -281,6 +290,7 @@ export function TeacherSchedule({
         onChanged={load}
       />
       {confirmDialog}
+      {reasonDialog}
     </Card>
   );
 }

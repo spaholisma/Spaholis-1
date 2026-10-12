@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, guest_phone, user_id, source, teacher_id, price_paid, id_document, id_document_type, local_discount")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, guest_phone, user_id, source, teacher_id, price_paid, id_document, id_document_type, local_discount, notes")
     .eq("id", userOfferingId)
     .maybeSingle();
 
