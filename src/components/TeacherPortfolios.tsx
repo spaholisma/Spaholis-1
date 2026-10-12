@@ -85,6 +85,26 @@ function useTeacherPasses() {
   });
 }
 
+/**
+ * The usual teacher of each active class (classes.instructor), with a class
+ * picture — so a teacher keeps her portfolio in a week with no class of hers,
+ * registered or not.
+ */
+function useClassTeachers() {
+  return useQuery({
+    queryKey: ["class-usual-teachers"],
+    queryFn: async () => {
+      const { data, error } = await sb.from("classes").select("instructor, image_url").eq("is_active", true);
+      if (error) throw error;
+      return ((data ?? []) as { instructor: string | null; image_url: string | null }[])
+        .map((c) => ({ name: (c.instructor ?? "").trim().replace(/\s+/g, " "), image_url: c.image_url }))
+        .filter((c) => c.name);
+    },
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+}
+
 /** A teacher's name for a session: the per-session one wins, else the class's. */
 const instructorOf = (s: ScheduleRow) =>
   ((s as any).instructor?.trim() || s.classes.instructor?.trim() || "");
@@ -128,6 +148,7 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
   const { data: allPrivate = [], isLoading: l1 } = usePrivateOfferings();
   const { data: passes = [], isLoading: l2 } = useTeacherPasses();
   const { data: teachers = [], isLoading: l3 } = usePublicTeachers();
+  const { data: classTeachers = [], isLoading: l4 } = useClassTeachers();
 
   const portfolios = useMemo<Portfolio[]>(() => {
     const byTeacher = new Map<string, ScheduleRow[]>();
@@ -142,6 +163,8 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
       const classes = byClass(rows).map(toBlock).sort((a, b) => a.cls.title.localeCompare(b.cls.title));
       const row = teachers.find((t) => t.display_name.trim().toLowerCase() === key);
       const privates = offeringsOf(allPrivate, name);
+      // With no class this week, the picture of a class she usually teaches stands in.
+      const usualImage = classTeachers.find((c) => c.name.toLowerCase() === key && c.image_url)?.image_url ?? null;
       return {
         key: `teacher:${name}`,
         teacher: name,
@@ -151,7 +174,7 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
           ? plural(classes.length, "class", "classes")
           : privates.length ? plural(privates.length, "private class", "private classes") : "Holis Wellness Center",
         // Her own photo first; a class picture stands in until she sends one.
-        image: row?.photo_url || classes.find((c) => c.cls.image_url)?.cls.image_url || null,
+        image: row?.photo_url || classes.find((c) => c.cls.image_url)?.cls.image_url || usualImage,
         portrait: !!row?.photo_url,
         bio: row?.bio ?? null,
         teacherId: row?.id ?? null,
@@ -162,11 +185,16 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
     };
 
     const scheduled = [...byTeacher.entries()].filter(([name]) => name).map(([name, rows]) => card(name, rows));
-    // Every teacher has her card, also in a week she has no class on the schedule.
+    // Every teacher has her card, also in a week she has no class on the
+    // schedule: the registered teachers, and the usual teacher of each active
+    // class (classes.instructor) — whether or not she is registered yet.
     const named = new Set(scheduled.map((c) => c.teacher.trim().toLowerCase()));
-    const quiet = teachers
-      .filter((t) => t.display_name?.trim() && !named.has(t.display_name.trim().toLowerCase()))
-      .map((t) => card(t.display_name.trim(), []));
+    const quietNames: string[] = [];
+    for (const n of [...teachers.map((t) => t.display_name ?? ""), ...classTeachers.map((c) => c.name)]) {
+      const name = n.trim().replace(/\s+/g, " ");
+      if (name && !named.has(name.toLowerCase())) { named.add(name.toLowerCase()); quietNames.push(name); }
+    }
+    const quiet = quietNames.map((name) => card(name, []));
     const allTeachers = [...scheduled, ...quiet].sort((a, b) => a.teacher.localeCompare(b.teacher));
     if (teachersOnly) return allTeachers;
 
@@ -190,9 +218,9 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
       }));
 
     return [...allTeachers, ...orphans];
-  }, [sessions, passes, teachers, allPrivate, teachersOnly]);
+  }, [sessions, passes, teachers, allPrivate, classTeachers, teachersOnly]);
 
-  return { portfolios, isLoading: l1 || l2 || l3 };
+  return { portfolios, isLoading: l1 || l2 || l3 || l4 };
 }
 
 /** The photo header shared by the cards and the teacher's page. */

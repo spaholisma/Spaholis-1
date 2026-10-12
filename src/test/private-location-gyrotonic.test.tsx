@@ -20,7 +20,11 @@ if (!(globalThis as any).IntersectionObserver) {
   };
 }
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: async (name: string) => ({ data: db.rpc[name] ?? [], error: null }) },
+  supabase: {
+    rpc: async (name: string) => ({ data: db.rpc[name] ?? [], error: null }),
+    // The usual teacher of each active class (classes.instructor).
+    from: () => ({ select: () => ({ eq: async () => ({ data: (db as any).classes ?? [], error: null }) }) }),
+  },
 }));
 // The schedule: no class this week. The page chrome is not under test here.
 vi.mock("@/hooks/useClasses", () => ({
@@ -188,6 +192,28 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     expect(screen.getByRole("link", { name: /Zoe Ñandú/ }).getAttribute("href")).toBe("/teachers/zoe-nandu");
   });
 
+  it("the usual teacher of a class keeps her card in a week with no class of hers — registered or not", async () => {
+    (db as any).classes = [
+      { instructor: "Ashley", image_url: "/aerial.jpg" },
+      { instructor: " ashley ", image_url: null }, // the same teacher, written differently
+      { instructor: "Kataleia", image_url: null },
+      { instructor: "Evelina", image_url: null }, // registered: one card only
+      { instructor: "", image_url: null },
+    ];
+    try {
+      const { container } = renderIt(<TeacherPortfolios sessions={[]} teachersOnly />);
+      await waitFor(() => expect(screen.getByText("Ashley")).toBeTruthy());
+      expect(screen.getByText("Kataleia")).toBeTruthy();
+      expect(screen.getAllByText("Evelina")).toHaveLength(1);
+      expect(screen.getByRole("link", { name: /Ashley — classes/ }).getAttribute("href")).toBe("/teachers/ashley");
+      expect(container.querySelectorAll("article")).toHaveLength(4); // Ashley, Evelina, Kataleia, Zoe
+      // Her usual class's picture stands in for a photo.
+      expect(container.querySelector('img[src="/aerial.jpg"]')).not.toBeNull();
+    } finally {
+      (db as any).classes = [];
+    }
+  });
+
   it("on Private Sessions only the teachers — no card for a class nobody is named on", async () => {
     const soon = new Date(Date.now() + 86_400_000).toISOString();
     const orphan = {
@@ -277,7 +303,8 @@ describe("4. A teacher's change shows on the website without refreshing", () => 
     const ed = read("src/components/teacher/TeacherPrivateOfferingsEditor.tsx");
     expect(ed).toMatch(/queryClient\.invalidateQueries\(\{ queryKey: \["public-private-offerings"\] \}\)/);
     expect(read("src/lib/privateOfferings.ts")).toMatch(/staleTime: 0,\s+refetchOnWindowFocus: true,/);
-    expect(read("src/components/TeacherPortfolios.tsx").match(/staleTime: 0/g)).toHaveLength(2);
+    // Teachers, their passes and the classes' usual teachers: all read fresh.
+    expect(read("src/components/TeacherPortfolios.tsx").match(/staleTime: 0/g)).toHaveLength(3);
   });
 });
 
