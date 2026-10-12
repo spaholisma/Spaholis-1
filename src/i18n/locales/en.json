@@ -724,6 +724,8 @@
     "localLine": "Local discount ({{pct}}%)",
     "couponLine": "Coupon ({{code}})",
     "phoneRequired": "Phone *",
-    "missingRequired": "Please fill in your name, email, phone and ID."
+    "missingRequired": "Please fill in your name, email, phone and ID.",
+    "chooseType": "Choose Costa Rican cédula or Passport / other ID.",
+    "typeNumber": "Please type the number."
   }
 }

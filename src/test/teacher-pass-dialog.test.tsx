@@ -21,7 +21,13 @@ vi.mock("@/components/booking/PhoneField", () => ({
   ),
   isValidPhoneNumber: (v: string) => /^\+\d{8,15}$/.test(v),
 }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
+const db = vi.hoisted(() => ({
+  rpc: vi.fn(async () => ({ data: { id: "uo-free", code: "AF2270" }, error: null })),
+  invoke: vi.fn(async () => ({ data: { ok: true }, error: null })),
+}));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { from: vi.fn(), rpc: db.rpc, functions: { invoke: db.invoke } },
+}));
 const account: { current: any } = { current: null };
 vi.mock("@/hooks/useAccountDetails", () => ({ useAccountDetails: () => account.current }));
 // Her local discount (40%) and her coupons, as the database would answer.
@@ -142,6 +148,50 @@ describe("buying a teacher's pass online", () => {
     expect(body.textContent).toMatch(/FRIEND10 applied — 10% off/);
     expect(body.textContent).toMatch(/Total\$90\.9/);
     expect(paypal.body!()).toMatchObject({ coupon_code: "FRIEND10" });
+  });
+
+  it("a 100% coupon typed without pressing Apply: applied on leaving the field, then free with a clear prompt for the ID", async () => {
+    quote.mockResolvedValue({
+      price: 0, base: 101, discount: 101, local: false, local_pct: 40,
+      coupon: "PRUEBAEVE", coupon_status: "applied", coupon_type: "percentage", coupon_value: 100,
+    });
+    db.rpc.mockClear(); db.invoke.mockClear();
+    const body = mount(pick);
+    fillContact(body);
+    const field = byPlaceholder(body, "Coupon code");
+    type(field, "pruebaeve");
+    // Leaving the field applies it — "Apply" was never pressed.
+    await act(async () => { field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(body.textContent).toMatch(/PRUEBAEVE applied — 100% off/);
+    expect(body.textContent).toMatch(/Total\$0/);
+    // No ID yet: the page says exactly what is missing, and the button says why it cannot go on.
+    expect(body.textContent).toMatch(/To continue, please add: your ID \(Costa Rican cédula, or passport \/ other ID\)/);
+    const confirm = () => Array.from(body.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Confirm — free with coupon"))!;
+    expect(confirm().disabled).toBe(false);
+    await act(async () => { confirm().click(); });
+    expect(db.rpc).not.toHaveBeenCalled();
+    expect(body.textContent).toMatch(/Choose Costa Rican cédula or Passport \/ other ID/);
+    // With the ID it goes through: the pass is issued and its email sent.
+    giveId(body, "Passport or other ID", "X1234567");
+    expect(body.textContent).not.toMatch(/To continue, please add/);
+    await act(async () => { confirm().click(); });
+    expect(db.rpc).toHaveBeenCalledWith("claim_teacher_pass_with_coupon", expect.objectContaining({
+      _membership_id: pick.membershipId, _coupon: "PRUEBAEVE", _id_document: "X1234567", _id_document_type: "other",
+    }));
+    expect(db.invoke).toHaveBeenCalledWith("send-membership-order-email", { body: { userOfferingId: "uo-free" } });
+    expect(body.textContent).toMatch(/Your pass is ready/);
+  });
+
+  it("Enter in the coupon field applies it too", async () => {
+    quote.mockResolvedValue({
+      price: 90.9, base: 101, discount: 10.1, local: false, local_pct: 40,
+      coupon: "FRIEND10", coupon_status: "applied", coupon_type: "percentage", coupon_value: 10,
+    });
+    const body = mount(pick);
+    const field = byPlaceholder(body, "Coupon code");
+    type(field, "friend10");
+    await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    expect(body.textContent).toMatch(/FRIEND10 applied — 10% off/);
   });
 
   it("signed in: the form is filled in from the account", () => {

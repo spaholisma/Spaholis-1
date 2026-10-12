@@ -52,6 +52,14 @@ export function isIdDocumentValid(doc: IdDocument): boolean {
   return false;
 }
 
+/** What is missing from the ID, in plain words ([] = it is fine). */
+export function missingId(doc: IdDocument): string[] {
+  if (!doc.type) return ["your ID (Costa Rican cédula, or passport / other ID)"];
+  if (!doc.number.trim()) return [doc.type === "cr_cedula" ? "your cédula number" : "your passport or ID number"];
+  if (!isIdDocumentValid(doc)) return [doc.type === "cr_cedula" ? "a valid cédula number (9 digits)" : "a valid passport or ID number"];
+  return [];
+}
+
 /** Which problem to show under the field ("" when fine, or nothing typed yet). */
 export function idDocumentProblem(doc: IdDocument): "" | "cedula" | "other" {
   if (!doc.type) return "";

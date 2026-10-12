@@ -24,7 +24,7 @@ vi.mock("@/hooks/useAccountDetails", () => ({ useAccountDetails: () => null }));
 vi.mock("@/lib/localDiscount", async (orig) => ({
   ...(await orig<typeof import("@/lib/localDiscount")>()),
   useLocalDiscounts: () => ({ data: [{ display_name: "Evelina", local_discount_pct: 40 }] }),
-  quoteTeacherPrice: vi.fn(),
+  quoteTeacherPrice: (...a: any[]) => dropQuote(...a),
   rememberIdDocument: vi.fn(),
 }));
 vi.mock("@/lib/classClosures", async (orig) => ({
@@ -32,6 +32,13 @@ vi.mock("@/lib/classClosures", async (orig) => ({
   fetchClosedClassDays: async () => new Set<string>(),
 }));
 
+const { dropQuote, dropDb } = vi.hoisted(() => ({
+  dropQuote: vi.fn(async (..._a: any[]): Promise<any> => null),
+  dropDb: {
+    rpc: vi.fn(async () => ({ data: "booking-free", error: null })),
+    invoke: vi.fn(async () => ({ data: { ok: true }, error: null })),
+  },
+}));
 // Two weeks of the schedule, as the database would return it (hoisted: the
 // mocked client needs it before the component is imported).
 const { rows, query } = vi.hoisted(() => {
@@ -53,7 +60,7 @@ const { rows, query } = vi.hoisted(() => {
   query.limit = async () => ({ data: rows });
   return { rows, query };
 });
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => query, rpc: vi.fn() } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => query, rpc: dropDb.rpc, functions: { invoke: dropDb.invoke } } }));
 
 import { DropInDialog, bookableDropIns, dropInDate } from "@/components/DropInDialog";
 
@@ -126,5 +133,39 @@ describe("drop-in: book and pay online", () => {
     act(() => paypal.onSuccess!({ ok: true, kind: "class" }));
     expect(body.textContent).toMatch(/You're booked/);
     expect(body.textContent).toMatch(/sent the confirmation to ana@example\.com/);
+  });
+});
+
+describe("drop-in: her 100% coupon", () => {
+  beforeEach(() => { document.body.innerHTML = ""; dropDb.rpc.mockClear(); dropDb.invoke.mockClear(); });
+
+  it("books the class at $0 on the server once the ID is in — no PayPal", async () => {
+    dropQuote.mockResolvedValue({
+      price: 0, base: 23, discount: 23, local: false, local_pct: 40,
+      coupon: "PRUEBAEVE", coupon_status: "applied", coupon_type: "percentage", coupon_value: 100,
+    } as any);
+    const body = mount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const pick = Array.from(body.querySelectorAll("button")).find((b) => b.textContent?.includes("Cardio Vascular Breathwork"))!;
+    act(() => { pick.click(); });
+    type(byPlaceholder(body, "Your name"), "Spa Holis");
+    type(byPlaceholder(body, "Email"), "guest@example.com");
+    type(byPlaceholder(body, "Phone"), "+50688146760");
+    const field = byPlaceholder(body, "Coupon code");
+    type(field, "PRUEBAEVE");
+    await act(async () => { field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(body.textContent).toMatch(/Total\$0/);
+    expect(body.querySelector("[data-testid=paypal]")).toBeNull();
+    expect(body.textContent).toMatch(/To continue, please add: your ID/);
+    const passport = Array.from(body.querySelectorAll('[role="radio"]')).find((b) => b.textContent === "Passport or other ID")!;
+    act(() => { (passport as HTMLElement).click(); });
+    type(byPlaceholder(body, "Passport or ID number"), "X1234567");
+    const confirm = Array.from(body.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Confirm — free with coupon"))!;
+    await act(async () => { confirm.click(); });
+    expect(dropDb.rpc).toHaveBeenCalledWith("book_class_free_with_teacher_coupon", expect.objectContaining({
+      _schedule_id: "s1", _coupon: "PRUEBAEVE", _id_document: "X1234567", _id_document_type: "other",
+    }));
+    expect(dropDb.invoke).toHaveBeenCalledWith("send-booking-notification", { body: { classBookingId: "booking-free" } });
+    expect(body.textContent).toMatch(/You're booked/);
   });
 });

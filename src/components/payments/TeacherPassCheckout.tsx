@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,23 @@ import { cn } from "@/lib/utils";
 import { validateCoupon, describeCouponDiscount } from "@/lib/coupons";
 import {
   EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies,
-  localDiscountAmount, localPctFor, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts,
+  localDiscountAmount, localPctFor, missingId, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts,
   type IdDocument,
 } from "@/lib/localDiscount";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const money = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+/** What is still missing before the student can pay, in plain words ([] = nothing). */
+export function missingDetails(form: { name: string; email: string; phone: string }, doc: IdDocument): string[] {
+  const out: string[] = [];
+  if (!form.name.trim()) out.push("your name");
+  if (!EMAIL_RE.test(form.email.trim())) out.push("a valid email");
+  if (!form.phone || !isValidPhoneNumber(form.phone)) out.push("a valid phone number");
+  out.push(...missingId(doc));
+  return out;
+}
 
 /** What the form hands over to build the order — the server prices it again. */
 export interface OnlinePayFields {
@@ -101,6 +111,10 @@ export function OnlinePayForm({
   const ready = detailsReady && total > 0;
   // A coupon that covers it all: no PayPal, confirm it here.
   const free = !!coupon && total <= 0 && !!onFree;
+  // What is still missing, said plainly — a greyed-out button alone reads like a bug.
+  const missing = missingDetails(form, doc);
+  // Tried to continue with something missing: the fields in question turn red.
+  const [attempted, setAttempted] = useState(false);
   const fields = (): OnlinePayFields => ({
     name: form.name.trim(), email: form.email.trim(), phone: form.phone, doc,
     couponCode: local ? null : coupon?.code ?? null,
@@ -108,7 +122,12 @@ export function OnlinePayForm({
   });
 
   const confirmFree = async () => {
-    if (!free || !detailsReady || !onFree) return;
+    if (!free || !onFree) return;
+    if (!detailsReady) {
+      setAttempted(true);
+      toast.error(`Please add ${missing.join(", ")} to confirm.`);
+      return;
+    }
     setConfirmingFree(true);
     try {
       await onFree(fields());
@@ -121,9 +140,12 @@ export function OnlinePayForm({
     }
   };
 
+  // One check at a time: leaving the field and pressing Apply must not run it twice.
+  const applying = useRef(false);
   const applyCoupon = async () => {
     const code = couponCode.trim();
-    if (!code) return;
+    if (!code || coupon || applying.current) return;
+    applying.current = true;
     setChecking(true);
     try {
       // First the teacher's own coupons.
@@ -165,6 +187,7 @@ export function OnlinePayForm({
       }
       toast.error(first ? `That code isn't a valid coupon for ${first}.` : "That code isn't a valid coupon.");
     } finally {
+      applying.current = false;
       setChecking(false);
     }
   };
@@ -172,20 +195,25 @@ export function OnlinePayForm({
   return (
     <div className={cn("space-y-3", className)}>
       <Input placeholder="Your name *" value={form.name} autoComplete="name"
+        aria-invalid={attempted && !form.name.trim()}
+        className={cn(attempted && !form.name.trim() && "border-destructive")}
         onChange={(e) => setForm({ ...form, name: e.target.value })} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Input type="email" placeholder="Email *" value={form.email} autoComplete="email"
+          aria-invalid={attempted && !EMAIL_RE.test(form.email.trim())}
+          className={cn(attempted && !EMAIL_RE.test(form.email.trim()) && "border-destructive")}
           onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <PhoneField
           id={`${idPrefix}-phone`}
           placeholder="Phone *"
           value={form.phone}
           onChange={(v) => setForm({ ...form, phone: v })}
-          invalid={!!form.phone && !isValidPhoneNumber(form.phone)}
+          invalid={(!!form.phone || attempted) && !(form.phone && isValidPhoneNumber(form.phone))}
         />
       </div>
 
-      <IdDocumentField value={doc} onChange={setDoc} localPct={pct} teacherFirst={first || null} idPrefix={`${idPrefix}-id`} />
+      <IdDocumentField value={doc} onChange={setDoc} localPct={pct} teacherFirst={first || null}
+        idPrefix={`${idPrefix}-id`} showMissing={attempted} />
 
       {!local && (
         <div className="space-y-1">
@@ -199,6 +227,9 @@ export function OnlinePayForm({
               value={couponCode}
               disabled={!!coupon}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              // Typed but "Apply" not pressed: apply it on Enter or on leaving the field.
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }}
+              onBlur={() => { if (couponCode.trim() && !coupon) applyCoupon(); }}
             />
             {coupon ? (
               <Button type="button" variant="ghost" onClick={() => { setCoupon(null); setCouponCode(""); }}>Remove</Button>
@@ -229,8 +260,14 @@ export function OnlinePayForm({
         </div>
       </div>
 
+      {missing.length > 0 && (
+        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 font-body text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          To continue, please add: <strong>{missing.join(", ")}</strong>.
+        </div>
+      )}
+
       {free ? (
-        <Button className="w-full rounded-full" disabled={!detailsReady || confirmingFree} onClick={confirmFree}>
+        <Button className="w-full rounded-full" disabled={confirmingFree} onClick={confirmFree}>
           {confirmingFree ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
           Confirm — free with coupon {coupon?.code}
         </Button>
@@ -243,11 +280,6 @@ export function OnlinePayForm({
             onPaid(form.email.trim());
           }}
         />
-      )}
-      {!detailsReady && (
-        <p className="font-body text-[11px] text-muted-foreground">
-          Please complete your name, email, phone and ID to continue to payment.
-        </p>
       )}
       {footer}
     </div>

@@ -46,6 +46,25 @@ describe("a teacher's 100% coupon", () => {
   });
 });
 
+describe("never a silent grey button", () => {
+  it("the class page says what is missing, and applies a typed coupon on Enter or on leaving the field", () => {
+    const page = read("src/pages/ClassBooking.tsx");
+    expect(page).toMatch(/onBlur=\{\(\) => \{ if \(couponCode\.trim\(\) && !appliedCoupon\) applyCouponCode\(\); \}\}/);
+    expect(page).toMatch(/if \(e\.key === "Enter"\) \{ e\.preventDefault\(\); applyCouponCode\(\); \}/);
+    expect(page).toMatch(/\{!idReady && <MissingIdNotice doc=\{idDoc\} \/>\}/);
+    expect(page).toMatch(/\{!!appliedCoupon\?\.teacher && !idReady && <MissingIdNotice doc=\{idDoc\} \/>\}/);
+    // The free button stays clickable and explains itself.
+    expect(page).toMatch(/toast\.error\(`Please add \$\{missingId\(idDoc\)\.join\(", "\)\} to confirm\.`\);/);
+    expect(page).not.toMatch(/Add your ID above to (pay|confirm)\./);
+  });
+
+  it("the payment form lists the missing fields above the button", () => {
+    const form = read("src/components/payments/TeacherPassCheckout.tsx");
+    expect(form).toMatch(/To continue, please add: <strong>\{missing\.join\(", "\)\}<\/strong>\./);
+    expect(form).not.toMatch(/Please complete your name, email, phone and ID to continue to payment\./);
+  });
+});
+
 describe("coupons in her class roster", () => {
   it("the roster shows the coupon, the local discount, the pass and the ID", () => {
     const fn = fnOf("teacher_session_roster");

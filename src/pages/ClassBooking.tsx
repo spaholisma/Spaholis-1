@@ -32,9 +32,9 @@ import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
-import { IdDocumentField } from "@/components/payments/IdDocumentField";
+import { IdDocumentField, MissingIdNotice } from "@/components/payments/IdDocumentField";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies, localDiscountAmount,
+  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies, localDiscountAmount, missingId,
   localPctFor, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts, type IdDocument,
 } from "@/lib/localDiscount";
 
@@ -91,6 +91,8 @@ const ClassBookingPage = () => {
   // Paying online: the student's ID — a Costa Rican cédula takes the
   // teacher's local discount off (the server prices it again).
   const [idDoc, setIdDoc] = useState<IdDocument>(EMPTY_ID_DOCUMENT);
+  // Tried to confirm without the ID: the field turns red and says what to do.
+  const [idAttempted, setIdAttempted] = useState(false);
   // A pass code typed in the coupon box: waiting to see whether its pass
   // covers this class.
   const [pendingPassCode, setPendingPassCode] = useState<string | null>(null);
@@ -389,8 +391,73 @@ const ClassBookingPage = () => {
   // either confirm immediately (100% coupon) or redirect to BAC CompraClick.
   // Confirmation of a real payment happens back on /booking/return via the
   // finalize-booking edge function — never trust the browser to mark it paid.
+  // The coupon (or pass code) box. One check at a time: leaving the field and
+  // pressing Apply must not run it twice.
+  const applyingCoupon = useRef(false);
+  const applyCouponCode = async () => {
+    if (!cls || !couponCode.trim() || appliedCoupon || applyingCoupon.current) return;
+    applyingCoupon.current = true;
+    setValidatingCoupon(true);
+    try {
+      // First: one of the teacher's own coupons.
+      if (payee) {
+        const q = await quoteTeacherPrice(payee, Number(cls.price ?? 0), idDoc, couponCode.trim());
+        if (q?.coupon_status === "ignored_local") {
+          toast.info("Your local discount already applies — coupons don't add to it.");
+          return;
+        }
+        if (q?.coupon_status === "applied" && q.coupon) {
+          // A coupon that covers it all books the class at $0 (handleCardCheckout).
+          const label = couponLabel(q);
+          setAppliedCoupon({ code: q.coupon, discount: q.discount, label, teacher: true });
+          toast.success(`Coupon applied: ${label}`);
+          return;
+        }
+      }
+      const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
+      if (!res.valid) {
+        // Not a coupon — perhaps the code of a pass or membership.
+        // It needs the email the pass was sold to, so a code alone
+        // cannot open someone else's pass.
+        const { data: token } = await supabase.rpc("membership_token_for_code" as any, {
+          _code: couponCode.trim(), _email: formData.email.trim(),
+        });
+        if (typeof token === "string" && token) {
+          setPendingPassCode(couponCode.trim().toUpperCase());
+          storeMembershipToken(token);
+          return;
+        }
+        toast.error(looksLikePassCode(couponCode)
+          ? `We could not find an active pass with that code for ${formData.email.trim() || "this email"}. Use the email the pass was sold to.`
+          : (res.reason || "Invalid coupon"));
+        return;
+      }
+      if (isLocal) {
+        toast.info("Your local discount already applies — coupons don't add to it.");
+        return;
+      }
+      // A Holis coupon discounts Holis money, never the teacher's.
+      if (payRoute === "teacher") {
+        toast.error(`Holis coupons don't apply when you pay ${payee} directly.`);
+        return;
+      }
+      const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
+      setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
+      toast.success(`Coupon applied: ${label}`);
+    } finally {
+      applyingCoupon.current = false;
+      setValidatingCoupon(false);
+    }
+  };
+
   const handleCardCheckout = async () => {
     if (!scheduleId || !cls) return;
+    // Her coupon: the ID is needed too (as for any online booking).
+    if (appliedCoupon?.teacher && !idReady) {
+      setIdAttempted(true);
+      toast.error(`Please add ${missingId(idDoc).join(", ")} to confirm.`);
+      return;
+    }
     setSubmitting(true);
     // The teacher's own coupon covers the class: booked at $0 on the server,
     // which checks the coupon again (create-class-booking knows Holis coupons only).
@@ -1034,6 +1101,7 @@ const ClassBookingPage = () => {
                             localPct={localPct}
                             teacherFirst={payee ? payee.split(/\s+/)[0] : null}
                             idPrefix="class-booking-id"
+                            showMissing={idAttempted}
                           />
                         </div>
                       )}
@@ -1047,6 +1115,9 @@ const ClassBookingPage = () => {
                               onChange={(e) => { setCouponCode(e.target.value); if (appliedCoupon) setAppliedCoupon(null); }}
                               placeholder="Enter code"
                               disabled={!!appliedCoupon}
+                              // Typed but "Apply" not pressed: apply it on Enter or on leaving the field.
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCouponCode(); } }}
+                              onBlur={() => { if (couponCode.trim() && !appliedCoupon) applyCouponCode(); }}
                             />
                             {appliedCoupon ? (
                               <Button type="button" variant="ghost" onClick={() => { setAppliedCoupon(null); setCouponCode(""); }}>Remove</Button>
@@ -1055,58 +1126,7 @@ const ClassBookingPage = () => {
                                 type="button"
                                 variant="outline"
                                 disabled={!couponCode.trim() || validatingCoupon}
-                                onClick={async () => {
-                                  setValidatingCoupon(true);
-                                  // First: one of the teacher's own coupons.
-                                  if (payee) {
-                                    const q = await quoteTeacherPrice(payee, Number(cls.price ?? 0), idDoc, couponCode.trim());
-                                    if (q?.coupon_status === "ignored_local") {
-                                      setValidatingCoupon(false);
-                                      toast.info("Your local discount already applies — coupons don't add to it.");
-                                      return;
-                                    }
-                                    if (q?.coupon_status === "applied" && q.coupon) {
-                                      setValidatingCoupon(false);
-                                      // A coupon that covers it all books the class at $0 (handleCardCheckout).
-                                      const label = couponLabel(q);
-                                      setAppliedCoupon({ code: q.coupon, discount: q.discount, label, teacher: true });
-                                      toast.success(`Coupon applied: ${label}`);
-                                      return;
-                                    }
-                                  }
-                                  const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
-                                  if (!res.valid) {
-                                    // Not a coupon — perhaps the code of a pass or membership.
-                                    // It needs the email the pass was sold to, so a code alone
-                                    // cannot open someone else's pass.
-                                    const { data: token } = await supabase.rpc("membership_token_for_code" as any, {
-                                      _code: couponCode.trim(), _email: formData.email.trim(),
-                                    });
-                                    setValidatingCoupon(false);
-                                    if (typeof token === "string" && token) {
-                                      setPendingPassCode(couponCode.trim().toUpperCase());
-                                      storeMembershipToken(token);
-                                      return;
-                                    }
-                                    toast.error(looksLikePassCode(couponCode)
-                                      ? `We could not find an active pass with that code for ${formData.email.trim() || "this email"}. Use the email the pass was sold to.`
-                                      : (res.reason || "Invalid coupon"));
-                                    return;
-                                  }
-                                  setValidatingCoupon(false);
-                                  if (isLocal) {
-                                    toast.info("Your local discount already applies — coupons don't add to it.");
-                                    return;
-                                  }
-                                  // A Holis coupon discounts Holis money, never the teacher's.
-                                  if (payRoute === "teacher") {
-                                    toast.error(`Holis coupons don't apply when you pay ${payee} directly.`);
-                                    return;
-                                  }
-                                  const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
-                                  setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
-                                  toast.success(`Coupon applied: ${label}`);
-                                }}
+                                onClick={applyCouponCode}
                               >
                                 {validatingCoupon ? "Checking…" : "Apply"}
                               </Button>
@@ -1166,13 +1186,11 @@ const ClassBookingPage = () => {
                         // Nothing to pay: PayPal cannot take $0, so book it here.
                         // The server checks the coupon again before confirming.
                         <>
+                        {!!appliedCoupon?.teacher && !idReady && <MissingIdNotice doc={idDoc} />}
                         <Button className="w-full" onClick={handleCardCheckout}
-                          disabled={submitting || !formData.name || !formData.email || (!!appliedCoupon?.teacher && !idReady)}>
+                          disabled={submitting || !formData.name || !formData.email}>
                           {submitting ? t("booking.booking") : `Confirm — free with coupon ${appliedCoupon?.code ?? ""}`.trim()}
                         </Button>
-                        {!!appliedCoupon?.teacher && !idReady && (
-                          <p className="text-xs font-body text-muted-foreground text-center mt-2">Add your ID above to confirm.</p>
-                        )}
                         </>
                       ) : payMethod === "cash" ? (
                         <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
@@ -1187,6 +1205,7 @@ const ClassBookingPage = () => {
                         <div className="flex justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                       ) : payMethod === "card" ? (
                         <>
+                        {!idReady && <MissingIdNotice doc={idDoc} />}
                         <PayPalCheckout
                           disabled={!formData.name || !formData.email || !idReady}
                           createOrderBody={() =>
@@ -1217,9 +1236,6 @@ const ClassBookingPage = () => {
                             setStep(steps.length - 1);
                           }}
                         />
-                        {!idReady && (
-                          <p className="text-xs font-body text-muted-foreground text-center mt-2">Add your ID above to pay.</p>
-                        )}
                         </>
                       ) : useLinkMembership ? (
                         <Button className="w-full" onClick={handleTokenRedeem} disabled={submitting}>

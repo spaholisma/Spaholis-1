@@ -3,8 +3,19 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  idDocumentProblem, localApplies, type IdDocument, type IdDocumentType,
+  idDocumentProblem, localApplies, missingId, type IdDocument, type IdDocumentType,
 } from "@/lib/localDiscount";
+
+/** Said plainly above the pay button: what is missing from the ID. */
+export function MissingIdNotice({ doc }: { doc: IdDocument }) {
+  const missing = missingId(doc);
+  if (!missing.length) return null;
+  return (
+    <div role="alert" className="mb-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 font-body text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+      To continue, please add: <strong>{missing.join(", ")}</strong>.
+    </div>
+  );
+}
 
 /**
  * The student's ID: a Costa Rican cédula or a passport / other ID. Required.
@@ -15,7 +26,7 @@ import {
  * and the price stays as it is.
  */
 export function IdDocumentField({
-  value, onChange, localPct = 0, teacherFirst, idPrefix = "id-doc", className,
+  value, onChange, localPct = 0, teacherFirst, idPrefix = "id-doc", className, showMissing = false,
 }: {
   value: IdDocument;
   onChange: (doc: IdDocument) => void;
@@ -24,6 +35,8 @@ export function IdDocumentField({
   teacherFirst?: string | null;
   idPrefix?: string;
   className?: string;
+  /** The student tried to continue: an empty ID turns red and says what to do. */
+  showMissing?: boolean;
 }) {
   const { t } = useTranslation();
   const kinds: { value: IdDocumentType; label: string }[] = [
@@ -33,6 +46,8 @@ export function IdDocumentField({
   const problem = idDocumentProblem(value);
   const local = localApplies(value, localPct);
   const cedula = value.type === "cr_cedula";
+  const noType = showMissing && !value.type;
+  const noNumber = showMissing && !!value.type && !value.number.trim();
   return (
     <div className={cn("space-y-2", className)}>
       <p id={`${idPrefix}-label`} className="font-body text-xs font-medium text-muted-foreground">
@@ -51,6 +66,7 @@ export function IdDocumentField({
               className={cn(
                 "min-h-10 rounded-full border px-3 py-2 font-body text-xs font-medium leading-tight transition-colors",
                 on ? "border-primary bg-primary text-primary-foreground"
+                  : noType ? "border-destructive bg-background text-foreground"
                   : "border-border bg-background text-foreground hover:border-primary/50",
               )}
             >
@@ -74,8 +90,15 @@ export function IdDocumentField({
           maxLength={30}
           onChange={(e) => onChange({ ...value, number: e.target.value })}
           aria-invalid={!!problem}
-          className={cn(problem && "border-destructive")}
+          className={cn((problem || noNumber) && "border-destructive")}
         />
+      )}
+      {(noType || noNumber) && (
+        <p className="font-body text-[11px] text-destructive">
+          {noType
+            ? t("idDocument.chooseType", { defaultValue: "Choose Costa Rican cédula or Passport / other ID." })
+            : t("idDocument.typeNumber", { defaultValue: "Please type the number." })}
+        </p>
       )}
       {problem && (
         <p className="font-body text-[11px] text-destructive">
