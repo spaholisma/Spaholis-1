@@ -371,7 +371,7 @@ function MassageTherapyAccordion({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-      <div className="aspect-[4/5] rounded-2xl overflow-hidden md:sticky md:top-24">
+      <div className="aspect-[4/3] md:aspect-[4/5] rounded-2xl overflow-hidden md:sticky md:top-24">
         <img
           src={heroImg}
           alt="Massage Therapy at Holis Wellness Center"

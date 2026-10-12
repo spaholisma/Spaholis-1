@@ -52,3 +52,35 @@ describe("the mobile menu", () => {
     expect(nav).not.toMatch(/max-h-\[85vh\]/);
   });
 });
+
+describe("2026-10 screen review (phones 320-430px, laptops 1024-1440px)", () => {
+  const read = (p: string) => readFileSync(resolve(root, p), "utf8").replace(/\r\n/g, "\n");
+
+  it("a blog post's long title makes the hero taller instead of climbing under the navbar", () => {
+    const post = read("src/pages/BlogPost.tsx");
+    expect(post).toMatch(/relative flex w-full flex-col justify-end overflow-hidden min-h-\[max\(340px,62\.5vw\)\] md:min-h-\[min\(560px,42\.86vw\)\]/);
+    expect(post).not.toMatch(/absolute bottom-8 left-0 right-0/);
+  });
+
+  it("the homepage buttons fit a 320px phone (full width, allowed to wrap)", () => {
+    const home = read("src/pages/Index.tsx");
+    expect(home).toMatch(/const HERO_BTN = "w-full sm:w-auto h-auto min-h-14 py-3 px-6 sm:px-10 whitespace-normal text-center leading-snug";/);
+    expect(home.match(/className=\{(cn\()?HERO_BTN/g)).toHaveLength(4);
+    expect(home).toMatch(/className="w-full max-w-2xl text-center"/);
+  });
+
+  it("booking: the treatment name keeps its width, no '1 SESSIONS', no '0 min'", () => {
+    const book = read("src/pages/Booking.tsx");
+    expect(book).toMatch(/<div className="min-w-0 flex-1">\n\s+\{\/\* The name keeps its width/);
+    expect(book).toMatch(/\{s\.sessions\} \{Number\(s\.sessions\) === 1 \? "session" : "sessions"\}/);
+    expect(book).toMatch(/!\(s\.duration_minutes > 0\) \? ""/);
+    expect(book).toMatch(/cat\.charAt\(0\)\.toUpperCase\(\) \+ cat\.slice\(1\)/);
+    expect(read("src/components/ServiceCard.tsx")).toMatch(/\{durationLabel && \(/);
+    expect(read("src/components/ServiceDetailModal.tsx")).toMatch(/\.\.\.\(service\.duration_minutes > 0 \? \[\{ icon: Clock/);
+  });
+
+  it("the class calendar shows long names in full; the treatment photo is shorter on phones", () => {
+    expect(read("src/components/WeeklyClassCalendar.tsx")).toMatch(/leading-tight line-clamp-3" title=\{cls\.title \?\? undefined\}/);
+    expect(read("src/pages/Services.tsx")).toMatch(/aspect-\[4\/3\] md:aspect-\[4\/5\] rounded-2xl/);
+  });
+});

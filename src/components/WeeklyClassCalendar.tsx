@@ -288,8 +288,8 @@ function ClassSlot({ event }: { event: ScheduleRow }) {
         {format(start, "h:mm a")}
       </p>
 
-      {/* Title */}
-      <p className="font-heading text-sm font-medium text-foreground mt-1 leading-tight line-clamp-2">
+      {/* Title — three lines, so "Aerial Yoga + Floating Gong Bath" is not cut in a narrow column */}
+      <p className="font-heading text-sm font-medium text-foreground mt-1 leading-tight line-clamp-3" title={cls.title ?? undefined}>
         {cls.title}
       </p>
 

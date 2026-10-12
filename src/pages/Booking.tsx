@@ -100,7 +100,9 @@ function getStepKeys(service?: ServiceRow): string[] {
 }
 
 function translateCategory(t: (k: string, opts?: any) => string, cat: string): string {
-  return t(`booking.categories.${cat}`, { defaultValue: cat });
+  // A category typed in lower case in the Admin ("course") still reads as a title.
+  const label = cat ? cat.charAt(0).toUpperCase() + cat.slice(1) : cat;
+  return t(`booking.categories.${cat}`, { defaultValue: label });
 }
 
 // Cancellation policy the customer accepts when leaving a card on file.
@@ -325,8 +327,10 @@ const BookingPage = () => {
     return t1.includes("couple") || notes.includes("couple");
   })();
 
+  // No duration set (e.g. a course of modules): nothing, rather than "0 min".
   const durationLabel = (s: ServiceRow) =>
-    s.duration_minutes >= 60
+    !(s.duration_minutes > 0) ? ""
+    : s.duration_minutes >= 60
       ? `${Math.floor(s.duration_minutes / 60)}h${s.duration_minutes % 60 ? ` ${s.duration_minutes % 60}min` : ""}`
       : `${s.duration_minutes} min`;
 
@@ -838,18 +842,21 @@ const BookingPage = () => {
                               selectedService === s.id ? "border-foreground bg-card shadow-md" : "border-border bg-card hover:border-muted-foreground/30"
                             )}>
                               <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="flex items-center gap-2">
+                                <div className="min-w-0 flex-1">
+                                  {/* The name keeps its width on a phone; the badge wraps under it. */}
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <h4 className="font-heading text-lg font-medium text-foreground">{s.title}</h4>
                                     {s.type === "course" && (
-                                      <span className="text-[11px] font-body font-semibold uppercase bg-primary/15 text-primary px-2 py-0.5 rounded-full">{s.sessions} sessions</span>
+                                      <span className="whitespace-nowrap text-[11px] font-body font-semibold uppercase bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                                        {s.sessions} {Number(s.sessions) === 1 ? "session" : "sessions"}
+                                      </span>
                                     )}
                                   </div>
                                   <p className="spa-body-sm mt-1 line-clamp-1">{s.description}</p>
                                 </div>
                                 <div className="text-right ml-4 shrink-0">
                                   <p className="font-heading text-lg font-semibold text-foreground">{formatCRC(s.price)}</p>
-                                  <p className="text-xs text-muted-foreground font-body">{durationLabel(s)}</p>
+                                  {durationLabel(s) && <p className="text-xs text-muted-foreground font-body">{durationLabel(s)}</p>}
                                 </div>
                               </div>
                             </button>
@@ -1374,7 +1381,7 @@ const BookingPage = () => {
                           <div>
                             <p className="font-body text-xs uppercase tracking-wider text-muted-foreground mb-1">{t("booking.summary.service")}</p>
                             <p className="font-heading text-base font-medium text-foreground">{currentService.title}</p>
-                            <p className="font-body text-sm text-muted-foreground">{durationLabel(currentService)} · {formatPrice(Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)))}</p>
+                            <p className="font-body text-sm text-muted-foreground">{[durationLabel(currentService), formatPrice(Math.max(0, (currentService.price ?? 0) - (appliedCoupon?.discount ?? 0)))].filter(Boolean).join(" · ")}</p>
                           </div>
                           <button type="button" className="font-body text-xs text-spa-sage underline hover:text-foreground shrink-0" onClick={() => setStep(0)}>{t("booking.summary.edit")}</button>
                         </div>
@@ -1637,7 +1644,7 @@ const BookingPage = () => {
                     <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="font-medium text-foreground">{currentService.title}</p>
-                      <p className="text-muted-foreground">{durationLabel(currentService)} · {formatCRC(currentService.price)}</p>
+                      <p className="text-muted-foreground">{[durationLabel(currentService), formatCRC(currentService.price)].filter(Boolean).join(" · ")}</p>
                       {currentService.type === "course" && (
                         <p className="text-muted-foreground">{t("booking.summarySidebar.sessionsIncluded", { count: currentService.sessions })}</p>
                       )}

@@ -18,7 +18,9 @@ export function ServiceCard({ service }: { service: ServiceRow }) {
   const title = pickLocalized(service as unknown as Record<string, unknown>, "title", language) || service.title;
   const description = pickLocalized(service as unknown as Record<string, unknown>, "description", language) || service.description || "";
 
-  const durationLabel = service.duration_minutes >= 60
+  // No duration set (a course of modules): no clock at all, rather than "0 min".
+  const durationLabel = !(service.duration_minutes > 0) ? ""
+    : service.duration_minutes >= 60
     ? `${Math.floor(service.duration_minutes / 60)}h${service.duration_minutes % 60 ? ` ${service.duration_minutes % 60}min` : ""}`
     : `${service.duration_minutes} min`;
 
@@ -49,10 +51,12 @@ export function ServiceCard({ service }: { service: ServiceRow }) {
             <span className="text-xs font-body font-semibold uppercase tracking-wider text-muted-foreground">
               {service.category}
             </span>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground font-body">
-              <Clock className="h-3 w-3" />
-              {durationLabel}
-            </div>
+            {durationLabel && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground font-body">
+                <Clock className="h-3 w-3" />
+                {durationLabel}
+              </div>
+            )}
           </div>
           <h3 className="font-heading text-xl font-medium text-foreground whitespace-pre-line">{title}</h3>
           <p className="spa-body-sm line-clamp-2">{description}</p>

@@ -101,31 +101,33 @@ export default function BlogPostPage() {
 
       <main>
         <section className="relative pt-16">
-          <div className="aspect-[16/10] max-h-[560px] w-full overflow-hidden md:aspect-[21/9]">
+          {/* The photo's shape is a minimum, not a fixed height: a long title
+              makes the hero taller instead of climbing under the navbar. */}
+          <div className="relative flex w-full flex-col justify-end overflow-hidden min-h-[max(340px,62.5vw)] md:min-h-[min(560px,42.86vw)]">
             {post.cover_image && (
-              <img {...HERO_IMAGE_FIRST} src={post.cover_image} alt={post.title} className="h-full w-full object-cover" />
+              <img {...HERO_IMAGE_FIRST} src={post.cover_image} alt={post.title} className="absolute inset-0 h-full w-full object-cover" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-          </div>
-          <div className="absolute bottom-8 left-0 right-0 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-            <motion.div {...fadeIn}>
-              <Button variant="secondary" size="sm" asChild className="mb-5">
-                <Link to="/blog">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  {t("blog.backToBlog")}
-                </Link>
-              </Button>
-              <div className="mb-3 flex flex-wrap items-center gap-3 font-body text-sm text-spa-cream/85">
-                {post.author && <span>{post.author}</span>}
-                {post.publish_date && (
-                  <span className="flex items-center gap-1">
-                    <CalendarDays className="h-4 w-4" />
-                    {formatDate(post.publish_date, language === "es" ? "es-ES" : "en-US")}
-                  </span>
-                )}
-              </div>
-              <h1 className="spa-heading-xl max-w-4xl text-spa-cream drop-shadow-lg">{post.title}</h1>
-            </motion.div>
+            <div className="relative mx-auto w-full max-w-4xl px-4 pb-8 pt-10 sm:px-6 lg:px-8">
+              <motion.div {...fadeIn}>
+                <Button variant="secondary" size="sm" asChild className="mb-5">
+                  <Link to="/blog">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {t("blog.backToBlog")}
+                  </Link>
+                </Button>
+                <div className="mb-3 flex flex-wrap items-center gap-3 font-body text-sm text-spa-cream/85">
+                  {post.author && <span>{post.author}</span>}
+                  {post.publish_date && (
+                    <span className="flex items-center gap-1">
+                      <CalendarDays className="h-4 w-4" />
+                      {formatDate(post.publish_date, language === "es" ? "es-ES" : "en-US")}
+                    </span>
+                  )}
+                </div>
+                <h1 className="spa-heading-xl max-w-4xl text-spa-cream drop-shadow-lg">{post.title}</h1>
+              </motion.div>
+            </div>
           </div>
         </section>
 

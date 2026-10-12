@@ -14,6 +14,7 @@ import { content as defaultContent } from "@/data/content";
 import { useTranslation } from "react-i18next";
 import { responsiveImage } from "@/lib/sizedImage";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
+import { cn } from "@/lib/utils";
 // Real photos sourced from spaholis.com (Squarespace CDN)
 const signatureImages = {
   signatureSomato: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/558db4e1-a1f4-4c5a-be26-b98512dd6ddf/massage_page.jpg",
@@ -21,6 +22,9 @@ const signatureImages = {
   signatureFacial: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/13188b0e-e90f-482b-b100-8e6df443a342/IMG_3394-e1402951220128.jpg",
   signatureExpand: "https://images.squarespace-cdn.com/content/v1/65e538a41cdc651ab18c95d3/fb8bcca7-04cb-4a14-9558-ff7f38846bce/Untitled+design.png",
 } as const;
+
+/** Hero buttons: full width on a phone (and allowed to wrap), as before from sm up. */
+const HERO_BTN = "w-full sm:w-auto h-auto min-h-14 py-3 px-6 sm:px-10 whitespace-normal text-center leading-snug";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -92,7 +96,7 @@ const Index = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="max-w-2xl text-center"
+            className="w-full max-w-2xl text-center"
           >
             <h1 className="spa-heading-xl text-spa-cream mb-6 max-w-xl mx-auto">
               <RichText value={hero.title} path="hero.title" />
@@ -100,20 +104,22 @@ const Index = () => {
             <p className="font-body text-spa-cream/75 text-lg mb-10 leading-relaxed max-w-xl mx-auto">
               <RichText value={hero.subtitle} path="hero.subtitle" />
             </p>
+            {/* On a phone the buttons are full width and may wrap: "Book Your Free
+                Consultation" is wider than a 320px screen on one line. */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 justify-center">
-              <Button variant="spa" size="xl" asChild>
+              <Button variant="spa" size="xl" className={HERO_BTN} asChild>
                 <Link to={hero.primaryCta.link}>{hero.primaryCta.text}</Link>
               </Button>
-              <Button variant="ghost" size="xl" className="text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10 border border-spa-cream/30" asChild>
+              <Button variant="ghost" size="xl" className={cn(HERO_BTN, "text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10 border border-spa-cream/30")} asChild>
                 <Link to={hero.secondaryCta.link}>{hero.secondaryCta.text}</Link>
               </Button>
               {hero.tertiaryCta && (
-                <Button variant="ghost" size="xl" className="text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10 border border-spa-cream/30" asChild>
+                <Button variant="ghost" size="xl" className={cn(HERO_BTN, "text-spa-cream hover:text-spa-cream hover:bg-spa-cream/10 border border-spa-cream/30")} asChild>
                   <Link to={hero.tertiaryCta.link}>{hero.tertiaryCta.text}</Link>
                 </Button>
               )}
               {(hero as any).quaternaryCta && (
-                <Button variant="spa" size="xl" asChild>
+                <Button variant="spa" size="xl" className={HERO_BTN} asChild>
                   <Link to={(hero as any).quaternaryCta.link}>{(hero as any).quaternaryCta.text}</Link>
                 </Button>
               )}

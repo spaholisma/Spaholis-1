@@ -79,7 +79,7 @@ export function ServiceDetailModal({ service, open, onOpenChange }: Props) {
   });
 
   const chips = [
-    { icon: Clock, text: durationLabel(service.duration_minutes) },
+    ...(service.duration_minutes > 0 ? [{ icon: Clock, text: durationLabel(service.duration_minutes) }] : []),
     ...(service.capacity && service.capacity > 1 ? [{ icon: Users, text: `Up to ${service.capacity} people` }] : []),
     ...(service.sessions > 1 ? [{ icon: CalendarDays, text: `${service.sessions} sessions` }] : []),
     ...(service.type === "experience" || service.type === "program"
