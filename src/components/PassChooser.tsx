@@ -10,6 +10,7 @@ import {
   Loader2, Ticket, ArrowLeft, Check, Infinity as InfinityIcon, ExternalLink, CalendarDays,
 } from "lucide-react";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
+import { EVENT_CATEGORIES } from "@/hooks/useClasses";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -76,7 +77,7 @@ export function PassChooser({
         sb.from("offerings").select("id, name, description, type, price, credits, duration_days, is_unlimited")
           .eq("status", "active").order("sort_order"),
         sb.from("class_schedule")
-          .select("class_id, start_time, instructor, classes(id, title, instructor, is_active)")
+          .select("class_id, start_time, instructor, classes(id, title, instructor, is_active, category)")
           .eq("is_cancelled", false).gte("start_time", now).order("start_time").limit(200),
         sb.rpc("public_teacher_portfolios"),
         sb.rpc("public_teachers"),
@@ -90,6 +91,8 @@ export function PassChooser({
       const map = new Map<string, { title: string; teacher: string; days: Set<number>; times: Set<string> }>();
       (((sched ?? []) as any[])).forEach((s) => {
         if (!s.classes?.is_active) return;
+        // A pass is for the weekly classes — not for one-off events (Wellness Sunday, workshops…).
+        if (EVENT_CATEGORIES.has(String(s.classes.category ?? ""))) return;
         const teacher = (s.instructor?.trim() || s.classes.instructor?.trim() || "");
         const key = `${s.class_id}|${teacher.toLowerCase()}`;
         if (!map.has(key)) map.set(key, { title: s.classes.title, teacher, days: new Set(), times: new Set() });

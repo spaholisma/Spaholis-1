@@ -338,3 +338,22 @@ describe("6. Classes and events on a teacher's schedule", () => {
     expect(page).toMatch(/: "Classes & events";/);
   });
 });
+
+describe("7. A class page leads back to its teacher; passes are for weekly classes", () => {
+  it("the back link goes to her portfolio, and her card shows only her photo and name (plus her private classes)", () => {
+    const page = read("src/pages/ClassDetail.tsx");
+    expect(page).toMatch(/to=\{teacherName \? teacherPath\(teacherName, "classes"\) : "\/classes"\}/);
+    expect(page).toContain(`'s portfolio\` : "All classes"}`);
+    expect(page).not.toMatch(/teacher\?\.bio/);
+    expect(page).toMatch(/<Link to=\{teacherPath\(teacherName\)\}/);
+    expect(page).toMatch(/<TeacherPrivateSection/);
+  });
+
+  it("the pass choosers leave out one-off events (Wellness Sunday, workshops…)", () => {
+    for (const f of ["src/components/PassChooser.tsx", "src/components/TeacherPassStudio.tsx"]) {
+      const src = read(f);
+      expect(src).toMatch(/classes\([^)]*category\)/);
+      expect(src).toMatch(/if \(EVENT_CATEGORIES\.has\(String\(s\.classes\.category \?\? ""\)\)\) return;/);
+    }
+  });
+});

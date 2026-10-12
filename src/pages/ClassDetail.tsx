@@ -12,7 +12,8 @@ import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog
 import { PassChooser } from "@/components/PassChooser";
 import { TeacherPrivateSection } from "@/components/TeacherPrivateSection";
 import { offeringsOf, usePrivateOfferings } from "@/lib/privateOfferings";
-import { Loader2, ArrowLeft, MapPin, Clock, CalendarDays, Ticket } from "lucide-react";
+import { findAboutMember, teacherPath, teacherPhoto, useAboutInstructors } from "@/components/TeacherPortfolios";
+import { Loader2, ArrowLeft, ArrowRight, MapPin, Clock, CalendarDays, Ticket } from "lucide-react";
 import { formatSpaDate, formatSpaTime, spaLocalParts } from "@/lib/businessHours";
 import { localizeRow } from "@/lib/localizeRow";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -94,6 +95,9 @@ export default function ClassDetail() {
     () => (teacherName ? offeringsOf(allPrivate, teacherName, cls?.id) : []),
     [allPrivate, teacherName, cls?.id],
   );
+  // Her photo: from her panel, else her About Us card. Who she is lives on her
+  // portfolio; this page links there and back.
+  const aboutTeam = useAboutInstructors();
 
   useEffect(() => {
     if (!teacherName) { setTeacher(null); setPasses([]); return; }
@@ -165,11 +169,12 @@ export default function ClassDetail() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
         <div className="relative z-10 mt-auto w-full pt-24">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+            {/* Back to her portfolio — where this class was found — else to all classes */}
             <Link
-              to="/classes"
+              to={teacherName ? teacherPath(teacherName, "classes") : "/classes"}
               className="inline-flex items-center gap-1 font-body text-xs font-semibold uppercase tracking-wider text-spa-cream/80 hover:text-spa-cream mb-3"
             >
-              <ArrowLeft className="h-3.5 w-3.5" /> All classes
+              <ArrowLeft className="h-3.5 w-3.5" /> {teacherName ? `${teacherName.split(/\s+/)[0]}'s portfolio` : "All classes"}
             </Link>
             <h1 className="font-heading text-3xl sm:text-4xl font-medium text-spa-cream">{cls.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 font-body text-sm text-spa-cream/85">
@@ -228,29 +233,33 @@ export default function ClassDetail() {
                 transition={{ duration: 0.4, ease: "easeOut" }}
               >
                 <Card className="overflow-hidden">
-                  <div className="flex items-center gap-4 p-5">
-                    {teacher?.photo_url ? (
-                      <img
-                        src={teacher.photo_url}
-                        alt={teacherName}
-                        className="h-20 w-20 rounded-2xl object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-spa-sage/20 font-heading text-xl font-semibold text-foreground">
-                        {initials(teacherName)}
-                      </span>
-                    )}
+                  {/* Her photo and name only — who she is is on her portfolio */}
+                  <Link to={teacherPath(teacherName)} className="group flex items-center gap-4 p-5 hover:bg-muted/30 transition-colors">
+                    {(() => {
+                      const photo = teacherPhoto(teacher?.photo_url, findAboutMember(aboutTeam, teacherName));
+                      return photo ? (
+                        <img
+                          src={photo}
+                          alt={teacherName}
+                          className="h-20 w-20 rounded-2xl object-cover object-top"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-spa-sage/20 font-heading text-xl font-semibold text-foreground">
+                          {initials(teacherName)}
+                        </span>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <p className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Your teacher
                       </p>
                       <p className="font-heading text-xl font-medium text-foreground truncate">{teacherName}</p>
+                      <span className="mt-1 inline-flex items-center gap-1 font-body text-xs font-semibold text-primary">
+                        See portfolio <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                      </span>
                     </div>
-                  </div>
-                  {teacher?.bio && (
-                    <p className="spa-body-sm px-5 pb-5 whitespace-pre-line">{teacher.bio}</p>
-                  )}
+                  </Link>
 
                   {/* Her private classes — all of them, this one first. */}
                   {privateOfferings.length > 0 && (

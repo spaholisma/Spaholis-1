@@ -65,6 +65,27 @@ export function scheduleLabel(blocks: ClassBlock[]): string {
     .filter(Boolean).join(" & ");
 }
 
+export interface AboutMember { name?: string; role?: string; bio?: string; image?: string }
+
+/** The instructors on About Us (editable in the Content editor). */
+export function useAboutInstructors(): AboutMember[] {
+  const { data: siteContent } = useSiteContent();
+  return ((siteContent as any)?.about?.instructors ?? (contentDefaults as any).about?.instructors ?? []) as AboutMember[];
+}
+
+/** Her About Us card: the same name, or the same first name ("Melanie Moss" ↔ "Melanie"). */
+export function findAboutMember(team: AboutMember[], name: string): AboutMember | null {
+  const key = name.trim().toLowerCase();
+  const firstOf = (s: string) => s.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  return team.find((m) => (m.name ?? "").trim().toLowerCase() === key)
+    ?? team.find((m) => !!firstOf(m.name ?? "") && firstOf(m.name ?? "") === firstOf(name))
+    ?? null;
+}
+
+/** Her photo: her own (Teacher Panel), else her About Us picture. */
+export const teacherPhoto = (own: string | null | undefined, member: AboutMember | null) =>
+  own || (member?.image ? sizedImage(member.image, 900) : null);
+
 /** A small "Class" / "Event" tag, so a weekly class and a one-off event read differently. */
 export function KindBadge({ event, className }: { event: boolean; className?: string }) {
   return (
@@ -180,9 +201,7 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
   const { data: classTeachers = [], isLoading: l4 } = useClassTeachers();
   // The instructors on About Us (editable in the Content editor): their photo,
   // role and bio stand in for a teacher who is not registered yet.
-  const { data: siteContent } = useSiteContent();
-  const team = (((siteContent as any)?.about?.instructors ?? (contentDefaults as any).about?.instructors ?? []) as
-    { name?: string; role?: string; bio?: string; image?: string }[]);
+  const team = useAboutInstructors();
 
   const portfolios = useMemo<Portfolio[]>(() => {
     const byTeacher = new Map<string, ScheduleRow[]>();
@@ -199,11 +218,8 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
       const privates = offeringsOf(allPrivate, name);
       // With no class this week, the picture of a class she usually teaches stands in.
       const usualImage = classTeachers.find((c) => c.name.toLowerCase() === key && c.image_url)?.image_url ?? null;
-      // Her About Us card: the same name, or the same first name ("Melanie Moss" ↔ "Melanie").
-      const firstOf = (s: string) => s.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-      const member = team.find((m) => (m.name ?? "").trim().toLowerCase() === key)
-        ?? team.find((m) => firstOf(m.name ?? "") && firstOf(m.name ?? "") === firstOf(name));
-      const memberPhoto = member?.image ? sizedImage(member.image, 900) : null;
+      const member = findAboutMember(team, name);
+      const memberPhoto = teacherPhoto(null, member);
       const memberBio = member?.bio ? richTextToPlain(member.bio).trim() || null : null;
       return {
         key: `teacher:${name}`,

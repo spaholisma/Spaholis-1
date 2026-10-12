@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
+import { EVENT_CATEGORIES } from "@/hooks/useClasses";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -124,7 +125,7 @@ export function TeacherPassStudio({ dropIn }: { dropIn?: React.ReactNode }) {
         sb.rpc("public_teacher_portfolios"),
         sb.rpc("public_teachers"),
         sb.from("class_schedule")
-          .select("start_time, instructor, classes(title, instructor, is_active)")
+          .select("start_time, instructor, classes(title, instructor, is_active, category)")
           .eq("is_cancelled", false).gte("start_time", now).order("start_time").limit(300),
       ]);
       setPasses((off ?? []) as StudioPass[]);
@@ -135,6 +136,8 @@ export function TeacherPassStudio({ dropIn }: { dropIn?: React.ReactNode }) {
       const m = new Map<string, Map<string, { days: Set<number>; times: Set<string> }>>();
       ((sched ?? []) as any[]).forEach((s) => {
         if (!s.classes?.is_active) return;
+        // Passes are for the weekly classes — not for one-off events.
+        if (EVENT_CATEGORIES.has(String(s.classes.category ?? ""))) return;
         const who = norm(s.instructor) || norm(s.classes.instructor);
         if (!who) return;
         if (!m.has(who)) m.set(who, new Map());
