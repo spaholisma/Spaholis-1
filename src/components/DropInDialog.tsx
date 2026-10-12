@@ -206,7 +206,7 @@ export function DropInDialog({ open, onOpenChange, title = "Drop-in Class", clas
                 // The teacher's coupon covers the class: booked on the server, which checks it again.
                 const { data, error } = await sb.rpc("book_class_free_with_teacher_coupon", {
                   _schedule_id: chosen.id, _guest_name: f.name, _guest_email: f.email, _guest_phone: f.phone,
-                  _coupon: f.couponCode, _id_document: f.doc.number.trim(), _id_document_type: f.doc.type,
+                  _coupon: f.couponCode, _id_document: f.doc.number.trim() || null, _id_document_type: f.doc.number.trim() ? f.doc.type : null,
                 });
                 if (error) throw new Error(error.message);
                 try {

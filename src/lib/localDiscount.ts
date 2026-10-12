@@ -52,8 +52,18 @@ export function isIdDocumentValid(doc: IdDocument): boolean {
   return false;
 }
 
+/**
+ * Is the ID good enough to continue? It is required — except once a coupon is
+ * applied: then it is optional (left empty is fine; typed, it must be right).
+ */
+export function idDocumentOk(doc: IdDocument, couponApplied = false): boolean {
+  if (couponApplied && !doc.number.trim()) return true;
+  return isIdDocumentValid(doc);
+}
+
 /** What is missing from the ID, in plain words ([] = it is fine). */
-export function missingId(doc: IdDocument): string[] {
+export function missingId(doc: IdDocument, couponApplied = false): string[] {
+  if (couponApplied && !doc.number.trim()) return [];
   if (!doc.type) return ["your ID (Costa Rican cédula, or passport / other ID)"];
   if (!doc.number.trim()) return [doc.type === "cr_cedula" ? "your cédula number" : "your passport or ID number"];
   if (!isIdDocumentValid(doc)) return [doc.type === "cr_cedula" ? "a valid cédula number (9 digits)" : "a valid passport or ID number"];

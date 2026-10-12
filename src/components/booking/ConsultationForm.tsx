@@ -16,7 +16,7 @@ import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField"
 import { IdDocumentField } from "@/components/payments/IdDocumentField";
 import { useAccountDetails } from "@/hooks/useAccountDetails";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, isIdDocumentValid, localApplies, localDiscountAmount,
+  EMPTY_ID_DOCUMENT, couponLabel, idDocumentOk, localApplies, localDiscountAmount,
   localPctFor, quoteTeacherPrice, useLocalDiscounts, type IdDocument,
 } from "@/lib/localDiscount";
 import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
@@ -162,8 +162,9 @@ export const ConsultationForm = () => {
       return;
     }
 
-    // A private class: phone and ID are required too (the coupon is not).
-    if (privateKind && (!form.phone || !isValidPhoneNumber(form.phone) || !isIdDocumentValid(idDoc))) {
+    // A private class: phone and ID are required too (the coupon is not) —
+    // with one of her coupons applied, the ID is optional.
+    if (privateKind && (!form.phone || !isValidPhoneNumber(form.phone) || !idDocumentOk(idDoc, !!coupon && !isLocal))) {
       toast.error(t("idDocument.missingRequired", { defaultValue: "Please fill in your name, email, phone and ID." }));
       return;
     }
@@ -201,7 +202,7 @@ export const ConsultationForm = () => {
           booking_time: "00:00",
           status: "pending",
           notes: `${topic}${classPart} — Location: ${locationLine(where, address)}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`
-            + ` — ID: ${idDoc.type === "cr_cedula" ? "Costa Rican cédula" : "passport / other"} ${idDoc.number.trim()}`
+            + (idDoc.number.trim() ? ` — ID: ${idDoc.type === "cr_cedula" ? "Costa Rican cédula" : "passport / other"} ${idDoc.number.trim()}` : "")
             + (!isLocal && couponCode.trim() ? ` — Coupon: ${couponCode.trim().toUpperCase()}` : ""),
           intake_form: privateClassIntake({
             kind: privateKind, kindTitle, people, choice: classChoice, preferred: prettyPref,
@@ -436,6 +437,7 @@ export const ConsultationForm = () => {
                   localPct={localPct}
                   teacherFirst={teacherFirst || null}
                   idPrefix="private-id"
+                  optional={!!coupon && !isLocal}
                 />
               )}
 

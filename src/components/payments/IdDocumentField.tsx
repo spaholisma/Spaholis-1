@@ -7,8 +7,8 @@ import {
 } from "@/lib/localDiscount";
 
 /** Said plainly above the pay button: what is missing from the ID. */
-export function MissingIdNotice({ doc }: { doc: IdDocument }) {
-  const missing = missingId(doc);
+export function MissingIdNotice({ doc, couponApplied = false }: { doc: IdDocument; couponApplied?: boolean }) {
+  const missing = missingId(doc, couponApplied);
   if (!missing.length) return null;
   return (
     <div role="alert" className="mb-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 font-body text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -18,7 +18,8 @@ export function MissingIdNotice({ doc }: { doc: IdDocument }) {
 }
 
 /**
- * The student's ID: a Costa Rican cédula or a passport / other ID. Required.
+ * The student's ID: a Costa Rican cédula or a passport / other ID. Required —
+ * except with a coupon applied (`optional`): then it may be left empty.
  *
  * Which one it is, the student says — a US passport has 9 digits too, so the
  * number alone cannot tell. With a teacher who has a local discount, a
@@ -26,7 +27,7 @@ export function MissingIdNotice({ doc }: { doc: IdDocument }) {
  * and the price stays as it is.
  */
 export function IdDocumentField({
-  value, onChange, localPct = 0, teacherFirst, idPrefix = "id-doc", className, showMissing = false,
+  value, onChange, localPct = 0, teacherFirst, idPrefix = "id-doc", className, showMissing = false, optional = false,
 }: {
   value: IdDocument;
   onChange: (doc: IdDocument) => void;
@@ -37,6 +38,8 @@ export function IdDocumentField({
   className?: string;
   /** The student tried to continue: an empty ID turns red and says what to do. */
   showMissing?: boolean;
+  /** A coupon is applied: the ID is not needed (a cédula would give the local discount instead). */
+  optional?: boolean;
 }) {
   const { t } = useTranslation();
   const kinds: { value: IdDocumentType; label: string }[] = [
@@ -46,13 +49,23 @@ export function IdDocumentField({
   const problem = idDocumentProblem(value);
   const local = localApplies(value, localPct);
   const cedula = value.type === "cr_cedula";
-  const noType = showMissing && !value.type;
-  const noNumber = showMissing && !!value.type && !value.number.trim();
+  const noType = showMissing && !optional && !value.type;
+  const noNumber = showMissing && !optional && !!value.type && !value.number.trim();
   return (
     <div className={cn("space-y-2", className)}>
       <p id={`${idPrefix}-label`} className="font-body text-xs font-medium text-muted-foreground">
-        {t("idDocument.label", { defaultValue: "Your ID *" })}
+        {optional
+          ? t("idDocument.labelOptional", { defaultValue: "Your ID (optional with your coupon)" })
+          : t("idDocument.label", { defaultValue: "Your ID *" })}
       </p>
+      {optional && localPct > 0 && (
+        <p className="font-body text-[11px] text-muted-foreground">
+          {t("idDocument.optionalWhy", {
+            pct: localPct,
+            defaultValue: "Not needed with your coupon. A Costa Rican cédula gives the {{pct}}% local discount instead of the coupon — the two don't add up.",
+          })}
+        </p>
+      )}
       <div role="radiogroup" aria-labelledby={`${idPrefix}-label`} className="grid grid-cols-2 gap-2">
         {kinds.map((k) => {
           const on = value.type === k.value;
@@ -82,8 +95,12 @@ export function IdDocumentField({
             ? t("idDocument.cedulaNumber", { defaultValue: "Cédula number" })
             : t("idDocument.otherNumber", { defaultValue: "Passport or ID number" })}
           placeholder={cedula
-            ? t("idDocument.cedulaPlaceholder", { defaultValue: "Cédula number * (e.g. 1-0234-0567)" })
-            : t("idDocument.otherPlaceholder", { defaultValue: "Passport or ID number *" })}
+            ? optional
+              ? t("idDocument.cedulaPlaceholderOptional", { defaultValue: "Cédula number (e.g. 1-0234-0567)" })
+              : t("idDocument.cedulaPlaceholder", { defaultValue: "Cédula number * (e.g. 1-0234-0567)" })
+            : optional
+              ? t("idDocument.otherPlaceholderOptional", { defaultValue: "Passport or ID number" })
+              : t("idDocument.otherPlaceholder", { defaultValue: "Passport or ID number *" })}
           value={value.number}
           inputMode={cedula ? "numeric" : "text"}
           autoComplete="off"

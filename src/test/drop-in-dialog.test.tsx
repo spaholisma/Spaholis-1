@@ -139,7 +139,7 @@ describe("drop-in: book and pay online", () => {
 describe("drop-in: her 100% coupon", () => {
   beforeEach(() => { document.body.innerHTML = ""; dropDb.rpc.mockClear(); dropDb.invoke.mockClear(); });
 
-  it("books the class at $0 on the server once the ID is in — no PayPal", async () => {
+  it("books the class at $0 on the server — no PayPal, ID optional", async () => {
     dropQuote.mockResolvedValue({
       price: 0, base: 23, discount: 23, local: false, local_pct: 40,
       coupon: "PRUEBAEVE", coupon_status: "applied", coupon_type: "percentage", coupon_value: 100,
@@ -156,7 +156,8 @@ describe("drop-in: her 100% coupon", () => {
     await act(async () => { field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
     expect(body.textContent).toMatch(/Total\$0/);
     expect(body.querySelector("[data-testid=paypal]")).toBeNull();
-    expect(body.textContent).toMatch(/To continue, please add: your ID/);
+    // With the coupon the ID is optional; typed, it is still sent.
+    expect(body.textContent).not.toMatch(/To continue, please add/);
     const passport = Array.from(body.querySelectorAll('[role="radio"]')).find((b) => b.textContent === "Passport or other ID")!;
     act(() => { (passport as HTMLElement).click(); });
     type(byPlaceholder(body, "Passport or ID number"), "X1234567");

@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { validateCoupon, describeCouponDiscount } from "@/lib/coupons";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies,
+  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, idDocumentOk, localApplies,
   localDiscountAmount, localPctFor, missingId, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts,
   type IdDocument,
 } from "@/lib/localDiscount";
@@ -20,13 +20,18 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const money = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
-/** What is still missing before the student can pay, in plain words ([] = nothing). */
-export function missingDetails(form: { name: string; email: string; phone: string }, doc: IdDocument): string[] {
+/**
+ * What is still missing before the student can pay, in plain words ([] = nothing).
+ * With a coupon applied the ID is optional.
+ */
+export function missingDetails(
+  form: { name: string; email: string; phone: string }, doc: IdDocument, couponApplied = false,
+): string[] {
   const out: string[] = [];
   if (!form.name.trim()) out.push("your name");
   if (!EMAIL_RE.test(form.email.trim())) out.push("a valid email");
   if (!form.phone || !isValidPhoneNumber(form.phone)) out.push("a valid phone number");
-  out.push(...missingId(doc));
+  out.push(...missingId(doc, couponApplied));
   return out;
 }
 
@@ -103,16 +108,18 @@ export function OnlinePayForm({
   useEffect(() => { if (local && coupon) setCoupon(null); }, [local, coupon]);
   const discount = local ? localDiscountAmount(price, pct) : coupon?.discount ?? 0;
   const total = Math.max(0, Math.round((price - discount) * 100) / 100);
+  // A coupon is applied (and not replaced by the local discount): the ID is optional.
+  const couponOn = !!coupon && !local;
 
   const detailsReady =
     !!form.name.trim() && EMAIL_RE.test(form.email.trim())
     && !!form.phone && isValidPhoneNumber(form.phone)
-    && isIdDocumentValid(doc);
+    && idDocumentOk(doc, couponOn);
   const ready = detailsReady && total > 0;
   // A coupon that covers it all: no PayPal, confirm it here.
   const free = !!coupon && total <= 0 && !!onFree;
   // What is still missing, said plainly — a greyed-out button alone reads like a bug.
-  const missing = missingDetails(form, doc);
+  const missing = missingDetails(form, doc, couponOn);
   // Tried to continue with something missing: the fields in question turn red.
   const [attempted, setAttempted] = useState(false);
   const fields = (): OnlinePayFields => ({
@@ -213,7 +220,7 @@ export function OnlinePayForm({
       </div>
 
       <IdDocumentField value={doc} onChange={setDoc} localPct={pct} teacherFirst={first || null}
-        idPrefix={`${idPrefix}-id`} showMissing={attempted} />
+        idPrefix={`${idPrefix}-id`} showMissing={attempted} optional={couponOn} />
 
       {!local && (
         <div className="space-y-1">
@@ -311,7 +318,7 @@ export function TeacherPassCheckout({
         // Her coupon covers the whole pass: issued on the server, which checks it again.
         const { data, error } = await (supabase as any).rpc("claim_teacher_pass_with_coupon", {
           _membership_id: membershipId, _guest_name: f.name, _guest_email: f.email, _guest_phone: f.phone,
-          _coupon: f.couponCode, _id_document: f.doc.number.trim(), _id_document_type: f.doc.type,
+          _coupon: f.couponCode, _id_document: f.doc.number.trim() || null, _id_document_type: f.doc.number.trim() ? f.doc.type : null,
         });
         if (error) throw new Error(error.message);
         // The pass code and booking link, to the student and to her.

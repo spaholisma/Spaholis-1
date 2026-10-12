@@ -726,6 +726,10 @@
     "phoneRequired": "Phone *",
     "missingRequired": "Please fill in your name, email, phone and ID.",
     "chooseType": "Choose Costa Rican cédula or Passport / other ID.",
-    "typeNumber": "Please type the number."
+    "typeNumber": "Please type the number.",
+    "labelOptional": "Your ID (optional with your coupon)",
+    "optionalWhy": "Not needed with your coupon. A Costa Rican cédula gives the {{pct}}% local discount instead of the coupon — the two don't add up.",
+    "cedulaPlaceholderOptional": "Cédula number (e.g. 1-0234-0567)",
+    "otherPlaceholderOptional": "Passport or ID number"
   }
 }

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   cedulaForPricing, clampPct, idDocumentBody, idDocumentProblem, isIdDocumentValid, localApplies,
-  localDiscountAmount, localPctFor, normalizeCrCedula,
+  localDiscountAmount, localPctFor, normalizeCrCedula, idDocumentOk, missingId,
 } from "@/lib/localDiscount";
 
 const root = resolve(__dirname, "../..");
@@ -174,10 +174,22 @@ describe("the pages", () => {
     }
   });
 
-  it("a private class: phone and ID required, her coupon optional", () => {
+  it("a private class: phone and ID required, her coupon optional — and with it the ID too", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
-    expect(form).toMatch(/if \(privateKind && \(!form\.phone \|\| !isValidPhoneNumber\(form\.phone\) \|\| !isIdDocumentValid\(idDoc\)\)\)/);
-    expect(form).toMatch(/coupon: isLocal \? null : couponCode,/);
+    expect(form).toMatch(/if \(privateKind && \(!form\.phone \|\| !isValidPhoneNumber\(form\.phone\) \|\| !idDocumentOk\(idDoc, !!coupon && !isLocal\)\)\)/);
+    expect(form).toMatch(/optional=\{!!coupon && !isLocal\}/);
+  });
+
+  it("the ID: required, optional once a coupon is applied — but typed, it must be right", () => {
+    const empty = { type: null, number: "" } as any;
+    expect(idDocumentOk(empty)).toBe(false);
+    expect(idDocumentOk(empty, true)).toBe(true);
+    expect(idDocumentOk({ type: "cr_cedula", number: "" }, true)).toBe(true);
+    expect(idDocumentOk({ type: "cr_cedula", number: "12" }, true)).toBe(false);
+    expect(idDocumentOk({ type: "cr_cedula", number: "1-0234-0567" })).toBe(true);
+    expect(missingId(empty, true)).toEqual([]);
+    expect(missingId(empty)).toEqual(["your ID (Costa Rican cédula, or passport / other ID)"]);
+    expect(read("src/components/booking/ConsultationForm.tsx")).toMatch(/coupon: isLocal \? null : couponCode,/);
   });
 
   it("the team sets each teacher's percentage in Admin", () => {

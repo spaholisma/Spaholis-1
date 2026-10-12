@@ -51,11 +51,25 @@ describe("never a silent grey button", () => {
     const page = read("src/pages/ClassBooking.tsx");
     expect(page).toMatch(/onBlur=\{\(\) => \{ if \(couponCode\.trim\(\) && !appliedCoupon\) applyCouponCode\(\); \}\}/);
     expect(page).toMatch(/if \(e\.key === "Enter"\) \{ e\.preventDefault\(\); applyCouponCode\(\); \}/);
-    expect(page).toMatch(/\{!idReady && <MissingIdNotice doc=\{idDoc\} \/>\}/);
-    expect(page).toMatch(/\{!!appliedCoupon\?\.teacher && !idReady && <MissingIdNotice doc=\{idDoc\} \/>\}/);
+    expect(page).toMatch(/\{!idReady && <MissingIdNotice doc=\{idDoc\} couponApplied=\{couponOn\} \/>\}/);
+    expect(page).toMatch(/\{!!appliedCoupon\?\.teacher && !idReady && <MissingIdNotice doc=\{idDoc\} couponApplied=\{couponOn\} \/>\}/);
     // The free button stays clickable and explains itself.
-    expect(page).toMatch(/toast\.error\(`Please add \$\{missingId\(idDoc\)\.join\(", "\)\} to confirm\.`\);/);
-    expect(page).not.toMatch(/Add your ID above to (pay|confirm)\./);
+    expect(page).toMatch(/toast\.error\(`Please add \$\{missingId\(idDoc, couponOn\)\.join\(", "\)\} to confirm\.`\);/);
+    // With a coupon applied the ID is optional.
+    expect(page).toMatch(/const couponOn = !!appliedCoupon && !isLocal;\n\s+const idReady = idDocumentOk\(idDoc, couponOn\);/);
+    expect(page).toMatch(/optional=\{couponOn\}/);
+  });
+
+  it("the server books / issues at $0 with a coupon and no ID", () => {
+    const fix = read("supabase/migrations/20261013140000_coupon_id_optional.sql");
+    expect(fix).not.toMatch(/raise exception 'Your ID is needed'/);
+    expect(fix.match(/create or replace function public\.(book_class_free_with_teacher_coupon|claim_teacher_pass_with_coupon)\(/g)).toHaveLength(2);
+    expect(fix.match(/v_doc text := nullif\(left\(btrim\(coalesce\(_id_document, ''\)\), 40\), ''\);/g)).toHaveLength(2);
+    // A cédula, when given, still gets the local discount instead of the coupon.
+    expect(fix.match(/case when v_type = 'cr_cedula' then v_doc end, _coupon\);/g)).toHaveLength(2);
+    expect(fix).toMatch(/That coupon does not cover this class in full/);
+    expect(fix).toMatch(/That coupon does not cover this pass in full/);
+    expect(read("src/pages/ClassBooking.tsx")).not.toMatch(/Add your ID above to (pay|confirm)\./);
   });
 
   it("the payment form lists the missing fields above the button", () => {

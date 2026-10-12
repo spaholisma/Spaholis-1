@@ -34,7 +34,7 @@ import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
 import { IdDocumentField, MissingIdNotice } from "@/components/payments/IdDocumentField";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies, localDiscountAmount, missingId,
+  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, idDocumentOk, localApplies, localDiscountAmount, missingId,
   localPctFor, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts, type IdDocument,
 } from "@/lib/localDiscount";
 
@@ -163,7 +163,10 @@ const ClassBookingPage = () => {
   useEffect(() => {
     if (isLocal && appliedCoupon) { setAppliedCoupon(null); setCouponCode(""); }
   }, [isLocal, appliedCoupon]);
-  const idReady = isIdDocumentValid(idDoc);
+  // The ID is required to pay online — unless a coupon is applied (and not
+  // replaced by the local discount): then it is optional.
+  const couponOn = !!appliedCoupon && !isLocal;
+  const idReady = idDocumentOk(idDoc, couponOn);
 
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId && !fullPriceOnly
@@ -452,10 +455,10 @@ const ClassBookingPage = () => {
 
   const handleCardCheckout = async () => {
     if (!scheduleId || !cls) return;
-    // Her coupon: the ID is needed too (as for any online booking).
+    // Her coupon: the ID is optional, but if it was typed it must be right.
     if (appliedCoupon?.teacher && !idReady) {
       setIdAttempted(true);
-      toast.error(`Please add ${missingId(idDoc).join(", ")} to confirm.`);
+      toast.error(`Please add ${missingId(idDoc, couponOn).join(", ")} to confirm.`);
       return;
     }
     setSubmitting(true);
@@ -466,7 +469,7 @@ const ClassBookingPage = () => {
         const { data: bookingId, error } = await supabase.rpc("book_class_free_with_teacher_coupon" as any, {
           _schedule_id: scheduleId, _guest_name: formData.name.trim(), _guest_email: formData.email.trim(),
           _guest_phone: formData.phone, _coupon: appliedCoupon.code,
-          _id_document: idDoc.number.trim(), _id_document_type: idDoc.type,
+          _id_document: idDoc.number.trim() || null, _id_document_type: idDoc.number.trim() ? idDoc.type : null,
         });
         if (error) throw error;
         rememberIdDocument(user?.id, idDoc);
@@ -1102,6 +1105,7 @@ const ClassBookingPage = () => {
                             teacherFirst={payee ? payee.split(/\s+/)[0] : null}
                             idPrefix="class-booking-id"
                             showMissing={idAttempted}
+                            optional={couponOn}
                           />
                         </div>
                       )}
@@ -1186,7 +1190,7 @@ const ClassBookingPage = () => {
                         // Nothing to pay: PayPal cannot take $0, so book it here.
                         // The server checks the coupon again before confirming.
                         <>
-                        {!!appliedCoupon?.teacher && !idReady && <MissingIdNotice doc={idDoc} />}
+                        {!!appliedCoupon?.teacher && !idReady && <MissingIdNotice doc={idDoc} couponApplied={couponOn} />}
                         <Button className="w-full" onClick={handleCardCheckout}
                           disabled={submitting || !formData.name || !formData.email}>
                           {submitting ? t("booking.booking") : `Confirm — free with coupon ${appliedCoupon?.code ?? ""}`.trim()}
@@ -1205,7 +1209,7 @@ const ClassBookingPage = () => {
                         <div className="flex justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                       ) : payMethod === "card" ? (
                         <>
-                        {!idReady && <MissingIdNotice doc={idDoc} />}
+                        {!idReady && <MissingIdNotice doc={idDoc} couponApplied={couponOn} />}
                         <PayPalCheckout
                           disabled={!formData.name || !formData.email || !idReady}
                           createOrderBody={() =>

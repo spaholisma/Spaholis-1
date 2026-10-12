@@ -726,6 +726,10 @@
     "phoneRequired": "Teléfono *",
     "missingRequired": "Completa tu nombre, correo, teléfono e identificación.",
     "chooseType": "Elige Cédula de Costa Rica o Pasaporte / otra identificación.",
-    "typeNumber": "Escribe el número."
+    "typeNumber": "Escribe el número.",
+    "labelOptional": "Tu identificación (opcional con tu cupón)",
+    "optionalWhy": "No hace falta con tu cupón. Con cédula de Costa Rica recibes el {{pct}}% de descuento local en lugar del cupón — no se suman.",
+    "cedulaPlaceholderOptional": "Número de cédula (ej. 1-0234-0567)",
+    "otherPlaceholderOptional": "Número de pasaporte o identificación"
   }
 }

@@ -139,7 +139,7 @@ export function privateClassIntake(input: {
       location_label: input.location?.label ?? null,
       location_address: input.location?.place === "client" ? (input.location.address?.trim() || null) : null,
       id_document: input.idDocument?.number.trim().slice(0, 30) || null,
-      id_document_type: input.idDocument?.type ?? null,
+      id_document_type: input.idDocument?.number.trim() ? input.idDocument.type ?? null : null,
       coupon_code: (input.coupon || "").trim().toUpperCase().slice(0, 64) || null,
     },
   };
