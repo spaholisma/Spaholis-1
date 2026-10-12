@@ -207,7 +207,7 @@ const ClassesPage = () => {
                 <div className="text-center mb-8">
                   <h2 className="spa-heading-lg text-foreground">
                     {regularEvents.length > 0
-                      ? (cls as any).weeklyClassesTitle || "Weekly Classes"
+                      ? (cls as any).weeklyClassesTitle || "Our Teachers & Classes"
                       : t("classes.ourTeachers", { defaultValue: "Our Teachers" })}
                   </h2>
                   {regularEvents.length > 0 && (
