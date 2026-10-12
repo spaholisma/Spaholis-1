@@ -48,7 +48,10 @@ describe("private classes on the teachers' calendar", () => {
   it("the calendar shows them; the panel puts them there", () => {
     const cal = read("src/components/teacher/TeacherSchedule.tsx");
     expect(cal).toMatch(/sb\.rpc\("teacher_calendar_private_sessions"/);
-    expect(cal).toMatch(/<PrivateSlotCard key=\{p\.id\} slot=\{p\} \/>/);
+    expect(cal).toMatch(/<PrivateSlotCard key=\{p\.id\} slot=\{p\} onOpen=\{\(\) => setOpenPrivate\(p\)\} \/>/);
+    // Hers opens with everything about it; a colleague's is only a busy slot.
+    expect(cal).toMatch(/if \(!slot\.mine\) \{\n\s+return \(\n\s+<div /);
+    expect(cal).toMatch(/<PrivateSessionDialog\n\s+slot=\{openPrivate\}/);
     const panel = read("src/components/teacher/TeacherPrivateClasses.tsx");
     expect(panel).toMatch(/sb\.rpc\("teacher_schedule_private_class"/);
     expect(panel).toMatch(/"Add to my calendar"/);

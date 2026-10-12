@@ -383,3 +383,191 @@ export function SchedulePrivateClassDialog({ row, onOpenChange, onSaved }: {
     </Dialog>
   );
 }
+
+/** What the calendar knows about one of her private classes. */
+export interface PrivateSessionRef {
+  id: string; booking_id: string | null; starts_at: string; duration_minutes: number;
+  title: string; location: string | null; guest_name: string | null; people: number | null;
+}
+
+/**
+ * One of her private classes, opened from the teachers' calendar: when and
+ * where, the guest and how to reach them, the price and the ID — everything
+ * from the request — plus changing the date or taking it off the calendar.
+ */
+export function PrivateSessionDialog({ slot, onOpenChange, onChanged }: {
+  slot: PrivateSessionRef | null;
+  onOpenChange: (open: boolean) => void;
+  onChanged: () => void;
+}) {
+  const [row, setRow] = useState<RequestRow | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [scheduling, setScheduling] = useState<RequestRow | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
+
+  useEffect(() => {
+    setRow(null);
+    if (!slot?.booking_id) return;
+    let live = true;
+    setLoading(true);
+    sb.rpc("teacher_private_class_requests").then(({ data, error }: { data: RequestRow[] | null; error: any }) => {
+      if (!live) return;
+      setLoading(false);
+      if (error) { toast.error(error.message); return; }
+      setRow((data ?? []).find((r) => r.booking_id === slot.booking_id) ?? null);
+    });
+    return () => { live = false; };
+  }, [slot]);
+
+  if (!slot) return null;
+  const end = new Date(new Date(slot.starts_at).getTime() + (slot.duration_minutes || 60) * 60000).toISOString();
+  const discounted = !!row && row.list_price != null && row.quoted_price != null
+    && Number(row.quoted_price) < Number(row.list_price);
+  const people = row?.people ?? slot.people;
+
+  const remove = async () => {
+    if (!(await confirm({
+      title: "Take it off your calendar?",
+      description: "The request stays in Private classes; only the date on your calendar is removed.",
+      confirmLabel: "Remove it",
+      destructive: true,
+    }))) return;
+    setRemoving(true);
+    const { error } = await sb.rpc("teacher_remove_private_session", { _id: slot.id });
+    setRemoving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Removed from your calendar");
+    onOpenChange(false);
+    onChanged();
+  };
+
+  const line = "flex items-start gap-2 font-body text-sm text-foreground";
+  const icon = "h-4 w-4 mt-0.5 shrink-0 text-violet-600";
+
+  return (
+    <Dialog open={!!slot} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+            Your private class
+          </p>
+          <DialogTitle className="font-heading leading-snug">{slot.title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2.5">
+          <p className={line}>
+            <CalendarClock className={icon} />
+            <span>
+              {formatSpaDate(slot.starts_at)} · {formatSpaTime(slot.starts_at)} – {formatSpaTime(end)}
+              <span className="text-muted-foreground"> ({slot.duration_minutes || 60} min)</span>
+            </span>
+          </p>
+          {slot.location && (
+            <p className={line}><MapPin className={icon} /><span>{slot.location}</span></p>
+          )}
+          {/^holis wellness studio/i.test(slot.location ?? "") && (
+            <p className="pl-6 font-body text-[11px] text-muted-foreground">
+              At the studio: please confirm with Holis Wellness Center that the studio is free at this time.
+            </p>
+          )}
+          <p className={line}>
+            <Users className={icon} />
+            <span>
+              {row?.guest_name || slot.guest_name || "Guest"}
+              {people ? <span className="text-muted-foreground"> · {people} {people === 1 ? "person" : "people"}</span> : null}
+            </span>
+          </p>
+
+          {loading && (
+            <p className="py-2 font-body text-xs text-muted-foreground">
+              <Loader2 className="inline h-3.5 w-3.5 mr-1.5 animate-spin" /> Loading the request…
+            </p>
+          )}
+
+          {row && (
+            <>
+              {(row.kind_title || row.class_title) && (
+                <p className="pl-6 font-body text-xs text-muted-foreground">
+                  {[row.kind_title, row.class_title].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              {row.quoted_price != null && (
+                <p className="pl-6 font-body text-sm text-foreground">
+                  <strong>{usd(Number(row.quoted_price))}</strong>
+                  {discounted && <span className="text-muted-foreground"> (instead of {usd(Number(row.list_price))})</span>}
+                </p>
+              )}
+              {row.local_discount && (
+                <p className="flex items-center gap-1.5 pl-6 font-body text-xs text-spa-sage">
+                  <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                  Local discount — Costa Rican cédula. Please check it in class.
+                </p>
+              )}
+              {row.coupon_code && (
+                <p className="flex items-center gap-1.5 pl-6 font-body text-xs text-spa-sage">
+                  <Ticket className="h-3.5 w-3.5 shrink-0" /> Your coupon {row.coupon_code}
+                </p>
+              )}
+              {row.id_document && (
+                <p className={line}>
+                  <IdCard className={icon} />
+                  <span>
+                    {row.id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} {row.id_document}
+                  </span>
+                </p>
+              )}
+              {row.preferred && (
+                <p className="pl-6 font-body text-xs text-muted-foreground">They first asked for: {row.preferred}</p>
+              )}
+              {row.note && (
+                <div className="rounded-lg bg-muted/60 px-3 py-2 font-body text-xs text-foreground">
+                  <strong>Your note:</strong> {row.note}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {row.guest_email && (
+                  <Button asChild size="sm" variant="outline" className="max-w-full">
+                    <a href={`mailto:${row.guest_email}?subject=${encodeURIComponent("Your private class at Holis")}`}>
+                      <Mail className="h-4 w-4 mr-1.5 shrink-0" /><span className="truncate">{row.guest_email}</span>
+                    </a>
+                  </Button>
+                )}
+                {row.guest_phone && (
+                  <Button asChild size="sm" variant="outline">
+                    <a href={`https://wa.me/${row.guest_phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+                      <Phone className="h-4 w-4 mr-1.5" /> {row.guest_phone}
+                    </a>
+                  </Button>
+                )}
+              </div>
+              <p className="font-body text-[11px] text-muted-foreground">
+                Request received {format(new Date(row.created_at), "MMM d, yyyy")} · also in <strong>Private classes</strong>.
+              </p>
+            </>
+          )}
+
+          <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+            {row && (
+              <Button size="sm" className="text-xs" onClick={() => setScheduling(row)}>
+                <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Change the date
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="text-xs text-destructive hover:bg-destructive/10"
+              disabled={removing} onClick={remove}>
+              {removing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+              Remove from calendar
+            </Button>
+          </div>
+        </div>
+
+        <SchedulePrivateClassDialog
+          row={scheduling}
+          onOpenChange={(o) => !o && setScheduling(null)}
+          onSaved={() => { setScheduling(null); onOpenChange(false); onChanged(); }}
+        />
+        {confirmDialog}
+      </DialogContent>
+    </Dialog>
+  );
+}

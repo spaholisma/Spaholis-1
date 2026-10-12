@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Hand, HeartHandshake, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Hand, HeartHandshake, MapPin, Info } from "lucide-react";
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay,
 } from "date-fns";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
 import { ClassFormDialog, utcToCr } from "@/components/teacher/ClassFormDialog";
+import { PrivateSessionDialog } from "@/components/teacher/TeacherPrivateClasses";
 
 const sb = supabase as any;
 
@@ -58,6 +59,8 @@ export function TeacherSchedule({
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SchedSession | null>(null);
   const [formDay, setFormDay] = useState<string | undefined>();
+  // Her private class, opened from the calendar to see everything about it.
+  const [openPrivate, setOpenPrivate] = useState<PrivateSlot | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const mine = (s: SchedSession) => teacherOf(s) === teacherName.trim().toLowerCase();
@@ -197,7 +200,7 @@ export function TeacherSchedule({
                     <p className="font-body text-[11px] text-muted-foreground/60">—</p>
                   )}
                   {dayPrivates.map((p) => (
-                    <PrivateSlotCard key={p.id} slot={p} />
+                    <PrivateSlotCard key={p.id} slot={p} onOpen={() => setOpenPrivate(p)} />
                   ))}
                   {list.map((s) => {
                     const isMine = mine(s);
@@ -272,35 +275,60 @@ export function TeacherSchedule({
         defaultDay={formDay}
         onSaved={() => { load(); onChanged?.(); }}
       />
+      <PrivateSessionDialog
+        slot={openPrivate}
+        onOpenChange={(o) => !o && setOpenPrivate(null)}
+        onChanged={load}
+      />
       {confirmDialog}
     </Card>
   );
 }
 
-/** A private class on the teachers' calendar: hers in full, a colleague's as a busy slot. */
-function PrivateSlotCard({ slot }: { slot: PrivateSlot }) {
+/**
+ * A private class on the teachers' calendar: hers in full — tap it to see
+ * everything about it — and a colleague's as a busy slot, nothing to open.
+ */
+function PrivateSlotCard({ slot, onOpen }: { slot: PrivateSlot; onOpen: () => void }) {
   const end = new Date(new Date(slot.starts_at).getTime() + (slot.duration_minutes || 60) * 60000).toISOString();
-  return (
-    <div className={cn(
-      "rounded-lg border p-2.5",
-      slot.mine ? "border-violet-300 bg-violet-50 dark:bg-violet-950/30" : "border-violet-200/70 bg-violet-50/50 dark:bg-violet-950/20",
-    )}>
+  const body = (
+    <>
       <p className="font-body text-xs font-semibold text-violet-700 dark:text-violet-300">
         {formatSpaTime(slot.starts_at)} – {formatSpaTime(end)}
       </p>
       <p className="font-body text-sm font-medium text-foreground leading-snug flex items-start gap-1">
         <HeartHandshake className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-600" />
-        <span>{slot.title}</span>
+        <span className="break-words">{slot.title}</span>
       </p>
-      <p className="font-body text-xs text-muted-foreground truncate">
+      <p className="font-body text-xs text-muted-foreground break-words">
         {slot.mine ? "Your private class" : `Private class · ${slot.teacher_name}`}
         {slot.mine && slot.people ? ` · ${slot.people} ${slot.people === 1 ? "person" : "people"}` : ""}
       </p>
       {slot.location && (
-        <p className="font-body text-[11px] text-muted-foreground truncate flex items-center gap-1">
-          <MapPin className="h-3 w-3 shrink-0" />{slot.location}
+        <p className="font-body text-[11px] text-muted-foreground flex items-start gap-1 break-words">
+          <MapPin className="h-3 w-3 mt-0.5 shrink-0" />{slot.location}
         </p>
       )}
-    </div>
+      {slot.mine && (
+        <p className="mt-1.5 flex items-center gap-1 font-body text-[11px] font-medium text-violet-700 dark:text-violet-300">
+          <Info className="h-3 w-3" /> View details
+        </p>
+      )}
+    </>
+  );
+  if (!slot.mine) {
+    return (
+      <div className="rounded-lg border border-violet-200/70 bg-violet-50/50 p-2.5 dark:bg-violet-950/20">{body}</div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open your private class: ${slot.title}`}
+      className="w-full rounded-lg border border-violet-300 bg-violet-50 p-2.5 text-left transition-colors hover:border-violet-400 hover:bg-violet-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 dark:bg-violet-950/30 dark:hover:bg-violet-950/50"
+    >
+      {body}
+    </button>
   );
 }
