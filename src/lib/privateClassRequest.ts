@@ -26,6 +26,7 @@ export function clampPeople(v: string | number | null | undefined, kind: Private
 export interface SessionWithClass {
   class_id: string;
   instructor?: string | null;
+  start_time?: string | null;
   classes?: { id: string; title: string; category?: string | null; instructor?: string | null } | null;
 }
 export interface TeacherRow {
@@ -54,55 +55,50 @@ export const canBookPrivately = (category: string | null | undefined) => !SKIP_C
 /**
  * The classes actually being taught — built from the scheduled sessions, the
  * same source the Classes page uses, so the list never shows a class that is
- * not running or the same class twice.
+ * not running.
  *
- * `recent` are sessions already taught: upcoming sessions often have no
- * teacher on them yet, so the teacher who has been giving the class is used
- * (and the class's own teacher as a last resort). One option per class and
- * teacher: a class taught by two teachers appears once for each, so the
- * request reaches the right one.
+ * ONE option per class, with ONE teacher: the teacher on the next session,
+ * else the class's own teacher, else whoever taught it most recently
+ * (`recent`, newest first). The schedule spells the same teacher several ways
+ * ("Kerri", "Kerri Michie", "Kerry") and has the odd cover, so listing every
+ * name made each class appear two or three times.
  */
 export function buildClassOptions(
   sessions: SessionWithClass[],
   teachers: TeacherRow[],
   recent: SessionWithClass[] = [],
+  now: Date = new Date(),
 ): PrivateClassOption[] {
   const photos = new Map(teachers.map((t) => [cleanName(t.display_name).toLowerCase(), t.photo_url]));
-  const byClass = new Map<string, { title: string; names: Map<string, string> }>();
+  const byClass = new Map<string, { title: string; next: string; own: string; last: string }>();
+  const nowMs = now.getTime();
 
-  const addName = (entry: { names: Map<string, string> }, raw: string | null | undefined) => {
-    const name = cleanName(raw);
-    if (name && !entry.names.has(name.toLowerCase())) entry.names.set(name.toLowerCase(), name);
-  };
-
-  for (const s of sessions) {
+  // The schedule, soonest first: the first upcoming session with a teacher names her.
+  const ordered = [...sessions].sort((a, b) =>
+    (a.start_time ? Date.parse(a.start_time) : 0) - (b.start_time ? Date.parse(b.start_time) : 0));
+  for (const s of ordered) {
     const cls = s.classes;
     const id = cls?.id ?? s.class_id;
     const title = cleanName(cls?.title);
     if (!id || !title || SKIP_CATEGORY.test(cls?.category ?? "")) continue;
-    if (!byClass.has(id)) byClass.set(id, { title, names: new Map() });
-    addName(byClass.get(id)!, s.instructor);
+    if (!byClass.has(id)) byClass.set(id, { title, next: "", own: "", last: "" });
+    const e = byClass.get(id)!;
+    const upcoming = !s.start_time || Date.parse(s.start_time) >= nowMs;
+    if (!e.next && upcoming) e.next = cleanName(s.instructor);
+    if (!e.own) e.own = cleanName(cls?.instructor);
   }
-
   // Only fills in teachers for classes already on the schedule.
   for (const s of recent) {
-    const entry = byClass.get(s.classes?.id ?? s.class_id);
-    if (entry) addName(entry, s.instructor);
-  }
-  for (const s of sessions) {
-    const entry = byClass.get(s.classes?.id ?? s.class_id);
-    if (entry && entry.names.size === 0) addName(entry, s.classes?.instructor);
+    const e = byClass.get(s.classes?.id ?? s.class_id);
+    if (e && !e.last) e.last = cleanName(s.instructor);
   }
 
   const out: PrivateClassOption[] = [];
-  for (const [classId, { title, names }] of byClass) {
-    if (!names.size) {
-      out.push({ key: `${classId}::`, classId, classTitle: title, teacherName: null, teacherPhoto: null });
-      continue;
-    }
-    for (const [k, name] of names) {
-      out.push({ key: `${classId}::${k}`, classId, classTitle: title, teacherName: name, teacherPhoto: photos.get(k) ?? null });
-    }
+  for (const [classId, e] of byClass) {
+    const name = e.next || e.own || e.last;
+    out.push(name
+      ? { key: `${classId}::${name.toLowerCase()}`, classId, classTitle: e.title, teacherName: name, teacherPhoto: photos.get(name.toLowerCase()) ?? null }
+      : { key: `${classId}::`, classId, classTitle: e.title, teacherName: null, teacherPhoto: null });
   }
   return out.sort(
     (a, b) => a.classTitle.localeCompare(b.classTitle) || (a.teacherName ?? "~").localeCompare(b.teacherName ?? "~"),

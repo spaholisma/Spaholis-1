@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Hand } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Users, Ban, Undo2, Hand, HeartHandshake, MapPin } from "lucide-react";
 import {
   format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay,
 } from "date-fns";
@@ -19,6 +19,13 @@ export interface SchedSession {
   spots_remaining: number; is_cancelled: boolean; instructor: string | null;
   classes: { title: string | null; instructor: string | null; max_capacity: number | null;
              location: string | null; duration_minutes: number | null } | null;
+}
+
+/** A private class a teacher put on the calendar from a request — teachers' calendar only. */
+export interface PrivateSlot {
+  id: string; teacher_name: string; starts_at: string; duration_minutes: number;
+  title: string; location: string | null; guest_name: string | null; people: number | null;
+  mine: boolean; booking_id: string | null;
 }
 
 export const teacherOf = (s: SchedSession) =>
@@ -44,6 +51,8 @@ export function TeacherSchedule({
 }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [sessions, setSessions] = useState<SchedSession[]>([]);
+  // Private classes agreed with a guest: only on this calendar, never public.
+  const [privates, setPrivates] = useState<PrivateSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -59,10 +68,16 @@ export function TeacherSchedule({
     // evening here is already Monday in UTC.
     const from = format(addDays(weekStart, -1), "yyyy-MM-dd");
     const to = format(addDays(endOfWeek(weekStart, { weekStartsOn: 1 }), 1), "yyyy-MM-dd");
-    const { data } = await sb.from("class_schedule").select(SESSION_SELECT)
-      .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
-      .order("start_time");
+    const [{ data }, { data: priv }] = await Promise.all([
+      sb.from("class_schedule").select(SESSION_SELECT)
+        .gte("start_time", `${from}T00:00:00Z`).lte("start_time", `${to}T23:59:59Z`)
+        .order("start_time"),
+      sb.rpc("teacher_calendar_private_sessions", {
+        _from: `${from}T00:00:00Z`, _to: `${to}T23:59:59Z`,
+      }),
+    ]);
     setSessions(((data ?? []) as SchedSession[]));
+    setPrivates(((priv ?? []) as PrivateSlot[]));
     setLoading(false);
   }, [weekStart]);
   useEffect(() => { load(); }, [load]);
@@ -143,7 +158,8 @@ export function TeacherSchedule({
         Every class in the studio this week. Yours are in green — the others are here so you can
         find a free slot without landing on a colleague. Teaching one that is not yours?
         Put your name on it with <strong>I teach it</strong> — that is what tells the website,
-        your students and Holis who is in front of the class.
+        your students and Holis who is in front of the class. Private classes you add from a
+        request show here in lilac — only teachers see them.
       </p>
 
       {loading ? (
@@ -151,7 +167,9 @@ export function TeacherSchedule({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2.5">
           {days.map((d) => {
-            const list = sessions.filter((s) => utcToCr(s.start_time).day === format(d, "yyyy-MM-dd"));
+            const dayKey = format(d, "yyyy-MM-dd");
+            const list = sessions.filter((s) => utcToCr(s.start_time).day === dayKey);
+            const dayPrivates = privates.filter((p) => utcToCr(p.starts_at).day === dayKey);
             const today = isSameDay(d, new Date());
             return (
               <div key={d.toISOString()} className={cn(
@@ -159,7 +177,7 @@ export function TeacherSchedule({
                 today && "border-spa-sage/60 bg-spa-sage/5",
                 // An empty day is worth a column on a wide screen and worth
                 // nothing on a phone, where it is just scrolling.
-                list.length === 0 && "hidden md:block",
+                list.length === 0 && dayPrivates.length === 0 && "hidden md:block",
               )}>
                 <button
                   onClick={() => openNew(d)}
@@ -175,9 +193,12 @@ export function TeacherSchedule({
                   <Plus className="h-3.5 w-3.5 text-muted-foreground opacity-40 group-hover:opacity-100" />
                 </button>
                 <div className="space-y-1.5">
-                  {list.length === 0 && (
+                  {list.length === 0 && dayPrivates.length === 0 && (
                     <p className="font-body text-[11px] text-muted-foreground/60">—</p>
                   )}
+                  {dayPrivates.map((p) => (
+                    <PrivateSlotCard key={p.id} slot={p} />
+                  ))}
                   {list.map((s) => {
                     const isMine = mine(s);
                     return (
@@ -253,5 +274,33 @@ export function TeacherSchedule({
       />
       {confirmDialog}
     </Card>
+  );
+}
+
+/** A private class on the teachers' calendar: hers in full, a colleague's as a busy slot. */
+function PrivateSlotCard({ slot }: { slot: PrivateSlot }) {
+  const end = new Date(new Date(slot.starts_at).getTime() + (slot.duration_minutes || 60) * 60000).toISOString();
+  return (
+    <div className={cn(
+      "rounded-lg border p-2.5",
+      slot.mine ? "border-violet-300 bg-violet-50 dark:bg-violet-950/30" : "border-violet-200/70 bg-violet-50/50 dark:bg-violet-950/20",
+    )}>
+      <p className="font-body text-xs font-semibold text-violet-700 dark:text-violet-300">
+        {formatSpaTime(slot.starts_at)} – {formatSpaTime(end)}
+      </p>
+      <p className="font-body text-sm font-medium text-foreground leading-snug flex items-start gap-1">
+        <HeartHandshake className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-600" />
+        <span>{slot.title}</span>
+      </p>
+      <p className="font-body text-xs text-muted-foreground truncate">
+        {slot.mine ? "Your private class" : `Private class · ${slot.teacher_name}`}
+        {slot.mine && slot.people ? ` · ${slot.people} ${slot.people === 1 ? "person" : "people"}` : ""}
+      </p>
+      {slot.location && (
+        <p className="font-body text-[11px] text-muted-foreground truncate flex items-center gap-1">
+          <MapPin className="h-3 w-3 shrink-0" />{slot.location}
+        </p>
+      )}
+    </div>
   );
 }

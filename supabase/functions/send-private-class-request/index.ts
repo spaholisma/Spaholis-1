@@ -29,6 +29,8 @@ const json = (b: unknown, s = 200) =>
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TEAM = ["info@spaholis.com", "spaholisma@gmail.com"];
 const HOLIS_REPLY = "info@spaholis.com";
+// How a teacher reaches the studio to check it is free.
+const HOLIS_CONTACT = `<a href="mailto:info@spaholis.com" style="color:#5e7d67">info@spaholis.com</a> · WhatsApp <a href="https://api.whatsapp.com/send?phone=50688146760" style="color:#5e7d67">+506 8814 6760</a>`;
 const FROM_ADDRESS = "Holis Wellness <info@spaholis.com>";
 const SITE = "https://www.spaholis.com";
 const MAX_AGE_MINUTES = 30;
@@ -188,6 +190,18 @@ Deno.serve(async (req) => {
       : BEACH_TEACHERS.includes(norm(teacherName)) ? "Beach"
       : "Beach — to be confirmed with the teacher";
 
+    // For the teacher: what to check about the place before confirming anything.
+    const placeAdvice =
+      !place ? ""
+      : place === "studio" || studioOnly
+        ? `<strong>Location: Holis Wellness Studio.</strong> Before you confirm a day and time with the guest, please contact Holis Wellness Center (${HOLIS_CONTACT}) to check that the studio is available.`
+      : place === "client"
+        ? `<strong>Location: the guest's own place.</strong> Please review the address above and confirm the details directly with the guest — exact address, access, parking and the space available — before you agree the day and time.`
+        : `<strong>Location: the beach.</strong> Please agree the exact spot, the time and what to bring directly with the guest.`;
+    const placeBox = placeAdvice
+      ? `<div style="margin:16px 0 0;padding:12px 14px;background:#f4f1ec;border-left:3px solid #7d9a85;border-radius:8px;color:#2d2d2a;font-size:13px;line-height:1.6">${placeAdvice}</div>`
+      : "";
+
     const peopleText = people === 1 ? "1 person" : `${people} people`;
     const mail = (e: string) => (e ? `<a href="mailto:${esc(e)}" style="color:#5e7d67">${esc(e)}</a>` : "");
     const classText = classTitle ? esc(classTitle) : "No specific class — help them choose";
@@ -226,7 +240,8 @@ Deno.serve(async (req) => {
           `${esc(guestName)} asked for a private <strong>${esc(classTitle)}</strong> class with you on spaholis.com. ` +
           `Reply to this email to reach them directly and arrange the day and time — please keep the Holis team in the loop.`,
           detailRows + guestRows,
-          `<p style="margin:16px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">The Holis team received a copy of this request.</p>`,
+          placeBox +
+          `<p style="margin:16px 0 0;color:#7a7a72;font-size:12px;line-height:1.5">The Holis team received a copy of this request. Once you have agreed the day and time, add it to your calendar from Teacher Panel → Private classes.</p>`,
         ),
         guestEmail || undefined,
       );

@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CalendarClock, Loader2, Mail, MapPin, Phone, Save, Users } from "lucide-react";
+import {
+  BadgeCheck, CalendarClock, CalendarPlus, IdCard, Loader2, Mail, MapPin, Phone, Ticket, Trash2, Users,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
+import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
+import { crToUtc, utcToCr } from "@/components/teacher/ClassFormDialog";
 import { TeacherPrivateOfferingsEditor } from "@/components/teacher/TeacherPrivateOfferingsEditor";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const sb = supabase as any;
 
-interface RequestRow {
+export interface RequestRow {
   booking_id: string;
   created_at: string;
   guest_name: string | null;
@@ -25,11 +32,22 @@ interface RequestRow {
   preferred: string | null;
   status: string;
   note: string | null;
-  /** Her price for what they asked, worked out on the server from her offering. */
+  /** Her price for what they asked — after her local discount or coupon — worked out on the server. */
   quoted_price: number | null;
   /** Where they would like it: studio, their place (with the address) or the beach. */
   location_label?: string | null;
   location_address?: string | null;
+  /** Her price before the discount, and which discount it was. */
+  list_price?: number | null;
+  local_discount?: boolean | null;
+  coupon_code?: string | null;
+  /** The guest's ID (a Costa Rican cédula she may check). */
+  id_document?: string | null;
+  id_document_type?: string | null;
+  /** On her calendar, when she has put it there. */
+  session_id?: string | null;
+  session_starts_at?: string | null;
+  session_minutes?: number | null;
 }
 
 const STATUSES = [
@@ -46,21 +64,31 @@ const statusColor: Record<string, string> = {
   declined: "bg-muted text-muted-foreground",
 };
 
+const usd = (n: number) => formatCRCWithUsd(Number(n) * USD_RATE);
+
+/** What goes on the calendar for a request: the class (or the kind) and the guest. */
+export const sessionTitle = (r: Pick<RequestRow, "class_title" | "kind_title" | "guest_name">) =>
+  [r.class_title || r.kind_title || "Private class", r.guest_name].filter(Boolean).join(" · ");
+
+/** Where it happens, as one line for the calendar. */
+export const sessionLocation = (r: Pick<RequestRow, "location_label" | "location_address">) =>
+  [r.location_label, r.location_address].filter(Boolean).join(": ");
+
 /**
- * Private classes for a teacher: her own private classes and prices, her note
- * on when she is free, and the requests that named her (she answers the guest
- * by email).
+ * Private classes for a teacher: her own private classes and prices, and the
+ * requests that named her. She answers the guest by email or WhatsApp and,
+ * once they have agreed a day, puts it on her calendar from the request.
  */
-export function TeacherPrivateClasses({ teacherId, teacherName, note, choices = [] }: {
-  teacherId: string; teacherName: string; note: string | null;
+export function TeacherPrivateClasses({ teacherId, teacherName, choices = [] }: {
+  teacherId: string; teacherName: string;
   /** The private classes the team added for her to pick by name. */
   choices?: string[] | null;
 }) {
   const [rows, setRows] = useState<RequestRow[] | null>(null);
-  const [draftNote, setDraftNote] = useState(note ?? "");
-  const [savingNote, setSavingNote] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [scheduling, setScheduling] = useState<RequestRow | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     const { data, error } = await sb.rpc("teacher_private_class_requests");
@@ -71,14 +99,6 @@ export function TeacherPrivateClasses({ teacherId, teacherName, note, choices = 
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  const saveNote = async () => {
-    setSavingNote(true);
-    const { error } = await sb.from("teachers").update({ private_class_note: draftNote.trim() || null }).eq("id", teacherId);
-    setSavingNote(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Saved");
-  };
 
   const setStatus = async (row: RequestRow, status: string) => {
     setBusy(row.booking_id);
@@ -93,29 +113,26 @@ export function TeacherPrivateClasses({ teacherId, teacherName, note, choices = 
     load();
   };
 
+  const removeFromCalendar = async (row: RequestRow) => {
+    if (!row.session_id) return;
+    if (!(await confirm({
+      title: "Take it off your calendar?",
+      description: "The request stays here; only the date on your calendar is removed.",
+      confirmLabel: "Remove it",
+      destructive: true,
+    }))) return;
+    setBusy(row.booking_id);
+    const { error } = await sb.rpc("teacher_remove_private_session", { _id: row.session_id });
+    setBusy(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Removed from your calendar");
+    load();
+  };
+
   return (
     <div className="space-y-4">
       {/* Her private classes and her prices. */}
       <TeacherPrivateOfferingsEditor teacherId={teacherId} teacherName={teacherName} choices={choices} />
-
-      {/* Her own words: what she offers privately. */}
-      <Card className="p-5 space-y-3">
-        <div>
-          <h4 className="font-heading text-base text-foreground">When you're free, and anything else</h4>
-          <p className="font-body text-xs text-muted-foreground">
-            Your own note — the days and times you usually have free for private classes, or anything else. The Holis team reads it when a guest asks for you.
-          </p>
-        </div>
-        <Textarea
-          value={draftNote}
-          onChange={(e) => setDraftNote(e.target.value)}
-          rows={4}
-          placeholder="e.g. Mornings before 10am; aerial only on Thursdays."
-        />
-        <Button size="sm" onClick={saveNote} disabled={savingNote}>
-          {savingNote ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />} Save
-        </Button>
-      </Card>
 
       {/* The requests that named her. */}
       <Card className="p-5">
@@ -130,87 +147,239 @@ export function TeacherPrivateClasses({ teacherId, teacherName, note, choices = 
           </p>
         ) : (
           <div className="mt-3 space-y-3">
-            {rows.map((r) => (
-              <div key={r.booking_id} className="rounded-xl border border-border p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-body text-sm font-medium text-foreground">{r.guest_name || "Guest"}</p>
-                      <Badge className={cn("capitalize", statusColor[r.status] || "")}>
-                        {STATUSES.find((s) => s.value === r.status)?.label ?? r.status}
-                      </Badge>
+            {rows.map((r) => {
+              const discounted = r.list_price != null && r.quoted_price != null
+                && Number(r.quoted_price) < Number(r.list_price);
+              return (
+                <div key={r.booking_id} className="rounded-xl border border-border p-4 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-body text-sm font-medium text-foreground">{r.guest_name || "Guest"}</p>
+                        <Badge className={cn("capitalize", statusColor[r.status] || "")}>
+                          {STATUSES.find((s) => s.value === r.status)?.label ?? r.status}
+                        </Badge>
+                      </div>
+                      <p className="font-body text-xs text-muted-foreground">
+                        {r.kind_title || "Private class"}
+                        {r.class_title ? ` · ${r.class_title}` : ""}
+                        {r.people ? ` · ${r.people} ${r.people === 1 ? "person" : "people"}` : ""}
+                        {r.quoted_price != null ? ` · ${usd(Number(r.quoted_price))}` : ""}
+                        {discounted ? ` (instead of ${usd(Number(r.list_price))})` : ""}
+                      </p>
                     </div>
-                    <p className="font-body text-xs text-muted-foreground">
-                      {r.kind_title || "Private class"}
-                      {r.class_title ? ` · ${r.class_title}` : ""}
-                      {r.people ? ` · ${r.people} ${r.people === 1 ? "person" : "people"}` : ""}
-                      {r.quoted_price != null ? ` · ${formatCRCWithUsd(Number(r.quoted_price) * USD_RATE)}` : ""}
+                    <p className="shrink-0 font-body text-xs text-muted-foreground">
+                      {format(new Date(r.created_at), "MMM d, yyyy")}
                     </p>
                   </div>
-                  <p className="shrink-0 font-body text-xs text-muted-foreground">
-                    {format(new Date(r.created_at), "MMM d, yyyy")}
-                  </p>
-                </div>
 
-                {r.location_label && (
-                  <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    {r.location_label}{r.location_address ? `: ${r.location_address}` : ""}
-                  </p>
-                )}
-
-                {r.preferred && (
-                  <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
-                    <CalendarClock className="h-3.5 w-3.5" /> Prefers: {r.preferred}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  {r.guest_email && (
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`mailto:${r.guest_email}?subject=${encodeURIComponent(`Your private class at Holis`)}`}>
-                        <Mail className="h-4 w-4 mr-1.5" /> {r.guest_email}
-                      </a>
-                    </Button>
+                  {r.local_discount && (
+                    <p className="flex items-center gap-1.5 font-body text-xs text-spa-sage">
+                      <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                      Local discount — Costa Rican cédula. Please check it in class.
+                    </p>
                   )}
-                  {r.guest_phone && (
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`https://wa.me/${r.guest_phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                        <Phone className="h-4 w-4 mr-1.5" /> {r.guest_phone}
-                      </a>
-                    </Button>
+                  {r.coupon_code && (
+                    <p className="flex items-center gap-1.5 font-body text-xs text-spa-sage">
+                      <Ticket className="h-3.5 w-3.5 shrink-0" /> Your coupon {r.coupon_code}
+                    </p>
                   )}
-                </div>
+                  {r.id_document && (
+                    <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                      <IdCard className="h-3.5 w-3.5 shrink-0" />
+                      {r.id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} {r.id_document}
+                    </p>
+                  )}
 
-                <Textarea
-                  value={notes[r.booking_id] ?? ""}
-                  onChange={(e) => setNotes({ ...notes, [r.booking_id]: e.target.value })}
-                  rows={2}
-                  placeholder="Your note — what you agreed, or why you can't take it"
-                />
-                <div className="flex flex-wrap gap-2">
-                  {STATUSES.map((s) => (
-                    <Button
-                      key={s.value}
-                      size="sm"
-                      variant={r.status === s.value ? "default" : "outline"}
-                      disabled={busy === r.booking_id}
-                      onClick={() => setStatus(r, s.value)}
-                      className="text-xs"
-                    >
-                      {busy === r.booking_id && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                      {s.label}
-                    </Button>
-                  ))}
+                  {r.location_label && (
+                    <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      {r.location_label}{r.location_address ? `: ${r.location_address}` : ""}
+                    </p>
+                  )}
+
+                  {r.preferred && (
+                    <p className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                      <CalendarClock className="h-3.5 w-3.5" /> Prefers: {r.preferred}
+                    </p>
+                  )}
+
+                  {r.session_starts_at && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-spa-sage/10 px-3 py-2">
+                      <CalendarPlus className="h-4 w-4 text-spa-sage" />
+                      <p className="font-body text-xs text-foreground">
+                        <strong>On your calendar:</strong> {formatSpaDate(r.session_starts_at)} · {formatSpaTime(r.session_starts_at)}
+                        {r.session_minutes ? ` · ${r.session_minutes} min` : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {r.guest_email && (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={`mailto:${r.guest_email}?subject=${encodeURIComponent(`Your private class at Holis`)}`}>
+                          <Mail className="h-4 w-4 mr-1.5" /> {r.guest_email}
+                        </a>
+                      </Button>
+                    )}
+                    {r.guest_phone && (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={`https://wa.me/${r.guest_phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+                          <Phone className="h-4 w-4 mr-1.5" /> {r.guest_phone}
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+
+                  <Textarea
+                    value={notes[r.booking_id] ?? ""}
+                    onChange={(e) => setNotes({ ...notes, [r.booking_id]: e.target.value })}
+                    rows={2}
+                    placeholder="Your note — what you agreed, or why you can't take it"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {STATUSES.map((s) => (
+                      <Button
+                        key={s.value}
+                        size="sm"
+                        variant={r.status === s.value ? "default" : "outline"}
+                        disabled={busy === r.booking_id}
+                        onClick={() => setStatus(r, s.value)}
+                        className="text-xs"
+                      >
+                        {busy === r.booking_id && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                        {s.label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Agreed with the guest: put it on her calendar. */}
+                  {r.status !== "declined" && (
+                    <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                      <Button size="sm" className="text-xs" disabled={busy === r.booking_id} onClick={() => setScheduling(r)}>
+                        <CalendarPlus className="h-3.5 w-3.5 mr-1.5" />
+                        {r.session_id ? "Change the date" : "Add to my calendar"}
+                      </Button>
+                      {r.session_id && (
+                        <Button size="sm" variant="ghost" className="text-xs text-destructive hover:bg-destructive/10"
+                          disabled={busy === r.booking_id} onClick={() => removeFromCalendar(r)}>
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remove from calendar
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <p className="flex items-center gap-1.5 font-body text-[11px] text-muted-foreground">
+                    <Users className="h-3 w-3" /> Holis got this request too — keep them in the loop on what you agree.
+                  </p>
                 </div>
-                <p className="flex items-center gap-1.5 font-body text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3" /> Holis got this request too — keep them in the loop on what you agree.
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
+
+      <SchedulePrivateClassDialog
+        row={scheduling}
+        onOpenChange={(o) => !o && setScheduling(null)}
+        onSaved={() => { setScheduling(null); load(); }}
+      />
+      {confirmDialog}
     </div>
+  );
+}
+
+/**
+ * Put an agreed private class on her calendar: the day, the time and how long.
+ * It shows only on the teachers' calendar — never on the public schedule.
+ */
+export function SchedulePrivateClassDialog({ row, onOpenChange, onSaved }: {
+  row: RequestRow | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({ day: "", time: "", minutes: "60", title: "", location: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!row) return;
+    const at = row.session_starts_at ? utcToCr(row.session_starts_at) : null;
+    setForm({
+      day: at?.day ?? "",
+      time: at?.time ?? "",
+      minutes: String(row.session_minutes ?? 60),
+      title: sessionTitle(row),
+      location: sessionLocation(row),
+    });
+  }, [row]);
+
+  if (!row) return null;
+  const startsAt = crToUtc(form.day, form.time);
+  const minutes = Number(form.minutes);
+  const ready = !!startsAt && Number.isFinite(minutes) && minutes >= 15 && minutes <= 480;
+
+  const save = async () => {
+    if (!ready) return;
+    setSaving(true);
+    const { error } = await sb.rpc("teacher_schedule_private_class", {
+      _booking_id: row.booking_id,
+      _starts_at: startsAt,
+      _duration_minutes: minutes,
+      _title: form.title.trim(),
+      _location: form.location.trim(),
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("On your calendar");
+    onSaved();
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading">
+            {row.session_id ? "Change the date" : "Add to my calendar"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="font-body text-xs text-muted-foreground">
+            The day and time you agreed with {row.guest_name || "the guest"}. It appears only on the
+            teachers' calendar in this panel — never on the public class schedule.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="font-body text-xs font-medium text-muted-foreground">Day *</span>
+              <Input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} />
+            </label>
+            <label className="space-y-1">
+              <span className="font-body text-xs font-medium text-muted-foreground">Time *</span>
+              <Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
+            </label>
+          </div>
+          <label className="block space-y-1">
+            <span className="font-body text-xs font-medium text-muted-foreground">Length (minutes) *</span>
+            <Input type="number" min={15} max={480} step={15} value={form.minutes}
+              onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
+          </label>
+          <label className="block space-y-1">
+            <span className="font-body text-xs font-medium text-muted-foreground">What it says on the calendar</span>
+            <Input value={form.title} maxLength={120} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </label>
+          <label className="block space-y-1">
+            <span className="font-body text-xs font-medium text-muted-foreground">Where</span>
+            <Input value={form.location} maxLength={300} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+          </label>
+          {/^holis wellness studio/i.test(form.location) && (
+            <p className="font-body text-[11px] text-muted-foreground">
+              At the studio: please confirm with Holis Wellness Center that the studio is free at this time.
+            </p>
+          )}
+          <Button className="w-full" onClick={save} disabled={!ready || saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <CalendarPlus className="h-4 w-4 mr-1.5" />}
+            {row.session_id ? "Save the new date" : "Add to my calendar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

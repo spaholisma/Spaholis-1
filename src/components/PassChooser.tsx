@@ -15,6 +15,7 @@ import { TeacherPassCheckout } from "@/components/payments/TeacherPassCheckout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
+import { DropInDialog } from "@/components/DropInDialog";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -69,6 +70,8 @@ export function PassChooser({
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
   const [paidEmail, setPaidEmail] = useState("");
+  // A drop-in is one class on one date: it has its own window.
+  const [dropIn, setDropIn] = useState<Offering | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -113,6 +116,7 @@ export function PassChooser({
   }, []);
 
   const open = (o: Offering) => {
+    if (o.type === "drop_in") { setDropIn(o); return; }
     setPicked(o);
     setChosenClass(forClass ?? null);
     setForm({ name: "", email: "", phone: "" });
@@ -175,7 +179,6 @@ export function PassChooser({
   // she takes it (teacher payouts on), else to Holis (for now).
   const canBuyOnline = !!(herPass && Number(herPass.price) > 0);
   const paysTeacher = !!herPass?.teacher_accepts_paypal;
-  const isDropIn = picked?.type === "drop_in";
 
   return (
     <>
@@ -208,7 +211,7 @@ export function PassChooser({
               <div className="mt-auto pt-4 flex items-end justify-between gap-3">
                 <div>
                   <p className="font-heading text-2xl font-semibold text-foreground leading-none">{usd(o.price)}</p>
-                  <p className="font-body text-[11px] text-muted-foreground mt-1">the usual price</p>
+                  <p className="font-body text-[11px] text-muted-foreground mt-1">studio price</p>
                 </div>
                 <Button size="sm" className="rounded-full" onClick={() => open(o)}>Get this pass</Button>
               </div>
@@ -219,8 +222,8 @@ export function PassChooser({
 
       {!compact && !only && (
         <p className="spa-body-sm text-center mt-8 max-w-2xl mx-auto">
-          These are the usual studio prices. Every pass is with a teacher and paid to her directly —
-          pick one and we will show you who teaches what, and how to pay her.
+          These are the studio prices. Each pass is held with one teacher — choose a pass and we will
+          show you who teaches each class and how to complete your purchase.
         </p>
       )}
 
@@ -228,7 +231,7 @@ export function PassChooser({
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading">
-              {step === "done" ? "She knows you are coming" : step === "paid" ? "Your pass is ready" : picked?.name}
+              {step === "done" ? "Request sent" : step === "paid" ? "Your pass is ready" : picked?.name}
             </DialogTitle>
           </DialogHeader>
 
@@ -236,12 +239,12 @@ export function PassChooser({
           {step === "class" && (
             <div className="space-y-3">
               <p className="spa-body-sm">
-                Which class do you want it for? That tells us who your teacher is — the pass is with her.
+                Choose the class you would like to use your pass for. Each pass is held with the teacher of that class.
               </p>
               {classes.length === 0 ? (
                 <p className="spa-body-sm">
-                  Nothing on the schedule right now.{" "}
-                  <Link to="/classes" className="text-primary hover:underline">See the classes</Link>.
+                  There are no classes on the schedule at the moment.{" "}
+                  <Link to="/classes" className="text-primary hover:underline">View all classes</Link>.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -257,7 +260,7 @@ export function PassChooser({
                       <p className="font-body text-sm font-medium text-foreground">{c.title}</p>
                       <p className="font-body text-xs text-muted-foreground">
                         <CalendarDays className="h-3 w-3 inline mr-1" />{c.when}
-                        {c.teacher ? <> · with <span className="font-medium text-foreground">{c.teacher}</span></> : " · teacher to be confirmed"}
+                        {c.teacher ? <> · with <span className="font-medium text-foreground">{c.teacher}</span></> : " · teacher to be announced"}
                       </p>
                     </button>
                   ))}
@@ -310,29 +313,10 @@ export function PassChooser({
                 </div>
               )}
 
-              {/* A drop-in is one class: it is booked and paid online on the
-                  class itself — with your ID, her local discount and coupons. */}
-              {!canBuyOnline && isDropIn && (
-                <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Book and pay online
-                  </p>
-                  <p className="font-body text-sm text-foreground">
-                    Pick the day of {chosenClass.title} and pay online when you book —
-                    your details and ID go on the booking form.
-                  </p>
-                  <Button className="w-full rounded-full" asChild>
-                    <Link to={`/classes/${chosenClass.class_id}`}>
-                      <CalendarDays className="h-4 w-4 mr-1.5" />Choose a day
-                    </Link>
-                  </Button>
-                </div>
-              )}
-
-              {!canBuyOnline && !isDropIn && (chosenClass.teacher ? (
+              {!canBuyOnline && (chosenClass.teacher ? (
                 <div className="rounded-xl border border-border p-4">
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    How to pay {chosenClass.teacher.split(/\s+/)[0]}
+                    Payment
                   </p>
                   {payInfo && (
                     <p className="font-body text-sm text-foreground whitespace-pre-line">{payInfo}</p>
@@ -349,24 +333,24 @@ export function PassChooser({
                   )}
                   {!payInfo && !payLink && !compraclickLink && (
                     <p className="font-body text-sm text-muted-foreground">
-                      She will tell you at the studio — cash or SINPE.
+                      Payment is arranged directly with {chosenClass.teacher.split(/\s+/)[0]} at the studio (cash or SINPE).
                     </p>
                   )}
                   <p className="font-body text-[11px] text-muted-foreground mt-2">
-                    Holis does not take this payment. It goes to your teacher.
+                    This payment is made directly to your teacher.
                   </p>
                 </div>
               ) : (
                 <p className="spa-body-sm rounded-xl border border-border p-4">
-                  No teacher is named on this class yet, so there is nobody to hand the pass over.
-                  Write to us on WhatsApp and we will sort it out.
+                  A teacher has not been assigned to this class yet. Please contact us on WhatsApp and
+                  we will be happy to help.
                 </p>
               ))}
 
-              {!canBuyOnline && !isDropIn && chosenClass.teacher && (
+              {!canBuyOnline && chosenClass.teacher && (
               <div className="space-y-2">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Let her know you are coming
+                  Request this pass
                 </p>
                 <Input placeholder="Your name *" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -379,10 +363,10 @@ export function PassChooser({
                 <Button className="w-full rounded-full" onClick={send}
                   disabled={saving || !form.name.trim()}>
                   {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Ticket className="h-4 w-4 mr-1" />}
-                  Tell {chosenClass.teacher.split(/\s+/)[0]}
+                  Send request to {chosenClass.teacher.split(/\s+/)[0]}
                 </Button>
                 <p className="font-body text-[11px] text-muted-foreground text-center">
-                  Nothing is charged here. She gets your name and gives you the pass when you pay her.
+                  No payment is taken now. {chosenClass.teacher.split(/\s+/)[0]} will confirm your pass once you have paid.
                 </p>
               </div>
               )}
@@ -413,12 +397,12 @@ export function PassChooser({
                 <Check className="h-6 w-6 text-spa-sage" />
               </div>
               <p className="spa-body">
-                <strong>{chosenClass.teacher}</strong> has your name and knows you want the{" "}
-                {picked?.name} for {chosenClass.title}.
+                Your request for the {picked?.name} for {chosenClass.title} has been sent to{" "}
+                <strong>{chosenClass.teacher}</strong>.
               </p>
               {(payInfo || payLink) && (
                 <p className="spa-body-sm">
-                  Pay her directly{payInfo ? <>: {payInfo}</> : null}
+                  Payment details{payInfo ? <>: {payInfo}</> : null}
                 </p>
               )}
               <div className="flex flex-col sm:flex-row gap-2 justify-center">
@@ -437,6 +421,12 @@ export function PassChooser({
           )}
         </DialogContent>
       </Dialog>
+      <DropInDialog
+        open={!!dropIn}
+        onOpenChange={(o) => !o && setDropIn(null)}
+        title={dropIn?.name}
+        classId={forClass?.class_id}
+      />
     </>
   );
 }

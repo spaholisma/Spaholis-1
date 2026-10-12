@@ -37,13 +37,28 @@ const teachers = [{ id: "t1", display_name: "Kerri Michie", photo_url: "https://
 describe("classes and teachers in the dropdown", () => {
   const options = buildClassOptions(sessions, teachers, recent);
 
-  it("lists each class once, with its teacher, from the classes being taught", () => {
+  it("lists each class once, with one teacher, from the classes being taught", () => {
     expect(options.map((o) => `${o.classTitle} | ${o.teacherName ?? "—"}`)).toEqual([
-      "Aerial Yoga + Floating Gong Bath | Kataleia Dragonfly",
       "Aerial Yoga + Floating Gong Bath | Kerri Michie",
       "Hatha Yoga | Melanie Moss",
       "Vinyasa Yoga | —",
     ]);
+  });
+
+  it("the same teacher spelled three ways, or a cover, is not three entries: the next session's teacher wins", () => {
+    const now = new Date("2026-10-12T12:00:00Z");
+    const at = (iso: string, name: string | null) => ({ ...session("aerial", "Aerial Yoga + Floating Gong Bath", name, "Yoga"), start_time: iso });
+    const list = buildClassOptions(
+      [at("2026-10-12T08:00:00Z", "Kerry"), at("2026-10-22T14:00:00Z", "Kerri Michie"), at("2026-10-15T14:00:00Z", "Kerri")],
+      teachers,
+      [session("aerial", "Aerial Yoga + Floating Gong Bath", "Kerry", "Yoga")],
+      now,
+    );
+    // Oct 12 08:00 is already past; Oct 15 is the next session.
+    expect(list.map((o) => o.teacherName)).toEqual(["Kerri"]);
+    // Nobody on the upcoming sessions: the class's own teacher, then the last one who taught it.
+    const own = [{ class_id: "pf", instructor: null, start_time: "2026-10-14T14:00:00Z", classes: { id: "pf", title: "Power Flow Yoga", category: "Studio Classes", instructor: "Melanie" } }];
+    expect(buildClassOptions(own, teachers, [{ class_id: "pf", instructor: "Ashley" }], now).map((o) => o.teacherName)).toEqual(["Melanie"]);
   });
 
   it("never shows a class that is not on the schedule", () => {
@@ -93,7 +108,7 @@ describe("which private classes get the picker", () => {
 
   it("keeps the guest's ID and the coupon as typed (both checked again on the server)", () => {
     const pc = privateClassIntake({
-      kind: "one_on_one", kindTitle: "One-on-One", people: 1, choice: null, preferred: "",
+      kind: "oneOnOne", kindTitle: "One-on-One", people: 1, choice: null, preferred: "",
       idDocument: { type: "cr_cedula", number: " 1-0234-0567 " }, coupon: " friend10 ",
     }).private_class;
     expect(pc.id_document).toBe("1-0234-0567");

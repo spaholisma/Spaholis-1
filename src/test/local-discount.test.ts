@@ -161,10 +161,10 @@ describe("the pages", () => {
     expect(page).toMatch(/formatPrice\(cashTotal\(Number\(cls\.price\), quantity\)\)/);
   });
 
-  it("the drop-in is booked and paid online on the class itself", () => {
+  it("the drop-in opens its own window: a date, then PayPal to Holis", () => {
     const chooser = read("src/components/PassChooser.tsx");
-    expect(chooser).toMatch(/\{!canBuyOnline && isDropIn && \(/);
-    expect(chooser).toMatch(/<Link to=\{`\/classes\/\$\{chosenClass\.class_id\}`\}>/);
+    expect(chooser).toMatch(/if \(o\.type === "drop_in"\) \{ setDropIn\(o\); return; \}/);
+    expect(chooser).toMatch(/<DropInDialog/);
   });
 
   it("'Or pay her another way' is gone from every pass", () => {
