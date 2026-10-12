@@ -119,6 +119,13 @@ Deno.serve(async (req) => {
       // just filled, still honour the paid booking (staff can reconcile) but note it.
       const qty = Math.max(1, Math.min(Number(t.quantity ?? 1), 10));
       const perSpot = Math.round((Number(rec.amount) / qty) * 100) / 100;
+      // Orders that carry the price per spot and the discount (local discount
+      // or a coupon — once, on the booker's spot) show exactly that per row.
+      const unit = Number(t.unit_price);
+      const disc = Number(t.discount) || 0;
+      const exact = Number.isFinite(unit) && unit > 0
+        && Math.abs(unit * qty - disc - Number(rec.amount)) <= 0.01;
+      const priceOf = (i: number) => (exact ? Math.max(0, Math.round((unit - (i === 0 ? disc : 0)) * 100) / 100) : perSpot);
       const names: string[] = Array.isArray(t.participant_names) ? t.participant_names : [];
       // Group the spots of this one payment so the email lists everyone.
       const groupId = qty > 1 ? crypto.randomUUID() : null;
@@ -140,7 +147,11 @@ Deno.serve(async (req) => {
           guest_name: (names[i] || t.guest_name || "").trim() || t.guest_name,
           guest_email: t.guest_email, guest_phone: t.guest_phone || null,
           status: "confirmed", payment_status: "paid", payment_method: "paypal",
-          coupon_code: i === 0 ? (t.coupon_code || null) : null, total_price: perSpot,
+          coupon_code: i === 0 ? (t.coupon_code || null) : null, total_price: priceOf(i),
+          ...(exact && i === 0 && disc > 0 ? { discount_amount: disc } : {}),
+          // The booker's ID (and whether the teacher's local discount applied).
+          ...(i === 0 && t.id_document ? { id_document: t.id_document, id_document_type: t.id_document_type ?? null } : {}),
+          ...(i === 0 && t.local_discount ? { local_discount: true } : {}),
         });
         if (insErr) { if (!spotOverbooked) await admin.rpc("increment_class_spot", { _schedule_id: t.schedule_id }); throw insErr; }
         bookingIds.push(bookingId);
@@ -181,8 +192,11 @@ Deno.serve(async (req) => {
         status: "active", source: "purchase", payment_id: capId,
         code: await uniqueCode(admin), access_token: randomToken(),
         guest_name: t.guest_name || null, guest_email: email || null, guest_phone: t.guest_phone || null,
+        ...(t.id_document ? { id_document: t.id_document, id_document_type: t.id_document_type ?? null } : {}),
+        ...(t.local_discount ? { local_discount: true } : {}),
         // Paid to her own PayPal only when the order had her as payee; otherwise to Holis.
-        notes: rec.payee_email ? `Paid online by PayPal to ${teacherName}` : `Paid online by PayPal to Holis — ${teacherName}'s pass`,
+        notes: (rec.payee_email ? `Paid online by PayPal to ${teacherName}` : `Paid online by PayPal to Holis — ${teacherName}'s pass`)
+          + (t.local_discount ? " — local discount (Costa Rican cédula)" : t.coupon_code ? ` — coupon ${t.coupon_code}` : ""),
       }).select("id").single();
       if (uoErr) throw uoErr;
 

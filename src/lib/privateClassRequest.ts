@@ -123,6 +123,11 @@ export function privateClassIntake(input: {
   preferred: string;
   /** Where it happens; the address only for the guest's own place. */
   location?: { place: "studio" | "client" | "beach"; label: string; address: string | null } | null;
+  /** The guest's ID — a Costa Rican cédula gets the teacher's local discount
+   *  (priced again on the server, like everything about money). */
+  idDocument?: { type: "cr_cedula" | "other" | null; number: string } | null;
+  /** One of the teacher's coupons, as typed (checked on the server). */
+  coupon?: string | null;
 }) {
   return {
     private_class: {
@@ -137,6 +142,9 @@ export function privateClassIntake(input: {
       location: input.location?.place ?? null,
       location_label: input.location?.label ?? null,
       location_address: input.location?.place === "client" ? (input.location.address?.trim() || null) : null,
+      id_document: input.idDocument?.number.trim().slice(0, 30) || null,
+      id_document_type: input.idDocument?.type ?? null,
+      coupon_code: (input.coupon || "").trim().toUpperCase().slice(0, 64) || null,
     },
   };
 }

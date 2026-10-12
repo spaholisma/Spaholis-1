@@ -7,7 +7,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { TeacherPassCheckout } from "@/components/payments/TeacherPassCheckout";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { EVENT_CATEGORIES } from "@/hooks/useClasses";
@@ -20,7 +20,6 @@ import {
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -362,6 +361,7 @@ function HerPassCard({
   const first = teacher.display_name.split(/\s+/)[0];
   const [stage, setStage] = useState<"info" | "pay" | "sent" | "paid">("info");
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [paidEmail, setPaidEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const ref = useRef<HTMLElement>(null);
   // Phones: her card opens under the pass — bring it into view.
@@ -381,7 +381,6 @@ function HerPassCard({
   // Bought online: to her PayPal when she takes it (teacher payouts on), else to Holis (for now).
   const canBuyOnline = price != null && price > 0;
   const paysTeacher = !!herPass.teacher_accepts_paypal;
-  const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   const send = async () => {
     if (!form.name.trim()) { toast.error("Tell her your name"); return; }
@@ -521,40 +520,35 @@ function HerPassCard({
               className="overflow-hidden"
             >
               <div className="space-y-4 pt-5">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Input placeholder="Your name *" value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })} className="sm:col-span-2" />
-                  <Input type="email" placeholder={canBuyOnline ? "Email *" : "Email"} value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                  <Input placeholder="Phone (optional)" value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                </div>
-
-                {canBuyOnline && (
+                {canBuyOnline && price != null && (
                   <div className="rounded-2xl border border-spa-sage/40 p-4 space-y-2">
                     <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {paysTeacher ? `Pay ${first} online` : "Pay online"}
                     </p>
-                    <PayPalCheckout
-                      disabled={!contactReady}
-                      createOrderBody={() => contactReady
-                        ? {
-                            kind: "teacher_pass", membership_id: herPass.membership_id,
-                            guest_name: form.name.trim(), guest_email: form.email.trim(),
-                            guest_phone: form.phone.trim() || null,
-                          }
-                        : null}
-                      onSuccess={() => setStage("paid")}
+                    <TeacherPassCheckout
+                      teacherName={teacher.display_name}
+                      membershipId={herPass.membership_id}
+                      price={price}
+                      paysTeacher={paysTeacher}
+                      idPrefix={`studio-${herPass.membership_id}`}
+                      onPaid={(email) => { setPaidEmail(email); setStage("paid"); }}
                     />
-                    <p className="font-body text-[11px] text-muted-foreground">
-                      {paysTeacher ? `With PayPal or a card, straight to ${first}'s PayPal.` : "With PayPal or a card, paid to Holis Wellness Center."} Your pass code and booking link arrive by email right away.
-                    </p>
                   </div>
                 )}
 
+                {/* No online price yet: how she is paid, and let her know you are coming. */}
+                {!canBuyOnline && (
                 <div className="rounded-2xl border border-border p-4">
+                  <div className="grid gap-2 sm:grid-cols-2 mb-3">
+                    <Input placeholder="Your name *" value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })} className="sm:col-span-2" />
+                    <Input type="email" placeholder="Email" value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    <Input placeholder="Phone (optional)" value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  </div>
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {canBuyOnline ? `Or pay ${first} another way` : `How to pay ${first}`}
+                    How to pay {first}
                   </p>
                   {payInfo && <p className="font-body text-sm text-foreground whitespace-pre-line">{payInfo}</p>}
                   {payLink && (
@@ -577,6 +571,7 @@ function HerPassCard({
                     Nothing is charged here. She gets your name and gives you the pass when you pay her.
                   </p>
                 </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -598,7 +593,7 @@ function HerPassCard({
               {stage === "paid" ? (
                 <p className="spa-body">
                   Paid — your <strong>{pass.name}</strong> with <strong>{teacher.display_name}</strong> is ready.
-                  We emailed your pass code to <strong>{form.email.trim()}</strong>.
+                  We emailed your pass code to <strong>{paidEmail}</strong>.
                 </p>
               ) : (
                 <p className="spa-body">

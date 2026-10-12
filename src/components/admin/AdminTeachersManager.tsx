@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { clampPct } from "@/lib/localDiscount";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction, extractInvokeErrorMessage } from "@/lib/invokeEdgeFunction";
 import { AddTeacherCard } from "@/components/admin/AddTeacherCard";
@@ -37,7 +38,10 @@ interface Teacher {
   cash_enabled?: boolean | null;
   /** May she change her PayPal / CompraClick / instructions in her panel? */
   manages_payments?: boolean | null;
+  /** Her local discount (%) for students with a Costa Rican cédula — set by the team. */
+  local_discount_pct?: number | null;
 }
+
 interface Session {
   id: string; start_time: string; is_cancelled: boolean; instructor: string | null;
   classes: { title: string | null; instructor: string | null } | null;
@@ -489,6 +493,25 @@ export function AdminTeachersManager() {
                         <Input type="number" defaultValue={r.teacher.studio_rate} className="h-8 w-28"
                           onBlur={(e) => Number(e.target.value) !== Number(r.teacher.studio_rate)
                             && patchTeacher(r.teacher.id, { studio_rate: Math.max(0, Number(e.target.value) || 0) })} />
+
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
+                          Local discount (Costa Rican cédula)
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" min={0} max={100} step={1}
+                            aria-label={`Local discount for ${r.teacher.display_name} (%)`}
+                            defaultValue={Number(r.teacher.local_discount_pct ?? 0)} className="h-8 w-20"
+                            onBlur={(e) => {
+                              const v = clampPct(e.target.value);
+                              e.target.value = String(v);
+                              if (v !== Number(r.teacher.local_discount_pct ?? 0)) patchTeacher(r.teacher.id, { local_discount_pct: v });
+                            }} />
+                          <span className="text-xs text-muted-foreground">% off</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground -mt-1">
+                          Students with a Costa Rican cédula pay this much less for her passes, her classes and events paid
+                          online, and her private classes. 0 = no local discount. Her coupons do not add to it.
+                        </p>
 
                         <TeacherChoicesEditor
                           teacherName={r.teacher.display_name}

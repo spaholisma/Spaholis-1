@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { PhoneField } from "@/components/booking/PhoneField";
+import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField";
+import { IdDocumentField } from "@/components/payments/IdDocumentField";
+import { useAccountDetails } from "@/hooks/useAccountDetails";
+import {
+  EMPTY_ID_DOCUMENT, couponLabel, isIdDocumentValid, localApplies, localDiscountAmount,
+  localPctFor, quoteTeacherPrice, useLocalDiscounts, type IdDocument,
+} from "@/lib/localDiscount";
 import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as contentDefaults } from "@/data/content";
@@ -68,6 +74,55 @@ export const ConsultationForm = () => {
   // Private Sessions, anything else to the treatments.
   const leaveFlow = useLeaveFlow(/private class/i.test(topic) ? "/private-sessions" : "/treatments-therapies");
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  // A private class: the guest's ID (a Costa Rican cédula gets the teacher's
+  // local discount) and, optionally, one of her coupons — never both.
+  const [idDoc, setIdDoc] = useState<IdDocument>(EMPTY_ID_DOCUMENT);
+  const [couponCode, setCouponCode] = useState("");
+  const [coupon, setCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
+  const { data: localDiscounts } = useLocalDiscounts();
+  const teacherName = classChoice?.teacherName || "";
+  const teacherFirst = teacherName ? teacherName.split(/\s+/)[0] : "";
+  const localPct = privateKind ? localPctFor(localDiscounts, teacherName) : 0;
+  const isLocal = localApplies(idDoc, localPct);
+  const privateDiscount = privatePrice == null ? 0
+    : isLocal ? localDiscountAmount(privatePrice, localPct) : coupon?.discount ?? 0;
+  const privateTotal = privatePrice == null ? null : Math.max(0, Math.round((privatePrice - privateDiscount) * 100) / 100);
+  // Another class, teacher or group size: a coupon checked for the old price no longer holds.
+  useEffect(() => { setCoupon(null); }, [classChoice?.offering?.id, teacherName, people]);
+  useEffect(() => { if (isLocal && coupon) setCoupon(null); }, [isLocal, coupon]);
+
+  // Signed in: fill in what the account knows, without overwriting anything typed.
+  const account = useAccountDetails();
+  useEffect(() => {
+    if (!account) return;
+    setForm((f) => ({
+      name: f.name || account.name,
+      email: f.email || account.email,
+      phone: f.phone || account.phone,
+    }));
+    setIdDoc((d) => (d.type || d.number ? d : { type: account.idDocumentType, number: account.idDocument }));
+  }, [account]);
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim();
+    if (!code || !teacherName || privatePrice == null) return;
+    setCheckingCoupon(true);
+    const q = await quoteTeacherPrice(teacherName, privatePrice, idDoc, code);
+    setCheckingCoupon(false);
+    if (!q) { toast.error(t("idDocument.couponCheckFailed", { defaultValue: "Could not check the coupon — please try again." })); return; }
+    if (q.coupon_status === "ignored_local") {
+      toast.info(t("idDocument.couponLocal", { defaultValue: "Your local discount already applies — coupons don't add to it." }));
+      return;
+    }
+    if (q.coupon_status !== "applied" || !q.coupon) {
+      toast.error(t("idDocument.couponNotHers", { name: teacherFirst, defaultValue: "That is not one of {{name}}'s coupons." }));
+      return;
+    }
+    const label = couponLabel(q);
+    setCoupon({ code: q.coupon, discount: q.discount, label });
+    toast.success(t("idDocument.couponApplied", { code: q.coupon, label, defaultValue: "{{code}} applied — {{label}}" }));
+  };
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
   const [pref, setPref] = useState({ date: "", time: "" });
@@ -107,6 +162,12 @@ export const ConsultationForm = () => {
       return;
     }
 
+    // A private class: phone and ID are required too (the coupon is not).
+    if (privateKind && (!form.phone || !isValidPhoneNumber(form.phone) || !isIdDocumentValid(idDoc))) {
+      toast.error(t("idDocument.missingRequired", { defaultValue: "Please fill in your name, email, phone and ID." }));
+      return;
+    }
+
     if (privateKind && where === "client" && address.trim().length < 3) {
       toast.error(t("consultation.locationAddressMissing", { defaultValue: "Please tell us the address, hotel or villa for your class." }));
       return;
@@ -139,10 +200,15 @@ export const ConsultationForm = () => {
           booking_date: new Date().toISOString().split("T")[0],
           booking_time: "00:00",
           status: "pending",
-          notes: `${topic}${classPart} — Location: ${locationLine(where, address)}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`,
+          notes: `${topic}${classPart} — Location: ${locationLine(where, address)}${prettyPref ? ` — Preferred: ${prettyPref}` : ""}`
+            + ` — ID: ${idDoc.type === "cr_cedula" ? "Costa Rican cédula" : "passport / other"} ${idDoc.number.trim()}`
+            + (!isLocal && couponCode.trim() ? ` — Coupon: ${couponCode.trim().toUpperCase()}` : ""),
           intake_form: privateClassIntake({
             kind: privateKind, kindTitle, people, choice: classChoice, preferred: prettyPref,
             location: { place: where, label: LOCATION_LABEL[where], address: where === "client" ? address.trim().slice(0, 300) : null },
+            idDocument: idDoc,
+            // The local discount wins; then a coupon does not count.
+            coupon: isLocal ? null : couponCode,
           }) as any,
         });
         if (error) throw error;
@@ -277,8 +343,20 @@ export const ConsultationForm = () => {
                         : t("consultation.privatePeople", { count: people, defaultValue: "{{count}} people" })}
                     </p>
                   </div>
-                  {privatePrice != null ? (
-                    <p className="shrink-0 font-heading text-xl font-semibold">{formatCRCWithUsd(privatePrice * USD_RATE)}</p>
+                  {privatePrice != null && privateTotal != null ? (
+                    <div className="shrink-0 text-right">
+                      {privateDiscount > 0 && (
+                        <p className="font-body text-xs text-background/60 line-through">{formatCRCWithUsd(privatePrice * USD_RATE)}</p>
+                      )}
+                      <p className="font-heading text-xl font-semibold">{formatCRCWithUsd(privateTotal * USD_RATE)}</p>
+                      {privateDiscount > 0 && (
+                        <p className="font-body text-[11px] text-background/70">
+                          {isLocal
+                            ? t("idDocument.localLine", { pct: localPct, defaultValue: "Local discount ({{pct}}%)" })
+                            : t("idDocument.couponLine", { code: coupon?.code, defaultValue: "Coupon ({{code}})" })}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <p className="shrink-0 max-w-[9rem] text-right font-body text-xs text-background/70">
                       {classChoice?.teacherName
@@ -339,15 +417,66 @@ export const ConsultationForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="phone" className="font-body text-sm">
-                  {t("consultation.phone")} <span className="text-muted-foreground">{t("consultation.phoneRecommended")}</span>
+                  {t("consultation.phone")}{" "}
+                  {privateKind ? "*" : <span className="text-muted-foreground">{t("consultation.phoneRecommended")}</span>}
                 </Label>
                 <PhoneField
                   id="phone"
                   placeholder={t("consultation.phonePlaceholder")}
                   value={form.phone}
                   onChange={(v) => setForm({ ...form, phone: v })}
+                  invalid={!!privateKind && !!form.phone && !isValidPhoneNumber(form.phone)}
                 />
               </div>
+
+              {privateKind && (
+                <IdDocumentField
+                  value={idDoc}
+                  onChange={setIdDoc}
+                  localPct={localPct}
+                  teacherFirst={teacherFirst || null}
+                  idPrefix="private-id"
+                />
+              )}
+
+              {/* One of her coupons — optional, and never on top of the local discount. */}
+              {privateKind && !isLocal && (
+                <div className="space-y-1">
+                  <Label htmlFor="private-coupon" className="font-body text-sm">
+                    {teacherFirst
+                      ? t("idDocument.couponLabel", { name: teacherFirst, defaultValue: "Have a coupon from {{name}}? (optional)" })
+                      : t("idDocument.couponLabelGeneric", { defaultValue: "Have a coupon? (optional)" })}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="private-coupon"
+                      placeholder={t("idDocument.couponPlaceholder", { defaultValue: "Coupon code" })}
+                      value={couponCode}
+                      disabled={!!coupon}
+                      maxLength={64}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    />
+                    {coupon ? (
+                      <Button type="button" variant="ghost" onClick={() => { setCoupon(null); setCouponCode(""); }}>
+                        {t("idDocument.remove", { defaultValue: "Remove" })}
+                      </Button>
+                    ) : teacherName && privatePrice != null ? (
+                      <Button type="button" variant="outline" disabled={!couponCode.trim() || checkingCoupon} onClick={applyCoupon}>
+                        {t("idDocument.apply", { defaultValue: "Apply" })}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {coupon ? (
+                    <p className="font-body text-xs text-spa-sage">
+                      {t("idDocument.couponApplied", { code: coupon.code, label: coupon.label, defaultValue: "{{code}} applied — {{label}}" })}
+                    </p>
+                  ) : couponCode.trim() && teacherName && privatePrice == null ? (
+                    <p className="font-body text-xs text-muted-foreground">
+                      {t("idDocument.couponChecked", { name: teacherFirst, defaultValue: "{{name}} will see your coupon with the request." })}
+                    </p>
+                  ) : null}
+                </div>
+              )}
 
               {!isRequest && (
               <div className="space-y-3">

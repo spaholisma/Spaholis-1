@@ -87,7 +87,10 @@ describe("paypal-create-order", () => {
     const branch = fn.slice(fn.indexOf('} else if (body.kind === "teacher_pass") {'), fn.indexOf("} else {", fn.indexOf('} else if (body.kind === "teacher_pass") {')));
     expect(branch).toMatch(/from\("teacher_memberships"\)/);
     expect(branch).toMatch(/!\(m as any\)\.is_active \|\| !teacher\?\.active/);
-    expect(branch).toMatch(/amount = Math\.round\(Number\(\(m as any\)\.price/);
+    // Her price, then her local discount or one of her coupons — from the database.
+    expect(branch).toMatch(/const listPrice = Math\.round\(Number\(\(m as any\)\.price/);
+    expect(branch).toMatch(/await teacherPrice\(admin, teacher\.id, listPrice, body, wanted\)/);
+    expect(branch).toMatch(/amount = Math\.max\(0, Math\.round\(\(listPrice - discount\) \* 100\) \/ 100\)/);
     expect(branch).toMatch(/reason: "missing_contact"/);
   });
 
@@ -134,7 +137,7 @@ describe("the pages", () => {
     expect(page).toMatch(/const payRoute = onlinePayRoute\(payee, teacherList\);/);
     expect(page).toMatch(/\{canPayOnline && \(\s*<PayOption/);
     expect(page).toMatch(/pay_teacher: payRoute === "teacher"/);
-    expect(page).toMatch(/coupon_code: payRoute === "teacher" \? null :/);
+    expect(page).toMatch(/: payRoute === "teacher" && !appliedCoupon\?\.teacher \? null/);
     // "Pay cash in person" is her switch; with it off, cash is not offered.
     expect(page).toMatch(/const canPayCash = cashAccepted\(payee, teacherList\);/);
     expect(page).toMatch(/\{canPayCash && \(\s*<PayOption/);
@@ -142,11 +145,12 @@ describe("the pages", () => {
   });
 
   it("a teacher's pass can be bought online from the pass chooser and the class page", () => {
-    for (const f of ["src/components/PassChooser.tsx", "src/components/PassRequestDialog.tsx"]) {
-      const src = read(f);
-      expect(src, f).toMatch(/kind: "teacher_pass"/);
-      expect(src, f).toMatch(/<PayPalCheckout/);
+    for (const f of ["src/components/PassChooser.tsx", "src/components/PassRequestDialog.tsx", "src/components/TeacherPassStudio.tsx"]) {
+      expect(read(f), f).toMatch(/<TeacherPassCheckout/);
     }
+    const checkout = read("src/components/payments/TeacherPassCheckout.tsx");
+    expect(checkout).toMatch(/kind: "teacher_pass"/);
+    expect(checkout).toMatch(/<PayPalCheckout/);
   });
 
   it("the teacher sets her PayPal in her panel; the admin can see and set it too", () => {

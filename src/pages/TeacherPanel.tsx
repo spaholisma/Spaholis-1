@@ -166,7 +166,7 @@ export default function TeacherPanel() {
   const [savingStudent, setSavingStudent] = useState(false);
   // Student categories, shared with Class Finances so Holis edits them once.
   const [clientTypes, setClientTypes] = useState<string[]>([]);
-  // Her own coupons — a record of the price she agreed with a student.
+  // Her own coupons — her students type them when they pay online.
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [newCoupon, setNewCoupon] = useState({ code: "", description: "", type: "percentage", value: "" });
@@ -693,12 +693,13 @@ export default function TeacherPanel() {
                       <Ticket className="h-4 w-4" /> Your coupons
                     </h3>
                     <p className="font-body text-xs text-muted-foreground mb-3">
-                      A record of a price you agreed with a student — you apply it when they pay you.
-                      These never change what Holis charges, and they are yours alone.
+                      Give a code to your students: they type it when they buy one of your passes, book your
+                      classes or events online, or ask for a private class, and the discount comes off there.
+                      A coupon does not add to the local discount (Costa Rican cédula) — when that applies, the coupon does not count.
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 mb-3">
-                      <Input placeholder="CODE (e.g. LOCAL20)" value={newCoupon.code}
+                      <Input placeholder="CODE (e.g. FRIEND10)" value={newCoupon.code}
                         onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} className="h-9" />
                       <select value={newCoupon.type}
                         onChange={(e) => setNewCoupon({ ...newCoupon, type: e.target.value })}

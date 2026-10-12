@@ -10,6 +10,10 @@
 // every teacher's pass, can be paid to HER PayPal account (`payee`). That is
 // switched off for now (TEACHER_PAYOUTS_ENABLED): every class and every
 // teacher's pass is paid to Holis, as a class always was without `pay_teacher`.
+//
+// A teacher's price (her classes and events, her passes): her local discount
+// for a Costa Rican cédula, or else one of her own coupons — never both —
+// worked out by teacher_price() in the database.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@3.25.76";
 
@@ -55,6 +59,29 @@ const Body = z.object({
   quantity: z.number().int().min(1).max(10).optional(),
   // One name per spot (booker first), so each spot books a named participant.
   participant_names: z.array(z.string().trim().max(120)).max(10).optional(),
+  // The student's ID. Only a Costa Rican cédula can take a local discount.
+  id_document: z.string().trim().max(40).optional().nullable(),
+  id_document_type: z.enum(["cr_cedula", "other"]).optional().nullable(),
+});
+
+/** Her price for this student: local discount, else her coupon, else as it is.
+ *  Null when it could not be worked out (then nothing is discounted). */
+async function teacherPrice(admin: any, teacherId: string, base: number, body: z.infer<typeof Body>, coupon: string | null) {
+  const cedula = body.id_document_type === "cr_cedula" ? (body.id_document || "").trim() || null : null;
+  const { data, error } = await admin.rpc("teacher_price", {
+    _teacher_id: teacherId, _base: base, _id_document: cedula, _coupon: coupon,
+  });
+  if (error || !data) {
+    console.error("[paypal-create-order] teacher_price failed", error?.message);
+    return null;
+  }
+  return data as { price: number; discount: number; local: boolean; local_pct: number; coupon: string | null; coupon_status: string | null };
+}
+
+/** What is kept of the student's ID with the order. */
+const idOf = (body: z.infer<typeof Body>) => ({
+  id_document: (body.id_document || "").trim() || null,
+  id_document_type: (body.id_document || "").trim() ? (body.id_document_type ?? null) : null,
 });
 
 async function couponDiscount(admin: any, code: string | null | undefined, base: number, classId?: string) {
@@ -117,7 +144,7 @@ Deno.serve(async (req) => {
       if (!body.schedule_id) return json({ ok: false, reason: "missing_schedule" }, 400);
       const { data: sched } = await admin
         .from("class_schedule")
-        .select("id, start_time, spots_remaining, class_id, instructor, classes(id, title, price, requires_payment, is_active, instructor)")
+        .select("id, start_time, spots_remaining, class_id, instructor, classes(id, title, price, requires_payment, is_active, instructor, full_price_only)")
         .eq("id", body.schedule_id).maybeSingle();
       const cls: any = (sched as any)?.classes;
       if (!sched || !cls || cls.is_active === false) return json({ ok: false, reason: "class_unavailable" }, 404);
@@ -147,13 +174,36 @@ Deno.serve(async (req) => {
         }
         payee = { teacherId: teacher.id, email };
       }
-      // Coupon applies once to the whole order (not per spot).
-      const discount = await couponDiscount(admin, body.coupon_code, base, String(cls.id));
+      // A discount applies once to the whole order (one spot — the booker's).
+      // First the teacher's own price: her local discount (Costa Rican cédula),
+      // or one of her coupons. A class always paid in full takes no coupon,
+      // but the local discount still applies to it.
+      const wanted = (body.coupon_code || "").trim().toUpperCase() || null;
+      let discount = 0;
+      let local = false;
+      let couponUsed: string | null = wanted;
+      let teacherCoupon = false;
+      const classTeacher = await sessionTeacher(admin, (sched as any).instructor, cls.instructor);
+      if (classTeacher) {
+        const q = await teacherPrice(admin, classTeacher.id, base, body, cls.full_price_only ? null : wanted);
+        if (q?.local) {
+          discount = Number(q.discount) || 0; local = true; couponUsed = null;
+        } else if (q?.coupon_status === "applied") {
+          discount = Number(q.discount) || 0; couponUsed = q.coupon; teacherCoupon = true;
+        }
+      }
+      // Otherwise a Holis coupon, as before.
+      if (!local && !teacherCoupon) discount = await couponDiscount(admin, wanted, base, String(cls.id));
       amount = Math.max(0, Math.round((base * qty - discount) * 100) / 100);
       if (amount <= 0) return json({ ok: false, reason: "class_is_free" }, 400);
       description = qty > 1 ? `Class: ${cls.title} (${qty} spots)` : `Class: ${cls.title}`;
+      if (local) description += " — local price";
       const names = (body.participant_names || []).map((n) => (n || "").trim()).slice(0, qty);
-      target = { schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone, coupon_code: (body.coupon_code || "").trim().toUpperCase() || null, quantity: qty, participant_names: names };
+      target = {
+        schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone,
+        coupon_code: couponUsed, quantity: qty, participant_names: names,
+        unit_price: base, discount, local_discount: local, ...idOf(body),
+      };
     } else if (body.kind === "teacher_pass") {
       if (!body.membership_id) return json({ ok: false, reason: "missing_membership" }, 400);
       if (!(body.guest_name || "").trim() || !(body.guest_email || "").trim()) {
@@ -167,14 +217,29 @@ Deno.serve(async (req) => {
       // Paid to her PayPal while payouts are on; to Holis for now.
       const email = paypalOf(teacher);
       if (TEACHER_PAYOUTS_ENABLED && !email) return json({ ok: false, reason: "teacher_no_paypal", message: "This teacher does not take PayPal yet." }, 409);
-      amount = Math.round(Number((m as any).price ?? 0) * 100) / 100;
-      if (amount <= 0) return json({ ok: false, reason: "invalid_amount" }, 400);
-      description = `${(m as any).name} — with ${teacher.display_name}`;
+      const listPrice = Math.round(Number((m as any).price ?? 0) * 100) / 100;
+      if (listPrice <= 0) return json({ ok: false, reason: "invalid_amount" }, 400);
+      // Her price for this student: local discount, else one of her coupons.
+      const wanted = (body.coupon_code || "").trim().toUpperCase() || null;
+      const q = await teacherPrice(admin, teacher.id, listPrice, body, wanted);
+      if (wanted && q && !q.local && q.coupon_status !== "applied") {
+        return json({ ok: false, reason: "invalid_coupon", message: `That is not one of ${teacher.display_name}'s coupons.` }, 400);
+      }
+      const local = !!q?.local;
+      const discount = q ? Number(q.discount) || 0 : 0;
+      amount = Math.max(0, Math.round((listPrice - discount) * 100) / 100);
+      if (amount <= 0) {
+        return json({ ok: false, reason: "free_with_coupon", message: `That coupon makes the pass free — ${teacher.display_name} can give it to you directly.` }, 400);
+      }
+      description = `${(m as any).name} — with ${teacher.display_name}${local ? " — local price" : ""}`;
       payee = email ? { teacherId: teacher.id, email } : null;
       target = {
         membership_id: body.membership_id, teacher_id: teacher.id,
         guest_name: (body.guest_name || "").trim(), guest_email: (body.guest_email || "").trim().toLowerCase(),
         guest_phone: (body.guest_phone || "").trim() || null, user_id: body.user_id ?? null,
+        list_price: listPrice, discount, local_discount: local,
+        coupon_code: local ? null : (q?.coupon_status === "applied" ? q.coupon : null),
+        ...idOf(body),
       };
     } else {
       if (!body.offering_id) return json({ ok: false, reason: "missing_offering" }, 400);

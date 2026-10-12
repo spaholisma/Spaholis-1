@@ -5,11 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Ticket, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { TeacherPassCheckout } from "@/components/payments/TeacherPassCheckout";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 
 const sb = supabase as any;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -30,11 +29,12 @@ export interface PassPick {
 }
 
 /**
- * Asking a teacher for one of her passes.
+ * One of a teacher's passes.
  *
- * No money changes hands here — Holis does not take it. The student sees her
- * price and how to pay her, leaves a name, and the request lands in her panel
- * so she knows who to expect and can hand over the pass when they pay.
+ * With a price, it is bought right here online (TeacherPassCheckout: name,
+ * email, phone, ID, her coupon — and her local discount with a Costa Rican
+ * cédula). Without one, the student sees how to pay her and leaves a name,
+ * and the request lands in her panel so she knows who to expect.
  */
 export function PassRequestDialog({
   pick, onOpenChange,
@@ -46,9 +46,10 @@ export function PassRequestDialog({
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [paidEmail, setPaidEmail] = useState("");
 
   useEffect(() => {
-    if (pick) { setForm({ name: "", email: "", phone: "" }); setDone(false); setPaid(false); }
+    if (pick) { setForm({ name: "", email: "", phone: "" }); setDone(false); setPaid(false); setPaidEmail(""); }
   }, [pick]);
 
   if (!pick) return null;
@@ -57,7 +58,6 @@ export function PassRequestDialog({
   // her PayPal when she takes it (teacher payouts on), else to Holis (for now).
   const canBuyOnline = !!(pick.membershipId && Number(pick.price) > 0);
   const paysTeacher = !!pick.acceptsPaypal;
-  const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
 
   const send = async () => {
     if (!form.name.trim()) { toast.error("Please tell her your name"); return; }
@@ -97,7 +97,7 @@ export function PassRequestDialog({
               Paid — your <strong>{pick.membershipName}</strong> with <strong>{pick.teacherName}</strong> is ready.
             </p>
             <p className="spa-body-sm">
-              We emailed your pass code and booking link to <strong>{form.email.trim()}</strong>.
+              We emailed your pass code and booking link to <strong>{paidEmail}</strong>.
             </p>
             <Button className="rounded-full" onClick={() => onOpenChange(false)}>Close</Button>
           </div>
@@ -141,42 +141,28 @@ export function PassRequestDialog({
               )}
             </div>
 
-            {canBuyOnline && (
+            {canBuyOnline && pick.membershipId && (
               <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {paysTeacher ? `Pay ${first} online` : "Pay online"}
                 </p>
-                <Input placeholder="Your name *" value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Input type="email" placeholder="Email *" value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                  <Input placeholder="Phone (optional)" value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                </div>
-                <PayPalCheckout
-                  disabled={!contactReady}
-                  createOrderBody={() => contactReady
-                    ? {
-                        kind: "teacher_pass", membership_id: pick.membershipId,
-                        guest_name: form.name.trim(), guest_email: form.email.trim(),
-                        guest_phone: form.phone.trim() || null,
-                      }
-                    : null}
-                  onSuccess={() => setPaid(true)}
+                <TeacherPassCheckout
+                  teacherName={pick.teacherName}
+                  membershipId={pick.membershipId}
+                  price={Number(pick.price)}
+                  paysTeacher={paysTeacher}
+                  idPrefix="pass-dialog"
+                  onPaid={(email) => { setPaidEmail(email); setPaid(true); }}
                 />
-                <p className="font-body text-[11px] text-muted-foreground">
-                  {paysTeacher
-                    ? <>With PayPal or a card. The payment goes straight to {first}'s PayPal — Holis does not take it. </>
-                    : <>With PayPal or a card, paid to Holis Wellness Center. </>}
-                  Your pass code and booking link arrive by email right away.
-                </p>
               </div>
             )}
 
+            {/* No online price yet: how she is paid, and let her know you are coming. */}
+            {!canBuyOnline && (
+            <>
             <div className="rounded-xl border border-border p-4">
               <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                {canBuyOnline ? `Or pay ${first} another way` : `How to pay ${first}`}
+                How to pay {first}
               </p>
               {pick.paymentNote && (
                 <p className="font-body text-sm text-foreground whitespace-pre-line">{pick.paymentNote}</p>
@@ -221,6 +207,8 @@ export function PassRequestDialog({
                 Nothing is charged here. She gives you the pass when you pay her.
               </p>
             </div>
+            </>
+            )}
           </div>
         )}
       </DialogContent>

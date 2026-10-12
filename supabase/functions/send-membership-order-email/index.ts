@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
   const { data: o, error } = await supabase
     .from("user_offerings")
-    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, guest_phone, user_id, source, teacher_id")
+    .select("id, offering_id, type, name_snapshot, code, access_token, is_unlimited, credits_remaining, expires_at, guest_name, guest_email, guest_phone, user_id, source, teacher_id, price_paid, id_document, id_document_type, local_discount")
     .eq("id", userOfferingId)
     .maybeSingle();
 
@@ -262,13 +262,21 @@ Deno.serve(async (req) => {
       paidToTeacher = !!(po as any)?.payee_teacher_id;
     }
   }
+  // The student's ID — the teacher may check a Costa Rican cédula in class —
+  // and whether her local discount was taken off.
+  const idLine = (o as any).id_document
+    ? `<p><strong>ID:</strong> ${(o as any).id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc((o as any).id_document)}</p>`
+    : "";
+  const localLine = (o as any).local_discount
+    ? `<p><strong>Local discount:</strong> applied for a Costa Rican cédula — paid ${Number((o as any).price_paid ?? 0).toFixed(2)}. Please check the cédula in class.</p>`
+    : "";
   const orderLines = (isOrder
     ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
     : "") + (teacher && isOnlinePurchase
     ? (paidToTeacher
       ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
       : `<p><strong>Paid to:</strong> Holis (PayPal) — ${esc(teacher.display_name)}'s pass.</p>`)
-    : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "");
+    : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "") + idLine + localLine;
   const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
   let adminSubj: string;
   let adminHtml: string;
@@ -321,6 +329,8 @@ Deno.serve(async (req) => {
         <p style="margin:0;"><strong>Student:</strong> ${esc(who)} &lt;${esc(to)}&gt;${(o as any).guest_phone ? ` · ${esc((o as any).guest_phone)}` : ""}</p>
         <p style="margin:0;"><strong>Pass:</strong> ${esc(o.name_snapshot)}</p>
         ${o.code ? `<p style="margin:0;"><strong>Code:</strong> ${esc(o.code)}</p>` : ""}
+        ${(o as any).id_document ? `<p style="margin:0;"><strong>ID:</strong> ${(o as any).id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc((o as any).id_document)}</p>` : ""}
+        ${(o as any).local_discount ? `<p style="margin:0;"><strong>Local discount:</strong> applied — paid ${Number((o as any).price_paid ?? 0).toFixed(2)}. You may ask to see the cédula in class.</p>` : ""}
       </div>
       <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You'll find them in your Teacher Panel → Members.</p>`;
     const tRes = await sendEmail(teacher.email, subj, emailShell(isOnlinePurchase ? "A pass was sold online" : "A new pass", inner));

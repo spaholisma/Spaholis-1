@@ -87,7 +87,18 @@ describe("which private classes get the picker", () => {
   it("saves 'no specific class' as the default choice", () => {
     expect(privateClassIntake({ kind: "couples", kindTitle: "Couple's Private Class", people: 2, choice: null, preferred: "" }).private_class)
       .toEqual({ kind: "couples", kind_title: "Couple's Private Class", people: 2, offering_id: null, class_id: null, class_title: null, teacher_name: null, preferred: null,
-        location: null, location_label: null, location_address: null });
+        location: null, location_label: null, location_address: null,
+        id_document: null, id_document_type: null, coupon_code: null });
+  });
+
+  it("keeps the guest's ID and the coupon as typed (both checked again on the server)", () => {
+    const pc = privateClassIntake({
+      kind: "one_on_one", kindTitle: "One-on-One", people: 1, choice: null, preferred: "",
+      idDocument: { type: "cr_cedula", number: " 1-0234-0567 " }, coupon: " friend10 ",
+    }).private_class;
+    expect(pc.id_document).toBe("1-0234-0567");
+    expect(pc.id_document_type).toBe("cr_cedula");
+    expect(pc.coupon_code).toBe("FRIEND10");
   });
 
   it("the Private Sessions page passes the kind, except for GYROTONIC", () => {

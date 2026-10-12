@@ -96,7 +96,7 @@ describe("a signed-in guest and their pass", () => {
   const sql = strip(read("supabase/migrations/20260926120000_membership_code_and_my_offerings.sql"));
 
   it("fills in the details from their account — and they can still change them", () => {
-    expect(page).toMatch(/from\("profiles"\)\.select\("full_name, email, phone"\)/);
+    expect(page).toMatch(/from\("profiles"\)\.select\("full_name, email, phone, id_document, id_document_type" as any\)/);
     expect(page).toMatch(/name: locked\.name \?\? f\.name,/);
     expect(page).toMatch(/email: locked\.email \?\? f\.email,/);
     // Editable: no read-only name or email any more.

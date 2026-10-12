@@ -11,14 +11,13 @@ import {
 } from "lucide-react";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { EVENT_CATEGORIES } from "@/hooks/useClasses";
-import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
+import { TeacherPassCheckout } from "@/components/payments/TeacherPassCheckout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -69,6 +68,7 @@ export function PassChooser({
   const [chosenClass, setChosenClass] = useState<ClassOption | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
+  const [paidEmail, setPaidEmail] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -175,7 +175,7 @@ export function PassChooser({
   // she takes it (teacher payouts on), else to Holis (for now).
   const canBuyOnline = !!(herPass && Number(herPass.price) > 0);
   const paysTeacher = !!herPass?.teacher_accepts_paypal;
-  const contactReady = !!form.name.trim() && EMAIL_RE.test(form.email.trim());
+  const isDropIn = picked?.type === "drop_in";
 
   return (
     <>
@@ -299,38 +299,40 @@ export function PassChooser({
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {paysTeacher ? `Pay ${chosenClass.teacher.split(/\s+/)[0]} online` : "Pay online"}
                   </p>
-                  <Input placeholder="Your name *" value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <Input type="email" placeholder="Email *" value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                    <Input placeholder="Phone (optional)" value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                  </div>
-                  <PayPalCheckout
-                    disabled={!contactReady}
-                    createOrderBody={() => contactReady
-                      ? {
-                          kind: "teacher_pass", membership_id: herPass.membership_id,
-                          guest_name: form.name.trim(), guest_email: form.email.trim(),
-                          guest_phone: form.phone.trim() || null,
-                        }
-                      : null}
-                    onSuccess={() => setStep("paid")}
+                  <TeacherPassCheckout
+                    teacherName={chosenClass.teacher}
+                    membershipId={herPass.membership_id}
+                    price={Number(herPass.price)}
+                    paysTeacher={paysTeacher}
+                    idPrefix="chooser"
+                    onPaid={(email) => { setPaidEmail(email); setStep("paid"); }}
                   />
-                  <p className="font-body text-[11px] text-muted-foreground">
-                    {paysTeacher
-                      ? <>With PayPal or a card. The payment goes straight to {chosenClass.teacher.split(/\s+/)[0]}'s PayPal — Holis does not take it. </>
-                      : <>With PayPal or a card, paid to Holis Wellness Center. </>}
-                    Your pass code and booking link arrive by email right away.
-                  </p>
                 </div>
               )}
 
-              {chosenClass.teacher ? (
+              {/* A drop-in is one class: it is booked and paid online on the
+                  class itself — with your ID, her local discount and coupons. */}
+              {!canBuyOnline && isDropIn && (
+                <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
+                  <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Book and pay online
+                  </p>
+                  <p className="font-body text-sm text-foreground">
+                    Pick the day of {chosenClass.title} and pay online when you book —
+                    your details and ID go on the booking form.
+                  </p>
+                  <Button className="w-full rounded-full" asChild>
+                    <Link to={`/classes/${chosenClass.class_id}`}>
+                      <CalendarDays className="h-4 w-4 mr-1.5" />Choose a day
+                    </Link>
+                  </Button>
+                </div>
+              )}
+
+              {!canBuyOnline && !isDropIn && (chosenClass.teacher ? (
                 <div className="rounded-xl border border-border p-4">
                   <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {canBuyOnline ? "Or pay" : "How to pay"} {chosenClass.teacher.split(/\s+/)[0]}{canBuyOnline ? " another way" : ""}
+                    How to pay {chosenClass.teacher.split(/\s+/)[0]}
                   </p>
                   {payInfo && (
                     <p className="font-body text-sm text-foreground whitespace-pre-line">{payInfo}</p>
@@ -359,9 +361,9 @@ export function PassChooser({
                   No teacher is named on this class yet, so there is nobody to hand the pass over.
                   Write to us on WhatsApp and we will sort it out.
                 </p>
-              )}
+              ))}
 
-              {chosenClass.teacher && (
+              {!canBuyOnline && !isDropIn && chosenClass.teacher && (
               <div className="space-y-2">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Let her know you are coming
@@ -397,7 +399,7 @@ export function PassChooser({
                 <strong>{chosenClass.teacher}</strong> is ready.
               </p>
               <p className="spa-body-sm">
-                We emailed your pass code and booking link to <strong>{form.email.trim()}</strong>.
+                We emailed your pass code and booking link to <strong>{paidEmail}</strong>.
               </p>
               <Button className="rounded-full" asChild>
                 <Link to={`/classes/${chosenClass.class_id}`}>See the class</Link>

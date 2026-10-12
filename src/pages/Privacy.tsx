@@ -24,6 +24,14 @@ export default function Privacy() {
             When you book a service or create an account we collect your name,
             email, phone number, and the health/intake information you provide.
           </p>
+          <p>
+            When you buy a teacher's pass, pay for a class or event online, or ask
+            for a private class, we also ask for your ID number — a Costa Rican
+            cédula or a passport / other ID. A Costa Rican cédula gets the
+            teacher's local discount. Your ID is kept with that booking or pass and
+            shared only with your teacher and the Holis team, who may ask to see the
+            cédula in class.
+          </p>
 
           <h2 className="font-heading text-2xl mt-8">Payment Cards</h2>
           <p>

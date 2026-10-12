@@ -32,6 +32,11 @@ import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { useLeaveFlow } from "@/hooks/useLeaveFlow";
 import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
+import { IdDocumentField } from "@/components/payments/IdDocumentField";
+import {
+  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, isIdDocumentValid, localApplies, localDiscountAmount,
+  localPctFor, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts, type IdDocument,
+} from "@/lib/localDiscount";
 
 function useScheduleEvent(scheduleId: string | null) {
   return useQuery({
@@ -80,8 +85,12 @@ const ClassBookingPage = () => {
   // True when paying with the membership behind the emailed link (no login).
   const [useLinkMembership, setUseLinkMembership] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
+  // `teacher`: one of the teacher's own coupons (teacher_coupons), not a Holis one.
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; label: string; teacher?: boolean } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  // Paying online: the student's ID — a Costa Rican cédula takes the
+  // teacher's local discount off (the server prices it again).
+  const [idDoc, setIdDoc] = useState<IdDocument>(EMPTY_ID_DOCUMENT);
   // A pass code typed in the coupon box: waiting to see whether its pass
   // covers this class.
   const [pendingPassCode, setPendingPassCode] = useState<string | null>(null);
@@ -140,6 +149,20 @@ const ClassBookingPage = () => {
     if (!canPayCash && payMethod === "cash") setPayMethod("card");
   }, [canPayCash, payMethod]);
 
+  // Her local discount with a Costa Rican cédula — paying online only (cash
+  // at the class is the normal price). It applies to one spot, the booker's,
+  // like a coupon, and a coupon never adds to it.
+  const { data: localDiscounts } = useLocalDiscounts();
+  const localPct = localPctFor(localDiscounts, payee);
+  const isLocal = localApplies(idDoc, localPct);
+  const cardDiscount = isLocal
+    ? localDiscountAmount(Number(cls?.price ?? 0), localPct)
+    : appliedCoupon?.discount ?? 0;
+  useEffect(() => {
+    if (isLocal && appliedCoupon) { setAppliedCoupon(null); setCouponCode(""); }
+  }, [isLocal, appliedCoupon]);
+  const idReady = isIdDocumentValid(idDoc);
+
   // Only offerings that are valid for THIS class
   const eligibleOfferings = classId && !fullPriceOnly
     ? filterEligibleOfferings(myOfferings, classId, eligibilityMap)
@@ -180,13 +203,18 @@ const ClassBookingPage = () => {
     let live = true;
     (async () => {
       const { data } = await supabase
-        .from("profiles").select("full_name, email, phone").eq("user_id", user.id).maybeSingle();
+        .from("profiles").select("full_name, email, phone, id_document, id_document_type" as any).eq("user_id", user.id).maybeSingle();
       if (!live) return;
       setAccount({
         name: (data as any)?.full_name || (user.user_metadata as any)?.full_name || null,
         email: (data as any)?.email || user.email || null,
         phone: (data as any)?.phone || null,
       });
+      // The ID they gave last time, so they do not type it again.
+      const docType = (data as any)?.id_document_type;
+      if ((docType === "cr_cedula" || docType === "other") && (data as any)?.id_document) {
+        setIdDoc((d) => (d.type || d.number ? d : { type: docType, number: String((data as any).id_document) }));
+      }
     })();
     return () => { live = false; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -973,9 +1001,21 @@ const ClassBookingPage = () => {
                         </p>
                       )}
 
+                      {payMethod === "card" && canPayOnline && (
+                        <div className="bg-card rounded-2xl border border-border p-4 mt-2">
+                          <IdDocumentField
+                            value={idDoc}
+                            onChange={setIdDoc}
+                            localPct={localPct}
+                            teacherFirst={payee ? payee.split(/\s+/)[0] : null}
+                            idPrefix="class-booking-id"
+                          />
+                        </div>
+                      )}
+
                       {payMethod === "card" && !fullPriceOnly && (
                         <div className="bg-card rounded-2xl border border-border p-4 mt-2 space-y-2">
-                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon or a pass code?</label>
+                          <label className="font-body text-xs font-medium text-muted-foreground">Have a coupon or a pass code? (optional)</label>
                           <div className="flex gap-2">
                             <Input
                               value={couponCode}
@@ -992,6 +1032,26 @@ const ClassBookingPage = () => {
                                 disabled={!couponCode.trim() || validatingCoupon}
                                 onClick={async () => {
                                   setValidatingCoupon(true);
+                                  // First: one of the teacher's own coupons.
+                                  if (payee) {
+                                    const q = await quoteTeacherPrice(payee, Number(cls.price ?? 0), idDoc, couponCode.trim());
+                                    if (q?.coupon_status === "ignored_local") {
+                                      setValidatingCoupon(false);
+                                      toast.info("Your local discount already applies — coupons don't add to it.");
+                                      return;
+                                    }
+                                    if (q?.coupon_status === "applied" && q.coupon) {
+                                      setValidatingCoupon(false);
+                                      if (cardTotal(Number(cls.price), quantity, q.discount) <= 0) {
+                                        toast.error(`That coupon makes the class free — ask ${payee.split(/\s+/)[0]} to add you to it.`);
+                                        return;
+                                      }
+                                      const label = couponLabel(q);
+                                      setAppliedCoupon({ code: q.coupon, discount: q.discount, label, teacher: true });
+                                      toast.success(`Coupon applied: ${label}`);
+                                      return;
+                                    }
+                                  }
                                   const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
                                   if (!res.valid) {
                                     // Not a coupon — perhaps the code of a pass or membership.
@@ -1012,6 +1072,10 @@ const ClassBookingPage = () => {
                                     return;
                                   }
                                   setValidatingCoupon(false);
+                                  if (isLocal) {
+                                    toast.info("Your local discount already applies — coupons don't add to it.");
+                                    return;
+                                  }
                                   // A Holis coupon discounts Holis money, never the teacher's.
                                   if (payRoute === "teacher") {
                                     toast.error(`Holis coupons don't apply when you pay ${payee} directly.`);
@@ -1043,7 +1107,13 @@ const ClassBookingPage = () => {
                             <span>{quantity} × {formatCRC(Number(cls.price))}</span>
                           </div>
                         )}
-                        {payMethod === "card" && appliedCoupon && (
+                        {payMethod === "card" && isLocal && (
+                          <div className="flex justify-between text-sm font-body text-spa-sage mb-2">
+                            <span>Local discount ({localPct}%){multi ? " · your spot" : ""}</span>
+                            <span>-{formatPrice(cardDiscount)}</span>
+                          </div>
+                        )}
+                        {payMethod === "card" && !isLocal && appliedCoupon && (
                           <div className="flex justify-between text-sm font-body text-spa-sage mb-2">
                             <span>Coupon ({appliedCoupon.code})</span>
                             <span>-{formatPrice(appliedCoupon.discount)}</span>
@@ -1053,7 +1123,7 @@ const ClassBookingPage = () => {
                           <span className="font-body text-sm font-semibold text-foreground">Total</span>
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
-                              ? formatPrice(cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0))
+                              ? formatPrice(cardTotal(Number(cls.price), quantity, cardDiscount))
                               : payMethod === "cash" || payMethod === "compraclick"
                                 ? formatPrice(cashTotal(Number(cls.price), quantity))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
@@ -1068,8 +1138,8 @@ const ClassBookingPage = () => {
                       </div>
 
                       {isFreeWithCoupon({
-                        payMethod, multi, hasCoupon: !!appliedCoupon,
-                        total: cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0),
+                        payMethod, multi, hasCoupon: !!appliedCoupon && !appliedCoupon.teacher && !isLocal,
+                        total: cardTotal(Number(cls.price), quantity, cardDiscount),
                       }) ? (
                         // Nothing to pay: PayPal cannot take $0, so book it here.
                         // The server checks the coupon again before confirming.
@@ -1088,19 +1158,29 @@ const ClassBookingPage = () => {
                         // Still finding out whether this teacher takes PayPal.
                         <div className="flex justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                       ) : payMethod === "card" ? (
+                        <>
                         <PayPalCheckout
-                          disabled={!formData.name || !formData.email}
+                          disabled={!formData.name || !formData.email || !idReady}
                           createOrderBody={() =>
-                            formData.name && formData.email
-                              ? { kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null, coupon_code: payRoute === "teacher" ? null : (appliedCoupon?.code ?? null), quantity, participant_names: participantNames, pay_teacher: payRoute === "teacher" }
+                            formData.name && formData.email && idReady
+                              ? {
+                                  kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null,
+                                  // The local discount wins: then no coupon is sent at all.
+                                  coupon_code: isLocal ? null
+                                    : payRoute === "teacher" && !appliedCoupon?.teacher ? null
+                                    : (appliedCoupon?.code ?? null),
+                                  ...idDocumentBody(idDoc),
+                                  quantity, participant_names: participantNames, pay_teacher: payRoute === "teacher",
+                                }
                               : null
                           }
                           onSuccess={(res: any) => {
                             // Called only after paypal-capture-order verified the payment on our server.
+                            rememberIdDocument(user?.id, idDoc);
                             if (res?.bookingId) {
                               trackBookingComplete({
                                 ...classItem(), transaction_id: res.bookingId,
-                                value: cardTotal(Number(cls.price), quantity, appliedCoupon?.discount ?? 0),
+                                value: cardTotal(Number(cls.price), quantity, cardDiscount),
                                 payment_method: "paypal", payment_status: "paid_online",
                               });
                             }
@@ -1109,6 +1189,10 @@ const ClassBookingPage = () => {
                             setStep(steps.length - 1);
                           }}
                         />
+                        {!idReady && (
+                          <p className="text-xs font-body text-muted-foreground text-center mt-2">Add your ID above to pay.</p>
+                        )}
+                        </>
                       ) : useLinkMembership ? (
                         <Button className="w-full" onClick={handleTokenRedeem} disabled={submitting}>
                           {submitting ? t("booking.booking") : t("booking.confirmBooking")}

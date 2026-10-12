@@ -128,13 +128,19 @@ Deno.serve(async (req) => {
     let teacherName = "";
     let teacherEmail = "";
     let price: number | null = null;
+    // Her price for this guest: local discount (Costa Rican cédula), else one
+    // of her coupons — never both — from teacher_price() in the database.
+    let quote: { price: number; base: number; discount: number; local: boolean; local_pct: number; coupon: string | null; coupon_status: string | null } | null = null;
+    const idType = pc.id_document_type === "cr_cedula" || pc.id_document_type === "other" ? String(pc.id_document_type) : "";
+    const idNumber = clean(pc.id_document).slice(0, 30);
+    const couponTyped = clean(pc.coupon_code).toUpperCase().slice(0, 64);
     // One of a teacher's own private classes: hers, at her price — both read
     // from the database. Anything that does not check out is treated as "no
     // specific class", and the team sorts it out.
     const offeringId = typeof pc.offering_id === "string" && UUID_RE.test(pc.offering_id) ? pc.offering_id : null;
     if (offeringId) {
       const { data: o } = await admin.from("teacher_private_offerings")
-        .select("title, active, teachers(display_name, email, active)")
+        .select("title, active, teachers(id, display_name, email, active)")
         .eq("id", offeringId).maybeSingle();
       const t: any = (o as any)?.teachers;
       if (o && (o as any).active && t?.active) {
@@ -145,6 +151,15 @@ Deno.serve(async (req) => {
           _offering_id: offeringId, _kind: String(pc.kind ?? ""), _people: people,
         });
         price = p == null ? null : Number(p);
+        if (price != null && Number.isFinite(price) && price > 0 && t.id) {
+          const { data: q, error: qErr } = await admin.rpc("teacher_price", {
+            _teacher_id: t.id, _base: price,
+            _id_document: idType === "cr_cedula" ? idNumber || null : null,
+            _coupon: couponTyped || null,
+          });
+          if (qErr) console.error("[send-private-class-request] teacher_price failed", qErr.message);
+          else quote = q as any;
+        }
       }
     } else if (typeof pc.class_id === "string" && UUID_RE.test(pc.class_id)) {
       const { data: cls } = await admin.from("classes").select("id, title, instructor").eq("id", pc.class_id).maybeSingle();
@@ -184,13 +199,20 @@ Deno.serve(async (req) => {
       row("Teacher", teacherText) +
       row("Location", locationText) +
       row("Price",
-        price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price`
+        quote?.local ? `${Number(quote.price).toFixed(2)} — ${esc(teacherName)}'s local price (${Number(quote.local_pct)}% off ${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
+        : quote?.coupon_status === "applied" ? `${Number(quote.price).toFixed(2)} — with coupon ${esc(quote.coupon)} (${Number(quote.base).toFixed(2)} before)`
+        : price != null && Number.isFinite(price) ? `${price.toFixed(2)} — ${esc(teacherName)}'s price`
         : teacherName ? `To be confirmed by ${esc(teacherName)}` : "") +
+      row("Coupon",
+        !couponTyped || quote?.local || quote?.coupon_status === "applied" ? ""
+        : quote?.coupon_status === "not_found" ? `${esc(couponTyped)} — not one of ${esc(teacherName)}'s coupons`
+        : `${esc(couponTyped)} — to be checked by ${teacherName ? esc(teacherName) : "the team"}`) +
       row("Preferred date & time", esc(preferred));
     const guestRows =
       row("Name", esc(guestName)) +
       row("Email", mail(guestEmail)) +
-      row("Phone", esc(clean(b.guest_phone)));
+      row("Phone", esc(clean(b.guest_phone))) +
+      row("ID", idNumber ? `${idType === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc(idNumber)}` : "");
     const results: Record<string, unknown> = { teacherEmailed: false, teamEmailed: false, guestEmailed: false };
 
     // 1. The teacher

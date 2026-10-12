@@ -102,7 +102,7 @@ describe("the emails", () => {
 
   it("the teacher's email has the student's details: name, email, phone, client type", () => {
     const src = read("supabase/functions/notify-teacher/index.ts");
-    expect(src).toMatch(/\.select\("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code"\)/);
+    expect(src).toMatch(/\.select\("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code, id_document, id_document_type, local_discount"\)/);
     expect(src).toMatch(/row\("Email", student\.email\)/);
     expect(src).toMatch(/row\("Phone", student\.phone\)/);
     expect(src).toMatch(/row\("Client type", student\.type\)/);

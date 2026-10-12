@@ -111,9 +111,15 @@ describe("the server", () => {
     expect(fn).toMatch(/tableRow\("Pay here"/);
   });
 
-  it("notify-teacher is left alone (its live version predates the welcome email)", () => {
+  it("notify-teacher only gains the student's ID (and how a local discount was paid)", () => {
     const diff = execSync("git diff feature/teachers -- supabase/functions/notify-teacher", { cwd: root }).toString();
-    expect(diff).toBe("");
+    const removed = diff.split("\n").filter((l) => l.startsWith("-") && !l.startsWith("---"));
+    // Only the three lines that were widened: the student type, the select and "Paid online".
+    expect(removed.length).toBeLessThanOrEqual(3);
+    const fn = read("supabase/functions/notify-teacher/index.ts");
+    expect(fn).toMatch(/total_price, coupon_code, id_document, id_document_type, local_discount"\)/);
+    expect(fn).toMatch(/row\("ID", student\.id\)/);
+    expect(fn).toMatch(/teacher_welcome/);
   });
 });
 

@@ -229,10 +229,10 @@ Deno.serve(async (req) => {
 
       // The student's details — who is coming, how to reach them, how they pay —
       // read from the booking itself, never from what the trigger was sent.
-      let student: { name: string; email: string; phone: string; type: string; pays: string } | null = null;
+      let student: { name: string; email: string; phone: string; type: string; pays: string; id: string } | null = null;
       if (bookingId && ["booking_created", "booking_cancelled", "student_added", "student_updated"].includes(event)) {
         const { data: bk } = await admin.from("class_bookings")
-          .select("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code")
+          .select("guest_name, guest_email, guest_phone, client_type, payment_method, payment_status, total_price, coupon_code, id_document, id_document_type, local_discount")
           .eq("id", bookingId).maybeSingle();
         const b: any = bk;
         if (b) {
@@ -242,7 +242,8 @@ Deno.serve(async (req) => {
           const pays =
             method === "cash" && status === "pending" ? `In cash, to you at the class${amount}`
             : method === "cash" ? `Cash${amount}${status && status !== "paid" ? ` (${status})` : ""}`
-            : method === "paypal" || method === "card" ? `Paid online${amount}`
+            : method === "paypal" || method === "card"
+              ? `Paid online${amount}${b.local_discount ? " (local discount — Costa Rican cédula)" : b.coupon_code ? ` (coupon ${b.coupon_code})` : ""}`
             : method === "compraclick" ? `CompraClick${amount}${status === "pending" ? " — not confirmed yet" : ""}`
             : method === "membership" || method === "credits" || method === "offering" ? "With a pass or membership"
             : method === "free" || method === "complimentary" ? (b.coupon_code ? `Free (coupon ${b.coupon_code})` : "Free")
@@ -253,6 +254,10 @@ Deno.serve(async (req) => {
             phone: String(b.guest_phone ?? "").trim(),
             type: String(b.client_type ?? "").trim(),
             pays,
+            // Their ID — a Costa Rican cédula she may check in class.
+            id: String(b.id_document ?? "").trim()
+              ? `${b.id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${String(b.id_document).trim()}`
+              : "",
           };
         }
       }
@@ -265,6 +270,7 @@ Deno.serve(async (req) => {
         ...(student?.phone ? [row("Phone", student.phone)] : []),
         ...(student?.type ? [row("Client type", student.type)] : []),
         ...(student?.pays ? [row("Pays", student.pays)] : []),
+        ...(student?.id ? [row("ID", student.id)] : []),
         row("Students signed up", String(active)),
         ...(cls.location ? [row("Location", cls.location)] : []),
       ];
