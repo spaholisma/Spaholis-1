@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RichText } from "@/components/ui/rich-text";
 import { useUpcomingEvents } from "@/hooks/useClasses";
-import { fallbackImg, initials, plural, teacherSlug, useTeacherPortfolios, type Portfolio } from "@/components/TeacherPortfolios";
+import { fallbackImg, initials, isEventBlock, KindBadge, plural, teacherSlug, useTeacherPortfolios, type Portfolio } from "@/components/TeacherPortfolios";
 import { PassRequestDialog, type PassPick } from "@/components/PassRequestDialog";
 import { PrivateClassDialog, type PrivatePick } from "@/components/PrivateClassDialog";
 import { fromPrice, offeringPrice } from "@/lib/privateOfferings";
@@ -113,14 +113,20 @@ function Profile({ p, bio, onPass, onPrivate }: {
 }) {
   const first = p.teacher.split(/\s+/)[0];
   const from = Math.min(...p.privates.map((o) => fromPrice(o) ?? Infinity));
+  // Her schedule holds weekly classes and one-off events: name it by what is in it.
+  const nEvents = p.classes.filter(isEventBlock).length;
+  const nClasses = p.classes.length - nEvents;
+  const schedule = nEvents && !nClasses ? (nEvents === 1 ? "Event" : "Events")
+    : nClasses && !nEvents ? (nClasses === 1 ? "Class" : "Classes")
+    : "Classes & events";
   const sections = [
     { id: "about", label: "About" },
-    { id: "classes", label: "Classes" },
+    { id: "classes", label: schedule },
     ...(p.privates.length ? [{ id: "private", label: "Private classes" }] : []),
     ...(p.passes.length ? [{ id: "passes", label: "Passes" }] : []),
   ];
   const stats = [
-    { id: "classes", n: p.classes.length, label: p.classes.length === 1 ? "class" : "classes", show: true },
+    { id: "classes", n: p.classes.length, label: schedule.toLowerCase(), show: true },
     { id: "private", n: p.privates.length, label: p.privates.length === 1 ? "private class" : "private classes", show: p.privates.length > 0 },
     { id: "passes", n: p.passes.length, label: p.passes.length === 1 ? "pass" : "passes", show: p.passes.length > 0 },
   ].filter((s) => s.show);
@@ -177,6 +183,9 @@ function Profile({ p, bio, onPass, onPrivate }: {
             <p className="font-body text-xs font-semibold uppercase tracking-[0.25em] text-spa-sage">Meet your teacher</p>
             <h1 className="spa-heading-xl mt-3 text-foreground">{p.teacher}</h1>
             {bio.intro && <p className="mt-3 font-heading text-xl text-muted-foreground sm:text-2xl">{bio.intro}</p>}
+            {!bio.intro && p.role && (
+              <p className="mt-3 font-body text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{p.role}</p>
+            )}
             {bio.specialties.length > 0 && (
               <ul className="mt-6 flex flex-wrap justify-center gap-2 lg:justify-start">
                 {bio.specialties.map((s) => (
@@ -208,7 +217,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
               )}
               {p.classes.length > 0 && (
                 <Button asChild variant="outline" size="lg" className="rounded-full">
-                  <Link to={{ hash: "#classes" }}><CalendarDays className="h-4 w-4 mr-2" /> See {first}'s classes</Link>
+                  <Link to={{ hash: "#classes" }}><CalendarDays className="h-4 w-4 mr-2" /> See {first}'s {schedule.toLowerCase()}</Link>
                 </Button>
               )}
             </div>
@@ -249,23 +258,25 @@ function Profile({ p, bio, onPass, onPrivate }: {
 
         {/* ── Her classes ── */}
         <motion.section {...reveal} id="classes" className="scroll-mt-32 border-t border-border py-16 sm:py-20">
-          <SectionTitle icon={<CalendarDays className="h-5 w-5" />} eyebrow="On the schedule" title={`Classes with ${first}`} />
+          <SectionTitle icon={<CalendarDays className="h-5 w-5" />} eyebrow="On the schedule" title={`${schedule} with ${first}`} />
           {p.classes.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-border bg-card/50 p-8 text-center">
               <p className="spa-body text-muted-foreground">
-                No group classes on the schedule right now.
+                No classes or events on the schedule right now.
                 {p.privates.length > 0 && <> {first} gives private classes — <button type="button" onClick={() => askPrivate()} className="font-medium text-primary underline underline-offset-4">ask for one</button>.</>}
               </p>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {p.classes.map(({ cls, bookable, when }) => (
+              {p.classes.map((block) => { const { cls, bookable, when } = block; return (
                 <article key={cls.id} className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-xl">
                   <div className="relative h-44 overflow-hidden bg-spa-sage/15">
                     <img src={cls.image_url || fallbackImg} alt="" aria-hidden loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                       onError={(e) => { const el = e.currentTarget; if (!el.src.endsWith(fallbackImg)) el.src = fallbackImg; }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    {/* A weekly class or a one-off event */}
+                    <KindBadge event={isEventBlock(block)} className="absolute left-4 top-4 shadow-sm" />
                     <h3 className="absolute inset-x-0 bottom-0 p-5 font-heading text-xl text-spa-cream">{cls.title}</h3>
                   </div>
                   <div className="flex flex-1 flex-col p-5">
@@ -287,7 +298,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
                     </div>
                   </div>
                 </article>
-              ))}
+              ); })}
             </div>
           )}
         </motion.section>
@@ -405,7 +416,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
               )}
               {p.classes.length > 0 && (
                 <Button asChild size="lg" variant="outline" className="rounded-full border-spa-cream/40 bg-transparent text-spa-cream hover:bg-spa-cream/10 hover:text-spa-cream">
-                  <Link to={{ hash: "#classes" }}>See the classes</Link>
+                  <Link to={{ hash: "#classes" }}>See the {schedule.toLowerCase()}</Link>
                 </Button>
               )}
             </div>

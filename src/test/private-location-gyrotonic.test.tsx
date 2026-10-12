@@ -196,7 +196,7 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     (db as any).classes = [
       { instructor: "Ashley", image_url: "/aerial.jpg" },
       { instructor: " ashley ", image_url: null }, // the same teacher, written differently
-      { instructor: "Kataleia", image_url: null },
+      { instructor: "Kataleia", image_url: "/cocoon.jpg" },
       { instructor: "Evelina", image_url: null }, // registered: one card only
       { instructor: "", image_url: null },
     ];
@@ -208,7 +208,13 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
       expect(screen.getByRole("link", { name: /Ashley — classes/ }).getAttribute("href")).toBe("/teachers/ashley");
       expect(container.querySelectorAll("article")).toHaveLength(4); // Ashley, Evelina, Kataleia, Zoe
       // Her usual class's picture stands in for a photo.
-      expect(container.querySelector('img[src="/aerial.jpg"]')).not.toBeNull();
+      // No About Us card for Kataleia: her usual class's picture stands in.
+      expect(container.querySelector('img[src="/cocoon.jpg"]')).not.toBeNull();
+      // Ashley has an About Us card: her own photo, role and bio — not the class picture.
+      expect(container.querySelector('img[src="/aerial.jpg"]')).toBeNull();
+      expect(container.querySelector('img[src*="squarespace-cdn.com"][src*="a915143f"]')).not.toBeNull();
+      expect(screen.getByText("Yoga Instructor")).toBeTruthy();
+      expect(screen.getByText(/Yoga changed Ashley's life in 2008/)).toBeTruthy();
     } finally {
       (db as any).classes = [];
     }
@@ -238,7 +244,7 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     );
     await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Evelina" })).toBeTruthy());
     expect(screen.getByText("Gyrotonic and CranioSacral.")).toBeTruthy();
-    expect(screen.getByText(/No group classes on the schedule right now/)).toBeTruthy();
+    expect(screen.getByText(/No classes or events on the schedule right now/)).toBeTruthy();
     expect(screen.getByText("Private classes with Evelina")).toBeTruthy();
     expect(screen.getByText("GYROTONIC®")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /Request a private class/ }).length).toBeGreaterThan(0);
@@ -314,5 +320,21 @@ describe("5. A class card's preview text", () => {
     expect(richTextToPlain("Bring a **mat** — see [our studio](https://www.spaholis.com/studio-rental), *gently*."))
       .toBe("Bring a mat — see our studio, gently.");
     expect(richTextToPlain(null)).toBe("");
+  });
+});
+
+describe("6. Classes and events on a teacher's schedule", () => {
+  it("each card says whether it is a weekly class or a one-off event, and the section is named by what is in it", async () => {
+    const { scheduleLabel, isEventBlock } = await import("@/components/TeacherPortfolios");
+    const block = (category: string) => ({ cls: { id: category, title: category, category } as any, when: "" });
+    expect(isEventBlock(block("Special Event"))).toBe(true);
+    expect(isEventBlock(block("Studio Classes"))).toBe(false);
+    expect(scheduleLabel([block("Studio Classes"), block("Yoga")])).toBe("2 classes");
+    expect(scheduleLabel([block("Special Event")])).toBe("1 event");
+    expect(scheduleLabel([block("Studio Classes"), block("Special Event")])).toBe("1 class & 1 event");
+    const page = read("src/pages/TeacherProfile.tsx");
+    expect(page).toMatch(/title=\{`\$\{schedule\} with \$\{first\}`\}/);
+    expect(page).toMatch(/<KindBadge event=\{isEventBlock\(block\)\}/);
+    expect(page).toMatch(/: "Classes & events";/);
   });
 });

@@ -8,9 +8,12 @@ import { Button } from "@/components/ui/button";
 import { richTextToPlain } from "@/components/ui/rich-text";
 import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
 import { cn } from "@/lib/utils";
-import type { ScheduleRow } from "@/hooks/useClasses";
+import { EVENT_CATEGORIES, type ScheduleRow } from "@/hooks/useClasses";
 import { fromPrice, offeringsOf, usePrivateOfferings, type PrivateOffering } from "@/lib/privateOfferings";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { content as contentDefaults } from "@/data/content";
+import { sizedImage } from "@/lib/sizedImage";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -42,11 +45,37 @@ export interface Portfolio {
   /** True when the image is the teacher herself, not one of her classes. */
   portrait: boolean;
   bio: string | null;
+  /** What she teaches, from her About Us card (e.g. "Yoga Instructor"). */
+  role?: string | null;
   teacherId: string | null;
   classes: ClassBlock[];
   passes: Pass[];
   /** Her private classes, at her own prices. */
   privates: PrivateOffering[];
+}
+
+/** A session is a one-off event (workshop, special event…), not a weekly class. */
+export const isEventBlock = (b: ClassBlock) => EVENT_CATEGORIES.has(String(b.cls?.category ?? ""));
+
+/** "1 class", "2 events", "1 class & 1 event" — what is on her schedule. */
+export function scheduleLabel(blocks: ClassBlock[]): string {
+  const events = blocks.filter(isEventBlock).length;
+  const classes = blocks.length - events;
+  return [classes ? plural(classes, "class", "classes") : "", events ? plural(events, "event") : ""]
+    .filter(Boolean).join(" & ");
+}
+
+/** A small "Class" / "Event" tag, so a weekly class and a one-off event read differently. */
+export function KindBadge({ event, className }: { event: boolean; className?: string }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center rounded-full px-2 py-0.5 font-body text-[11px] font-semibold uppercase tracking-wider",
+      event ? "bg-amber-100 text-amber-800" : "bg-spa-sage/15 text-spa-sage",
+      className,
+    )}>
+      {event ? "Event" : "Class"}
+    </span>
+  );
 }
 
 /** "Evelina Bolognini" → "evelina-bolognini": the address of her page. */
@@ -149,6 +178,11 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
   const { data: passes = [], isLoading: l2 } = useTeacherPasses();
   const { data: teachers = [], isLoading: l3 } = usePublicTeachers();
   const { data: classTeachers = [], isLoading: l4 } = useClassTeachers();
+  // The instructors on About Us (editable in the Content editor): their photo,
+  // role and bio stand in for a teacher who is not registered yet.
+  const { data: siteContent } = useSiteContent();
+  const team = (((siteContent as any)?.about?.instructors ?? (contentDefaults as any).about?.instructors ?? []) as
+    { name?: string; role?: string; bio?: string; image?: string }[]);
 
   const portfolios = useMemo<Portfolio[]>(() => {
     const byTeacher = new Map<string, ScheduleRow[]>();
@@ -165,18 +199,27 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
       const privates = offeringsOf(allPrivate, name);
       // With no class this week, the picture of a class she usually teaches stands in.
       const usualImage = classTeachers.find((c) => c.name.toLowerCase() === key && c.image_url)?.image_url ?? null;
+      // Her About Us card: the same name, or the same first name ("Melanie Moss" ↔ "Melanie").
+      const firstOf = (s: string) => s.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      const member = team.find((m) => (m.name ?? "").trim().toLowerCase() === key)
+        ?? team.find((m) => firstOf(m.name ?? "") && firstOf(m.name ?? "") === firstOf(name));
+      const memberPhoto = member?.image ? sizedImage(member.image, 900) : null;
+      const memberBio = member?.bio ? richTextToPlain(member.bio).trim() || null : null;
       return {
         key: `teacher:${name}`,
         teacher: name,
         slug: teacherSlug(name),
         title: name,
         subtitle: classes.length
-          ? plural(classes.length, "class", "classes")
-          : privates.length ? plural(privates.length, "private class", "private classes") : "Holis Wellness Center",
-        // Her own photo first; a class picture stands in until she sends one.
-        image: row?.photo_url || classes.find((c) => c.cls.image_url)?.cls.image_url || usualImage,
-        portrait: !!row?.photo_url,
-        bio: row?.bio ?? null,
+          ? scheduleLabel(classes)
+          : privates.length ? plural(privates.length, "private class", "private classes")
+          : member?.role?.trim() || "Holis Wellness Center",
+        // Her own photo first (her panel, else her About Us card); a class
+        // picture stands in until there is one.
+        image: row?.photo_url || memberPhoto || classes.find((c) => c.cls.image_url)?.cls.image_url || usualImage,
+        portrait: !!(row?.photo_url || memberPhoto),
+        bio: row?.bio?.trim() || memberBio,
+        role: member?.role?.trim() || null,
         teacherId: row?.id ?? null,
         classes,
         passes: passes.filter((p) => p.teacher_name.trim().toLowerCase() === key),
@@ -218,7 +261,7 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
       }));
 
     return [...allTeachers, ...orphans];
-  }, [sessions, passes, teachers, allPrivate, classTeachers, teachersOnly]);
+  }, [sessions, passes, teachers, allPrivate, classTeachers, team, teachersOnly]);
 
   return { portfolios, isLoading: l1 || l2 || l3 || l4 };
 }
@@ -302,14 +345,15 @@ function TeacherCard({ p }: { p: Portfolio }) {
             {p.classes.length === 0 ? (
               <li>No group classes on the schedule right now.</li>
             ) : (
-              p.classes.slice(0, 3).map(({ cls, when }) => (
-                <li key={cls.id} className="flex flex-wrap gap-x-2">
-                  <span className="font-medium text-foreground">{cls.title}</span>
-                  {when && <span>{when}</span>}
+              p.classes.slice(0, 3).map((b) => (
+                <li key={b.cls.id} className="flex flex-wrap items-center gap-x-2">
+                  <span className="font-medium text-foreground">{b.cls.title}</span>
+                  {isEventBlock(b) && <KindBadge event />}
+                  {b.when && <span>{b.when}</span>}
                 </li>
               ))
             )}
-            {p.classes.length > 3 && <li>+ {plural(p.classes.length - 3, "more class", "more classes")}</li>}
+            {p.classes.length > 3 && <li>+ {p.classes.length - 3} more</li>}
             {p.privates.length > 0 && (
               <li>
                 <span className="font-medium text-foreground">{plural(p.privates.length, "private class", "private classes")}</span>
