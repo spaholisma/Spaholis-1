@@ -96,8 +96,8 @@ describe("the emails", () => {
 
   it("the teacher's new-signup email says the student pays her in cash", () => {
     const src = read("supabase/functions/notify-teacher/index.ts");
-    expect(src).toMatch(/row\("Pays", student\.pays\)/);
-    expect(src).toMatch(/method === "cash" && status === "pending" \? `In cash, to you at the class\$\{amount\}`/);
+    expect(src).toMatch(/row\("Payment", student\.pays\)/);
+    expect(src).toMatch(/method === "cash" && status === "pending" \? `In cash, to you at the class\$\{amount\}/);
   });
 
   it("the teacher's email has the student's details: name, email, phone, client type", () => {

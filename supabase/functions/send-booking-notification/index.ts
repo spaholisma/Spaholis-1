@@ -22,7 +22,7 @@
 // This function NEVER sends emails for pending_payment, payment_failed,
 // cancelled, or otherwise incomplete bookings.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import {
   emailShell, detailsTable, detailsRow, emailButton,
 } from "../_shared/email-layout.ts";
@@ -204,6 +204,8 @@ function priceRows(opts: {
   /** Internal copies list a $0 line anyway, so the team sees a free spot was
    *  free on purpose rather than missing. */
   alwaysShowTotal?: boolean;
+  /** The teacher's local discount (Costa Rican cédula) took the discount off. */
+  localDiscount?: boolean;
 }): string[] {
   const total = opts.total;
   const discount = opts.discount != null && opts.discount > 0 ? opts.discount : 0;
@@ -219,6 +221,8 @@ function priceRows(opts: {
   if (opts.couponCode) {
     rows.push(tableRow("Coupon", escHtml(opts.couponCode)));
     if (discount > 0) rows.push(tableRow("Discount", `-${formatCRC(discount)}`));
+  } else if (opts.localDiscount && discount > 0) {
+    rows.push(tableRow("Local discount", `Costa Rican cédula — -${formatCRC(discount)}`));
   } else if (opts.showNoCoupon) {
     rows.push(tableRow("Coupon", "None used"));
   }
@@ -694,6 +698,7 @@ export function buildClassCustomerHtml(ctx: {
   whatsappUrl: string;
   /** "To pay in cash" when the guest pays the teacher at the class. */
   totalLabel?: string;
+  localDiscount?: boolean;
 }) {
   const rows: string[] = [];
   rows.push(tableRow("Reservation ID", ctx.reservationId));
@@ -705,6 +710,7 @@ export function buildClassCustomerHtml(ctx: {
   rows.push(...priceRows({
     total: ctx.totalPrice, discount: ctx.discountAmount, couponCode: ctx.couponCode,
     priceLabel: "Class Price", totalLabel: ctx.totalLabel ?? "Amount Paid", showNoCoupon: true,
+    localDiscount: ctx.localDiscount,
   }));
 
   return emailShell(
@@ -738,6 +744,7 @@ type ClassAdminCtx = {
   couponCode: string | null;
   discountAmount: number | null;
   bookedAt?: string | null;
+  localDiscount?: boolean;
 };
 
 const CLASS_FOOTER = "Holis Wellness Center — Class Booking Notification";
@@ -763,7 +770,7 @@ export function classAdminRows(ctx: ClassAdminCtx): string[] {
   rows.push(...priceRows({
     total: ctx.totalPrice, discount: ctx.discountAmount, couponCode: ctx.couponCode,
     priceLabel: "Class Price", totalLabel: "Amount", showNoCoupon: true,
-    alwaysShowTotal: true,
+    alwaysShowTotal: true, localDiscount: ctx.localDiscount,
   }));
   if (ctx.paymentId) rows.push(tableRow("Payment ID", ctx.paymentId));
   return rows;
@@ -775,7 +782,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     .select(`
       id, status, payment_status, payment_method, payment_id,
       guest_name, guest_email, guest_phone, coupon_code, discount_amount, total_price,
-      notification_sent_at, booking_group_id, created_at,
+      notification_sent_at, booking_group_id, created_at, local_discount,
       schedule:class_schedule(
         id, start_time, end_time, instructor,
         class:classes(id, title, instructor, location, price, requires_payment)
@@ -831,6 +838,8 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   let totalUsd = booking.total_price != null ? Number(booking.total_price) : null;
   let discountUsd = booking.discount_amount != null ? Number(booking.discount_amount) : null;
   const couponCode = (booking.coupon_code || "").trim() || null;
+  // The teacher's local discount for a Costa Rican cédula (no coupon then).
+  const localDiscount = !!booking.local_discount;
 
   // Multi-spot booking: gather every participant so the email lists them all and
   // the amount reflects the whole party (each row stores its own per-spot price).
@@ -875,6 +884,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     booking.payment_status === "paid" ? "Paid"
     : cashDue ? `Pay in cash at the class${instructor ? ` — to ${instructor}` : ""}`
     : linkDue ? `Pay with CompraClick${instructor ? ` — to ${instructor}` : ""}`
+    : paymentMethod === "free" && couponCode ? `Free — coupon ${couponCode}`
     : paymentMethod === "membership" ? "Covered by membership"
     : paymentMethod === "credit" || paymentMethod === "credits" ? "Redeemed with credits"
     : booking.status === "booked" ? "Confirmed"
@@ -904,6 +914,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     couponCode,
     discountAmount: discountUsd,
     bookedAt: booking.created_at ? `${spaDateTime(new Date(booking.created_at))} (Costa Rica time)` : null,
+    localDiscount,
   };
   const guestLabel = partyLine ? `${party.length} spots (${booking.guest_name || "Guest"})` : (booking.guest_name || "Guest");
   const teamTpl = await fromTeamTemplate(
@@ -945,7 +956,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
         total: totalUsd, discount: discountUsd, couponCode,
         priceLabel: "Class Price",
         totalLabel: cashDue ? "To pay in cash" : linkDue ? "To pay with CompraClick" : "Amount Paid",
-        showNoCoupon: true,
+        showNoCoupon: true, localDiscount,
       }));
       const built = buildFromTemplate(
         tpl,
@@ -960,7 +971,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
           class_price: totalUsd != null
             ? formatCRC(totalUsd + (discountUsd && discountUsd > 0 ? discountUsd : 0))
             : "",
-          coupon_code: couponLine(couponCode, discountUsd),
+          coupon_code: couponLine(couponCode ?? (localDiscount ? "Local discount (Costa Rican cédula)" : null), discountUsd),
           discount: discountUsd && discountUsd > 0 ? `-${formatCRC(discountUsd)}` : "",
           total: totalUsd != null ? formatCRC(totalUsd) : "",
         },
@@ -983,6 +994,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
         paymentStatus: paymentStatusLabel,
         whatsappUrl,
         totalLabel: cashDue ? "To pay in cash" : linkDue ? "To pay with CompraClick" : undefined,
+        localDiscount,
       });
     }
     customerRes = await sendEmail(booking.guest_email, subject, customerHtml);

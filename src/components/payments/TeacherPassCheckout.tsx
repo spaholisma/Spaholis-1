@@ -6,6 +6,7 @@ import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField"
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
 import { IdDocumentField } from "@/components/payments/IdDocumentField";
 import { useAccountDetails } from "@/hooks/useAccountDetails";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { validateCoupon, describeCouponDiscount } from "@/lib/coupons";
@@ -27,6 +28,8 @@ export interface OnlinePayFields {
   doc: IdDocument;
   /** The coupon to send (null when the local discount applies or none was applied). */
   couponCode: string | null;
+  /** Whose coupon it is: the teacher's own, or a Holis coupon (classes only). */
+  couponSource: "teacher" | "holis" | null;
 }
 
 /**
@@ -40,13 +43,19 @@ export interface OnlinePayFields {
  * PayPal is opened.
  */
 export function OnlinePayForm({
-  teacherName, price, buildBody, onPaid, footer, priceLabel, holisCouponClassId, idPrefix = "pay", className,
+  teacherName, price, buildBody, onPaid, onFree, footer, priceLabel, holisCouponClassId, idPrefix = "pay", className,
 }: {
   /** Whose local discount and coupons apply ("" when the class has no teacher yet). */
   teacherName: string;
   price: number;
   buildBody: (f: OnlinePayFields) => Record<string, unknown>;
   onPaid: (email: string) => void;
+  /**
+   * A coupon that covers the whole price: PayPal cannot take $0, so this books
+   * it instead (on the server, which checks the coupon again). Without it, such
+   * a coupon is refused.
+   */
+  onFree?: (f: OnlinePayFields) => Promise<void>;
   footer?: ReactNode;
   /** The line above the discount, e.g. "Evelina's price". */
   priceLabel?: string;
@@ -63,8 +72,9 @@ export function OnlinePayForm({
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [doc, setDoc] = useState<IdDocument>(EMPTY_ID_DOCUMENT);
   const [couponCode, setCouponCode] = useState("");
-  const [coupon, setCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [coupon, setCoupon] = useState<{ code: string; discount: number; label: string; source: "teacher" | "holis" } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [confirmingFree, setConfirmingFree] = useState(false);
 
   // Signed in: fill in what the account knows, without overwriting anything typed.
   useEffect(() => {
@@ -84,10 +94,32 @@ export function OnlinePayForm({
   const discount = local ? localDiscountAmount(price, pct) : coupon?.discount ?? 0;
   const total = Math.max(0, Math.round((price - discount) * 100) / 100);
 
-  const ready =
+  const detailsReady =
     !!form.name.trim() && EMAIL_RE.test(form.email.trim())
     && !!form.phone && isValidPhoneNumber(form.phone)
-    && isIdDocumentValid(doc) && total > 0;
+    && isIdDocumentValid(doc);
+  const ready = detailsReady && total > 0;
+  // A coupon that covers it all: no PayPal, confirm it here.
+  const free = !!coupon && total <= 0 && !!onFree;
+  const fields = (): OnlinePayFields => ({
+    name: form.name.trim(), email: form.email.trim(), phone: form.phone, doc,
+    couponCode: local ? null : coupon?.code ?? null,
+    couponSource: local || !coupon ? null : coupon.source,
+  });
+
+  const confirmFree = async () => {
+    if (!free || !detailsReady || !onFree) return;
+    setConfirmingFree(true);
+    try {
+      await onFree(fields());
+      rememberIdDocument(account?.userId, doc);
+      onPaid(form.email.trim());
+    } catch (e: any) {
+      toast.error(e?.message || "We couldn't confirm it — please try again.");
+    } finally {
+      setConfirmingFree(false);
+    }
+  };
 
   const applyCoupon = async () => {
     const code = couponCode.trim();
@@ -102,12 +134,12 @@ export function OnlinePayForm({
           return;
         }
         if (q?.coupon_status === "applied" && q.coupon) {
-          if (q.price <= 0) {
+          if (q.price <= 0 && !onFree) {
             toast.error(`This coupon covers the full price — please contact ${first || "your teacher"} to arrange it directly.`);
             return;
           }
           const label = couponLabel(q);
-          setCoupon({ code: q.coupon, discount: q.discount, label });
+          setCoupon({ code: q.coupon, discount: q.discount, label, source: "teacher" });
           toast.success(`Coupon applied: ${label}`);
           return;
         }
@@ -121,12 +153,12 @@ export function OnlinePayForm({
         const res = await validateCoupon(code, price, { classId: holisCouponClassId });
         if (res.valid && res.coupon) {
           const amount = res.discountAmount ?? 0;
-          if (price - amount <= 0) {
+          if (price - amount <= 0 && !onFree) {
             toast.error("This coupon covers the full price — please book it from the class page.");
             return;
           }
           const label = describeCouponDiscount(res.coupon, amount);
-          setCoupon({ code: res.coupon.code, discount: amount, label });
+          setCoupon({ code: res.coupon.code, discount: amount, label, source: "holis" });
           toast.success(`Coupon applied: ${label}`);
           return;
         }
@@ -197,20 +229,22 @@ export function OnlinePayForm({
         </div>
       </div>
 
-      <PayPalCheckout
-        disabled={!ready}
-        createOrderBody={() => ready
-          ? buildBody({
-              name: form.name.trim(), email: form.email.trim(), phone: form.phone, doc,
-              couponCode: local ? null : coupon?.code ?? null,
-            })
-          : null}
-        onSuccess={() => {
-          rememberIdDocument(account?.userId, doc);
-          onPaid(form.email.trim());
-        }}
-      />
-      {!ready && (
+      {free ? (
+        <Button className="w-full rounded-full" disabled={!detailsReady || confirmingFree} onClick={confirmFree}>
+          {confirmingFree ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+          Confirm — free with coupon {coupon?.code}
+        </Button>
+      ) : (
+        <PayPalCheckout
+          disabled={!ready}
+          createOrderBody={() => ready ? buildBody(fields()) : null}
+          onSuccess={() => {
+            rememberIdDocument(account?.userId, doc);
+            onPaid(form.email.trim());
+          }}
+        />
+      )}
+      {!detailsReady && (
         <p className="font-body text-[11px] text-muted-foreground">
           Please complete your name, email, phone and ID to continue to payment.
         </p>
@@ -241,6 +275,18 @@ export function TeacherPassCheckout({
       idPrefix={idPrefix}
       className={className}
       onPaid={onPaid}
+      onFree={async (f) => {
+        // Her coupon covers the whole pass: issued on the server, which checks it again.
+        const { data, error } = await (supabase as any).rpc("claim_teacher_pass_with_coupon", {
+          _membership_id: membershipId, _guest_name: f.name, _guest_email: f.email, _guest_phone: f.phone,
+          _coupon: f.couponCode, _id_document: f.doc.number.trim(), _id_document_type: f.doc.type,
+        });
+        if (error) throw new Error(error.message);
+        // The pass code and booking link, to the student and to her.
+        try {
+          await supabase.functions.invoke("send-membership-order-email", { body: { userOfferingId: (data as any)?.id } });
+        } catch { /* the pass exists; the email can be resent from Admin */ }
+      }}
       buildBody={(f) => ({
         kind: "teacher_pass", membership_id: membershipId,
         guest_name: f.name, guest_email: f.email, guest_phone: f.phone,

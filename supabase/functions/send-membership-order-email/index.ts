@@ -203,6 +203,9 @@ Deno.serve(async (req) => {
   // purchases have one too now, so they are told apart for the team by source.
   const isOrder = !!o.access_token;
   const isOnlinePurchase = (o as any).source === "purchase";
+  // Given on the website with one of the teacher's coupons (100%): no payment.
+  const isCouponPass = (o as any).source === "coupon";
+  const couponUsed = isCouponPass ? String((o as any).notes || "").match(/coupon\s+(\S+)/i)?.[1] ?? "" : "";
   const link = isOrder ? `${SITE_URL}/classes?m=${o.access_token}` : `${SITE_URL}/classes`;
 
   // Prefer the admin-editable template; fall back to the built-in copy.
@@ -276,7 +279,9 @@ Deno.serve(async (req) => {
     ? (paidToTeacher
       ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
       : `<p><strong>Paid to:</strong> Holis (PayPal) — ${esc(teacher.display_name)}'s pass.</p>`)
-    : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "") + idLine + localLine;
+    : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "")
+    + (isCouponPass ? `<p><strong>Payment:</strong> none — free with ${teacher ? `${esc(teacher.display_name)}'s` : "the teacher's"} coupon${couponUsed ? ` ${esc(couponUsed)}` : ""}.</p>` : "")
+    + idLine + localLine;
   const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
   let adminSubj: string;
   let adminHtml: string;
@@ -316,14 +321,18 @@ Deno.serve(async (req) => {
     const who = String(o.guest_name || to);
     const subj = isOnlinePurchase
       ? `New pass sold online — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
-      : `New pass for your student — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`;
-    const paidLine = !isOnlinePurchase
-      ? `It was made in the panel, so collect the payment as you agreed with them. They already have their code and booking link.`
+      : isCouponPass
+        ? `New pass with your coupon — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`
+        : `New pass for your student — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`;
+    const paidLine = isCouponPass
+      ? `It was issued free of charge on the website with your coupon${couponUsed ? ` <strong>${esc(couponUsed)}</strong>` : ""}. They already have their code and booking link.`
+      : !isOnlinePurchase
+      ? `It was created in your panel, so please collect the payment as agreed with them. They already have their code and booking link.`
       : paidToTeacher
         ? `The payment went straight to <strong>your PayPal account</strong>. They already have their code and booking link.`
         : `It was paid online to <strong>Holis</strong>. They already have their code and booking link.`;
     const inner = `
-      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;"><strong>${esc(who)}</strong> ${isOnlinePurchase ? "just bought" : "now has"} your <strong>${esc(o.name_snapshot)}</strong>${isOnlinePurchase ? " on the website" : ""}.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;"><strong>${esc(who)}</strong> ${isOnlinePurchase ? "has just bought" : "now has"} your <strong>${esc(o.name_snapshot)}</strong>${isOnlinePurchase || isCouponPass ? " on the website" : ""}.</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 12px;">${paidLine}</p>
       <div style="background:#f3f6f6;border-radius:12px;padding:16px;margin:16px 0;font-size:14px;line-height:1.6;">
         <p style="margin:0;"><strong>Student:</strong> ${esc(who)} &lt;${esc(to)}&gt;${(o as any).guest_phone ? ` · ${esc((o as any).guest_phone)}` : ""}</p>
@@ -332,8 +341,8 @@ Deno.serve(async (req) => {
         ${(o as any).id_document ? `<p style="margin:0;"><strong>ID:</strong> ${(o as any).id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc((o as any).id_document)}</p>` : ""}
         ${(o as any).local_discount ? `<p style="margin:0;"><strong>Local discount:</strong> applied — paid $${Number((o as any).price_paid ?? 0).toFixed(2)}. You may ask to see the cédula in class.</p>` : ""}
       </div>
-      <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You'll find them in your Teacher Panel → Members.</p>`;
-    const tRes = await sendEmail(teacher.email, subj, emailShell(isOnlinePurchase ? "A pass was sold online" : "A new pass", inner));
+      <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You will find them in your Teacher Panel → Members.</p>`;
+    const tRes = await sendEmail(teacher.email, subj, emailShell(isOnlinePurchase ? "A pass was sold online" : isCouponPass ? "A pass with your coupon" : "A new pass", inner));
     if (!tRes.ok) console.error("[send-membership-order-email] teacher send failed", tRes.error);
   }
 

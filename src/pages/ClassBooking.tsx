@@ -392,6 +392,31 @@ const ClassBookingPage = () => {
   const handleCardCheckout = async () => {
     if (!scheduleId || !cls) return;
     setSubmitting(true);
+    // The teacher's own coupon covers the class: booked at $0 on the server,
+    // which checks the coupon again (create-class-booking knows Holis coupons only).
+    if (appliedCoupon?.teacher) {
+      try {
+        const { data: bookingId, error } = await supabase.rpc("book_class_free_with_teacher_coupon" as any, {
+          _schedule_id: scheduleId, _guest_name: formData.name.trim(), _guest_email: formData.email.trim(),
+          _guest_phone: formData.phone, _coupon: appliedCoupon.code,
+          _id_document: idDoc.number.trim(), _id_document_type: idDoc.type,
+        });
+        if (error) throw error;
+        rememberIdDocument(user?.id, idDoc);
+        try {
+          await supabase.functions.invoke("send-booking-notification", { body: { classBookingId: bookingId } });
+        } catch { /* booked; the confirmation can be resent */ }
+        trackBookingComplete({ ...classItem(), transaction_id: String(bookingId), value: 0, payment_method: "coupon", payment_status: "free" });
+        toast.success(t("booking.classBookedSuccess"));
+        setBookingComplete(true);
+        setStep(steps.length - 1);
+      } catch (err: any) {
+        toast.error(err.message || t("booking.classBookFailed"));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     try {
       const result = await invokeEdgeFunction<{
         ok?: boolean;
@@ -1042,10 +1067,7 @@ const ClassBookingPage = () => {
                                     }
                                     if (q?.coupon_status === "applied" && q.coupon) {
                                       setValidatingCoupon(false);
-                                      if (cardTotal(Number(cls.price), quantity, q.discount) <= 0) {
-                                        toast.error(`That coupon makes the class free — ask ${payee.split(/\s+/)[0]} to add you to it.`);
-                                        return;
-                                      }
+                                      // A coupon that covers it all books the class at $0 (handleCardCheckout).
                                       const label = couponLabel(q);
                                       setAppliedCoupon({ code: q.coupon, discount: q.discount, label, teacher: true });
                                       toast.success(`Coupon applied: ${label}`);
@@ -1138,14 +1160,20 @@ const ClassBookingPage = () => {
                       </div>
 
                       {isFreeWithCoupon({
-                        payMethod, multi, hasCoupon: !!appliedCoupon && !appliedCoupon.teacher && !isLocal,
+                        payMethod, multi, hasCoupon: !!appliedCoupon && !isLocal,
                         total: cardTotal(Number(cls.price), quantity, cardDiscount),
                       }) ? (
                         // Nothing to pay: PayPal cannot take $0, so book it here.
                         // The server checks the coupon again before confirming.
-                        <Button className="w-full" onClick={handleCardCheckout} disabled={submitting || !formData.name || !formData.email}>
-                          {submitting ? t("booking.booking") : t("booking.confirmBooking")}
+                        <>
+                        <Button className="w-full" onClick={handleCardCheckout}
+                          disabled={submitting || !formData.name || !formData.email || (!!appliedCoupon?.teacher && !idReady)}>
+                          {submitting ? t("booking.booking") : `Confirm — free with coupon ${appliedCoupon?.code ?? ""}`.trim()}
                         </Button>
+                        {!!appliedCoupon?.teacher && !idReady && (
+                          <p className="text-xs font-body text-muted-foreground text-center mt-2">Add your ID above to confirm.</p>
+                        )}
+                        </>
                       ) : payMethod === "cash" ? (
                         <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
                           {submitting ? t("booking.booking") : "Reserve — pay in cash at the class"}

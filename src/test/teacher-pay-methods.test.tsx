@@ -111,12 +111,15 @@ describe("the server", () => {
     expect(fn).toMatch(/tableRow\("Pay here"/);
   });
 
-  it("notify-teacher only gains the student's ID (and how a local discount was paid)", () => {
+  it("notify-teacher keeps everything it had and gains the ID, coupons and the local discount", () => {
     const diff = execSync("git diff feature/teachers -- supabase/functions/notify-teacher", { cwd: root }).toString();
     const removed = diff.split("\n").filter((l) => l.startsWith("-") && !l.startsWith("---"));
-    // Only the three lines that were widened: the student type, the select and "Paid online".
-    expect(removed.length).toBeLessThanOrEqual(3);
+    // Only lines that were reworded or widened — the cash, online and free
+    // payment lines, the student type, the select and the "Payment" label.
+    expect(removed.length).toBeLessThanOrEqual(6);
     const fn = read("supabase/functions/notify-teacher/index.ts");
+    expect(fn).toMatch(/row\("Payment", student\.pays\)/);
+    expect(fn).toMatch(/Free — coupon \$\{b\.coupon_code\}/);
     expect(fn).toMatch(/total_price, coupon_code, id_document, id_document_type, local_discount"\)/);
     expect(fn).toMatch(/row\("ID", student\.id\)/);
     expect(fn).toMatch(/teacher_welcome/);

@@ -66,6 +66,31 @@ interface Attendee {
   guest_phone: string | null; status: string; payment_status: string | null;
   payment_method: string | null; total_price: number | null; user_offering_id: string | null;
   source: string | null; attended: boolean | null; client_type: string | null;
+  /** Her coupon (or a Holis one), the discount it took, her local discount. */
+  coupon_code?: string | null; discount_amount?: number | null; local_discount?: boolean | null;
+  /** The student's ID, and the pass or membership the class came off. */
+  id_document?: string | null; id_document_type?: string | null;
+  pass_name?: string | null; pass_code?: string | null;
+}
+
+/** The details under a student's name: coupon, local discount, pass, ID. */
+export function paymentDetails(a: Attendee): string[] {
+  const out: string[] = [];
+  if (a.pass_name || a.user_offering_id) {
+    out.push(`Pass: ${a.pass_name || "membership / pass"}${a.pass_code ? ` (${a.pass_code})` : ""}`);
+  }
+  if (a.coupon_code) {
+    const off = Number(a.discount_amount) > 0 ? ` — $${Number(a.discount_amount).toFixed(2)} off` : "";
+    out.push(`Coupon ${a.coupon_code}${off}`);
+  }
+  if (a.local_discount) {
+    const off = Number(a.discount_amount) > 0 ? ` — $${Number(a.discount_amount).toFixed(2)} off` : "";
+    out.push(`Local discount (Costa Rican cédula)${off}`);
+  }
+  if (a.id_document) {
+    out.push(`${a.id_document_type === "cr_cedula" ? "Cédula" : "ID"}: ${a.id_document}`);
+  }
+  return out;
 }
 
 const TABS = [
@@ -108,6 +133,8 @@ function payLabel(a: Attendee): { text: string; tone: string } {
     };
   }
   if (a.user_offering_id) return { text: "Membership / pass", tone: "bg-sky-500/15 text-sky-700 dark:text-sky-400" };
+  if ((a.payment_method === "free" || a.payment_status === "not_required") && a.coupon_code)
+    return { text: `Free — coupon ${a.coupon_code}`, tone: "bg-muted text-muted-foreground" };
   if (a.payment_method === "free" || a.payment_status === "not_required")
     return { text: "Free", tone: "bg-muted text-muted-foreground" };
   if (a.payment_status === "paid") return { text: "Paid online", tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" };
@@ -159,10 +186,10 @@ export default function TeacherPanel() {
   // Manually adding a walk-in student (vs. those who booked on the site).
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingStudent, setAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", client_type: "" });
+  const [newStudent, setNewStudent] = useState({ name: "", email: "", phone: "", client_type: "", coupon: "" });
   // Inline editing of an existing student.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "", client_type: "" });
+  const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "", client_type: "", coupon: "" });
   const [savingStudent, setSavingStudent] = useState(false);
   // Student categories, shared with Class Finances so Holis edits them once.
   const [clientTypes, setClientTypes] = useState<string[]>([]);
@@ -234,9 +261,8 @@ export default function TeacherPanel() {
 
   const openAttendees = async (s: Session) => {
     setOpenSession(s); setLoadingAttendees(true);
-    const { data } = await sb.from("class_bookings")
-      .select("id, schedule_id, guest_name, guest_email, guest_phone, status, payment_status, payment_method, total_price, user_offering_id, source, attended, client_type")
-      .eq("schedule_id", s.id).order("created_at");
+    const { data, error } = await sb.rpc("teacher_session_roster", { _schedule_id: s.id });
+    if (error) toast.error(error.message);
     setAttendees(((data as any) ?? []) as Attendee[]);
     setLoadingAttendees(false);
   };
@@ -280,7 +306,14 @@ export default function TeacherPanel() {
       guest_phone: editDraft.phone.trim() || null,
       client_type: editDraft.client_type || null,
     }).eq("id", a.id);
+    let couponError: string | null = null;
+    const wanted = editDraft.coupon.trim().toUpperCase();
+    if (!error && wanted !== (a.coupon_code ?? "").toUpperCase()) {
+      const { error: cErr } = await sb.rpc("teacher_set_student_coupon", { _booking_id: a.id, _coupon: wanted });
+      if (cErr) couponError = cErr.message;
+    }
     if (error) toast.error(error.message);
+    else if (couponError) toast.error(`Saved — but the coupon was not applied: ${couponError}`);
     else {
       toast.success("Student updated");
       setEditingId(null);
@@ -310,7 +343,10 @@ export default function TeacherPanel() {
     const name = newStudent.name.trim();
     if (!name) { toast.error("Name is required"); return; }
     setAddingStudent(true);
+    // The id is made here: a teacher may not be able to read the row back at once.
+    const newId = crypto.randomUUID();
     const { error } = await sb.from("class_bookings").insert({
+      id: newId,
       schedule_id: openSession.id,
       guest_name: name,
       guest_email: newStudent.email.trim() || null,
@@ -323,8 +359,14 @@ export default function TeacherPanel() {
       source: "teacher",
     });
     if (error) { toast.error(error.message); setAddingStudent(false); return; }
-    toast.success(`${name} added`);
-    setNewStudent({ name: "", email: "", phone: "", client_type: "" });
+    // Her coupon, priced on the server (a 100% coupon makes it free).
+    const coupon = newStudent.coupon.trim().toUpperCase();
+    if (coupon) {
+      const { error: cErr } = await sb.rpc("teacher_set_student_coupon", { _booking_id: newId, _coupon: coupon });
+      if (cErr) toast.error(`${name} added — but the coupon was not applied: ${cErr.message}`);
+      else toast.success(`${name} added with coupon ${coupon}`);
+    } else toast.success(`${name} added`);
+    setNewStudent({ name: "", email: "", phone: "", client_type: "", coupon: "" });
     setShowAddForm(false);
     setAddingStudent(false);
     await openAttendees(openSession);   // refresh the list
@@ -839,6 +881,8 @@ export default function TeacherPanel() {
                   <option value="">Student type…</option>
                   {clientTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
+                <Input placeholder="Coupon (optional)" value={newStudent.coupon} list="teacher-coupon-codes"
+                  onChange={(e) => setNewStudent({ ...newStudent, coupon: e.target.value.toUpperCase() })} />
                 <div className="flex justify-end gap-2 pt-1">
                   <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)} disabled={addingStudent}>Cancel</Button>
                   <Button size="sm" onClick={addStudent} disabled={addingStudent || !newStudent.name.trim()}>
@@ -853,6 +897,9 @@ export default function TeacherPanel() {
             )}
           </div>
 
+          <datalist id="teacher-coupon-codes">
+            {coupons.filter((c) => c.is_active).map((c) => <option key={c.id} value={c.code} />)}
+          </datalist>
           {loadingAttendees ? (
             <div className="py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></div>
           ) : attendees.length === 0 ? (
@@ -885,6 +932,15 @@ export default function TeacherPanel() {
                           <option value="">Student type…</option>
                           {clientTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        {a.user_offering_id || a.payment_status === "paid" ? (
+                          <p className="font-body text-[11px] text-muted-foreground">
+                            {a.user_offering_id ? "Uses a pass or membership — no coupon needed." : "Paid online — the price can't be changed here."}
+                            {a.coupon_code ? ` Coupon ${a.coupon_code}.` : ""}
+                          </p>
+                        ) : (
+                          <Input placeholder="Coupon (optional — leave empty for none)" value={editDraft.coupon} list="teacher-coupon-codes"
+                            onChange={(e) => setEditDraft({ ...editDraft, coupon: e.target.value.toUpperCase() })} />
+                        )}
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={savingStudent}>Cancel</Button>
                           <Button size="sm" onClick={() => saveStudent(a)} disabled={savingStudent || !editDraft.name.trim()}>
@@ -901,6 +957,9 @@ export default function TeacherPanel() {
                           </p>
                           {a.guest_email && <p className="font-body text-xs text-muted-foreground truncate">{a.guest_email}</p>}
                           {a.guest_phone && <p className="font-body text-xs text-muted-foreground">{a.guest_phone}</p>}
+                          {paymentDetails(a).map((line) => (
+                            <p key={line} className="font-body text-[11px] text-foreground/80">{line}</p>
+                          ))}
                           <span className="mt-1 inline-block font-body text-[11px] text-muted-foreground">
                             {byTeacher ? "Added by you" : "Booked online"}
                           </span>
@@ -912,6 +971,7 @@ export default function TeacherPanel() {
                                 setEditDraft({
                                   name: a.guest_name ?? "", email: a.guest_email ?? "",
                                   phone: a.guest_phone ?? "", client_type: a.client_type ?? "",
+                                  coupon: a.coupon_code ?? "",
                                 });
                               }}
                               className="font-body text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline"

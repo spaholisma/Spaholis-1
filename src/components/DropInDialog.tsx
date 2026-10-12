@@ -10,6 +10,8 @@ import { fetchClosedClassDays, spaDateKey } from "@/lib/classClosures";
 import { formatSpaTime, spaLocalParts } from "@/lib/businessHours";
 import { idDocumentBody } from "@/lib/localDiscount";
 import { cn } from "@/lib/utils";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { classCheckoutReasonMessage } from "@/lib/classBookingWindow";
 
 const sb = supabase as any;
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -189,6 +191,28 @@ export function DropInDialog({ open, onOpenChange, title = "Drop-in Class", clas
               holisCouponClassId={chosen.classes?.id}
               idPrefix="drop-in"
               onPaid={(email) => setPaidEmail(email)}
+              onFree={async (f) => {
+                if (f.couponSource === "holis") {
+                  // A Holis coupon: the class-booking function books it at $0 and emails.
+                  const res = await invokeEdgeFunction<{ ok?: boolean; reason?: string; message?: string; needsPayment?: boolean }>(
+                    "create-class-booking",
+                    { body: { schedule_id: chosen.id, guest_name: f.name, guest_email: f.email, guest_phone: f.phone, coupon_code: f.couponCode } },
+                  );
+                  if (!res.ok || !res.data || res.data.ok === false || res.data.needsPayment) {
+                    throw new Error(classCheckoutReasonMessage(res.data?.reason) ?? res.data?.message ?? "We couldn't book it — please try again.");
+                  }
+                  return;
+                }
+                // The teacher's coupon covers the class: booked on the server, which checks it again.
+                const { data, error } = await sb.rpc("book_class_free_with_teacher_coupon", {
+                  _schedule_id: chosen.id, _guest_name: f.name, _guest_email: f.email, _guest_phone: f.phone,
+                  _coupon: f.couponCode, _id_document: f.doc.number.trim(), _id_document_type: f.doc.type,
+                });
+                if (error) throw new Error(error.message);
+                try {
+                  await supabase.functions.invoke("send-booking-notification", { body: { classBookingId: data } });
+                } catch { /* booked; the confirmation can be resent */ }
+              }}
               buildBody={(f) => ({
                 kind: "class", schedule_id: chosen.id,
                 guest_name: f.name, guest_email: f.email, guest_phone: f.phone,

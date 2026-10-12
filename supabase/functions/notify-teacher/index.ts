@@ -240,13 +240,13 @@ Deno.serve(async (req) => {
           const method = String(b.payment_method ?? "");
           const status = String(b.payment_status ?? "");
           const pays =
-            method === "cash" && status === "pending" ? `In cash, to you at the class${amount}`
+            method === "cash" && status === "pending" ? `In cash, to you at the class${amount}${b.coupon_code ? ` — coupon ${b.coupon_code}` : ""}`
             : method === "cash" ? `Cash${amount}${status && status !== "paid" ? ` (${status})` : ""}`
             : method === "paypal" || method === "card"
-              ? `Paid online${amount}${b.local_discount ? " (local discount — Costa Rican cédula)" : b.coupon_code ? ` (coupon ${b.coupon_code})` : ""}`
+              ? `Paid online to Holis${amount}${b.local_discount ? " — local discount (Costa Rican cédula)" : b.coupon_code ? ` — coupon ${b.coupon_code}` : ""}`
             : method === "compraclick" ? `CompraClick${amount}${status === "pending" ? " — not confirmed yet" : ""}`
             : method === "membership" || method === "credits" || method === "offering" ? "With a pass or membership"
-            : method === "free" || method === "complimentary" ? (b.coupon_code ? `Free (coupon ${b.coupon_code})` : "Free")
+            : method === "free" || method === "complimentary" ? (b.coupon_code ? `Free — coupon ${b.coupon_code}` : "Free")
             : method ? `${method}${amount}` : "";
           student = {
             name: String(b.guest_name ?? "").trim() || studentName,
@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
         ...(student?.email ? [row("Email", student.email)] : []),
         ...(student?.phone ? [row("Phone", student.phone)] : []),
         ...(student?.type ? [row("Client type", student.type)] : []),
-        ...(student?.pays ? [row("Pays", student.pays)] : []),
+        ...(student?.pays ? [row("Payment", student.pays)] : []),
         ...(student?.id ? [row("ID", student.id)] : []),
         row("Students signed up", String(active)),
         ...(cls.location ? [row("Location", cls.location)] : []),
