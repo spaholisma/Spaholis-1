@@ -199,9 +199,9 @@ Deno.serve(async (req) => {
       row("Teacher", teacherText) +
       row("Location", locationText) +
       row("Price",
-        quote?.local ? `${Number(quote.price).toFixed(2)} — ${esc(teacherName)}'s local price (${Number(quote.local_pct)}% off ${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
-        : quote?.coupon_status === "applied" ? `${Number(quote.price).toFixed(2)} — with coupon ${esc(quote.coupon)} (${Number(quote.base).toFixed(2)} before)`
-        : price != null && Number.isFinite(price) ? `${price.toFixed(2)} — ${esc(teacherName)}'s price`
+        quote?.local ? `$${Number(quote.price).toFixed(2)} — ${esc(teacherName)}'s local price (${Number(quote.local_pct)}% off $${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
+        : quote?.coupon_status === "applied" ? `$${Number(quote.price).toFixed(2)} — with coupon ${esc(quote.coupon)} ($${Number(quote.base).toFixed(2)} before)`
+        : price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price`
         : teacherName ? `To be confirmed by ${esc(teacherName)}` : "") +
       row("Coupon",
         !couponTyped || quote?.local || quote?.coupon_status === "applied" ? ""

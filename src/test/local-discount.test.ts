@@ -143,6 +143,11 @@ describe("the emails", () => {
     expect(priv).toMatch(/row\("ID", idNumber \?/);
     expect(priv).toMatch(/admin\.rpc\("teacher_price"/);
     expect(priv).toMatch(/local price \(\$\{Number\(quote\.local_pct\)\}% off/);
+    // Every price in the emails keeps its dollar sign.
+    expect(priv).toContain("`$${price.toFixed(2)} — ${esc(teacherName)}'s price`");
+    expect(priv).toContain("quote?.local ? `$${Number(quote.price).toFixed(2)}");
+    expect(priv).toContain("% off $${Number(quote.base).toFixed(2)}");
+    expect(read("supabase/functions/send-membership-order-email/index.ts")).toContain("paid $${Number((o as any).price_paid ?? 0).toFixed(2)}");
   });
 });
 

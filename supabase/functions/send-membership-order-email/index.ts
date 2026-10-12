@@ -9,7 +9,7 @@
 // The scheduling link carries the offering's secure access_token so the customer
 // books eligible classes at $0 without logging in or typing a code.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { emailShell, emailDocument } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
     ? `<p><strong>ID:</strong> ${(o as any).id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc((o as any).id_document)}</p>`
     : "";
   const localLine = (o as any).local_discount
-    ? `<p><strong>Local discount:</strong> applied for a Costa Rican cédula — paid ${Number((o as any).price_paid ?? 0).toFixed(2)}. Please check the cédula in class.</p>`
+    ? `<p><strong>Local discount:</strong> applied for a Costa Rican cédula — paid $${Number((o as any).price_paid ?? 0).toFixed(2)}. Please check the cédula in class.</p>`
     : "";
   const orderLines = (isOrder
     ? `<p><strong>Code:</strong> ${esc(o.code)}</p><p><strong>Scheduling link:</strong><br><span style="word-break:break-all;">${link}</span></p>`
@@ -330,7 +330,7 @@ Deno.serve(async (req) => {
         <p style="margin:0;"><strong>Pass:</strong> ${esc(o.name_snapshot)}</p>
         ${o.code ? `<p style="margin:0;"><strong>Code:</strong> ${esc(o.code)}</p>` : ""}
         ${(o as any).id_document ? `<p style="margin:0;"><strong>ID:</strong> ${(o as any).id_document_type === "cr_cedula" ? "Costa Rican cédula" : "Passport / other ID"} ${esc((o as any).id_document)}</p>` : ""}
-        ${(o as any).local_discount ? `<p style="margin:0;"><strong>Local discount:</strong> applied — paid ${Number((o as any).price_paid ?? 0).toFixed(2)}. You may ask to see the cédula in class.</p>` : ""}
+        ${(o as any).local_discount ? `<p style="margin:0;"><strong>Local discount:</strong> applied — paid $${Number((o as any).price_paid ?? 0).toFixed(2)}. You may ask to see the cédula in class.</p>` : ""}
       </div>
       <p style="font-size:13px;color:#666;line-height:1.6;margin:0;">You'll find them in your Teacher Panel → Members.</p>`;
     const tRes = await sendEmail(teacher.email, subj, emailShell(isOnlinePurchase ? "A pass was sold online" : "A new pass", inner));
