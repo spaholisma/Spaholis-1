@@ -18,6 +18,7 @@ import { FeaturedWorkshop, useFeaturedEvent } from "@/components/FeaturedWorksho
 import { useTranslation } from "react-i18next";
 import { useTokenOffering } from "@/hooks/useMembershipToken";
 import { Check } from "lucide-react";
+import { TodayClassesCta } from "@/components/TodayClassesCta";
 import classesHero from "@/assets/classes-hero.jpg";
 
 const fadeIn = {
@@ -95,14 +96,11 @@ const ClassesPage = () => {
         {/* Upcoming Events Heading */}
         <motion.div {...fadeIn} className="text-center mt-14 mb-4">
           <h1 {...cmsEditProps("classes.title")} className="spa-heading-xl text-foreground">{cls.title}</h1>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-3">
-            <Link
-              to="/classes/schedule"
-              className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
-            >
-              {cls.calendarLink}
-            </Link>
-            <span className="hidden sm:inline text-muted-foreground">·</span>
+          {/* First: today's classes on the calendar — the way in most guests want. */}
+          <div className="mt-6">
+            <TodayClassesCta events={events ?? []} loading={isLoading} />
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-4">
             <Link
               to="/private-sessions"
               className="font-body text-sm text-spa-sage underline underline-offset-4 hover:text-spa-sage/80 transition-colors"
@@ -110,7 +108,7 @@ const ClassesPage = () => {
               {cls.privateLink}
             </Link>
           </div>
-          <div className="mt-6 flex justify-center px-4">
+          <div className="mt-5 flex justify-center px-4">
             <Button asChild variant="spa" size="lg" className="h-auto min-h-12 w-full sm:w-auto max-w-full whitespace-normal text-center py-3 leading-tight">
               <Link to="/private-gyrotonic-manuel-antonio">
                 {(cls as any).gyrotonicLink || "Discover GYROTONIC® Expansion System"}

@@ -94,7 +94,17 @@
     "selectDate": "Select a Date",
     "selectTime": "Select a Time",
     "guestInfo": "Guest information",
-    "summary": "Summary",
+    "summary": {
+      "title": "Review your booking",
+      "subtitle": "Please confirm your details before payment.",
+      "service": "Service",
+      "dateTime": "Date & time",
+      "contact": "Contact",
+      "intake": "Health & preferences",
+      "intakeCompleted": "Intake form completed",
+      "edit": "Edit",
+      "total": "Total"
+    },
     "service": "Service",
     "date": "Date",
     "time": "Time",
@@ -147,17 +157,6 @@
       "checkout": "Checkout",
       "payment": "Payment",
       "confirmation": "Confirmation"
-    },
-    "summary": {
-      "title": "Review your booking",
-      "subtitle": "Please confirm your details before payment.",
-      "service": "Service",
-      "dateTime": "Date & time",
-      "contact": "Contact",
-      "intake": "Health & preferences",
-      "intakeCompleted": "Intake form completed",
-      "edit": "Edit",
-      "total": "Total"
     },
     "categories": {
       "workshop": "Workshop",
@@ -339,7 +338,36 @@
     "purchaseEyebrow": "Purchase",
     "membershipsTitle": "Memberships & Class Passes",
     "membershipsSubtitle": "Save with bundled credits or unlimited access. Redeem at booking — no extra steps.",
-    "buyMemberships": "Buy memberships & class passes ↓"
+    "buyMemberships": "Buy memberships & class passes ↓",
+    "todayCta": {
+      "eyebrow": "Today · {{day}}",
+      "title": "See today's classes",
+      "loading": "Checking today's schedule…",
+      "today_one": "1 class left today · {{title}} at {{time}}",
+      "today_other": "{{count}} classes left today · next: {{title}} at {{time}}",
+      "next": "No more classes today · next: {{title}}, {{day}} at {{time}}",
+      "none": "See the week's classes and book your spot"
+    },
+    "agenda": {
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "prev": "Previous day",
+      "next": "Next day",
+      "pickDay": "Choose a day",
+      "count_one": "1 class",
+      "count_other": "{{count}} classes",
+      "closed": "The studio is closed",
+      "noneToday": "No more classes today",
+      "none": "No classes on this day",
+      "nextClass": "Next class",
+      "swipeHint": "Swipe left or right to see another day",
+      "soldOut": "Sold out",
+      "left_one": "1 left",
+      "left_other": "{{count}} left",
+      "open": "Open",
+      "with": "with {{name}}",
+      "book": "Book"
+    }
   },
   "experience": {
     "perPerson": "per person",
@@ -731,5 +759,11 @@
     "optionalWhy": "Not needed with your coupon. A Costa Rican cédula gives the {{pct}}% local discount instead of the coupon — the two don't add up.",
     "cedulaPlaceholderOptional": "Cédula number (e.g. 1-0234-0567)",
     "otherPlaceholderOptional": "Passport or ID number"
+  },
+  "about": {
+    "meetTeacher": "Meet {{name}}",
+    "teachesCount_one": "1 class on the schedule",
+    "teachesCount_other": "{{count}} classes on the schedule",
+    "swipeTeam": "Swipe to meet the whole team →"
   }
 }

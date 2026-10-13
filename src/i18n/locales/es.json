@@ -94,7 +94,17 @@
     "selectDate": "Selecciona una fecha",
     "selectTime": "Selecciona una hora",
     "guestInfo": "Información del cliente",
-    "summary": "Resumen",
+    "summary": {
+      "title": "Revisa tu reserva",
+      "subtitle": "Confirma tus datos antes de pagar.",
+      "service": "Servicio",
+      "dateTime": "Fecha y hora",
+      "contact": "Contacto",
+      "intake": "Salud y preferencias",
+      "intakeCompleted": "Formulario de salud completado",
+      "edit": "Editar",
+      "total": "Total"
+    },
     "service": "Servicio",
     "date": "Fecha",
     "time": "Hora",
@@ -147,17 +157,6 @@
       "checkout": "Pago",
       "payment": "Pago",
       "confirmation": "Confirmación"
-    },
-    "summary": {
-      "title": "Revisa tu reserva",
-      "subtitle": "Confirma tus datos antes de pagar.",
-      "service": "Servicio",
-      "dateTime": "Fecha y hora",
-      "contact": "Contacto",
-      "intake": "Salud y preferencias",
-      "intakeCompleted": "Formulario de salud completado",
-      "edit": "Editar",
-      "total": "Total"
     },
     "categories": {
       "workshop": "Taller",
@@ -339,7 +338,36 @@
     "purchaseEyebrow": "Comprar",
     "membershipsTitle": "Membresías y Paquetes de Clases",
     "membershipsSubtitle": "Ahorra con créditos en paquete o acceso ilimitado. Canjea al reservar — sin pasos extra.",
-    "buyMemberships": "Comprar membresías y paquetes ↓"
+    "buyMemberships": "Comprar membresías y paquetes ↓",
+    "todayCta": {
+      "eyebrow": "Hoy · {{day}}",
+      "title": "Ver las clases de hoy",
+      "loading": "Revisando el horario de hoy…",
+      "today_one": "Queda 1 clase hoy · {{title}} a las {{time}}",
+      "today_other": "Quedan {{count}} clases hoy · la próxima: {{title}} a las {{time}}",
+      "next": "No hay más clases hoy · la próxima: {{title}}, {{day}} a las {{time}}",
+      "none": "Mira las clases de la semana y reserva tu espacio"
+    },
+    "agenda": {
+      "today": "Hoy",
+      "tomorrow": "Mañana",
+      "prev": "Día anterior",
+      "next": "Día siguiente",
+      "pickDay": "Elige un día",
+      "count_one": "1 clase",
+      "count_other": "{{count}} clases",
+      "closed": "El estudio está cerrado",
+      "noneToday": "No hay más clases hoy",
+      "none": "No hay clases este día",
+      "nextClass": "Próxima clase",
+      "swipeHint": "Desliza a la izquierda o a la derecha para ver otro día",
+      "soldOut": "Lleno",
+      "left_one": "Queda 1",
+      "left_other": "Quedan {{count}}",
+      "open": "Disponible",
+      "with": "con {{name}}",
+      "book": "Reservar"
+    }
   },
   "experience": {
     "perPerson": "por persona",
@@ -731,5 +759,11 @@
     "optionalWhy": "No hace falta con tu cupón. Con cédula de Costa Rica recibes el {{pct}}% de descuento local en lugar del cupón — no se suman.",
     "cedulaPlaceholderOptional": "Número de cédula (ej. 1-0234-0567)",
     "otherPlaceholderOptional": "Número de pasaporte o identificación"
+  },
+  "about": {
+    "meetTeacher": "Conoce a {{name}}",
+    "teachesCount_one": "1 clase en el horario",
+    "teachesCount_other": "{{count}} clases en el horario",
+    "swipeTeam": "Desliza para conocer a todo el equipo →"
   }
 }

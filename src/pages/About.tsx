@@ -8,6 +8,7 @@ import { cmsEditProps } from "@/lib/cmsEdit";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { HERO_IMAGE_FIRST } from "@/lib/heroImage";
+import { InstructorPortfolios } from "@/components/InstructorPortfolios";
 
 const fade = {
   initial: { opacity: 0, y: 24 } as const,
@@ -189,11 +190,8 @@ const AboutPage = () => {
               {about.instructorsTitle}
             </h2>
           </motion.div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-10">
-            {instructors.map((m, i) => (
-              <TeamCard key={`instructor-${i}`} member={m} />
-            ))}
-          </div>
+          {/* Portfolios: each opens her page in Classes (schedule, private classes, passes). */}
+          <InstructorPortfolios instructors={instructors} />
         </div>
       </section>
 

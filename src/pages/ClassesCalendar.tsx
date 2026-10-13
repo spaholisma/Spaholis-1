@@ -5,7 +5,7 @@ import { WeeklyClassCalendar } from "@/components/WeeklyClassCalendar";
 import { useWeekEvents } from "@/hooks/useClasses";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SEO } from "@/components/SEO";
 import { useClassClosures } from "@/lib/classClosures";
@@ -14,6 +14,9 @@ const ClassesCalendarPage = () => {
   const { data: weekEvents, isLoading } = useWeekEvents();
   // Days the studio is closed, shown with the team's message.
   const { data: closures = [] } = useClassClosures();
+  // ?day=YYYY-MM-DD (from "See today's classes"): the day to open on.
+  const [params] = useSearchParams();
+  const initialDay = params.get("day");
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,7 +53,7 @@ const ClassesCalendarPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <WeeklyClassCalendar events={weekEvents ?? []} closures={closures} />
+            <WeeklyClassCalendar events={weekEvents ?? []} closures={closures} initialDay={initialDay} />
           </motion.div>
         )}
       </div>
