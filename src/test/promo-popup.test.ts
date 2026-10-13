@@ -31,8 +31,14 @@ describe("promo popup", () => {
     expect(popup.indexOf("markPromoSeen();")).toBeGreaterThan(popup.indexOf("if (promoSeenThisVisit()) return;"));
   });
 
+  it("is taken down for now (2026-10): App mounts it only behind its switch, which is off", async () => {
+    expect(read("src/App.tsx")).toContain("{PROMO_POPUP_ENABLED && <PromoPopup />}");
+    const { PROMO_POPUP_ENABLED } = await import("@/lib/features");
+    expect(PROMO_POPUP_ENABLED).toBe(false);
+  });
+
   it("is mounted once for the whole site and can be switched off", () => {
-    expect(read("src/App.tsx")).toContain("<PromoPopup />");
+    expect(read("src/App.tsx").match(/<PromoPopup \/>/g)).toHaveLength(1);
     expect(content.promoPopup.enabled).toBe(true);
     const popup = read("src/components/PromoPopup.tsx");
     expect(popup).toContain("DialogPrimitive.Close");

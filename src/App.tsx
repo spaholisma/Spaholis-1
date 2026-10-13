@@ -124,7 +124,7 @@ import { AnalyticsTracker } from "./components/AnalyticsTracker";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
-import { TEACHER_PANEL_ENABLED } from "@/lib/features";
+import { PROMO_POPUP_ENABLED, TEACHER_PANEL_ENABLED } from "@/lib/features";
 const queryClient = new QueryClient();
 
 // Redirect that preserves search params and hash so links like /booking?service=...
@@ -213,7 +213,7 @@ const App = () => (
           <ThemeApplier />
           <PreviewEditBridge />
           <WhatsAppButton />
-          <PromoPopup />
+          {PROMO_POPUP_ENABLED && <PromoPopup />}
           <PrefetchPages />
           <Suspense fallback={<PageFallback />}>
           <Routes>

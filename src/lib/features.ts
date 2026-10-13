@@ -7,3 +7,10 @@
  * open the panel again (the menu link, the My Account card and the route).
  */
 export const TEACHER_PANEL_ENABLED = false;
+
+/**
+ * The Wellness Programs promo window that opened a moment after the site was
+ * opened. Off since 2026-10 (the team asked to take it down). The component
+ * stays (src/components/PromoPopup.tsx) — set this back to true to show it again.
+ */
+export const PROMO_POPUP_ENABLED = false;
