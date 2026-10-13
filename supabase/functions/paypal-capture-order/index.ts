@@ -241,7 +241,9 @@ Deno.serve(async (req) => {
       buyerName = buyerName || (prof as any)?.full_name || null;
       buyerEmail = buyerEmail || ((prof as any)?.email ? String((prof as any).email).trim().toLowerCase() : null);
     } else if (buyerEmail) {
-      const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", buyerEmail).maybeSingle();
+      // Case-insensitive but exact: % and _ in an address are not wildcards.
+      const exact = buyerEmail.replace(/[\\%_]/g, (c) => `\\${c}`);
+      const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", exact).limit(1).maybeSingle();
       buyerId = (prof as any)?.user_id ?? null;
     }
     // What was really paid: the price after the local discount or a coupon.
