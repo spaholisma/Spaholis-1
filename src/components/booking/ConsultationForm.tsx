@@ -16,8 +16,8 @@ import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField"
 import { IdDocumentField } from "@/components/payments/IdDocumentField";
 import { useAccountDetails } from "@/hooks/useAccountDetails";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, idDocumentOk, localApplies, localDiscountAmount,
-  localPctFor, quoteTeacherPrice, useLocalDiscounts, type IdDocument,
+  EMPTY_ID_DOCUMENT, idDocumentOk, localApplies, localDiscountAmount,
+  useStudioLocalPct, type IdDocument,
 } from "@/lib/localDiscount";
 import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
 import { useSiteContent } from "@/hooks/useSiteContent";
@@ -27,6 +27,7 @@ import {
   clampPeople, parsePrivateKind, privateClassIntake,
 } from "@/lib/privateClassRequest";
 import { offeringPrice, type PrivateChoice } from "@/lib/privateOfferings";
+import { privatePricing } from "@/lib/otherOfferings";
 import { LOCATION_LABEL, locationLine, locationsFor, type PrivateLocation } from "@/lib/privateLocation";
 import { Users } from "lucide-react";
 import { useHoneypot } from "@/components/Honeypot";
@@ -68,29 +69,26 @@ export const ConsultationForm = () => {
   const { data: siteContent } = useSiteContent();
   const ps: any = (siteContent as any)?.privateSessions || contentDefaults.privateSessions;
   const kindTitle: string = privateKind ? (ps.classes?.[privateKind]?.title || topic) : "";
-  // Each teacher sets her own prices: there is a price once her class is chosen.
-  const privatePrice = privateKind && classChoice?.offering ? offeringPrice(classChoice.offering, privateKind, people) : null;
+  // Holis' prices, the same whoever teaches (Admin → Services → Private
+  // Classes) — so there is a price from the start, a class chosen or not.
+  const studio = privatePricing(ps);
+  const privatePrice = privateKind
+    ? offeringPrice({ price_one: studio.onePerson, price_two: studio.twoPeople, price_group: studio.upToFour, price_extra: studio.extraPerson }, privateKind, people)
+    : null;
   // Back: to the page the guest came from; else a private class request to
   // Private Sessions, anything else to the treatments.
   const leaveFlow = useLeaveFlow(/private class/i.test(topic) ? "/private-sessions" : "/treatments-therapies");
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
-  // A private class: the guest's ID (a Costa Rican cédula gets the teacher's
-  // local discount) and, optionally, one of her coupons — never both.
+  // A private class: the guest's ID (a Costa Rican cédula gets Holis' local
+  // discount) and, optionally, a coupon code — the team checks and applies it
+  // when it confirms the private class (it is a request: nothing is paid now).
   const [idDoc, setIdDoc] = useState<IdDocument>(EMPTY_ID_DOCUMENT);
   const [couponCode, setCouponCode] = useState("");
-  const [coupon, setCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
-  const [checkingCoupon, setCheckingCoupon] = useState(false);
-  const { data: localDiscounts } = useLocalDiscounts();
-  const teacherName = classChoice?.teacherName || "";
-  const teacherFirst = teacherName ? teacherName.split(/\s+/)[0] : "";
-  const localPct = privateKind ? localPctFor(localDiscounts, teacherName) : 0;
+  const { data: studioPct = 0 } = useStudioLocalPct();
+  const localPct = privateKind ? studioPct : 0;
   const isLocal = localApplies(idDoc, localPct);
-  const privateDiscount = privatePrice == null ? 0
-    : isLocal ? localDiscountAmount(privatePrice, localPct) : coupon?.discount ?? 0;
+  const privateDiscount = privatePrice == null || !isLocal ? 0 : localDiscountAmount(privatePrice, localPct);
   const privateTotal = privatePrice == null ? null : Math.max(0, Math.round((privatePrice - privateDiscount) * 100) / 100);
-  // Another class, teacher or group size: a coupon checked for the old price no longer holds.
-  useEffect(() => { setCoupon(null); }, [classChoice?.offering?.id, teacherName, people]);
-  useEffect(() => { if (isLocal && coupon) setCoupon(null); }, [isLocal, coupon]);
 
   // Signed in: fill in what the account knows, without overwriting anything typed.
   const account = useAccountDetails();
@@ -104,25 +102,6 @@ export const ConsultationForm = () => {
     setIdDoc((d) => (d.type || d.number ? d : { type: account.idDocumentType, number: account.idDocument }));
   }, [account]);
 
-  const applyCoupon = async () => {
-    const code = couponCode.trim();
-    if (!code || !teacherName || privatePrice == null) return;
-    setCheckingCoupon(true);
-    const q = await quoteTeacherPrice(teacherName, privatePrice, idDoc, code);
-    setCheckingCoupon(false);
-    if (!q) { toast.error(t("idDocument.couponCheckFailed", { defaultValue: "Could not check the coupon — please try again." })); return; }
-    if (q.coupon_status === "ignored_local") {
-      toast.info(t("idDocument.couponLocal", { defaultValue: "Your local discount already applies — coupons don't add to it." }));
-      return;
-    }
-    if (q.coupon_status !== "applied" || !q.coupon) {
-      toast.error(t("idDocument.couponNotHers", { name: teacherFirst, defaultValue: "That is not one of {{name}}'s coupons." }));
-      return;
-    }
-    const label = couponLabel(q);
-    setCoupon({ code: q.coupon, discount: q.discount, label });
-    toast.success(t("idDocument.couponApplied", { code: q.coupon, label, defaultValue: "{{code}} applied — {{label}}" }));
-  };
   const [format, setFormat] = useState<"call" | "in-person">("call");
   // Preferred date/time the client would like for the appointment (optional).
   const [pref, setPref] = useState({ date: "", time: "" });
@@ -162,9 +141,8 @@ export const ConsultationForm = () => {
       return;
     }
 
-    // A private class: phone and ID are required too (the coupon is not) —
-    // with one of her coupons applied, the ID is optional.
-    if (privateKind && (!form.phone || !isValidPhoneNumber(form.phone) || !idDocumentOk(idDoc, !!coupon && !isLocal))) {
+    // A private class: phone and ID are required too (the coupon is not).
+    if (privateKind && (!form.phone || !isValidPhoneNumber(form.phone) || !idDocumentOk(idDoc))) {
       toast.error(t("idDocument.missingRequired", { defaultValue: "Please fill in your name, email, phone and ID." }));
       return;
     }
@@ -279,9 +257,8 @@ export const ConsultationForm = () => {
             <h2 className="spa-heading-lg text-foreground mb-4">{t("consultation.thankYou")}</h2>
             <p className="font-body text-muted-foreground leading-relaxed">
               {privateKind
-                ? classChoice?.teacherName
-                  ? t("consultation.privateThankYouTeacher", { name: classChoice.teacherName, defaultValue: "Your request was sent to {{name}} and the Holis team. You'll hear back by email to arrange your private class — check your inbox for a copy." })
-                  : t("consultation.privateThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email to arrange your private class — check your inbox for a copy." })
+                // Holis arranges every private class (the teacher chosen is a preference).
+                ? t("consultation.privateThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email to arrange your private class — check your inbox for a copy." })
                 : isInfo
                 ? t("consultation.infoThankYou", { defaultValue: "Thank you! Our team will be in touch shortly with the course information — dates, pricing and how to register." })
                 : isRequest
@@ -352,17 +329,13 @@ export const ConsultationForm = () => {
                       <p className="font-heading text-xl font-semibold">{formatCRCWithUsd(privateTotal * USD_RATE)}</p>
                       {privateDiscount > 0 && (
                         <p className="font-body text-[11px] text-background/70">
-                          {isLocal
-                            ? t("idDocument.localLine", { pct: localPct, defaultValue: "Local discount ({{pct}}%)" })
-                            : t("idDocument.couponLine", { code: coupon?.code, defaultValue: "Coupon ({{code}})" })}
+                          {t("idDocument.localLine", { pct: localPct, defaultValue: "Local discount ({{pct}}%)" })}
                         </p>
                       )}
                     </div>
                   ) : (
                     <p className="shrink-0 max-w-[9rem] text-right font-body text-xs text-background/70">
-                      {classChoice?.teacherName
-                        ? t("consultation.privatePriceConfirmedBy", { name: classChoice.teacherName.split(" ")[0], defaultValue: "Price confirmed by {{name}}" })
-                        : t("consultation.privatePriceDepends", { defaultValue: "Price depends on the class and teacher" })}
+                      {t("consultation.privatePriceConfirmedHolis", { defaultValue: "Price confirmed by Holis Wellness Center" })}
                     </p>
                   )}
                 </div>
@@ -435,48 +408,30 @@ export const ConsultationForm = () => {
                   value={idDoc}
                   onChange={setIdDoc}
                   localPct={localPct}
-                  teacherFirst={teacherFirst || null}
+                  teacherFirst="the studio"
                   idPrefix="private-id"
-                  optional={!!coupon && !isLocal}
                 />
               )}
 
-              {/* One of her coupons — optional, and never on top of the local discount. */}
+              {/* A coupon code — optional, never on top of the local discount. Holis
+                  checks it and applies it when confirming the private class. */}
               {privateKind && !isLocal && (
                 <div className="space-y-1">
                   <Label htmlFor="private-coupon" className="font-body text-sm">
-                    {teacherFirst
-                      ? t("idDocument.couponLabel", { name: teacherFirst, defaultValue: "Have a coupon from {{name}}? (optional)" })
-                      : t("idDocument.couponLabelGeneric", { defaultValue: "Have a coupon? (optional)" })}
+                    {t("idDocument.couponLabelGeneric", { defaultValue: "Have a coupon? (optional)" })}
                   </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="private-coupon"
-                      placeholder={t("idDocument.couponPlaceholder", { defaultValue: "Coupon code" })}
-                      value={couponCode}
-                      disabled={!!coupon}
-                      maxLength={64}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    />
-                    {coupon ? (
-                      <Button type="button" variant="ghost" onClick={() => { setCoupon(null); setCouponCode(""); }}>
-                        {t("idDocument.remove", { defaultValue: "Remove" })}
-                      </Button>
-                    ) : teacherName && privatePrice != null ? (
-                      <Button type="button" variant="outline" disabled={!couponCode.trim() || checkingCoupon} onClick={applyCoupon}>
-                        {t("idDocument.apply", { defaultValue: "Apply" })}
-                      </Button>
-                    ) : null}
-                  </div>
-                  {coupon ? (
-                    <p className="font-body text-xs text-spa-sage">
-                      {t("idDocument.couponApplied", { code: coupon.code, label: coupon.label, defaultValue: "{{code}} applied — {{label}}" })}
-                    </p>
-                  ) : couponCode.trim() && teacherName && privatePrice == null ? (
+                  <Input
+                    id="private-coupon"
+                    placeholder={t("idDocument.couponPlaceholder", { defaultValue: "Coupon code" })}
+                    value={couponCode}
+                    maxLength={64}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  />
+                  {couponCode.trim() && (
                     <p className="font-body text-xs text-muted-foreground">
-                      {t("idDocument.couponChecked", { name: teacherFirst, defaultValue: "{{name}} will see your coupon with the request." })}
+                      {t("idDocument.couponHolisWillApply", { defaultValue: "Holis will check your coupon and apply it when confirming your private class." })}
                     </p>
-                  ) : null}
+                  )}
                 </div>
               )}
 

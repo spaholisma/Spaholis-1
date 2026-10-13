@@ -81,9 +81,8 @@ const PrivateClassesPage = () => {
         </motion.div>
       </section>
 
-      {/* No price table: each teacher sets her own prices for her private
-          classes, so the price appears once the class and teacher are chosen
-          on the request page. */}
+      {/* Holis' prices, the same whoever teaches (Admin → Services → Private
+          Classes): each card shows its price for the number of people. */}
 
       {/* Class Options */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
@@ -167,22 +166,17 @@ const PrivateClassesPage = () => {
                       </div>
 
                       <div className="flex items-center justify-between gap-3">
-                        {cls.i18nKey === "gyrotonic" ? (
-                          <span className="min-w-0">
-                            <span className="block font-heading text-lg font-semibold text-foreground">
-                              {formatCRCWithUsd(gyro ? Number(gyro.price_one) * USD_RATE : price)}
+                        {/* Holis' price for this many people. */}
+                        <span className="min-w-0">
+                          <span className="block font-heading text-lg font-semibold text-foreground">
+                            {formatCRCWithUsd(price)}
+                          </span>
+                          {cls.i18nKey === "gyrotonic" && gyro && (
+                            <span className="block font-body text-xs text-muted-foreground">
+                              {t("privateSessions.withTeacher", { name: gyro.teacher_name, defaultValue: "with {{name}}" })}
                             </span>
-                            {gyro && (
-                              <span className="block font-body text-xs text-muted-foreground">
-                                {t("privateSessions.withTeacher", { name: gyro.teacher_name, defaultValue: "with {{name}}" })}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="font-body text-xs text-muted-foreground max-w-[12rem]">
-                            {t("privateSessions.priceDepends", { defaultValue: "The price depends on the class and teacher you choose" })}
-                          </span>
-                        )}
+                          )}
+                        </span>
                         <Button asChild variant="spa" size="sm">
                           <Link {...cmsEditProps("privateSessions.ui.bookNow")} to={cls.i18nKey === "gyrotonic" && gyro
                             ? privateRequestPath({ kind: "oneOnOne", kindTitle: (ps as any).classes?.gyrotonic?.title || GYRO_NAME, people: 1, offeringId: gyro.id })

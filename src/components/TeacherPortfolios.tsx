@@ -14,6 +14,7 @@ import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as contentDefaults } from "@/data/content";
 import { sizedImage } from "@/lib/sizedImage";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -238,7 +239,8 @@ export function useTeacherPortfolios(sessions: ScheduleRow[], { teachersOnly = f
         role: member?.role?.trim() || null,
         teacherId: row?.id ?? null,
         classes,
-        passes: passes.filter((p) => p.teacher_name.trim().toLowerCase() === key),
+        // Passes are Holis' now (the Memberships page) — none is sold on a teacher's portfolio.
+        passes: TEACHER_PANEL_ENABLED ? passes.filter((p) => p.teacher_name.trim().toLowerCase() === key) : [],
         privates,
       };
     };

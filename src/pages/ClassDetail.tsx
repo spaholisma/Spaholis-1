@@ -18,6 +18,7 @@ import { formatSpaDate, formatSpaTime, spaLocalParts } from "@/lib/businessHours
 import { localizeRow } from "@/lib/localizeRow";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -270,7 +271,7 @@ export default function ClassDetail() {
                     />
                   )}
 
-                  {passes.length > 0 && (
+                  {TEACHER_PANEL_ENABLED && passes.length > 0 && (
                     <div className="border-t border-border bg-muted/30 px-5 py-4">
                       <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                         <Ticket className="h-3.5 w-3.5" />
@@ -347,9 +348,10 @@ export default function ClassDetail() {
               </motion.div>
             )}
 
-            {/* Nobody named on this class yet, so the studio's own prices go here
-                in full — picking one asks which teacher you want it with. */}
-            {!teacherName && (
+            {/* The studio's passes and memberships — Holis', whoever teaches the
+                class (while the teachers sold their own, only an unassigned class
+                showed them). */}
+            {(!TEACHER_PANEL_ENABLED || !teacherName) && (
               <div>
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Ticket className="h-3.5 w-3.5" /> Passes & memberships

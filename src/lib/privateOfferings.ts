@@ -1,11 +1,20 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrivateClassOption, PrivateKind } from "@/lib/privateClassRequest";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { privatePricing, type PrivatePricing } from "@/lib/otherOfferings";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 // A teacher's private classes and her own prices (table teacher_private_offerings,
 // edited in her Teacher Panel). The website reads them through
 // public_private_offerings(); the price of a request is worked out again on the
 // server by private_offering_price(), which this mirrors.
+//
+// Since 2026-10 Holis Wellness Center runs the private classes: every one of
+// them is at the studio's prices (Admin → Services → Private Classes), the
+// same whoever teaches it. The teacher's own prices stay in the table, unused,
+// for when the Teacher Admin Panel is switched back on (src/lib/features.ts).
 
 export interface PrivateOffering {
   id: string;
@@ -52,8 +61,30 @@ export function fromPrice(o: PrivateOffering): number | null {
 export const sameName = (a: string | null | undefined, b: string | null | undefined) =>
   (a ?? "").trim().replace(/\s+/g, " ").toLowerCase() === (b ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 
-/** Every teacher's active private classes. */
+/** A private class at Holis' prices: one person, two, a group up to four, each extra person. */
+export function withStudioPrices(o: PrivateOffering, pricing: PrivatePricing): PrivateOffering {
+  return {
+    ...o,
+    price_one: pricing.onePerson, price_two: pricing.twoPeople,
+    price_group: pricing.upToFour, price_extra: pricing.extraPerson,
+  };
+}
+
+/** Every teacher's active private classes — at Holis' prices while Holis runs them. */
 export function usePrivateOfferings() {
+  const query = useTeacherPrivateOfferings();
+  const { data: siteContent } = useSiteContent();
+  const pricing = privatePricing((siteContent as any)?.privateSessions);
+  const key = `${pricing.onePerson}|${pricing.twoPeople}|${pricing.upToFour}|${pricing.extraPerson}`;
+  const data = useMemo(
+    () => (TEACHER_PANEL_ENABLED || !query.data ? query.data : query.data.map((o) => withStudioPrices(o, pricing))),
+    [query.data, key], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  return { ...query, data };
+}
+
+/** The private classes with each teacher's own prices, as she set them. */
+function useTeacherPrivateOfferings() {
   return useQuery({
     queryKey: ["public-private-offerings"],
     queryFn: async () => {
