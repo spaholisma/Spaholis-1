@@ -40,10 +40,10 @@ describe("after choosing a password", () => {
     expect(page).toMatch(/navigate\(await homeFor\(data\.user\?\.id\)\)/);
   });
 
-  it("only the roles the Admin lets in go to the Admin; a teacher to her panel; everyone else to their page", () => {
+  it("only the roles the Admin lets in go to the Admin; a teacher to her panel (while it is on); everyone else to their page", () => {
     expect(lib).toMatch(/new Set\(\["super_admin", "manager", "coordinator", "viewer"\]\)/);
     expect(lib).toMatch(/if \(roles\.some\(\(r\) => STAFF_ROLES\.has\(r\)\)\) return "\/admin";/);
-    expect(lib).toMatch(/return roles\.includes\("teacher"\) \? "\/teacher" : "\/dashboard";/);
+    expect(lib).toMatch(/return roles\.includes\("teacher"\) && TEACHER_PANEL_ENABLED \? "\/teacher" : "\/dashboard";/);
   });
 
   it("never waits forever: an error or a timeout says the link expired and offers a new one", () => {

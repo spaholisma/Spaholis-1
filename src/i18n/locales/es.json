@@ -722,7 +722,8 @@
     "errorMissingFields": "Por favor ingresa tu nombre y correo electrónico.",
     "errorInvalidEmail": "Por favor ingresa un correo electrónico válido.",
     "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
-    "serviceName": "Consulta Holística Gratuita"
+    "serviceName": "Consulta Holística Gratuita",
+    "privatePriceConfirmedHolis": "Precio confirmado por Holis Wellness Center"
   },
   "idDocument": {
     "label": "Tu identificación *",
@@ -758,7 +759,8 @@
     "labelOptional": "Tu identificación (opcional con tu cupón)",
     "optionalWhy": "No hace falta con tu cupón. Con cédula de Costa Rica recibes el {{pct}}% de descuento local en lugar del cupón — no se suman.",
     "cedulaPlaceholderOptional": "Número de cédula (ej. 1-0234-0567)",
-    "otherPlaceholderOptional": "Número de pasaporte o identificación"
+    "otherPlaceholderOptional": "Número de pasaporte o identificación",
+    "couponHolisWillApply": "Holis revisará tu cupón y lo aplicará al confirmar tu clase privada."
   },
   "about": {
     "meetTeacher": "Conoce a {{name}}",

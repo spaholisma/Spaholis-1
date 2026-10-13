@@ -23,6 +23,11 @@ const ADMIN_EMAIL = "info@spaholis.com";
 const ADMIN_BACKUP_EMAIL = "spaholisma@gmail.com";
 const FROM_ADDRESS = "Holis Wellness <info@spaholis.com>";
 const SITE_URL = "https://spaholis.com";
+/**
+ * The teachers' own copy of a pass email. Off since 2026-10: Holis Wellness
+ * Center runs the passes, so only the guest and Holis hear about them.
+ */
+const TEACHER_EMAILS_ENABLED = false;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -206,6 +211,8 @@ Deno.serve(async (req) => {
   // Given on the website with one of the teacher's coupons (100%): no payment.
   const isCouponPass = (o as any).source === "coupon";
   const couponUsed = isCouponPass ? String((o as any).notes || "").match(/coupon\s+(\S+)/i)?.[1] ?? "" : "";
+  // A pass bought online with a Holis coupon (paypal-capture-order notes it).
+  const purchaseCoupon = isOnlinePurchase ? String((o as any).notes || "").match(/^Holis coupon\s+(\S+)/i)?.[1] ?? "" : "";
   const link = isOrder ? `${SITE_URL}/classes?m=${o.access_token}` : `${SITE_URL}/classes`;
 
   // Prefer the admin-editable template; fall back to the built-in copy.
@@ -280,7 +287,9 @@ Deno.serve(async (req) => {
       ? `<p><strong>Paid to:</strong> ${esc(teacher.display_name)}'s PayPal — not Holis.</p>`
       : `<p><strong>Paid to:</strong> Holis (PayPal) — ${esc(teacher.display_name)}'s pass.</p>`)
     : teacher ? `<p><strong>Teacher:</strong> ${esc(teacher.display_name)}</p>` : "")
-    + (isCouponPass ? `<p><strong>Payment:</strong> none — free with ${teacher ? `${esc(teacher.display_name)}'s` : "the teacher's"} coupon${couponUsed ? ` ${esc(couponUsed)}` : ""}.</p>` : "")
+    + (isCouponPass ? `<p><strong>Payment:</strong> none — free with ${teacher ? `${esc(teacher.display_name)}'s` : "a Holis"} coupon${couponUsed ? ` ${esc(couponUsed)}` : ""}.</p>` : "")
+    // Bought online with a Holis coupon: which one (the price paid shows the rest).
+    + (isOnlinePurchase && purchaseCoupon ? `<p><strong>Coupon:</strong> ${esc(purchaseCoupon)} — paid $${Number((o as any).price_paid ?? 0).toFixed(2)}</p>` : "")
     + idLine + localLine;
   const teamTpl = await loadTemplate(supabase, isOnlinePurchase ? "team_offering_purchase" : "team_offering_order");
   let adminSubj: string;
@@ -316,8 +325,9 @@ Deno.serve(async (req) => {
     await sendEmail(ADMIN_BACKUP_EMAIL, `[Backup] ${adminSubj}`, emailDocument(adminHtml, adminSubj));
   }
 
-  // The teacher hears about every pass of hers — sold online or made by hand.
-  if (teacher?.email) {
+  // The teacher hears about every pass of hers — sold online or made by hand
+  // (while the teachers ran their own passes; off now).
+  if (TEACHER_EMAILS_ENABLED && teacher?.email) {
     const who = String(o.guest_name || to);
     const subj = isOnlinePurchase
       ? `New pass sold online — ${o.name_snapshot}${o.code ? ` (${o.code})` : ""}`

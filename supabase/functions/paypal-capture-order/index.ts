@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
       const groupId = qty > 1 ? crypto.randomUUID() : null;
       const bookingIds: string[] = [];
       let overbooked = false;
+      let insertedAny = false;
       for (let i = 0; i < qty; i++) {
         // Stable id per (order, spot) so a retried capture doesn't duplicate a
         // spot that was already inserted before a mid-loop failure.
@@ -155,6 +156,11 @@ Deno.serve(async (req) => {
         });
         if (insErr) { if (!spotOverbooked) await admin.rpc("increment_class_spot", { _schedule_id: t.schedule_id }); throw insErr; }
         bookingIds.push(bookingId);
+        insertedAny = true;
+      }
+      // A Holis coupon used: one use more (not again on a retried capture).
+      if (insertedAny && t.coupon_id) {
+        try { await admin.rpc("increment_coupon_usage", { _coupon_id: t.coupon_id }); } catch (e) { console.error("[paypal-capture-order] coupon count failed", e); }
       }
 
       await admin.from("paypal_orders").update({ status: "captured", class_booking_id: bookingIds[0], updated_at: new Date().toISOString() }).eq("order_id", orderId);
@@ -224,24 +230,38 @@ Deno.serve(async (req) => {
       expires_at = d.toISOString();
     }
     // Who bought it, so the email, the code and the Admin lists all have a name
-    // and an address — the buyer is logged in, so it comes from their profile.
-    let buyerName: string | null = null;
-    let buyerEmail: string | null = null;
-    if (t.user_id) {
-      const { data: prof } = await admin.from("profiles").select("full_name, email").eq("user_id", t.user_id).maybeSingle();
-      buyerName = (prof as any)?.full_name || null;
-      buyerEmail = (prof as any)?.email ? String((prof as any).email).trim().toLowerCase() : null;
+    // and an address: what they typed at checkout (a pass can be bought without
+    // an account), else their profile. A guest whose email has an account gets
+    // the pass on it.
+    let buyerName: string | null = (t.guest_name || "").trim() || null;
+    let buyerEmail: string | null = (t.guest_email || "").trim().toLowerCase() || null;
+    let buyerId: string | null = t.user_id ?? null;
+    if (buyerId) {
+      const { data: prof } = await admin.from("profiles").select("full_name, email").eq("user_id", buyerId).maybeSingle();
+      buyerName = buyerName || (prof as any)?.full_name || null;
+      buyerEmail = buyerEmail || ((prof as any)?.email ? String((prof as any).email).trim().toLowerCase() : null);
+    } else if (buyerEmail) {
+      const { data: prof } = await admin.from("profiles").select("user_id").ilike("email", buyerEmail).maybeSingle();
+      buyerId = (prof as any)?.user_id ?? null;
     }
+    // What was really paid: the price after the local discount or a coupon.
+    const paid = Number.isFinite(Number(rec.amount)) ? Number(rec.amount) : Number((off as any).price);
     const { data: uo, error: uoErr } = await admin.from("user_offerings").insert({
-      user_id: t.user_id ?? null,
+      user_id: buyerId,
       offering_id: (off as any).id, type: (off as any).type, name_snapshot: (off as any).name,
-      price_paid: (off as any).price, is_unlimited: (off as any).is_unlimited,
+      price_paid: paid, is_unlimited: (off as any).is_unlimited,
       credits_total: (off as any).credits, credits_remaining: (off as any).credits,
       expires_at, status: "active", source: "purchase", payment_id: capId,
       code: await uniqueCode(admin), access_token: randomToken(),
-      guest_name: buyerName, guest_email: buyerEmail,
+      guest_name: buyerName, guest_email: buyerEmail, guest_phone: (t.guest_phone || "").trim() || null,
+      ...(t.id_document ? { id_document: t.id_document, id_document_type: t.id_document_type ?? null } : {}),
+      ...(t.local_discount ? { local_discount: true } : {}),
+      ...(t.coupon_code ? { notes: `Holis coupon ${t.coupon_code}` } : {}),
     }).select("id").single();
     if (uoErr) throw uoErr;
+    if (t.coupon_id) {
+      try { await admin.rpc("increment_coupon_usage", { _coupon_id: t.coupon_id }); } catch (e) { console.error("[paypal-capture-order] coupon count failed", e); }
+    }
 
     await admin.from("paypal_orders").update({ status: "captured", user_offering_id: uo.id, updated_at: new Date().toISOString() }).eq("order_id", orderId);
     try { await admin.functions.invoke("send-membership-order-email", { body: { userOfferingId: uo.id } }); } catch (e) { console.error("[paypal-capture-order] offering email failed", e); }

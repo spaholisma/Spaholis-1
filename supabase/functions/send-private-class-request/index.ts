@@ -3,12 +3,13 @@
 //
 // A guest asked for a one-on-one, couple's or group private class on
 // spaholis.com (Private Sessions → Book Now) and may have picked a class and
-// its teacher. Three emails go out:
-//   1. the teacher of that class (only if she is a registered teacher),
-//   2. the Holis team (info@ + Gmail backup),
-//   3. the guest, as a copy of what they asked for.
-// Replies to the team and teacher emails go straight to the guest; replies to
-// the guest's copy go to the teacher (or to Holis when there is none).
+// the teacher they would like. Since 2026-10 Holis Wellness Center arranges
+// every private class, at the studio's prices (Admin → Services → Private
+// Classes) with the studio's local discount for a Costa Rican cédula:
+//   1. the Holis team (info@ + Gmail backup) — replies go to the guest,
+//   2. the guest, as a copy of what they asked for — replies go to Holis.
+// The teacher is no longer emailed (TEACHER_EMAILS_ENABLED); the team passes
+// it on to her once the day and time are agreed.
 //
 // Called by the request form with the new booking's id only. Nothing the
 // browser sends is trusted: the booking is read from the database, it must be
@@ -35,6 +36,10 @@ const FROM_ADDRESS = "Holis Wellness <info@spaholis.com>";
 const SITE = "https://www.spaholis.com";
 const MAX_AGE_MINUTES = 30;
 const MAX_GUEST_COPIES_PER_HOUR = 3;
+/** Emails to the teachers: off while Holis runs the private classes. */
+const TEACHER_EMAILS_ENABLED = false;
+/** Holis' private class prices (USD) when the Admin has none saved — as the website. */
+const DEFAULT_PRICING = { onePerson: 85, twoPeople: 113, upToFour: 170, extraPerson: 28 };
 // Teachers who give private classes on the beach (same list as the website's
 // src/lib/privateLocation.ts).
 const BEACH_TEACHERS = ["evelina"];
@@ -149,19 +154,6 @@ Deno.serve(async (req) => {
         classTitle = clean((o as any).title);
         teacherName = clean(t.display_name);
         teacherEmail = clean(t.email);
-        const { data: p } = await admin.rpc("private_offering_price", {
-          _offering_id: offeringId, _kind: String(pc.kind ?? ""), _people: people,
-        });
-        price = p == null ? null : Number(p);
-        if (price != null && Number.isFinite(price) && price > 0 && t.id) {
-          const { data: q, error: qErr } = await admin.rpc("teacher_price", {
-            _teacher_id: t.id, _base: price,
-            _id_document: idType === "cr_cedula" ? idNumber || null : null,
-            _coupon: couponTyped || null,
-          });
-          if (qErr) console.error("[send-private-class-request] teacher_price failed", qErr.message);
-          else quote = q as any;
-        }
       }
     } else if (typeof pc.class_id === "string" && UUID_RE.test(pc.class_id)) {
       const { data: cls } = await admin.from("classes").select("id, title, instructor").eq("id", pc.class_id).maybeSingle();
@@ -177,6 +169,33 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // Holis' price, the same whoever teaches: the Admin's prices for this many
+    // people, then the studio's local discount for a valid Costa Rican cédula.
+    // A coupon is not applied here: the team checks it when it confirms.
+    {
+      const { data: sc } = await admin.from("site_content").select("content").eq("section_key", "content").maybeSingle();
+      const raw = (sc as any)?.content?.privateSessions?.pricing ?? {};
+      const num = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
+      const pr = {
+        onePerson: num(raw.onePerson, DEFAULT_PRICING.onePerson), twoPeople: num(raw.twoPeople, DEFAULT_PRICING.twoPeople),
+        upToFour: num(raw.upToFour, DEFAULT_PRICING.upToFour), extraPerson: num(raw.extraPerson, DEFAULT_PRICING.extraPerson),
+      };
+      const kind = String(pc.kind ?? "");
+      price = kind === "oneOnOne" ? pr.onePerson
+        : kind === "couples" ? pr.twoPeople
+        : kind === "group" ? (people <= 4 ? pr.upToFour : pr.upToFour + (people - 4) * pr.extraPerson)
+        : null;
+      if (price != null) {
+        const { data: q, error: qErr } = await admin.rpc("holis_price", {
+          _base: price, _id_document: idType === "cr_cedula" ? idNumber || null : null, _coupon: null,
+        });
+        if (qErr) console.error("[send-private-class-request] holis_price failed", qErr.message);
+        else quote = q as any;
+      }
+    }
+    // The teacher is a preference now: Holis arranges it and tells her.
+    if (!TEACHER_EMAILS_ENABLED) teacherEmail = "";
 
     // Where the guest would like it. Checked again here: the beach only with a
     // teacher who gives it there, GYROTONIC® only at the studio (the tower).
@@ -205,7 +224,7 @@ Deno.serve(async (req) => {
     const peopleText = people === 1 ? "1 person" : `${people} people`;
     const mail = (e: string) => (e ? `<a href="mailto:${esc(e)}" style="color:#5e7d67">${esc(e)}</a>` : "");
     const classText = classTitle ? esc(classTitle) : "No specific class — help them choose";
-    const teacherText = teacherName ? esc(teacherName) : classTitle ? "To be confirmed" : "";
+    const teacherText = teacherName ? `${esc(teacherName)} (the guest's preference)` : classTitle ? "To be confirmed" : "";
     const detailRows =
       row("Private class", esc(kindTitle)) +
       row("People", esc(peopleText)) +
@@ -213,14 +232,12 @@ Deno.serve(async (req) => {
       row("Teacher", teacherText) +
       row("Location", locationText) +
       row("Price",
-        quote?.local ? `$${Number(quote.price).toFixed(2)} — ${esc(teacherName)}'s local price (${Number(quote.local_pct)}% off $${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
-        : quote?.coupon_status === "applied" ? `$${Number(quote.price).toFixed(2)} — with coupon ${esc(quote.coupon)} ($${Number(quote.base).toFixed(2)} before)`
-        : price != null && Number.isFinite(price) ? `$${price.toFixed(2)} — ${esc(teacherName)}'s price`
-        : teacherName ? `To be confirmed by ${esc(teacherName)}` : "") +
+        quote?.local ? `$${Number(quote.price).toFixed(2)} — local price (${Number(quote.local_pct)}% off $${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
+        : price != null && Number.isFinite(price) ? `$${price.toFixed(2)}`
+        : "To be confirmed by the Holis team") +
       row("Coupon",
-        !couponTyped || quote?.local || quote?.coupon_status === "applied" ? ""
-        : quote?.coupon_status === "not_found" ? `${esc(couponTyped)} — not one of ${esc(teacherName)}'s coupons`
-        : `${esc(couponTyped)} — to be checked by ${teacherName ? esc(teacherName) : "the team"}`) +
+        !couponTyped || quote?.local ? ""
+        : `${esc(couponTyped)} — to be checked and applied by the Holis team`) +
       row("Preferred date & time", esc(preferred));
     const guestRows =
       row("Name", esc(guestName)) +
@@ -253,7 +270,7 @@ Deno.serve(async (req) => {
     const teamNote = teacherEmail
       ? `${esc(teacherName)} was emailed this request and may reply to the guest directly.`
       : teacherName
-        ? `${esc(teacherName)} is not a registered teacher with an email, so she was <strong>not</strong> emailed — please forward this request to her.`
+        ? `The guest would like it with <strong>${esc(teacherName)}</strong> — please arrange it with her and the guest (she was not emailed).`
         : "No teacher was chosen — please contact the guest to arrange the class.";
     const team = await sendEmail(
       TEAM,

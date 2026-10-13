@@ -37,8 +37,9 @@ describe("the booking page", () => {
     expect(page).toMatch(/>Phone \*<\/label>/);
   });
 
-  it("offers cash next to card and books it on the server", () => {
-    expect(page).toMatch(/in cash at the class`/);
+  it("offers cash next to card — paid at the studio, to Holis — and books it on the server", () => {
+    expect(page).toMatch(/in cash at the studio`/);
+    expect(page).toMatch(/Bring the cash and pay at Holis Wellness Center when you arrive for your class\./);
     expect(page).toMatch(/selected=\{payMethod === "cash"\}/);
     expect(page).toMatch(/supabase\.rpc\("book_class_pay_cash" as any/);
     expect(page).toMatch(/payMethod === "cash" \? \(\s+<Button className="w-full" onClick=\{handleCashBooking\}/);
@@ -91,7 +92,8 @@ describe("the emails", () => {
   it("the guest's copy says it is paid in cash, not already paid", () => {
     const src = read("supabase/functions/send-booking-notification/index.ts");
     expect(src).toMatch(/totalLabel: cashDue \? "To pay in cash" : linkDue \? "To pay with CompraClick" : "Amount Paid"/);
-    expect(src).toMatch(/cashDue \? `Pay in cash at the class/);
+    expect(src).toMatch(/cashDue \? "Pay in cash at the studio — Holis Wellness Center"/);
+    expect(src).toMatch(/\? `CASH — collect \$\{formatCRC\(totalUsd\)\} at the studio`/);
   });
 
   it("the teacher's new-signup email says the student pays her in cash", () => {

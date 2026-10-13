@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { clampPct } from "@/lib/localDiscount";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction, extractInvokeErrorMessage } from "@/lib/invokeEdgeFunction";
 import { AddTeacherCard } from "@/components/admin/AddTeacherCard";
@@ -494,6 +495,10 @@ export function AdminTeachersManager() {
                           onBlur={(e) => Number(e.target.value) !== Number(r.teacher.studio_rate)
                             && patchTeacher(r.teacher.id, { studio_rate: Math.max(0, Number(e.target.value) || 0) })} />
 
+                        {/* The local discount is the studio's now (Admin → Coupons); a
+                            teacher's own one is kept for when the panel comes back. */}
+                        {TEACHER_PANEL_ENABLED ? (
+                        <>
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
                           Local discount (Costa Rican cédula)
                         </p>
@@ -512,6 +517,12 @@ export function AdminTeachersManager() {
                           Students with a Costa Rican cédula pay this much less for her passes, her classes and events paid
                           online, and her private classes. 0 = no local discount. Her coupons do not add to it.
                         </p>
+                        </>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground pt-2">
+                            Local discount (Costa Rican cédula): set once for the whole studio in <strong>Coupons</strong>.
+                          </p>
+                        )}
 
                         <TeacherChoicesEditor
                           teacherName={r.teacher.display_name}

@@ -110,9 +110,9 @@ import { homeFor } from "@/lib/authRedirect";
 describe("where she lands", () => {
   beforeEach(() => { roles.list = []; });
 
-  it("a teacher goes to her Teacher Panel, the team to the Admin, a client to their page", async () => {
+  it("a teacher goes to My Account while the Teacher Panel is paused, the team to the Admin, a client to their page", async () => {
     roles.list = ["teacher"];
-    expect(await homeFor("u")).toBe("/teacher");
+    expect(await homeFor("u")).toBe("/dashboard");
     roles.list = ["teacher", "coordinator"];
     expect(await homeFor("u")).toBe("/admin");
     roles.list = [];

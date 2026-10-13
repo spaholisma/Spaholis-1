@@ -30,6 +30,14 @@ const json = (b: any, s = 200) =>
 const FROM_ADDRESS = "Holis Wellness <info@spaholis.com>";
 // Holis hears about every cancellation by a teacher (and a backup copy).
 const ADMIN_EMAIL = "info@spaholis.com";
+/**
+ * Emails TO the teachers. Off since 2026-10: the teachers chose not to use
+ * their panel and Holis Wellness Center runs the classes — so every email goes
+ * to the guests and to Holis only. The students still hear when a class is
+ * cancelled or moved, and Holis gets its copies. Set to true with the Teacher
+ * Admin Panel (src/lib/features.ts) to send them again.
+ */
+const TEACHER_EMAILS_ENABLED = false;
 const ADMIN_BACKUP_EMAIL = "spaholisma@gmail.com";
 const SITE = "https://www.spaholis.com";
 const SPA_TZ = "America/Costa_Rica";
@@ -252,6 +260,7 @@ Deno.serve(async (req) => {
   try {
     // ── Someone asked a teacher for a pass ──
     if (event === "pass_requested") {
+      if (!TEACHER_EMAILS_ENABLED) return json({ ok: true, event, teacherEmailed: false, reason: "teacher_emails_off" });
       const { data: t } = await admin.from("teachers")
         .select("display_name, email").eq("id", teacherId).maybeSingle();
       if (!(t as any)?.email) return json({ ok: true, teacherEmailed: false, reason: "no_teacher_email" });
@@ -282,6 +291,7 @@ Deno.serve(async (req) => {
     // Sent by the database the moment her website account is linked to her —
     // whether the Admin invited her or she signed up herself.
     if (event === "teacher_welcome") {
+      if (!TEACHER_EMAILS_ENABLED) return json({ ok: true, event, teacherEmailed: false, reason: "teacher_emails_off" });
       const { data: t } = await admin.from("teachers")
         .select("display_name, email, user_id").eq("id", teacherId).maybeSingle();
       const teacher: any = t;
@@ -368,7 +378,7 @@ Deno.serve(async (req) => {
         results.guestEmailed = r.ok;
         if (!r.ok) console.error("[notify-teacher] private guest email failed", r.error);
       }
-      if ((t as any)?.email) {
+      if (TEACHER_EMAILS_ENABLED && (t as any)?.email) {
         const r = await sendEmail((t as any).email, `You cancelled a private class — ${guestName}`, shell(
           "You cancelled a private class",
           `${esc(guestName)} and Holis have been emailed, with your reason.`,
@@ -425,8 +435,8 @@ Deno.serve(async (req) => {
       total: Number(removed.total_price) || 0, pass: !!removed.pass, coupon: String(removed.coupon_code ?? ""),
     } : null;
 
-    // ── 1. Tell the teacher what happened to her class ──
-    if (teacherEmail) {
+    // ── 1. Tell the teacher what happened to her class (off while Holis runs them) ──
+    if (teacherEmail && TEACHER_EMAILS_ENABLED) {
       const copy: Record<string, { subject: string; intro: string }> = {
         student_added:     { subject: `New student in ${title}`,        intro: `A student was added to your class.` },
         student_updated:   { subject: `Student updated — ${title}`,     intro: `A student's details were updated.` },
@@ -507,7 +517,7 @@ Deno.serve(async (req) => {
       const res = await sendEmail(teacherEmail, c.subject, shell(c.subject, c.intro, rowsHtml));
       results.teacherEmailed = res.ok;
       if (!res.ok) console.error("[notify-teacher] teacher email failed", res.error);
-    } else {
+    } else if (TEACHER_EMAILS_ENABLED) {
       console.warn("[notify-teacher] no teacher email for session", scheduleId, "instructor:", who);
     }
 
@@ -627,7 +637,7 @@ Deno.serve(async (req) => {
     }
 
     // ── A class that changed hands: the teacher losing it has to know ──
-    if (event === "class_reassigned" && body?.previousTeacher) {
+    if (TEACHER_EMAILS_ENABLED && event === "class_reassigned" && body?.previousTeacher) {
       const prev = String(body.previousTeacher).trim();
       if (prev && prev.toLowerCase() !== who.toLowerCase()) {
         const { data: p } = await admin.from("teachers")

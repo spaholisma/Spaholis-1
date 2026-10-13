@@ -102,10 +102,10 @@ describe("paypal-create-order", () => {
   const fn = read("supabase/functions/paypal-create-order/index.ts");
   const cls = fn.slice(fn.indexOf('if (body.kind === "class") {'), fn.indexOf('} else if (body.kind === "teacher_pass") {'));
 
-  it("a class or event: her local discount or her coupon on one spot, else a Holis coupon as before", () => {
-    expect(cls).toMatch(/const classTeacher = await sessionTeacher\(admin, \(sched as any\)\.instructor, cls\.instructor\);/);
-    expect(cls).toMatch(/teacherPrice\(admin, classTeacher\.id, base, body, cls\.full_price_only \? null : wanted\)/);
-    expect(cls).toMatch(/if \(!local && !teacherCoupon\) discount = await couponDiscount\(admin, wanted, base, String\(cls\.id\)\);/);
+  it("a class or event: Holis' local discount or a Holis coupon on one spot (never both)", () => {
+    expect(cls).toMatch(/const q = await holisPrice\(admin, base, body, cls\.full_price_only \? null : wanted, \{ classId: String\(cls\.id\) \}\);/);
+    expect(cls).toMatch(/reason: "invalid_coupon", message: COUPON_MESSAGES\[String\(q\.coupon_status\)\]/);
+    expect(cls).not.toMatch(/teacherPrice\(admin, classTeacher\.id/);
     expect(cls).toMatch(/amount = Math\.max\(0, Math\.round\(\(base \* qty - discount\) \* 100\) \/ 100\);/);
     expect(cls).toMatch(/unit_price: base, discount, local_discount: local, \.\.\.idOf\(body\)/);
   });
@@ -136,15 +136,16 @@ describe("paypal-capture-order", () => {
 });
 
 describe("the emails", () => {
-  it("the teacher sees the student's ID — on a pass, a class and a private class", () => {
+  it("the student's ID is in the emails — on a pass, a class and a private class", () => {
     expect(read("supabase/functions/send-membership-order-email/index.ts")).toMatch(/<strong>ID:<\/strong>/);
     expect(read("supabase/functions/notify-teacher/index.ts")).toMatch(/row\("ID", student\.id\)/);
     const priv = read("supabase/functions/send-private-class-request/index.ts");
     expect(priv).toMatch(/row\("ID", idNumber \?/);
-    expect(priv).toMatch(/admin\.rpc\("teacher_price"/);
+    // Holis' price and Holis' local discount (2026-10).
+    expect(priv).toMatch(/admin\.rpc\("holis_price"/);
     expect(priv).toMatch(/local price \(\$\{Number\(quote\.local_pct\)\}% off/);
     // Every price in the emails keeps its dollar sign.
-    expect(priv).toContain("`$${price.toFixed(2)} — ${esc(teacherName)}'s price`");
+    expect(priv).toContain("price != null && Number.isFinite(price) ? `$${price.toFixed(2)}`");
     expect(priv).toContain("quote?.local ? `$${Number(quote.price).toFixed(2)}");
     expect(priv).toContain("% off $${Number(quote.base).toFixed(2)}");
     expect(read("supabase/functions/send-membership-order-email/index.ts")).toContain("paid $${Number((o as any).price_paid ?? 0).toFixed(2)}");
@@ -174,10 +175,11 @@ describe("the pages", () => {
     }
   });
 
-  it("a private class: phone and ID required, her coupon optional — and with it the ID too", () => {
+  it("a private class: phone and ID required; a coupon code goes with the request for Holis to apply", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
-    expect(form).toMatch(/if \(privateKind && \(!form\.phone \|\| !isValidPhoneNumber\(form\.phone\) \|\| !idDocumentOk\(idDoc, !!coupon && !isLocal\)\)\)/);
-    expect(form).toMatch(/optional=\{!!coupon && !isLocal\}/);
+    expect(form).toMatch(/if \(privateKind && \(!form\.phone \|\| !isValidPhoneNumber\(form\.phone\) \|\| !idDocumentOk\(idDoc\)\)\)/);
+    expect(form).toMatch(/Holis will check your coupon and apply it when confirming your private class\./);
+    expect(form).toMatch(/const \{ data: studioPct = 0 \} = useStudioLocalPct\(\);/);
   });
 
   it("the ID: required, optional once a coupon is applied — but typed, it must be right", () => {

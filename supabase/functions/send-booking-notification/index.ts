@@ -868,7 +868,8 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
 
   const reservationId = booking.id.slice(0, 8).toUpperCase();
   const paymentMethod = booking.payment_method || null;
-  // Reserved online, paid to the teacher in cash at the class.
+  // Reserved online, paid in cash at the studio (to Holis Wellness Center —
+  // since 2026-10 Holis runs the classes, the teachers are not paid directly).
   const cashDue = paymentMethod === "cash" && booking.payment_status === "pending";
   // Reserved online, paid to the teacher on her own CompraClick link.
   const linkDue = paymentMethod === "compraclick" && booking.payment_status === "pending";
@@ -882,7 +883,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
   }
   const paymentStatusLabel =
     booking.payment_status === "paid" ? "Paid"
-    : cashDue ? `Pay in cash at the class${instructor ? ` — to ${instructor}` : ""}`
+    : cashDue ? "Pay in cash at the studio — Holis Wellness Center"
     : linkDue ? `Pay with CompraClick${instructor ? ` — to ${instructor}` : ""}`
     : paymentMethod === "free" && couponCode ? `Free — coupon ${couponCode}`
     : paymentMethod === "membership" ? "Covered by membership"
@@ -905,7 +906,7 @@ async function handleByClassBookingId(classBookingId: string, supabase: any): Pr
     totalPrice: totalUsd,
     // The team's copy says plainly that the money is still to be collected.
     paymentStatus: cashDue && totalUsd != null
-      ? `CASH — collect ${formatCRC(totalUsd)} at the class${instructor ? ` (to ${instructor})` : ""}`
+      ? `CASH — collect ${formatCRC(totalUsd)} at the studio`
       : linkDue && totalUsd != null
       ? `COMPRACLICK — ${formatCRC(totalUsd)} to ${instructor || "the teacher"}'s link (she checks it arrived)`
       : paymentStatusLabel,

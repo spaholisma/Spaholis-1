@@ -70,11 +70,13 @@ describe("1. GYROTONIC with a teacher", () => {
     expect(ed).toMatch(/class_id: draft\.class_id && !namedTitle\(draft\.class_id\) \? draft\.class_id : null/);
   });
 
-  it("the Private Sessions card goes to her, at her price — and stays as before until a teacher lists it", () => {
+  it("the Private Sessions card asks for her, at Holis' price — and stays as before until a teacher lists it", () => {
     const page = read("src/pages/PrivateClasses.tsx");
     expect(page).toMatch(/const gyro = gyrotonicOfferings\(allPrivate\)\[0\] \?\? null;/);
     expect(page).toMatch(/privateRequestPath\(\{ kind: "oneOnOne", kindTitle: [^}]+, people: 1, offeringId: gyro\.id \}\)/);
-    expect(page).toMatch(/formatCRCWithUsd\(gyro \? Number\(gyro\.price_one\) \* USD_RATE : price\)/);
+    // 2026-10: Holis' price on every card, GYROTONIC included.
+    expect(page).toMatch(/\{formatCRCWithUsd\(price\)\}/);
+    expect(page).not.toMatch(/Number\(gyro\.price_one\)/);
     // The old link is still there for when nobody lists it.
     expect(page).toContain('cls.i18nKey !== "gyrotonic" ? `&private=${cls.i18nKey}&people=${count}` : ""');
   });
@@ -185,7 +187,8 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     const card = screen.getByRole("link", { name: /Evelina — classes, private classes and passes/ });
     expect(card.getAttribute("href")).toBe("/teachers/evelina");
     await waitFor(() => expect(screen.getByRole("link", { name: "Private classes" }).getAttribute("href")).toBe("/teachers/evelina#private"));
-    expect(screen.getByRole("link", { name: "Passes" }).getAttribute("href")).toBe("/teachers/evelina#passes");
+    // Passes are Holis' now (the Memberships page): none on a teacher's card.
+    expect(screen.queryByRole("link", { name: "Passes" })).toBeNull();
     // Nothing to book inside the card any more: it is all on her page.
     expect(screen.queryByText("Get it")).toBeNull();
     expect(screen.queryByText("See & request")).toBeNull();
@@ -237,7 +240,7 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     expect(screen.getByRole("link", { name: /Hatha Yoga — see the class and its dates/ }).getAttribute("href")).toBe("/classes/c1");
   });
 
-  it("her page: bio, classes, private classes with prices and the request, passes", async () => {
+  it("her page: bio, classes, private classes with prices and the request — no passes (Holis' now)", async () => {
     renderIt(
       <Routes><Route path="/teachers/:slug" element={<TeacherProfile />} /></Routes>,
       "/teachers/evelina",
@@ -248,12 +251,11 @@ describe("3. Every teacher's portfolio shows, and opens her page", () => {
     expect(screen.getByText("Private classes with Evelina")).toBeTruthy();
     expect(screen.getByText("GYROTONIC®")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /Request a private class/ }).length).toBeGreaterThan(0);
-    expect(screen.getByText("Passes with Evelina")).toBeTruthy();
-    expect(screen.getByText("5-Class Pass")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Get it" })).toBeTruthy();
+    expect(screen.queryByText("Passes with Evelina")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Get it" })).toBeNull();
     expect(document.getElementById("classes")).toBeTruthy();
     expect(document.getElementById("private")).toBeTruthy();
-    expect(document.getElementById("passes")).toBeTruthy();
+    expect(document.getElementById("passes")).toBeNull();
   });
 
   it("her bio is read as greeting, what she teaches, and her story", () => {
@@ -349,11 +351,11 @@ describe("7. A class page leads back to its teacher; passes are for weekly class
     expect(page).toMatch(/<TeacherPrivateSection/);
   });
 
-  it("the pass choosers leave out one-off events (Wellness Sunday, workshops…)", () => {
-    for (const f of ["src/components/PassChooser.tsx", "src/components/TeacherPassStudio.tsx"]) {
-      const src = read(f);
-      expect(src).toMatch(/classes\([^)]*category\)/);
-      expect(src).toMatch(/if \(EVENT_CATEGORIES\.has\(String\(s\.classes\.category \?\? ""\)\)\) return;/);
-    }
+  it("the teacher pass chooser leaves out one-off events; Holis' passes work on every weekly class", () => {
+    const studio = read("src/components/TeacherPassStudio.tsx");
+    expect(studio).toMatch(/classes\([^)]*category\)/);
+    expect(studio).toMatch(/if \(EVENT_CATEGORIES\.has\(String\(s\.classes\.category \?\? ""\)\)\) return;/);
+    // Holis' passes ask for no class (or teacher): there is nothing to pick.
+    expect(read("src/components/PassChooser.tsx")).toMatch(/· any weekly class/);
   });
 });

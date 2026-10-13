@@ -33,15 +33,20 @@ describe("a teacher's 100% coupon", () => {
     expect(sql).toMatch(/check \(source = any \(array\['purchase', 'admin_grant', 'order', 'teacher_order', 'coupon'\]\)\)/);
   });
 
-  it("the pages use them instead of PayPal when the total is $0", () => {
-    const form = read("src/components/payments/TeacherPassCheckout.tsx");
+  it("a 100% coupon skips PayPal — Holis' now: a pass on the server, a class through create-class-booking", () => {
+    // The teacher's pass form stays as it was (paused with the Teacher Panel).
+    const teacherForm = read("src/components/payments/TeacherPassCheckout.tsx");
+    expect(teacherForm).toMatch(/rpc\("claim_teacher_pass_with_coupon"/);
+    // What the website uses since 2026-10: Holis' form and Holis' passes.
+    const form = read("src/components/payments/HolisCheckout.tsx");
     expect(form).toMatch(/const free = !!coupon && total <= 0 && !!onFree;/);
     expect(form).toMatch(/Confirm — free with coupon \{coupon\?\.code\}/);
-    expect(form).toMatch(/rpc\("claim_teacher_pass_with_coupon"/);
-    expect(read("src/components/DropInDialog.tsx")).toMatch(/rpc\("book_class_free_with_teacher_coupon"/);
+    expect(form).toMatch(/rpc\("claim_offering_with_coupon"/);
+    const drop = read("src/components/DropInDialog.tsx");
+    expect(drop).toMatch(/"create-class-booking",/);
+    expect(drop).not.toMatch(/book_class_free_with_teacher_coupon/);
     const page = read("src/pages/ClassBooking.tsx");
-    expect(page).toMatch(/if \(appliedCoupon\?\.teacher\) \{/);
-    expect(page).toMatch(/rpc\("book_class_free_with_teacher_coupon" as any/);
+    expect(page).not.toMatch(/book_class_free_with_teacher_coupon/);
     expect(page).not.toMatch(/That coupon makes the class free/);
   });
 });

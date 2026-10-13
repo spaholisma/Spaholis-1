@@ -124,7 +124,7 @@ describe("the server", () => {
     expect(nt).toMatch(/if \(event === "class_rescheduled"\) \{/);
     expect(nt).toMatch(/sendEmail\(s\.guest_email, `New time: \$\{title\} — \$\{when\}`, html\)/);
     expect(nt).toMatch(/If the new time does not work for you, please let your teacher know\./);
-    expect(nt).toMatch(/if \(event === "class_reassigned" && body\?\.previousTeacher\)/);
+    expect(nt).toMatch(/if \(TEACHER_EMAILS_ENABLED && event === "class_reassigned" && body\?\.previousTeacher\)/);
     const fn = read("supabase/functions/notify-teacher/index.ts");
     expect(fn).toMatch(/row\("Payment", student\.pays\)/);
     expect(fn).toMatch(/Free — coupon \$\{b\.coupon_code\}/);
@@ -135,9 +135,9 @@ describe("the server", () => {
 });
 
 describe("the pages", () => {
-  it("class booking: a CompraClick option only when she has it on; reserve, then her link", () => {
+  it("class booking: the teacher's CompraClick is not offered while Holis runs the classes (the code stays)", () => {
     const page = read("src/pages/ClassBooking.tsx");
-    expect(page).toMatch(/const compraclickUrl = teacherCompraClick\(payee, teacherList\);/);
+    expect(page).toMatch(/const compraclickUrl: string \| null = null;/);
     expect(page).toMatch(/\{compraclickUrl && \(\s*<PayOption/);
     expect(page).toMatch(/rpc\("book_class_pay_compraclick" as any/);
     expect(page).toMatch(/<CompraClickButton href=\{linkDue\.url\}/);
@@ -154,17 +154,18 @@ describe("the pages", () => {
     expect(fn.match(/payTab\?\.close\(\);/g)).toHaveLength(2);
   });
 
-  it("class booking: a switch she just changed shows at once — no reload", () => {
+  it("class booking: no teacher switch decides how a class is paid any more — always Holis", () => {
     const page = read("src/pages/ClassBooking.tsx");
-    const q = page.slice(page.indexOf('queryKey: ["public-teachers"]'), page.indexOf("const payRoute"));
-    expect(q).toMatch(/staleTime: 0,/);
-    expect(q).toMatch(/refetchOnMount: "always",/);
-    expect(q).toMatch(/refetchOnWindowFocus: "always",/);
+    expect(page).not.toMatch(/queryKey: \["public-teachers"\]/);
+    expect(page).toMatch(/const payRoute = "holis" as OnlinePayRoute;/);
+    expect(page).toMatch(/const canPayCash = true;/);
   });
 
-  it("passes: the CompraClick button sits with the other ways to pay her", () => {
+  it("passes: Holis' passes are paid online to Holis; the teacher's pass dialog keeps her CompraClick (unused)", () => {
     expect(read("src/components/PassRequestDialog.tsx")).toMatch(/<CompraClickButton href=\{pick\.compraclickUrl\}/);
-    expect(read("src/components/PassChooser.tsx")).toMatch(/<CompraClickButton href=\{compraclickLink\}/);
+    const chooser = read("src/components/PassChooser.tsx");
+    expect(chooser).not.toMatch(/CompraClick/);
+    expect(chooser).toMatch(/<HolisPassCheckout/);
   });
 
   it("her panel marks a CompraClick student to check; the admin sees and sets both switches", () => {

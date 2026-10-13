@@ -35,9 +35,13 @@ describe("who sells a pass", () => {
 });
 
 describe("the memberships page", () => {
-  it("keeps the Drop-in as it was and sells the rest through the teachers", () => {
+  it("sells Holis' passes straight away (2026-10); the teacher studio stays in the code, unused", () => {
     const page = read("src/pages/Memberships.tsx");
-    expect(page).toMatch(/<TeacherPassStudio dropIn=\{<PassChooser compact only=\{\["drop_in"\]\} \/>\} \/>/);
+    expect(page).toMatch(/<PassChooser \/>/);
+    expect(page).not.toMatch(/<TeacherPassStudio/);
+    const chooser = read("src/components/PassChooser.tsx");
+    expect(chooser).toMatch(/<HolisPassCheckout\n\s+offeringId=\{picked\.id\}/);
+    expect(chooser).not.toMatch(/Choose your teacher/);
     const studio = read("src/components/TeacherPassStudio.tsx");
     expect(studio).toMatch(/\.neq\("type", "drop_in"\)/);
     expect(studio).toMatch(/Choose your teacher/);

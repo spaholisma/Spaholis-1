@@ -75,11 +75,12 @@ describe("the request", () => {
     expect(JSON.stringify(pc)).not.toMatch(/price/);
   });
 
-  it("the request page shows her price once her class is chosen, otherwise says it depends", () => {
+  it("the request page shows Holis' price from the start (2026-10: the same whoever teaches)", () => {
     const form = read("src/components/booking/ConsultationForm.tsx");
-    expect(form).toMatch(/const privatePrice = privateKind && classChoice\?\.offering \? offeringPrice\(classChoice\.offering, privateKind, people\) : null;/);
-    expect(form).toMatch(/Price depends on the class and teacher/);
-    expect(form).toMatch(/Price confirmed by \{\{name\}\}/);
+    expect(form).toMatch(/const studio = privatePricing\(ps\);/);
+    expect(form).toMatch(/offeringPrice\(\{ price_one: studio\.onePerson, price_two: studio\.twoPeople, price_group: studio\.upToFour, price_extra: studio\.extraPerson \}, privateKind, people\)/);
+    expect(form).toMatch(/Price confirmed by Holis Wellness Center/);
+    expect(form).not.toMatch(/Price depends on the class and teacher/);
     const picker = read("src/components/booking/PrivateClassPicker.tsx");
     expect(picker).toMatch(/return buildPrivateChoices\(offerings \?\? \[\], schedule, kind, people\);/);
     expect(picker).toMatch(/const c = findChoice\(options, preselect\);/);
@@ -135,11 +136,12 @@ describe("the pages", () => {
     expect(page).toMatch(/onClick=\{\(\) => askPrivate\(o\.id\)\}/);
   });
 
-  it("the Private Sessions page no longer lists fixed prices, except for GYROTONIC", () => {
+  it("the Private Sessions page shows Holis' price on every card (the same whoever teaches)", () => {
     const page = read("src/pages/PrivateClasses.tsx");
     expect(page).not.toMatch(/Pricing Guide/);
-    expect(page).toMatch(/The price depends on the class and teacher you choose/);
-    expect(page).toMatch(/cls\.i18nKey === "gyrotonic" \?/);
+    expect(page).not.toMatch(/The price depends on the class and teacher you choose/);
+    expect(page).toMatch(/\{formatCRCWithUsd\(price\)\}/);
+    expect(page).toMatch(/const getPrice = \(participants: number\) => privatePriceUsd\(participants, pricing\) \* USD_RATE;/);
   });
 });
 
@@ -157,8 +159,10 @@ describe("the database and the emails", () => {
   it("the price is worked out on the server, and a class needs at least one", () => {
     expect(sql).toMatch(/else o\.price_group \+ \(_people - 4\) \* o\.price_extra/);
     expect(sql).toMatch(/check \(price_one is not null or price_two is not null or price_group is not null\)/);
-    expect(fn).toMatch(/admin\.rpc\("private_offering_price"/);
+    // The email prices it as Holis does now: the Admin's prices, Holis' local discount.
+    expect(fn).toMatch(/\(sc as any\)\?\.content\?\.privateSessions\?\.pricing/);
+    expect(fn).toMatch(/admin\.rpc\("holis_price"/);
     expect(fn).toMatch(/row\("Price"/);
-    expect(fn).toMatch(/teacherName \? `To be confirmed by \$\{esc\(teacherName\)\}`/);
+    expect(fn).toMatch(/: "To be confirmed by the Holis team"\)/);
   });
 });

@@ -121,33 +121,33 @@ describe("paypal-capture-order", () => {
 describe("the pass email", () => {
   const fn = read("supabase/functions/send-membership-order-email/index.ts");
 
-  it("tells the teacher about every pass of hers — and the team who was paid (Holis, or her PayPal)", () => {
+  it("the team is told who was paid; the teacher's own copy is off while Holis runs the passes", () => {
     expect(fn).toMatch(/if \(\(o as any\)\.teacher_id\) \{/);
     expect(fn).toMatch(/from\("paypal_orders"\)\.select\("payee_teacher_id"\)\.eq\("user_offering_id", o\.id\)/);
     expect(fn).toMatch(/'s PayPal — not Holis\./);
     expect(fn).toMatch(/Holis \(PayPal\) — /);
-    expect(fn).toMatch(/if \(teacher\?\.email\) \{/);
+    expect(fn).toMatch(/const TEACHER_EMAILS_ENABLED = false;/);
+    expect(fn).toMatch(/if \(TEACHER_EMAILS_ENABLED && teacher\?\.email\) \{/);
     expect(fn).toMatch(/It was paid online to <strong>Holis<\/strong>/);
   });
 });
 
 describe("the pages", () => {
-  it("class booking: pays the teacher when she takes PayPal, else Holis — cash only when she takes it", () => {
+  it("class booking: paid to Holis online, or in cash at the studio (2026-10)", () => {
     const page = read("src/pages/ClassBooking.tsx");
-    expect(page).toMatch(/const payRoute = onlinePayRoute\(payee, teacherList\);/);
+    expect(page).toMatch(/const payRoute = "holis" as OnlinePayRoute;/);
     expect(page).toMatch(/\{canPayOnline && \(\s*<PayOption/);
-    expect(page).toMatch(/pay_teacher: payRoute === "teacher"/);
-    expect(page).toMatch(/: payRoute === "teacher" && !appliedCoupon\?\.teacher \? null/);
-    // "Pay cash in person" is her switch; with it off, cash is not offered.
-    expect(page).toMatch(/const canPayCash = cashAccepted\(payee, teacherList\);/);
+    expect(page).toMatch(/pay_teacher: false,/);
+    expect(page).toMatch(/coupon_code: isLocal \? null : \(appliedCoupon\?\.code \?\? null\),/);
+    expect(page).toMatch(/const canPayCash = true;/);
     expect(page).toMatch(/\{canPayCash && \(\s*<PayOption/);
-    expect(page).toMatch(/if \(!canPayCash && payMethod === "cash"\) setPayMethod\("card"\);/);
   });
 
-  it("a teacher's pass can be bought online from the pass chooser and the class page", () => {
-    for (const f of ["src/components/PassChooser.tsx", "src/components/PassRequestDialog.tsx", "src/components/TeacherPassStudio.tsx"]) {
+  it("a teacher's pass checkout stays in the code for the panel; the pass chooser sells Holis' passes", () => {
+    for (const f of ["src/components/PassRequestDialog.tsx", "src/components/TeacherPassStudio.tsx"]) {
       expect(read(f), f).toMatch(/<TeacherPassCheckout/);
     }
+    expect(read("src/components/PassChooser.tsx")).toMatch(/<HolisPassCheckout/);
     const checkout = read("src/components/payments/TeacherPassCheckout.tsx");
     expect(checkout).toMatch(/kind: "teacher_pass"/);
     expect(checkout).toMatch(/<PayPalCheckout/);

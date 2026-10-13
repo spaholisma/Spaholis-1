@@ -11,9 +11,12 @@
 // switched off for now (TEACHER_PAYOUTS_ENABLED): every class and every
 // teacher's pass is paid to Holis, as a class always was without `pay_teacher`.
 //
-// A teacher's price (her classes and events, her passes): her local discount
-// for a Costa Rican cédula, or else one of her own coupons — never both —
-// worked out by teacher_price() in the database.
+// The price (2026-10): Holis Wellness Center runs the classes and passes — the
+// teachers chose not to use their panel. A class or a Holis pass is priced by
+// holis_price() in the database: the studio's local discount for a Costa Rican
+// cédula, or else a Holis coupon — never both. A pass can be bought without an
+// account (name, email and phone), like a teacher's pass was. teacher_price()
+// stays for a teacher's own pass (kind "teacher_pass"), no longer sold.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@3.25.76";
 
@@ -78,27 +81,40 @@ async function teacherPrice(admin: any, teacherId: string, base: number, body: z
   return data as { price: number; discount: number; local: boolean; local_pct: number; coupon: string | null; coupon_status: string | null };
 }
 
+/** Holis' price: the local discount, else a Holis coupon. Null when it could not
+ *  be worked out (then the order is refused rather than charged wrong). */
+async function holisPrice(
+  admin: any, base: number, body: z.infer<typeof Body>, coupon: string | null,
+  ids: { classId?: string | null; offeringId?: string | null },
+) {
+  const cedula = body.id_document_type === "cr_cedula" ? (body.id_document || "").trim() || null : null;
+  const { data, error } = await admin.rpc("holis_price", {
+    _base: base, _id_document: cedula, _coupon: coupon,
+    _class_id: ids.classId ?? null, _offering_id: ids.offeringId ?? null,
+  });
+  if (error || !data) {
+    console.error("[paypal-create-order] holis_price failed", error?.message);
+    return null;
+  }
+  return data as {
+    price: number; discount: number; local: boolean; local_pct: number;
+    coupon: string | null; coupon_id?: string | null; coupon_status: string | null;
+  };
+}
+
+/** A coupon typed that does not apply: the guest is told, nothing is charged. */
+const COUPON_MESSAGES: Record<string, string> = {
+  not_found: "That coupon code doesn't exist.",
+  not_valid: "That coupon is no longer valid.",
+  not_for_this: "That coupon doesn't work on this.",
+  full_price_only: "This class is always paid in full — coupons don't apply to it.",
+};
+
 /** What is kept of the student's ID with the order. */
 const idOf = (body: z.infer<typeof Body>) => ({
   id_document: (body.id_document || "").trim() || null,
   id_document_type: (body.id_document || "").trim() ? (body.id_document_type ?? null) : null,
 });
-
-async function couponDiscount(admin: any, code: string | null | undefined, base: number, classId?: string) {
-  const c = (code || "").trim().toUpperCase();
-  if (!c) return 0;
-  const { data: coupon } = await admin.from("coupons").select("*").eq("code", c).maybeSingle();
-  if (!coupon || !coupon.is_active) throw Object.assign(new Error("Coupon not valid"), { code: "COUPON" });
-  if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) throw Object.assign(new Error("Coupon expired"), { code: "COUPON" });
-  if (coupon.max_uses != null && coupon.current_uses >= coupon.max_uses) throw Object.assign(new Error("Coupon used up"), { code: "COUPON" });
-  if (classId && Array.isArray(coupon.restricted_class_ids) && coupon.restricted_class_ids.length > 0 && !coupon.restricted_class_ids.includes(classId)) {
-    throw Object.assign(new Error("Coupon not for this class"), { code: "COUPON" });
-  }
-  const d = coupon.discount_type === "percentage"
-    ? Math.round(base * (Number(coupon.discount_value) / 100) * 100) / 100
-    : Math.min(base, Number(coupon.discount_value));
-  return Number.isFinite(d) ? d : 0;
-}
 
 /** The teacher of a session — the same rule as the cash payee: whoever is named
  *  on the session, else the class's usual teacher. Active teachers only. */
@@ -174,26 +190,18 @@ Deno.serve(async (req) => {
         }
         payee = { teacherId: teacher.id, email };
       }
-      // A discount applies once to the whole order (one spot — the booker's).
-      // First the teacher's own price: her local discount (Costa Rican cédula),
-      // or one of her coupons. A class always paid in full takes no coupon,
-      // but the local discount still applies to it.
+      // A discount applies once to the whole order (one spot — the booker's):
+      // Holis' local discount (Costa Rican cédula), else a Holis coupon. A class
+      // always paid in full takes no coupon, but the local discount applies.
       const wanted = (body.coupon_code || "").trim().toUpperCase() || null;
-      let discount = 0;
-      let local = false;
-      let couponUsed: string | null = wanted;
-      let teacherCoupon = false;
-      const classTeacher = await sessionTeacher(admin, (sched as any).instructor, cls.instructor);
-      if (classTeacher) {
-        const q = await teacherPrice(admin, classTeacher.id, base, body, cls.full_price_only ? null : wanted);
-        if (q?.local) {
-          discount = Number(q.discount) || 0; local = true; couponUsed = null;
-        } else if (q?.coupon_status === "applied") {
-          discount = Number(q.discount) || 0; couponUsed = q.coupon; teacherCoupon = true;
-        }
+      const q = await holisPrice(admin, base, body, cls.full_price_only ? null : wanted, { classId: String(cls.id) });
+      if (!q) return json({ ok: false, reason: "pricing_failed" }, 500);
+      if (wanted && !q.local && q.coupon_status !== "applied" && !cls.full_price_only) {
+        return json({ ok: false, reason: "invalid_coupon", message: COUPON_MESSAGES[String(q.coupon_status)] ?? "That coupon is not valid." }, 400);
       }
-      // Otherwise a Holis coupon, as before.
-      if (!local && !teacherCoupon) discount = await couponDiscount(admin, wanted, base, String(cls.id));
+      const local = !!q.local;
+      const discount = Number(q.discount) || 0;
+      const couponUsed: string | null = local ? null : q.coupon ?? null;
       amount = Math.max(0, Math.round((base * qty - discount) * 100) / 100);
       if (amount <= 0) return json({ ok: false, reason: "class_is_free" }, 400);
       description = qty > 1 ? `Class: ${cls.title} (${qty} spots)` : `Class: ${cls.title}`;
@@ -201,7 +209,7 @@ Deno.serve(async (req) => {
       const names = (body.participant_names || []).map((n) => (n || "").trim()).slice(0, qty);
       target = {
         schedule_id: body.schedule_id, guest_name: body.guest_name, guest_email: body.guest_email, guest_phone: body.guest_phone,
-        coupon_code: couponUsed, quantity: qty, participant_names: names,
+        coupon_code: couponUsed, coupon_id: local ? null : q.coupon_id ?? null, quantity: qty, participant_names: names,
         unit_price: base, discount, local_discount: local, ...idOf(body),
       };
     } else if (body.kind === "teacher_pass") {
@@ -245,10 +253,33 @@ Deno.serve(async (req) => {
       if (!body.offering_id) return json({ ok: false, reason: "missing_offering" }, 400);
       const { data: off } = await admin.from("offerings").select("id, name, price, status").eq("id", body.offering_id).maybeSingle();
       if (!off || (off as any).status !== "active") return json({ ok: false, reason: "offering_unavailable" }, 404);
-      amount = Math.round(Number((off as any).price ?? 0) * 100) / 100;
-      if (amount <= 0) return json({ ok: false, reason: "invalid_amount" }, 400);
-      description = `${(off as any).name}`;
-      target = { offering_id: body.offering_id, user_id: body.user_id ?? null, guest_email: body.guest_email ?? null };
+      // Signed in or not: the pass code and booking link go to this email.
+      if (!body.user_id && (!(body.guest_name || "").trim() || !(body.guest_email || "").trim())) {
+        return json({ ok: false, reason: "missing_contact", message: "Your name and email are needed to send you the pass." }, 400);
+      }
+      const listPrice = Math.round(Number((off as any).price ?? 0) * 100) / 100;
+      if (listPrice <= 0) return json({ ok: false, reason: "invalid_amount" }, 400);
+      const wanted = (body.coupon_code || "").trim().toUpperCase() || null;
+      const q = await holisPrice(admin, listPrice, body, wanted, { offeringId: String((off as any).id) });
+      if (!q) return json({ ok: false, reason: "pricing_failed" }, 500);
+      if (wanted && !q.local && q.coupon_status !== "applied") {
+        return json({ ok: false, reason: "invalid_coupon", message: COUPON_MESSAGES[String(q.coupon_status)] ?? "That coupon is not valid." }, 400);
+      }
+      const local = !!q.local;
+      const discount = Number(q.discount) || 0;
+      amount = Math.max(0, Math.round((listPrice - discount) * 100) / 100);
+      // PayPal cannot take $0: such a pass is issued by claim_offering_with_coupon().
+      if (amount <= 0) return json({ ok: false, reason: "free_with_coupon", message: "That coupon covers the whole pass — confirm it on the page." }, 400);
+      description = `${(off as any).name}${local ? " — local price" : ""}`;
+      target = {
+        offering_id: body.offering_id, user_id: body.user_id ?? null,
+        guest_name: (body.guest_name || "").trim() || null,
+        guest_email: (body.guest_email || "").trim().toLowerCase() || null,
+        guest_phone: (body.guest_phone || "").trim() || null,
+        list_price: listPrice, discount, local_discount: local,
+        coupon_code: local ? null : q.coupon ?? null, coupon_id: local ? null : q.coupon_id ?? null,
+        ...idOf(body),
+      };
     }
 
     const token = await ppToken();
