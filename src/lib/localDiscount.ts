@@ -187,3 +187,66 @@ export async function rememberIdDocument(userId: string | null | undefined, doc:
       .eq("user_id", userId);
   } catch { /* not important enough to bother the student */ }
 }
+
+// ── Holis Wellness Center runs the prices (2026-10) ─────────────────────────
+// The teachers chose not to use their panel: the local discount and the
+// coupons are the studio's now (studio_pricing + the Holis coupons). The
+// teacher helpers above stay for when the panel is switched back on.
+
+/** Holis' local discount (percent) for a Costa Rican cédula — 0 when it is off. */
+export function useStudioLocalPct() {
+  return useQuery({
+    queryKey: ["studio-local-pct"],
+    queryFn: async () => {
+      const { data, error } = await sb.from("studio_pricing").select("local_discount_pct").eq("id", 1).maybeSingle();
+      if (error) throw error;
+      return Number(data?.local_discount_pct) || 0;
+    },
+    staleTime: 0,
+    refetchOnWindowFocus: "always",
+  });
+}
+
+export type HolisCouponStatus =
+  | "applied" | "not_found" | "not_valid" | "not_for_this" | "full_price_only" | "ignored_local";
+
+export interface HolisQuote extends Omit<TeacherQuote, "coupon_status"> {
+  coupon_status: HolisCouponStatus | null;
+  coupon_id?: string;
+}
+
+/**
+ * Holis' price for this guest, as the server will charge it: the local
+ * discount for a Costa Rican cédula, else a Holis coupon — never both.
+ * `classId` for a class, `offeringId` for a pass (a coupon works on a pass
+ * only when the team ticked it in Admin → Coupons).
+ */
+export async function quoteHolisPrice(
+  base: number, doc: IdDocument, coupon: string | null,
+  opts: { classId?: string | null; offeringId?: string | null } = {},
+): Promise<HolisQuote | null> {
+  const { data, error } = await sb.rpc("holis_price", {
+    _base: base, _id_document: cedulaForPricing(doc), _coupon: coupon,
+    _class_id: opts.classId ?? null, _offering_id: opts.offeringId ?? null,
+  });
+  if (error || !data) return null;
+  const q = data as any;
+  return {
+    price: Number(q.price) || 0, base: Number(q.base) || 0, discount: Number(q.discount) || 0,
+    local: !!q.local, local_pct: Number(q.local_pct) || 0,
+    coupon: q.coupon ?? null, coupon_status: q.coupon_status ?? null, coupon_id: q.coupon_id,
+    coupon_type: q.coupon_type, coupon_value: q.coupon_value == null ? undefined : Number(q.coupon_value),
+  };
+}
+
+/** Why a coupon did not apply, in plain words (null when it did, or none was typed). */
+export function holisCouponProblem(status: HolisCouponStatus | null, what: "class" | "pass" = "class"): string | null {
+  switch (status) {
+    case "not_found": return "That coupon code doesn't exist.";
+    case "not_valid": return "That coupon is no longer valid (expired, used up or switched off).";
+    case "not_for_this": return what === "pass" ? "That coupon doesn't work on this pass." : "That coupon doesn't work on this class.";
+    case "full_price_only": return "This class is always paid in full — coupons don't apply to it.";
+    case "ignored_local": return "Your local discount already applies — coupons don't add to it.";
+    default: return null;
+  }
+}

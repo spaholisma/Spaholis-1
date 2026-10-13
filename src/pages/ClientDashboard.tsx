@@ -18,6 +18,7 @@ import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { CancelAppointmentDialog } from "@/components/booking/CancelAppointmentDialog";
 import { HOLIS_WHATSAPP_URL, HOLIS_EMAIL } from "@/data/contact";
 import { MessageCircle, Mail } from "lucide-react";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 const ClientDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -145,7 +146,7 @@ const ClientDashboard = () => {
         {/* Teacher entry point. Teachers sign in through the normal site and
             reach their panel from here, the same way staff reach /admin. The
             /teacher route re-checks the role, this is only the doorway. */}
-        {isTeacher && (
+        {isTeacher && TEACHER_PANEL_ENABLED && (
           <Link
             to="/teacher"
             className="mb-8 flex items-center gap-4 bg-spa-sage/10 border border-spa-sage/30 rounded-2xl p-5 hover:bg-spa-sage/15 transition-colors"

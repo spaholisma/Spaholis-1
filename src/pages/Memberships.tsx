@@ -5,7 +5,6 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { PassChooser } from "@/components/PassChooser";
-import { TeacherPassStudio } from "@/components/TeacherPassStudio";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
@@ -14,9 +13,9 @@ import { ShoppingBag, ArrowLeft } from "lucide-react";
 /**
  * Passes and memberships, on a page of their own.
  *
- * They used to sit at the bottom of the Classes page, below the teachers. A
- * teacher's own passes now belong on her class page, next to her — so what is
- * left here is what the studio itself sells, and it gets the room to say so.
+ * Every pass is Holis Wellness Center's (2026-10: the teachers chose not to sell
+ * their own): pick one and pay Holis online — no teacher to choose, it works
+ * on every weekly class.
  * The old /classes#buy link and the /buy, /passes and /memberships routes all
  * land here.
  */
@@ -61,13 +60,12 @@ export default function MembershipsPage() {
             </Link>
           </div>
 
-          {/* The Drop-in stays as it was; every other pass is sold by a teacher,
-              at her own price — so you pick the pass, then her. */}
-          <TeacherPassStudio dropIn={<PassChooser compact only={["drop_in"]} />} />
+          {/* The studio's passes: buy one straight away, paid to Holis. */}
+          <PassChooser />
 
           <p className="spa-body-sm text-center mt-10 max-w-xl mx-auto">
-            Each teacher sets her own price. Passes bought online are paid to Holis Wellness Center.{" "}
-            <Link to="/classes" className="text-primary hover:underline">See who teaches what</Link>.
+            Passes and memberships are paid online to Holis Wellness Center and work on every weekly class.{" "}
+            <Link to="/classes/schedule" className="text-primary hover:underline">See the class schedule</Link>.
           </p>
         </motion.div>
       </div>

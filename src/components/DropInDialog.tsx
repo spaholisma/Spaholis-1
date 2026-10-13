@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarDays, Check, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { OnlinePayForm } from "@/components/payments/TeacherPassCheckout";
+import { OnlinePayForm } from "@/components/payments/HolisCheckout";
 import { EVENT_CATEGORIES } from "@/hooks/useClasses";
 import { fetchClosedClassDays, spaDateKey } from "@/lib/classClosures";
 import { formatSpaTime, spaLocalParts } from "@/lib/businessHours";
@@ -185,33 +185,21 @@ export function DropInDialog({ open, onOpenChange, title = "Drop-in Class", clas
             </div>
 
             <OnlinePayForm
-              teacherName={teacher}
               price={price}
               priceLabel="Class price"
-              holisCouponClassId={chosen.classes?.id}
+              classId={chosen.classes?.id}
               idPrefix="drop-in"
               onPaid={(email) => setPaidEmail(email)}
               onFree={async (f) => {
-                if (f.couponSource === "holis") {
-                  // A Holis coupon: the class-booking function books it at $0 and emails.
-                  const res = await invokeEdgeFunction<{ ok?: boolean; reason?: string; message?: string; needsPayment?: boolean }>(
-                    "create-class-booking",
-                    { body: { schedule_id: chosen.id, guest_name: f.name, guest_email: f.email, guest_phone: f.phone, coupon_code: f.couponCode } },
-                  );
-                  if (!res.ok || !res.data || res.data.ok === false || res.data.needsPayment) {
-                    throw new Error(classCheckoutReasonMessage(res.data?.reason) ?? res.data?.message ?? "We couldn't book it — please try again.");
-                  }
-                  return;
+                // A Holis coupon covers it all: the class-booking function books it at $0
+                // (checking the coupon again) and sends the confirmation.
+                const res = await invokeEdgeFunction<{ ok?: boolean; reason?: string; message?: string; needsPayment?: boolean }>(
+                  "create-class-booking",
+                  { body: { schedule_id: chosen.id, guest_name: f.name, guest_email: f.email, guest_phone: f.phone, coupon_code: f.couponCode } },
+                );
+                if (!res.ok || !res.data || res.data.ok === false || res.data.needsPayment) {
+                  throw new Error(classCheckoutReasonMessage(res.data?.reason) ?? res.data?.message ?? "We couldn't book it — please try again.");
                 }
-                // The teacher's coupon covers the class: booked on the server, which checks it again.
-                const { data, error } = await sb.rpc("book_class_free_with_teacher_coupon", {
-                  _schedule_id: chosen.id, _guest_name: f.name, _guest_email: f.email, _guest_phone: f.phone,
-                  _coupon: f.couponCode, _id_document: f.doc.number.trim() || null, _id_document_type: f.doc.number.trim() ? f.doc.type : null,
-                });
-                if (error) throw new Error(error.message);
-                try {
-                  await supabase.functions.invoke("send-booking-notification", { body: { classBookingId: data } });
-                } catch { /* booked; the confirmation can be resent */ }
               }}
               buildBody={(f) => ({
                 kind: "class", schedule_id: chosen.id,

@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsTeacher, useStaffRole } from "@/hooks/useStaffRole";
 import { useLanguage, withLangPrefix } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 /** Initials for the round profile button: two letters from the name, else the email's first. */
 export function profileInitials(name: string | null | undefined, email: string | null | undefined): string {
@@ -79,7 +80,7 @@ export function ProfileMenu({ myAccountLabel, signOutLabel }: { myAccountLabel: 
             </Link>
           </DropdownMenuItem>
         )}
-        {isTeacher && (
+        {isTeacher && TEACHER_PANEL_ENABLED && (
           <DropdownMenuItem asChild className={item}>
             <Link to={lp("/teacher")}>
               <GraduationCap className="h-4 w-4 text-muted-foreground" /> {t("nav.teacherPanel", { defaultValue: "Teacher Panel" })}

@@ -25,7 +25,7 @@ import { useMyOfferings, useInvalidateOfferings, type UserOffering } from "@/hoo
 import { useOfferingEligibilityMap, filterEligibleOfferings, isOfferingEligibleForClass } from "@/hooks/useOfferingEligibility";
 import { useTokenOffering, getStoredMembershipToken, storeMembershipToken } from "@/hooks/useMembershipToken";
 import { toE164 } from "@/lib/phone";
-import { cardTotal, cashAccepted, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, onlinePayRoute, teacherCompraClick } from "@/lib/classCheckout";
+import { cardTotal, cashPayee, cashTotal, isFreeWithCoupon, lockedDetails, looksLikePassCode, type OnlinePayRoute } from "@/lib/classCheckout";
 import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { classCheckoutReasonMessage, isClassOpenForBooking } from "@/lib/classBookingWindow";
 import { PayPalCheckout } from "@/components/payments/PayPalCheckout";
@@ -34,8 +34,8 @@ import { LoyaltyRewardCard } from "@/components/LoyaltyRewardCard";
 import { useClassClosures, spaDateKey } from "@/lib/classClosures";
 import { IdDocumentField, MissingIdNotice } from "@/components/payments/IdDocumentField";
 import {
-  EMPTY_ID_DOCUMENT, couponLabel, idDocumentBody, idDocumentOk, localApplies, localDiscountAmount, missingId,
-  localPctFor, quoteTeacherPrice, rememberIdDocument, useLocalDiscounts, type IdDocument,
+  EMPTY_ID_DOCUMENT, couponLabel, holisCouponProblem, idDocumentBody, idDocumentOk, localApplies, localDiscountAmount,
+  missingId, quoteHolisPrice, rememberIdDocument, useStudioLocalPct, type IdDocument,
 } from "@/lib/localDiscount";
 
 function useScheduleEvent(scheduleId: string | null) {
@@ -122,40 +122,23 @@ const ClassBookingPage = () => {
   // Some classes are always paid in full — no pass, no membership, no coupon.
   // The database refuses them too; this only keeps the offer off the screen.
   const fullPriceOnly = !!(cls as any)?.full_price_only;
-  // Paying in cash means paying the teacher of this session at the class.
+  // Who teaches this session — shown with the class; it no longer changes who
+  // is paid. Everything is Holis Wellness Center's (2026-10): online payments
+  // go to Holis, cash is paid at the studio, and the teacher's own CompraClick
+  // link is not offered for classes any more.
   const payee = cashPayee((event as any)?.instructor, cls?.instructor);
-  // Paying online goes to that same teacher's PayPal when she has one; until
-  // she adds it, her students pay her in cash. Only "is there a PayPal" is
-  // public — never her email.
-  const { data: teacherList } = useQuery({
-    queryKey: ["public-teachers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("public_teachers" as any);
-      if (error) throw error;
-      return (data ?? []) as { display_name: string; accepts_paypal: boolean | null; compraclick_url?: string | null; accepts_cash?: boolean | null }[];
-    },
-    // Always fresh: a teacher who just switched PayPal or CompraClick on (or
-    // off) must see it here at once — on opening the page, or on coming back
-    // to its tab — without reloading.
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: "always",
-  });
-  const payRoute = onlinePayRoute(payee, teacherList);
-  // Her CompraClick link, when she has CompraClick switched on.
-  const compraclickUrl = teacherCompraClick(payee, teacherList);
-  const canPayOnline = payRoute === "teacher" || payRoute === "holis";
-  // "Pay cash in person" — each teacher switches it on or off for her classes.
-  const canPayCash = cashAccepted(payee, teacherList);
+  const payRoute = "holis" as OnlinePayRoute;
+  const compraclickUrl: string | null = null;
+  const canPayOnline = true;
+  const canPayCash = true;
   useEffect(() => {
     if (!canPayCash && payMethod === "cash") setPayMethod("card");
   }, [canPayCash, payMethod]);
 
-  // Her local discount with a Costa Rican cédula — paying online only (cash
-  // at the class is the normal price). It applies to one spot, the booker's,
+  // Holis' local discount with a Costa Rican cédula — paying online only (cash
+  // at the studio is the normal price). It applies to one spot, the booker's,
   // like a coupon, and a coupon never adds to it.
-  const { data: localDiscounts } = useLocalDiscounts();
-  const localPct = localPctFor(localDiscounts, payee);
+  const { data: localPct = 0 } = useStudioLocalPct();
   const isLocal = localApplies(idDoc, localPct);
   const cardDiscount = isLocal
     ? localDiscountAmount(Number(cls?.price ?? 0), localPct)
@@ -402,23 +385,22 @@ const ClassBookingPage = () => {
     applyingCoupon.current = true;
     setValidatingCoupon(true);
     try {
-      // First: one of the teacher's own coupons.
-      if (payee) {
-        const q = await quoteTeacherPrice(payee, Number(cls.price ?? 0), idDoc, couponCode.trim());
-        if (q?.coupon_status === "ignored_local") {
-          toast.info("Your local discount already applies — coupons don't add to it.");
-          return;
-        }
-        if (q?.coupon_status === "applied" && q.coupon) {
-          // A coupon that covers it all books the class at $0 (handleCardCheckout).
-          const label = couponLabel(q);
-          setAppliedCoupon({ code: q.coupon, discount: q.discount, label, teacher: true });
-          toast.success(`Coupon applied: ${label}`);
-          return;
-        }
+      // A Holis coupon, priced the way the server will charge it.
+      const q = await quoteHolisPrice(Number(cls.price ?? 0), idDoc, couponCode.trim(), { classId: cls.id });
+      if (q?.coupon_status === "applied" && q.coupon) {
+        // A coupon that covers it all books the class at $0 (handleCardCheckout).
+        const label = couponLabel(q);
+        setAppliedCoupon({ code: q.coupon, discount: q.discount, label });
+        toast.success(`Coupon applied: ${label}`);
+        return;
       }
-      const res = await validateCoupon(couponCode, Number(cls.price ?? 0), { classId: cls.id });
-      if (!res.valid) {
+      if (q && q.coupon_status !== "not_found") {
+        const why = holisCouponProblem(q.coupon_status, "class");
+        if (q.coupon_status === "ignored_local") toast.info(why!);
+        else toast.error(why ?? "Invalid coupon");
+        return;
+      }
+      {
         // Not a coupon — perhaps the code of a pass or membership.
         // It needs the email the pass was sold to, so a code alone
         // cannot open someone else's pass.
@@ -432,21 +414,9 @@ const ClassBookingPage = () => {
         }
         toast.error(looksLikePassCode(couponCode)
           ? `We could not find an active pass with that code for ${formData.email.trim() || "this email"}. Use the email the pass was sold to.`
-          : (res.reason || "Invalid coupon"));
+          : q ? "That coupon code doesn't exist." : "We couldn't check the coupon — please try again.");
         return;
       }
-      if (isLocal) {
-        toast.info("Your local discount already applies — coupons don't add to it.");
-        return;
-      }
-      // A Holis coupon discounts Holis money, never the teacher's.
-      if (payRoute === "teacher") {
-        toast.error(`Holis coupons don't apply when you pay ${payee} directly.`);
-        return;
-      }
-      const label = describeCouponDiscount(res.coupon!, res.discountAmount ?? 0);
-      setAppliedCoupon({ code: res.coupon!.code, discount: res.discountAmount ?? 0, label });
-      toast.success(`Coupon applied: ${label}`);
     } finally {
       applyingCoupon.current = false;
       setValidatingCoupon(false);
@@ -455,38 +425,13 @@ const ClassBookingPage = () => {
 
   const handleCardCheckout = async () => {
     if (!scheduleId || !cls) return;
-    // Her coupon: the ID is optional, but if it was typed it must be right.
-    if (appliedCoupon?.teacher && !idReady) {
+    // With a coupon the ID is optional — but if it was typed it must be right.
+    if (!idReady) {
       setIdAttempted(true);
       toast.error(`Please add ${missingId(idDoc, couponOn).join(", ")} to confirm.`);
       return;
     }
     setSubmitting(true);
-    // The teacher's own coupon covers the class: booked at $0 on the server,
-    // which checks the coupon again (create-class-booking knows Holis coupons only).
-    if (appliedCoupon?.teacher) {
-      try {
-        const { data: bookingId, error } = await supabase.rpc("book_class_free_with_teacher_coupon" as any, {
-          _schedule_id: scheduleId, _guest_name: formData.name.trim(), _guest_email: formData.email.trim(),
-          _guest_phone: formData.phone, _coupon: appliedCoupon.code,
-          _id_document: idDoc.number.trim() || null, _id_document_type: idDoc.number.trim() ? idDoc.type : null,
-        });
-        if (error) throw error;
-        rememberIdDocument(user?.id, idDoc);
-        try {
-          await supabase.functions.invoke("send-booking-notification", { body: { classBookingId: bookingId } });
-        } catch { /* booked; the confirmation can be resent */ }
-        trackBookingComplete({ ...classItem(), transaction_id: String(bookingId), value: 0, payment_method: "coupon", payment_status: "free" });
-        toast.success(t("booking.classBookedSuccess"));
-        setBookingComplete(true);
-        setStep(steps.length - 1);
-      } catch (err: any) {
-        toast.error(err.message || t("booking.classBookFailed"));
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
     try {
       const result = await invokeEdgeFunction<{
         ok?: boolean;
@@ -1036,45 +981,35 @@ const ClassBookingPage = () => {
                         </div>
                       )}
 
-                      {/* Online: to the teacher's PayPal, or to Holis for a class with no teacher */}
+                      {/* Online: PayPal or a card, to Holis Wellness Center */}
                       {canPayOnline && (
                       <PayOption
                         icon={<CreditCard className="h-4 w-4" />}
-                        title={payRoute === "teacher"
-                          ? (multi
-                            ? `Pay ${formatCRC(quantity * Number(cls.price))} online to ${payee} · ${quantity} spots`
-                            : `Pay ${formatCRC(cls.price)} online to ${payee}`)
-                          : (multi
-                            ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
-                            : `Pay ${formatCRC(cls.price)} by card`)}
+                        title={multi
+                          ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
+                          : `Pay ${formatCRC(cls.price)} by card`}
                         selected={payMethod === "card"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
-                      >
-                        {payRoute === "teacher" && (
-                          <p className="text-xs font-body text-muted-foreground">
-                            With PayPal or a card. The payment goes straight to <span className="font-medium text-foreground">{payee}</span>.
-                          </p>
-                        )}
-                      </PayOption>
+                      />
                       )}
 
-                      {/* Cash: reserve now, pay the teacher at the class — when she takes cash */}
+                      {/* Cash: reserve now, pay at the studio when you arrive */}
                       {canPayCash && (
                       <PayOption
                         icon={<Banknote className="h-4 w-4" />}
                         title={multi
-                          ? `Pay ${formatCRC(cashTotal(Number(cls.price), quantity))} in cash at the class · ${quantity} spots`
-                          : `Pay ${formatCRC(cls.price)} in cash at the class`}
+                          ? `Pay ${formatCRC(cashTotal(Number(cls.price), quantity))} in cash at the studio · ${quantity} spots`
+                          : `Pay ${formatCRC(cls.price)} in cash at the studio`}
                         selected={payMethod === "cash"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("cash"); }}
                       >
                         <p className="text-xs font-body text-muted-foreground">
-                          Your spot is reserved now. Bring the cash and pay {payee ? <span className="font-medium text-foreground">{payee}</span> : "your teacher"} when you arrive.
+                          Your spot is reserved now. Bring the cash and pay at Holis Wellness Center when you arrive for your class.
                         </p>
                       </PayOption>
                       )}
 
-                      {/* CompraClick: reserve now, pay on the teacher's own link */}
+                      {/* CompraClick on the teacher's own link — not offered any more (compraclickUrl is null) */}
                       {compraclickUrl && (
                         <PayOption
                           icon={<CreditCard className="h-4 w-4" />}
@@ -1102,7 +1037,7 @@ const ClassBookingPage = () => {
                             value={idDoc}
                             onChange={setIdDoc}
                             localPct={localPct}
-                            teacherFirst={payee ? payee.split(/\s+/)[0] : null}
+                            teacherFirst="the studio"
                             idPrefix="class-booking-id"
                             showMissing={idAttempted}
                             optional={couponOn}
@@ -1176,7 +1111,7 @@ const ClassBookingPage = () => {
                           </span>
                         </div>
                         {payMethod === "cash" && (
-                          <p className="text-xs font-body text-muted-foreground mt-2 text-right">In cash, at the class</p>
+                          <p className="text-xs font-body text-muted-foreground mt-2 text-right">In cash, at the studio</p>
                         )}
                         {payMethod === "compraclick" && (
                           <p className="text-xs font-body text-muted-foreground mt-2 text-right">With CompraClick, after you reserve</p>
@@ -1217,11 +1152,9 @@ const ClassBookingPage = () => {
                               ? {
                                   kind: "class", schedule_id: scheduleId, guest_name: formData.name, guest_email: formData.email, guest_phone: formData.phone || null,
                                   // The local discount wins: then no coupon is sent at all.
-                                  coupon_code: isLocal ? null
-                                    : payRoute === "teacher" && !appliedCoupon?.teacher ? null
-                                    : (appliedCoupon?.code ?? null),
+                                  coupon_code: isLocal ? null : (appliedCoupon?.code ?? null),
                                   ...idDocumentBody(idDoc),
-                                  quantity, participant_names: participantNames, pay_teacher: payRoute === "teacher",
+                                  quantity, participant_names: participantNames, pay_teacher: false,
                                 }
                               : null
                           }
@@ -1281,11 +1214,11 @@ const ClassBookingPage = () => {
                     {cashDue && (
                       <div className="max-w-sm mx-auto mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
                         <p className="flex items-center gap-2 font-body text-sm font-semibold text-foreground">
-                          <Banknote className="h-4 w-4" /> Pay in cash at the class
+                          <Banknote className="h-4 w-4" /> Pay in cash at the studio
                         </p>
                         <p className="mt-1 text-sm font-body text-muted-foreground">
                           Please bring <span className="font-medium text-foreground">{formatPrice(cashDue.amount)}</span> and
-                          pay {cashDue.teacher ? <span className="font-medium text-foreground">{cashDue.teacher}</span> : "your teacher"} when you arrive.
+                          pay at Holis Wellness Center when you arrive for your class.
                         </p>
                       </div>
                     )}

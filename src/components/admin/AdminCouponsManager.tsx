@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Trash2, Pencil, X, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AdminLocalDiscountSetting } from "@/components/admin/AdminLocalDiscountSetting";
 
 interface Coupon {
   id: string;
@@ -20,6 +21,8 @@ interface Coupon {
   restricted_class_ids: string[] | null;
   restricted_product_ids: string[] | null;
   restricted_package_ids: string[] | null;
+  /** Holis passes and memberships it works on (none = not on passes, unless it has no restriction at all). */
+  restricted_offering_ids?: string[] | null;
 }
 
 interface ItemOption {
@@ -40,13 +43,15 @@ const emptyCoupon = {
   restricted_class_ids: [] as string[],
   restricted_product_ids: [] as string[],
   restricted_package_ids: [] as string[],
+  restricted_offering_ids: [] as string[],
 };
 
 type RestrictionKey =
   | "restricted_service_ids"
   | "restricted_class_ids"
   | "restricted_product_ids"
-  | "restricted_package_ids";
+  | "restricted_package_ids"
+  | "restricted_offering_ids";
 
 export function AdminCouponsManager() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -54,6 +59,7 @@ export function AdminCouponsManager() {
   const [classes, setClasses] = useState<ItemOption[]>([]);
   const [products, setProducts] = useState<ItemOption[]>([]);
   const [packages, setPackages] = useState<ItemOption[]>([]);
+  const [offerings, setOfferings] = useState<ItemOption[]>([]);
   const [editing, setEditing] = useState<(typeof emptyCoupon & { id?: string }) | null>(null);
 
   const load = useCallback(async () => {
@@ -62,16 +68,18 @@ export function AdminCouponsManager() {
   }, []);
 
   const loadOptions = useCallback(async () => {
-    const [s, c, p, pk] = await Promise.all([
+    const [s, c, p, pk, of] = await Promise.all([
       supabase.from("services").select("id, title, category").order("category").order("title"),
       supabase.from("classes").select("id, title, category").order("category").order("title"),
       supabase.from("products").select("id, name, category").order("category").order("name"),
       supabase.from("spa_packages").select("id, name").order("position"),
+      (supabase as any).from("offerings").select("id, name, status").order("sort_order"),
     ]);
     setServices((s.data as ItemOption[]) ?? []);
     setClasses((c.data as ItemOption[]) ?? []);
     setProducts(((p.data as any[]) ?? []).map((r) => ({ id: r.id, title: r.name, category: r.category })));
     setPackages(((pk.data as any[]) ?? []).map((r) => ({ id: r.id, title: r.name, category: "Spa Packages" })));
+    setOfferings(((of.data as any[]) ?? []).map((r) => ({ id: r.id, title: r.name, category: r.status === "active" ? "Passes & memberships" : "Inactive" })));
   }, []);
 
   useEffect(() => { load(); loadOptions(); }, [load, loadOptions]);
@@ -90,14 +98,16 @@ export function AdminCouponsManager() {
       restricted_class_ids: editing.restricted_class_ids?.length ? editing.restricted_class_ids : null,
       restricted_product_ids: editing.restricted_product_ids?.length ? editing.restricted_product_ids : null,
       restricted_package_ids: editing.restricted_package_ids?.length ? editing.restricted_package_ids : null,
+      restricted_offering_ids: editing.restricted_offering_ids?.length ? editing.restricted_offering_ids : null,
     };
 
     if (editing.id) {
-      const { error } = await supabase.from("coupons").update(payload).eq("id", editing.id);
+      // restricted_offering_ids is newer than the generated types.
+      const { error } = await (supabase as any).from("coupons").update(payload).eq("id", editing.id);
       if (error) { toast.error(error.message); return; }
       toast.success("Coupon updated");
     } else {
-      const { error } = await supabase.from("coupons").insert(payload);
+      const { error } = await (supabase as any).from("coupons").insert(payload);
       if (error) { toast.error(error.message); return; }
       toast.success("Coupon created");
     }
@@ -177,7 +187,11 @@ export function AdminCouponsManager() {
           { key: "restricted_class_ids", label: "Classes", items: classes, emptyMsg: "No classes available." },
           { key: "restricted_product_ids", label: "Products", items: products, emptyMsg: "No products available." },
           { key: "restricted_package_ids", label: "Spa Packages", items: packages, emptyMsg: "No spa packages available." },
-        ] as { key: RestrictionKey; label: string; items: ItemOption[]; emptyMsg: string }[]).map((section) => {
+          {
+            key: "restricted_offering_ids", label: "Passes & memberships", items: offerings, emptyMsg: "No passes available.",
+            note: "Tick the passes this coupon works on when bought online (Memberships page). None ticked = it does not work on passes — unless the coupon has no restriction at all.",
+          },
+        ] as { key: RestrictionKey; label: string; items: ItemOption[]; emptyMsg: string; note?: string }[]).map((section) => {
           const current = (editing[section.key] as string[]) || [];
           return (
             <div key={section.key}>
@@ -203,7 +217,7 @@ export function AdminCouponsManager() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Leave empty to apply to all {section.label.toLowerCase()}. Select specific ones to restrict redemption.
+                {section.note ?? `Leave empty to apply to all ${section.label.toLowerCase()}. Select specific ones to restrict redemption.`}
               </p>
               <div className="max-h-56 overflow-y-auto border border-input rounded-lg p-3 space-y-3 bg-background">
                 {Object.entries(
@@ -253,6 +267,8 @@ export function AdminCouponsManager() {
   }
 
   return (
+    <>
+    <AdminLocalDiscountSetting />
     <div className="bg-card rounded-2xl border border-border">
       <div className="p-5 border-b border-border flex items-center justify-between">
         <h3 className="font-heading text-lg font-medium text-foreground">Coupon Management</h3>
@@ -296,7 +312,7 @@ export function AdminCouponsManager() {
                   )}>{c.is_active ? "Active" : "Inactive"}</span>
                 </td>
                 <td className="px-5 py-4 flex items-center gap-1">
-                  <button onClick={() => setEditing({ ...c, expires_at: c.expires_at || "", restricted_service_ids: c.restricted_service_ids ?? [], restricted_class_ids: c.restricted_class_ids ?? [], restricted_product_ids: c.restricted_product_ids ?? [], restricted_package_ids: (c as any).restricted_package_ids ?? [] })} className="p-2 hover:bg-muted rounded-lg">
+                  <button onClick={() => setEditing({ ...c, expires_at: c.expires_at || "", restricted_service_ids: c.restricted_service_ids ?? [], restricted_class_ids: c.restricted_class_ids ?? [], restricted_product_ids: c.restricted_product_ids ?? [], restricted_package_ids: (c as any).restricted_package_ids ?? [], restricted_offering_ids: c.restricted_offering_ids ?? [] })} className="p-2 hover:bg-muted rounded-lg">
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </button>
                   <Button variant="ghost" size="sm" className="text-xs" onClick={() => toggleActive(c.id, c.is_active)}>
@@ -315,5 +331,6 @@ export function AdminCouponsManager() {
         </table>
       </div>
     </div>
+    </>
   );
 }

@@ -124,6 +124,7 @@ import { AnalyticsTracker } from "./components/AnalyticsTracker";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { PreviewEditBridge } from "./components/PreviewEditBridge";
 import { ThemeApplier } from "./components/ThemeApplier";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 const queryClient = new QueryClient();
 
 // Redirect that preserves search params and hash so links like /booking?service=...
@@ -184,7 +185,8 @@ const routeDefs: { path: string; element: React.ReactNode }[] = [
   { path: "/admin", element: <AdminDashboard /> },
   { path: "/admin/card-authorization-archive", element: <CardAuthorizationArchive /> },
   { path: "/dashboard", element: <ClientDashboard /> },
-  { path: "/teacher", element: <TeacherPanel /> },
+  // Paused (src/lib/features.ts): the link sends everyone to My Account.
+  { path: "/teacher", element: TEACHER_PANEL_ENABLED ? <TeacherPanel /> : <Navigate to="/dashboard" replace /> },
   { path: "/booking", element: <RedirectPreserve to="/book" /> },
   { path: "/services", element: <Navigate to="/treatments-therapies" replace /> },
   { path: "/treatments", element: <Navigate to="/treatments-therapies" replace /> },

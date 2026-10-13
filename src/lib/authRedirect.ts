@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { initialUrl as captured } from "@/lib/initialUrl";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 // What the password link brought with it.
 //
@@ -50,5 +51,6 @@ export async function homeFor(userId: string | null | undefined): Promise<"/admi
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
   const roles = (data ?? []).map((r: any) => String(r.role));
   if (roles.some((r) => STAFF_ROLES.has(r))) return "/admin";
-  return roles.includes("teacher") ? "/teacher" : "/dashboard";
+  // The Teacher Admin Panel is paused (src/lib/features.ts): teachers land on My Account.
+  return roles.includes("teacher") && TEACHER_PANEL_ENABLED ? "/teacher" : "/dashboard";
 }

@@ -1,24 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  Loader2, Ticket, ArrowLeft, Check, Infinity as InfinityIcon, ExternalLink, CalendarDays,
-} from "lucide-react";
-import { spaLocalParts, formatSpaTime } from "@/lib/businessHours";
-import { EVENT_CATEGORIES } from "@/hooks/useClasses";
-import { TeacherPassCheckout } from "@/components/payments/TeacherPassCheckout";
+import { Loader2, Check, Infinity as InfinityIcon } from "lucide-react";
+import { HolisPassCheckout } from "@/components/payments/HolisCheckout";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { CompraClickButton } from "@/components/payments/CompraClickButton";
 import { DropInDialog } from "@/components/DropInDialog";
 
 const sb = supabase as any;
-const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const usd = (n: number) =>
   `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -26,28 +18,18 @@ interface Offering {
   id: string; name: string; description: string | null; type: string;
   price: number; credits: number | null; duration_days: number | null; is_unlimited: boolean;
 }
-interface TeacherPass {
-  membership_id: string; teacher_name: string; membership_name: string;
-  price: number | null; classes_included: number | null; valid_days: number | null;
-  description: string | null; payment_link: string | null; payment_note: string | null;
-  teacher_payment_instructions: string | null;
-  /** She has a PayPal account on file: the pass can be paid online, to her. */
-  teacher_accepts_paypal?: boolean | null;
-  /** Her CompraClick link, when she has CompraClick switched on. */
-  teacher_compraclick_url?: string | null;
-}
-interface Teacher { id: string; display_name: string }
 export interface ClassOption {
   class_id: string; title: string; teacher: string; when: string;
 }
 
 /**
- * The studio's price list, and the way to actually get one.
+ * The studio's passes and memberships, and the way to buy one.
  *
- * Holis no longer takes the money for these: a pass is always with a teacher,
- * and she is paid directly. So instead of a checkout, picking a pass asks which
- * class you want it for — that names the teacher — and then shows how to pay
- * her. The request lands in her panel so she knows who to expect.
+ * Every pass is Holis Wellness Center's (2026-10: the teachers chose not to
+ * run their own): pick it and pay online — PayPal or a card, to Holis — with
+ * the studio's local discount or a Holis coupon. The pass code and booking
+ * link arrive by email; the pass works on every weekly class. A Drop-in is
+ * one class on one date, so it opens the dates instead.
  */
 export function PassChooser({
   compact = false, forClass, only,
@@ -55,113 +37,30 @@ export function PassChooser({
   compact?: boolean;
   /** Show only these kinds of pass (offerings.type), e.g. ["drop_in"]. */
   only?: string[];
-  /** Set when the chooser sits on a class page: skip straight to paying. */
+  /** Set when the chooser sits on a class page: the Drop-in opens on that class. */
   forClass?: ClassOption;
 }) {
   const [offerings, setOfferings] = useState<Offering[]>([]);
-  const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [teacherPasses, setTeacherPasses] = useState<TeacherPass[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [picked, setPicked] = useState<Offering | null>(null);
-  const [step, setStep] = useState<"class" | "pay" | "done" | "paid">("class");
-  const [chosenClass, setChosenClass] = useState<ClassOption | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "" });
-  const [saving, setSaving] = useState(false);
-  const [paidEmail, setPaidEmail] = useState("");
+  const [paidEmail, setPaidEmail] = useState<string | null>(null);
   // A drop-in is one class on one date: it has its own window.
   const [dropIn, setDropIn] = useState<Offering | null>(null);
 
   useEffect(() => {
     (async () => {
-      const now = new Date().toISOString();
-      const [{ data: off }, { data: sched }, { data: tp }, { data: th }] = await Promise.all([
-        sb.from("offerings").select("id, name, description, type, price, credits, duration_days, is_unlimited")
-          .eq("status", "active").order("sort_order"),
-        sb.from("class_schedule")
-          .select("class_id, start_time, instructor, classes(id, title, instructor, is_active, category)")
-          .eq("is_cancelled", false).gte("start_time", now).order("start_time").limit(200),
-        sb.rpc("public_teacher_portfolios"),
-        sb.rpc("public_teachers"),
-      ]);
-
+      const { data: off } = await sb.from("offerings")
+        .select("id, name, description, type, price, credits, duration_days, is_unlimited")
+        .eq("status", "active").order("sort_order");
       setOfferings(((off ?? []) as Offering[]).filter((o) => !only || only.includes(o.type)));
-      setTeacherPasses(((tp ?? []) as TeacherPass[]));
-      setTeachers(((th ?? []) as Teacher[]));
-
-      // One entry per class, with the days it runs and who teaches it.
-      const map = new Map<string, { title: string; teacher: string; days: Set<number>; times: Set<string> }>();
-      (((sched ?? []) as any[])).forEach((s) => {
-        if (!s.classes?.is_active) return;
-        // A pass is for the weekly classes — not for one-off events (Wellness Sunday, workshops…).
-        if (EVENT_CATEGORIES.has(String(s.classes.category ?? ""))) return;
-        const teacher = (s.instructor?.trim() || s.classes.instructor?.trim() || "");
-        const key = `${s.class_id}|${teacher.toLowerCase()}`;
-        if (!map.has(key)) map.set(key, { title: s.classes.title, teacher, days: new Set(), times: new Set() });
-        const e = map.get(key)!;
-        e.days.add(spaLocalParts(new Date(s.start_time)).weekday);
-        e.times.add(formatSpaTime(s.start_time));
-      });
-      setClasses([...map.entries()].map(([key, e]) => ({
-        class_id: key.split("|")[0],
-        title: e.title,
-        teacher: e.teacher,
-        when: [[...e.days].sort((a, b) => a - b).map((d) => DAY_LABEL[d]).join(" · "),
-               e.times.size === 1 ? [...e.times][0] : null].filter(Boolean).join("  |  "),
-      })).sort((a, b) => a.title.localeCompare(b.title)));
-
       setLoading(false);
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = (o: Offering) => {
     if (o.type === "drop_in") { setDropIn(o); return; }
+    setPaidEmail(null);
     setPicked(o);
-    setChosenClass(forClass ?? null);
-    setForm({ name: "", email: "", phone: "" });
-    setStep(forClass ? "pay" : "class");
-  };
-
-  /** Her version of the pass, if she keeps one by that name — else the studio price. */
-  const herPass = useMemo(() => {
-    if (!picked || !chosenClass?.teacher) return null;
-    const t = chosenClass.teacher.trim().toLowerCase();
-    return teacherPasses.find(
-      (p) => p.teacher_name.trim().toLowerCase() === t
-        && p.membership_name.trim().toLowerCase() === picked.name.trim().toLowerCase(),
-    ) ?? null;
-  }, [picked, chosenClass, teacherPasses]);
-
-  const price = herPass?.price ?? picked?.price ?? null;
-
-  const send = async () => {
-    if (!picked || !chosenClass) return;
-    if (!form.name.trim()) { toast.error("Please tell her your name"); return; }
-    const teacherName = chosenClass.teacher.trim().toLowerCase();
-    const teacherId = teachers.find(
-      (t) => t.display_name.trim().toLowerCase() === teacherName)?.id;
-    if (!teacherId) {
-      toast.error("Could not reach that teacher — please write to us on WhatsApp");
-      return;
-    }
-    setSaving(true);
-
-    const { error } = await sb.from("teacher_pass_requests").insert({
-      teacher_id: teacherId,
-      membership_id: herPass?.membership_id ?? null,
-      membership_name: picked.name,
-      price,
-      class_id: chosenClass.class_id,
-      class_title: chosenClass.title,
-      guest_name: form.name.trim(),
-      guest_email: form.email.trim() || null,
-      guest_phone: form.phone.trim() || null,
-      status: "pending",
-    });
-    if (error) toast.error(error.message);
-    else setStep("done");
-    setSaving(false);
   };
 
   if (loading) {
@@ -172,17 +71,9 @@ export function PassChooser({
     );
   }
 
-  const payInfo = herPass?.payment_note || herPass?.teacher_payment_instructions || null;
-  const payLink = herPass?.payment_link || null;
-  const compraclickLink = herPass?.teacher_compraclick_url || null;
-  // Her own pass with a price: it can be bought here — paid to her PayPal when
-  // she takes it (teacher payouts on), else to Holis (for now).
-  const canBuyOnline = !!(herPass && Number(herPass.price) > 0);
-  const paysTeacher = !!herPass?.teacher_accepts_paypal;
-
   return (
     <>
-      <div className={cn("grid gap-5", !compact && "md:grid-cols-2 lg:grid-cols-3")}>
+      <div className={cn("grid gap-5", !compact && "md:grid-cols-2 lg:grid-cols-4")}>
         {offerings.map((o, i) => (
           <motion.div
             key={o.id}
@@ -209,10 +100,7 @@ export function PassChooser({
                 )}
               </ul>
               <div className="mt-auto pt-4 flex items-end justify-between gap-3">
-                <div>
-                  <p className="font-heading text-2xl font-semibold text-foreground leading-none">{usd(o.price)}</p>
-                  <p className="font-body text-[11px] text-muted-foreground mt-1">studio price</p>
-                </div>
+                <p className="font-heading text-2xl font-semibold text-foreground leading-none">{usd(o.price)}</p>
                 <Button size="sm" className="rounded-full" onClick={() => open(o)}>Get this pass</Button>
               </div>
             </Card>
@@ -220,203 +108,51 @@ export function PassChooser({
         ))}
       </div>
 
-      {!compact && !only && (
-        <p className="spa-body-sm text-center mt-8 max-w-2xl mx-auto">
-          These are the studio prices. Each pass is held with one teacher — choose a pass and we will
-          show you who teaches each class and how to complete your purchase.
-        </p>
-      )}
-
       <Dialog open={!!picked} onOpenChange={(o) => !o && setPicked(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading">
-              {step === "done" ? "Request sent" : step === "paid" ? "Your pass is ready" : picked?.name}
+              {paidEmail ? "Your pass is ready" : picked?.name}
             </DialogTitle>
           </DialogHeader>
 
-          {/* 1. Which class do you want it for? That is what names the teacher. */}
-          {step === "class" && (
-            <div className="space-y-3">
-              <p className="spa-body-sm">
-                Choose the class you would like to use your pass for. Each pass is held with the teacher of that class.
-              </p>
-              {classes.length === 0 ? (
-                <p className="spa-body-sm">
-                  There are no classes on the schedule at the moment.{" "}
-                  <Link to="/classes" className="text-primary hover:underline">View all classes</Link>.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {classes.map((c) => (
-                    <button
-                      key={`${c.class_id}-${c.teacher}`}
-                      onClick={() => { setChosenClass(c); setStep("pay"); }}
-                      className={cn(
-                        "w-full text-left rounded-xl border border-border p-3 transition-colors",
-                        "hover:border-spa-sage/60 hover:bg-spa-sage/5",
-                      )}
-                    >
-                      <p className="font-body text-sm font-medium text-foreground">{c.title}</p>
-                      <p className="font-body text-xs text-muted-foreground">
-                        <CalendarDays className="h-3 w-3 inline mr-1" />{c.when}
-                        {c.teacher ? <> · with <span className="font-medium text-foreground">{c.teacher}</span></> : " · teacher to be announced"}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 2. Her price and how she is paid, then leave her your name. */}
-          {step === "pay" && chosenClass && (
+          {picked && !paidEmail && (
             <div className="space-y-4">
-              {!forClass && (
-                <button
-                  onClick={() => setStep("class")}
-                  className="font-body text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5 inline mr-1" />Another class
-                </button>
-              )}
-
               <div className="rounded-xl border border-spa-sage/40 bg-spa-sage/5 p-4">
                 <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {picked?.name}{chosenClass.teacher ? " with" : ""}
+                  Holis Wellness Center
                 </p>
-                {chosenClass.teacher && (
-                  <p className="font-heading text-lg font-medium text-foreground">{chosenClass.teacher}</p>
-                )}
-                <p className="font-body text-xs text-muted-foreground">{chosenClass.title} · {chosenClass.when}</p>
-                {price != null && (
-                  <p className="font-heading text-2xl font-semibold text-foreground mt-2">{usd(price)}</p>
-                )}
-                {herPass && herPass.price !== picked?.price && (
-                  <p className="font-body text-[11px] text-muted-foreground">her price for this pass</p>
-                )}
+                <p className="font-heading text-lg font-medium text-foreground">{picked.name}</p>
+                <p className="font-body text-xs text-muted-foreground">
+                  {picked.is_unlimited ? "Unlimited classes" : `${picked.credits ?? 1} class${(picked.credits ?? 1) === 1 ? "" : "es"}`}
+                  {picked.duration_days ? ` · valid for ${picked.duration_days} days` : ""} · any weekly class
+                </p>
+                <p className="font-heading text-2xl font-semibold text-foreground mt-2">{usd(picked.price)}</p>
               </div>
-
-              {canBuyOnline && herPass && (
-                <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {paysTeacher ? `Pay ${chosenClass.teacher.split(/\s+/)[0]} online` : "Pay online"}
-                  </p>
-                  <TeacherPassCheckout
-                    teacherName={chosenClass.teacher}
-                    membershipId={herPass.membership_id}
-                    price={Number(herPass.price)}
-                    paysTeacher={paysTeacher}
-                    idPrefix="chooser"
-                    onPaid={(email) => { setPaidEmail(email); setStep("paid"); }}
-                  />
-                </div>
-              )}
-
-              {!canBuyOnline && (chosenClass.teacher ? (
-                <div className="rounded-xl border border-border p-4">
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    Payment
-                  </p>
-                  {payInfo && (
-                    <p className="font-body text-sm text-foreground whitespace-pre-line">{payInfo}</p>
-                  )}
-                  {payLink && (
-                    <Button size="sm" variant="outline" className="rounded-full mt-2" asChild>
-                      <a href={payLink} target="_blank" rel="noopener noreferrer">
-                        Pay {chosenClass.teacher.split(/\s+/)[0]} <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
-                      </a>
-                    </Button>
-                  )}
-                  {compraclickLink && (
-                    <CompraClickButton href={compraclickLink} className="mt-3" />
-                  )}
-                  {!payInfo && !payLink && !compraclickLink && (
-                    <p className="font-body text-sm text-muted-foreground">
-                      Payment is arranged directly with {chosenClass.teacher.split(/\s+/)[0]} at the studio (cash or SINPE).
-                    </p>
-                  )}
-                  <p className="font-body text-[11px] text-muted-foreground mt-2">
-                    This payment is made directly to your teacher.
-                  </p>
-                </div>
-              ) : (
-                <p className="spa-body-sm rounded-xl border border-border p-4">
-                  A teacher has not been assigned to this class yet. Please contact us on WhatsApp and
-                  we will be happy to help.
-                </p>
-              ))}
-
-              {!canBuyOnline && chosenClass.teacher && (
-              <div className="space-y-2">
-                <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Request this pass
-                </p>
-                <Input placeholder="Your name *" value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Input placeholder="Email (optional)" value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                  <Input placeholder="Phone (optional)" value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                </div>
-                <Button className="w-full rounded-full" onClick={send}
-                  disabled={saving || !form.name.trim()}>
-                  {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Ticket className="h-4 w-4 mr-1" />}
-                  Send request to {chosenClass.teacher.split(/\s+/)[0]}
-                </Button>
-                <p className="font-body text-[11px] text-muted-foreground text-center">
-                  No payment is taken now. {chosenClass.teacher.split(/\s+/)[0]} will confirm your pass once you have paid.
-                </p>
+              <div className="rounded-xl border border-spa-sage/40 p-4 space-y-2">
+                <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pay online</p>
+                <HolisPassCheckout
+                  offeringId={picked.id}
+                  price={Number(picked.price)}
+                  idPrefix="chooser"
+                  onPaid={(email) => setPaidEmail(email)}
+                />
               </div>
-              )}
             </div>
           )}
 
-          {step === "paid" && chosenClass && (
+          {picked && paidEmail && (
             <div className="space-y-4 text-center py-2">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-spa-sage/20">
                 <Check className="h-6 w-6 text-spa-sage" />
               </div>
-              <p className="spa-body">
-                Paid — your <strong>{herPass?.membership_name ?? picked?.name}</strong> with{" "}
-                <strong>{chosenClass.teacher}</strong> is ready.
-              </p>
+              <p className="spa-body">Your <strong>{picked.name}</strong> is ready.</p>
               <p className="spa-body-sm">
                 We emailed your pass code and booking link to <strong>{paidEmail}</strong>.
               </p>
               <Button className="rounded-full" asChild>
-                <Link to={`/classes/${chosenClass.class_id}`}>See the class</Link>
+                <Link to="/classes/schedule">Book a class</Link>
               </Button>
-            </div>
-          )}
-
-          {step === "done" && chosenClass && (
-            <div className="space-y-4 text-center py-2">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-spa-sage/20">
-                <Check className="h-6 w-6 text-spa-sage" />
-              </div>
-              <p className="spa-body">
-                Your request for the {picked?.name} for {chosenClass.title} has been sent to{" "}
-                <strong>{chosenClass.teacher}</strong>.
-              </p>
-              {(payInfo || payLink) && (
-                <p className="spa-body-sm">
-                  Payment details{payInfo ? <>: {payInfo}</> : null}
-                </p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                {payLink && (
-                  <Button variant="outline" className="rounded-full" asChild>
-                    <a href={payLink} target="_blank" rel="noopener noreferrer">
-                      Pay now <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
-                    </a>
-                  </Button>
-                )}
-                <Button className="rounded-full" asChild>
-                  <Link to={`/classes/${chosenClass.class_id}`}>See the class</Link>
-                </Button>
-              </div>
             </div>
           )}
         </DialogContent>
