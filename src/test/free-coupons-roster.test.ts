@@ -62,7 +62,7 @@ describe("never a silent grey button", () => {
     expect(page).toMatch(/toast\.error\(`Please add \$\{missingId\(idDoc, couponOn\)\.join\(", "\)\} to confirm\.`\);/);
     // With a coupon applied the ID is optional.
     expect(page).toMatch(/const couponOn = !!appliedCoupon && !isLocal;\n\s+const idReady = idDocumentOk\(idDoc, couponOn\);/);
-    expect(page).toMatch(/optional=\{couponOn\}/);
+    expect(page).toMatch(/optional=\{payMethod === "card" && couponOn\}/);
   });
 
   it("the server books / issues at $0 with a coupon and no ID", () => {

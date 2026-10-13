@@ -42,7 +42,21 @@ describe("the booking page", () => {
     expect(page).toMatch(/Bring the cash and pay at Holis Wellness Center when you arrive for your class\./);
     expect(page).toMatch(/selected=\{payMethod === "cash"\}/);
     expect(page).toMatch(/supabase\.rpc\("book_class_pay_cash" as any/);
-    expect(page).toMatch(/payMethod === "cash" \? \(\s+<Button className="w-full" onClick=\{handleCashBooking\}/);
+    expect(page).toMatch(/payMethod === "cash" \? \(\s+<>\s+\{!cashIdReady && <MissingIdNotice doc=\{idDoc\} couponApplied=\{false\} \/>\}\s+<Button className="w-full" onClick=\{handleCashBooking\} disabled=\{submitting \|\| !canProceed \|\| !cashIdReady\}>/);
+  });
+
+  it("in cash too a Costa Rican cédula takes Holis' local discount (2026-10), worked out again on the server", () => {
+    expect(page).toMatch(/const cashDiscount = localDiscount;/);
+    expect(page).toMatch(/\(payMethod === "card" \|\| payMethod === "cash"\) && canPayOnline && \(/);
+    expect(page).toMatch(/_id_document: id\.id_document,\s+_id_document_type: id\.id_document_type,/);
+    expect(page).toMatch(/formatPrice\(cashDueTotal\(Number\(cls\.price\), quantity\)\)/);
+    const sql = read("supabase/migrations/20261014130000_cash_local_discount.sql");
+    expect(sql).toMatch(/drop function if exists public\.book_class_pay_cash\(uuid, text, text, text, text\[\]\);/);
+    expect(sql).toMatch(/_participant_names text\[\] default null, _id_document text default null, _id_document_type text default null/);
+    expect(sql).toMatch(/v_quote := public\.holis_price\(v_price, v_doc, null, null, null\);/);
+    // The booker's spot only.
+    expect(sql).toMatch(/case when i = 1 then greatest\(v_price - v_disc, 0\) else v_price end/);
+    expect(sql).toMatch(/grant execute on function public\.book_class_pay_cash\(uuid, text, text, text, text\[\], text, text\) to anon, authenticated;/);
   });
 
   it("tells the guest what to bring and to whom", () => {

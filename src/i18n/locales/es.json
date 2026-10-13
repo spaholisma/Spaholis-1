@@ -723,7 +723,13 @@
     "errorInvalidEmail": "Por favor ingresa un correo electrónico válido.",
     "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
     "serviceName": "Consulta Holística Gratuita",
-    "privatePriceConfirmedHolis": "Precio confirmado por Holis Wellness Center"
+    "privatePriceConfirmedHolis": "Precio confirmado por Holis Wellness Center",
+    "privatePickTitleHolis": "Elige tu clase",
+    "privatePickSubtitleHolis": "Opcional — elige la clase que te gustaría y el equipo de Holis la coordina contigo.",
+    "privateGoesToHolis": "Tu solicitud llega al equipo de Holis, que coordinará tu clase privada contigo.",
+    "privateGoesToHolisWith": "Tu solicitud llega al equipo de Holis, que la coordinará con {{name}} y contigo.",
+    "privateCouponWithPrice": "Cupón {{code}} aplicado — tu precio se muestra arriba. Holis lo confirma con tu clase privada.",
+    "privateCouponNotHere": "Ese cupón no aplica a esta clase privada."
   },
   "idDocument": {
     "label": "Tu identificación *",

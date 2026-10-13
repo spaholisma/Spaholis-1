@@ -723,7 +723,13 @@
     "errorInvalidEmail": "Please enter a valid email address.",
     "errorGeneric": "Something went wrong. Please try again.",
     "serviceName": "Complimentary Holistic Consultation",
-    "privatePriceConfirmedHolis": "Price confirmed by Holis Wellness Center"
+    "privatePriceConfirmedHolis": "Price confirmed by Holis Wellness Center",
+    "privatePickTitleHolis": "Choose your class",
+    "privatePickSubtitleHolis": "Optional — pick the class you would like and the Holis team arranges it with you.",
+    "privateGoesToHolis": "Your request goes to the Holis team, who will arrange your private class with you.",
+    "privateGoesToHolisWith": "Your request goes to the Holis team, who will arrange it with {{name}} and you.",
+    "privateCouponWithPrice": "Coupon {{code}} applied — your price is shown above. Holis confirms it with your private class.",
+    "privateCouponNotHere": "That coupon does not apply to this private class."
   },
   "idDocument": {
     "label": "Your ID *",

@@ -150,6 +150,48 @@ export function buildPrivateChoices(
   );
 }
 
+/**
+ * While Holis runs the private classes, the list shows the kinds of class, not
+ * who teaches them — except these teachers, whose own private classes keep
+ * their name (matched by first name, as BEACH_TEACHERS in privateLocation.ts).
+ */
+export const NAMED_PRIVATE_TEACHERS = ["evelina"];
+export const keepsTeacherName = (name: string | null | undefined) => {
+  const first = (name ?? "").trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  return !!first && NAMED_PRIVATE_TEACHERS.includes(first);
+};
+
+/**
+ * One line of Holis' list: a named teacher's line as it is; anyone else's as
+ * the class alone, with no teacher (so the request names nobody) — and, for a
+ * class on the schedule, not her private class either. A private class with no
+ * schedule class (listed by title) keeps its offering, for its title.
+ */
+export function toHolisChoice(c: PrivateChoice): PrivateChoice {
+  if (c.teacherName && keepsTeacherName(c.teacherName)) return c;
+  return {
+    ...c,
+    key: `h:${c.classId ?? ""}:${c.title.trim().toLowerCase()}`,
+    teacherName: null, teacherPhoto: null,
+    offering: c.classId ? null : c.offering,
+  };
+}
+
+/** Holis' list: one line per class, the named teachers' classes as their own lines. */
+export function holisPrivateChoices(choices: PrivateChoice[]): PrivateChoice[] {
+  const out: PrivateChoice[] = [];
+  const seen = new Set<string>();
+  for (const c of choices.map(toHolisChoice)) {
+    const k = `${c.title.trim().replace(/\s+/g, " ").toLowerCase()}|${(c.teacherName ?? "").toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(c);
+  }
+  return out.sort(
+    (a, b) => a.title.localeCompare(b.title) || (a.teacherName ?? "").localeCompare(b.teacherName ?? ""),
+  );
+}
+
 /** The choice a link asked for: her private class, else her class on the schedule. */
 export function findChoice(
   choices: PrivateChoice[],

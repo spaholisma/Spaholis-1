@@ -187,3 +187,51 @@ describe("every email goes to the guests and to Holis — none to the teachers",
     expect(priv).toMatch(/The guest would like it with <strong>\$\{esc\(teacherName\)\}<\/strong>/);
   });
 });
+
+describe("private classes: Holis' list, Holis' prices (2026-10)", () => {
+  it("shows the kinds of class without the teacher — Evelina keeps her name — one line each", async () => {
+    const { holisPrivateChoices, keepsTeacherName } = await import("@/lib/privateOfferings");
+    const offering = (id: string, teacher: string, title: string, classId: string | null) => ({
+      id, teacher_id: teacher, teacher_name: teacher, teacher_photo: null, class_id: classId, title,
+      description: null, duration_minutes: null, price_one: 85, price_two: 113, price_group: 170, price_extra: 28,
+    });
+    const list = holisPrivateChoices([
+      { key: "o:1", title: "Aerial Yoga", classId: "c1", teacherName: "Kerri", teacherPhoto: "k.jpg", offering: offering("1", "Kerri", "Aerial Yoga", "c1") },
+      { key: "c:2", title: "Aerial Yoga", classId: "c1", teacherName: "Ashley", teacherPhoto: null, offering: null },
+      { key: "o:3", title: "GYROTONIC®", classId: null, teacherName: "Evelina", teacherPhoto: "e.jpg", offering: offering("3", "Evelina", "GYROTONIC®", null) },
+      { key: "c:4", title: "Gyrokinesis®", classId: "c4", teacherName: "Evelina", teacherPhoto: "e.jpg", offering: null },
+    ]);
+    expect(list.map((c) => [c.title, c.teacherName])).toEqual([
+      ["Aerial Yoga", null], ["Gyrokinesis®", "Evelina"], ["GYROTONIC®", "Evelina"],
+    ]);
+    // A class with no teacher shown names nobody in the request, and is not her private class.
+    expect(list[0]).toMatchObject({ teacherPhoto: null, offering: null, classId: "c1" });
+    expect(keepsTeacherName("Evelina Bolognini")).toBe(true);
+    expect(keepsTeacherName("Kerri")).toBe(false);
+  });
+
+  it("the picker says Holis' fixed price, never 'price confirmed by her'", () => {
+    const picker = read("src/components/booking/PrivateClassPicker.tsx");
+    expect(picker).toMatch(/if \(!TEACHER_PANEL_ENABLED\) \{\n\s+\/\/ Holis' fixed price/);
+    expect(picker).toMatch(/consultation\.privateGoesToHolis"/);
+    const dialog = read("src/components/PrivateClassDialog.tsx");
+    expect(dialog).toMatch(/Your request goes to the Holis team, who will arrange the day and time with you by/);
+  });
+
+  it("a Holis coupon is checked on Apply and the price shown is the price with it", () => {
+    const form = read("src/components/booking/ConsultationForm.tsx");
+    expect(form).toMatch(/quoteHolisPrice\(privatePrice, idDoc, code, \{ classId: classChoice\?\.classId \?\? null \}\)/);
+    expect(form).toMatch(/: couponOn \? couponAmount\(privatePrice\) : 0;/);
+    expect(form).toMatch(/useEffect\(\(\) => \{ setAppliedCoupon\(null\); \}, \[classChoice\?\.key\]\);/);
+    const fn = read("supabase/functions/send-private-class-request/index.ts");
+    expect(fn).toMatch(/_coupon: couponTyped \|\| null, _class_id: couponClassId,/);
+    expect(fn).toMatch(/with coupon \$\{esc\(quote\.coupon\)\}/);
+    // Her name only when the guest chose her.
+    expect(fn).toMatch(/if \(TEACHER_EMAILS_ENABLED \|\| norm\(pc\.teacher_name\) === norm\(t\.display_name\)\) \{/);
+  });
+
+  it("the emails the students get do not point to the Teacher Panel", () => {
+    const nt = read("supabase/functions/notify-teacher/index.ts");
+    expect(nt).toMatch(/\$\{TEACHER_EMAILS_ENABLED\n\s+\? `<a href="\$\{SITE\}\/teacher"/);
+  });
+});

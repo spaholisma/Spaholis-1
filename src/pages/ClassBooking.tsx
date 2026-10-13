@@ -135,14 +135,18 @@ const ClassBookingPage = () => {
     if (!canPayCash && payMethod === "cash") setPayMethod("card");
   }, [canPayCash, payMethod]);
 
-  // Holis' local discount with a Costa Rican cédula — paying online only (cash
-  // at the studio is the normal price). It applies to one spot, the booker's,
-  // like a coupon, and a coupon never adds to it.
+  // Holis' local discount with a Costa Rican cédula — online and in cash at
+  // the studio alike. It applies to one spot, the booker's, like a coupon, and
+  // a coupon never adds to it. Coupons are for online payment only.
   const { data: localPct = 0 } = useStudioLocalPct();
   const isLocal = localApplies(idDoc, localPct);
-  const cardDiscount = isLocal
-    ? localDiscountAmount(Number(cls?.price ?? 0), localPct)
-    : appliedCoupon?.discount ?? 0;
+  const localDiscount = isLocal ? localDiscountAmount(Number(cls?.price ?? 0), localPct) : 0;
+  const cardDiscount = isLocal ? localDiscount : appliedCoupon?.discount ?? 0;
+  const cashDiscount = localDiscount;
+  // Cash at the studio: the ID is always asked (no coupon there).
+  const cashIdReady = idDocumentOk(idDoc, false);
+  const cashDueTotal = (price: number, qty: number) =>
+    Math.max(0, Math.round((cashTotal(price, qty) - cashDiscount) * 100) / 100);
   useEffect(() => {
     if (isLocal && appliedCoupon) { setAppliedCoupon(null); setCouponCode(""); }
   }, [isLocal, appliedCoupon]);
@@ -503,14 +507,19 @@ const ClassBookingPage = () => {
   // as cash to collect; the team and the teacher are told by email.
   const handleCashBooking = async () => {
     if (submitting || !scheduleId) return;
+    if (!cashIdReady) { setIdAttempted(true); return; }
     setSubmitting(true);
     try {
+      // The server works out the local discount again from the cédula.
+      const id = idDocumentBody(idDoc);
       const { data, error } = await supabase.rpc("book_class_pay_cash" as any, {
         _schedule_id: scheduleId,
         _guest_name: formData.name.trim(),
         _guest_email: formData.email.trim(),
         _guest_phone: formData.phone,
         _participant_names: participantNames,
+        _id_document: id.id_document,
+        _id_document_type: id.id_document_type,
       });
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; reason?: string; booking_id?: string; amount?: number; teacher?: string | null };
@@ -522,7 +531,8 @@ const ClassBookingPage = () => {
       supabase.functions
         .invoke("send-booking-notification", { body: { classBookingId: res.booking_id } })
         .catch((e) => console.error("[class-booking] notify failed", e));
-      setCashDue({ amount: Number(res.amount ?? cashTotal(Number(cls?.price ?? 0), quantity)), teacher: res.teacher ?? payee });
+      rememberIdDocument(user?.id, idDoc);
+      setCashDue({ amount: Number(res.amount ?? cashDueTotal(Number(cls?.price ?? 0), quantity)), teacher: res.teacher ?? payee });
       toast.success(multi ? `Reserved ${quantity} spots!` : "Your spot is reserved!");
       setBookingComplete(true);
       setStep(steps.length - 1);
@@ -986,8 +996,8 @@ const ClassBookingPage = () => {
                       <PayOption
                         icon={<CreditCard className="h-4 w-4" />}
                         title={multi
-                          ? `Pay ${formatCRC(quantity * Number(cls.price))} by card · ${quantity} spots`
-                          : `Pay ${formatCRC(cls.price)} by card`}
+                          ? `Pay ${formatPrice(cardTotal(Number(cls.price), quantity, cardDiscount))} by card · ${quantity} spots`
+                          : `Pay ${formatPrice(cardTotal(Number(cls.price), 1, cardDiscount))} by card`}
                         selected={payMethod === "card"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("card"); }}
                       />
@@ -998,8 +1008,8 @@ const ClassBookingPage = () => {
                       <PayOption
                         icon={<Banknote className="h-4 w-4" />}
                         title={multi
-                          ? `Pay ${formatCRC(cashTotal(Number(cls.price), quantity))} in cash at the studio · ${quantity} spots`
-                          : `Pay ${formatCRC(cls.price)} in cash at the studio`}
+                          ? `Pay ${formatPrice(cashDueTotal(Number(cls.price), quantity))} in cash at the studio · ${quantity} spots`
+                          : `Pay ${formatPrice(cashDueTotal(Number(cls.price), 1))} in cash at the studio`}
                         selected={payMethod === "cash"}
                         onClick={() => { setUseLinkMembership(false); setPayMethod("cash"); }}
                       >
@@ -1031,7 +1041,7 @@ const ClassBookingPage = () => {
                         </p>
                       )}
 
-                      {payMethod === "card" && canPayOnline && (
+                      {(payMethod === "card" || payMethod === "cash") && canPayOnline && (
                         <div className="bg-card rounded-2xl border border-border p-4 mt-2">
                           <IdDocumentField
                             value={idDoc}
@@ -1040,7 +1050,7 @@ const ClassBookingPage = () => {
                             teacherFirst="the studio"
                             idPrefix="class-booking-id"
                             showMissing={idAttempted}
-                            optional={couponOn}
+                            optional={payMethod === "card" && couponOn}
                           />
                         </div>
                       )}
@@ -1088,10 +1098,10 @@ const ClassBookingPage = () => {
                             <span>{quantity} × {formatCRC(Number(cls.price))}</span>
                           </div>
                         )}
-                        {payMethod === "card" && isLocal && (
+                        {(payMethod === "card" || payMethod === "cash") && isLocal && (
                           <div className="flex justify-between text-sm font-body text-spa-sage mb-2">
                             <span>Local discount ({localPct}%){multi ? " · your spot" : ""}</span>
-                            <span>-{formatPrice(cardDiscount)}</span>
+                            <span>-{formatPrice(localDiscount)}</span>
                           </div>
                         )}
                         {payMethod === "card" && !isLocal && appliedCoupon && (
@@ -1105,7 +1115,9 @@ const ClassBookingPage = () => {
                           <span className="font-heading text-xl font-semibold text-foreground">
                             {payMethod === "card"
                               ? formatPrice(cardTotal(Number(cls.price), quantity, cardDiscount))
-                              : payMethod === "cash" || payMethod === "compraclick"
+                              : payMethod === "cash"
+                                ? formatPrice(cashDueTotal(Number(cls.price), quantity))
+                              : payMethod === "compraclick"
                                 ? formatPrice(cashTotal(Number(cls.price), quantity))
                               : payMethod === "membership" ? "Membership" : "1 credit"}
                           </span>
@@ -1132,9 +1144,12 @@ const ClassBookingPage = () => {
                         </Button>
                         </>
                       ) : payMethod === "cash" ? (
-                        <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed}>
-                          {submitting ? t("booking.booking") : "Reserve — pay in cash at the class"}
+                        <>
+                        {!cashIdReady && <MissingIdNotice doc={idDoc} couponApplied={false} />}
+                        <Button className="w-full" onClick={handleCashBooking} disabled={submitting || !canProceed || !cashIdReady}>
+                          {submitting ? t("booking.booking") : "Reserve — pay in cash at the studio"}
                         </Button>
+                        </>
                       ) : payMethod === "compraclick" && compraclickUrl ? (
                         <Button className="w-full" onClick={handleCompraClickBooking} disabled={submitting || !canProceed}>
                           {submitting ? t("booking.booking") : "Reserve — then pay with CompraClick"}

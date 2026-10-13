@@ -123,7 +123,7 @@ describe("the server", () => {
     const nt = read("supabase/functions/notify-teacher/index.ts");
     expect(nt).toMatch(/if \(event === "class_rescheduled"\) \{/);
     expect(nt).toMatch(/sendEmail\(s\.guest_email, `New time: \$\{title\} — \$\{when\}`, html\)/);
-    expect(nt).toMatch(/If the new time does not work for you, please let your teacher know\./);
+    expect(nt).toMatch(/If the new time does not work for you, just reply to this email and the Holis team will help you\./);
     expect(nt).toMatch(/if \(TEACHER_EMAILS_ENABLED && event === "class_reassigned" && body\?\.previousTeacher\)/);
     const fn = read("supabase/functions/notify-teacher/index.ts");
     expect(fn).toMatch(/row\("Payment", student\.pays\)/);

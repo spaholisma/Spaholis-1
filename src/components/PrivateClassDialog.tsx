@@ -9,6 +9,7 @@ import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
 import { privateRequestPath, type PrivateKind } from "@/lib/privateClassRequest";
 import { kindsOffered, maxGroup, offeringPrice, type PrivateOffering } from "@/lib/privateOfferings";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 export interface PrivatePick {
   teacherName: string;
@@ -154,8 +155,11 @@ export function PrivateClassDialog({ pick, onOpenChange }: { pick: PrivatePick |
         )}
 
         <p className="font-body text-xs text-muted-foreground">
-          Nothing is paid now. Your request goes straight to {first} and the Holis team, and you arrange the day and
-          time together by email.
+          {TEACHER_PANEL_ENABLED
+            ? <>Nothing is paid now. Your request goes straight to {first} and the Holis team, and you arrange the day and
+              time together by email.</>
+            : <>Nothing is paid now. Your request goes to the Holis team, who will arrange the day and time with you by
+              email.</>}
         </p>
 
         <Button asChild className="w-full" disabled={price == null}>

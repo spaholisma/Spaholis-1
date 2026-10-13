@@ -138,6 +138,8 @@ Deno.serve(async (req) => {
     // Her price for this guest: local discount (Costa Rican cédula), else one
     // of her coupons — never both — from teacher_price() in the database.
     let quote: { price: number; base: number; discount: number; local: boolean; local_pct: number; coupon: string | null; coupon_status: string | null } | null = null;
+    // The class a coupon is checked against (a coupon set for a class works on it).
+    let couponClassId: string | null = null;
     const idType = pc.id_document_type === "cr_cedula" || pc.id_document_type === "other" ? String(pc.id_document_type) : "";
     const idNumber = clean(pc.id_document).slice(0, 30);
     const couponTyped = clean(pc.coupon_code).toUpperCase().slice(0, 64);
@@ -147,18 +149,24 @@ Deno.serve(async (req) => {
     const offeringId = typeof pc.offering_id === "string" && UUID_RE.test(pc.offering_id) ? pc.offering_id : null;
     if (offeringId) {
       const { data: o } = await admin.from("teacher_private_offerings")
-        .select("title, active, teachers(id, display_name, email, active)")
+        .select("title, active, class_id, teachers(id, display_name, email, active)")
         .eq("id", offeringId).maybeSingle();
       const t: any = (o as any)?.teachers;
       if (o && (o as any).active && t?.active) {
         classTitle = clean((o as any).title);
-        teacherName = clean(t.display_name);
-        teacherEmail = clean(t.email);
+        // Named only when the guest chose her: the website shows most private
+        // classes without the teacher now (Evelina's keep her name).
+        if (TEACHER_EMAILS_ENABLED || norm(pc.teacher_name) === norm(t.display_name)) {
+          teacherName = clean(t.display_name);
+          teacherEmail = clean(t.email);
+        }
+        couponClassId = (o as any).class_id ?? null;
       }
     } else if (typeof pc.class_id === "string" && UUID_RE.test(pc.class_id)) {
       const { data: cls } = await admin.from("classes").select("id, title, instructor").eq("id", pc.class_id).maybeSingle();
       if (cls) {
         classTitle = clean((cls as any).title);
+        couponClassId = (cls as any).id;
         const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
         const { data: sessions } = await admin.from("class_schedule").select("instructor").eq("class_id", pc.class_id).gte("start_time", since).limit(2000);
         const teaches = new Set([...(((sessions as any[]) ?? []).map((s) => norm(s.instructor))), norm((cls as any).instructor)].filter(Boolean));
@@ -171,8 +179,9 @@ Deno.serve(async (req) => {
     }
 
     // Holis' price, the same whoever teaches: the Admin's prices for this many
-    // people, then the studio's local discount for a valid Costa Rican cédula.
-    // A coupon is not applied here: the team checks it when it confirms.
+    // people, then the studio's local discount for a valid Costa Rican cédula —
+    // else a Holis coupon (one with no restriction, or set for the class
+    // chosen), as the form showed it. Never both.
     {
       const { data: sc } = await admin.from("site_content").select("content").eq("section_key", "content").maybeSingle();
       const raw = (sc as any)?.content?.privateSessions?.pricing ?? {};
@@ -188,7 +197,8 @@ Deno.serve(async (req) => {
         : null;
       if (price != null) {
         const { data: q, error: qErr } = await admin.rpc("holis_price", {
-          _base: price, _id_document: idType === "cr_cedula" ? idNumber || null : null, _coupon: null,
+          _base: price, _id_document: idType === "cr_cedula" ? idNumber || null : null,
+          _coupon: couponTyped || null, _class_id: couponClassId,
         });
         if (qErr) console.error("[send-private-class-request] holis_price failed", qErr.message);
         else quote = q as any;
@@ -233,11 +243,15 @@ Deno.serve(async (req) => {
       row("Location", locationText) +
       row("Price",
         quote?.local ? `$${Number(quote.price).toFixed(2)} — local price (${Number(quote.local_pct)}% off $${Number(quote.base).toFixed(2)} for a Costa Rican cédula)`
+        : quote?.coupon_status === "applied" ? `$${Number(quote.price).toFixed(2)} — with coupon ${esc(quote.coupon)} ($${Number(quote.base).toFixed(2)} before)`
         : price != null && Number.isFinite(price) ? `$${price.toFixed(2)}`
         : "To be confirmed by the Holis team") +
       row("Coupon",
-        !couponTyped || quote?.local ? ""
-        : `${esc(couponTyped)} — to be checked and applied by the Holis team`) +
+        !couponTyped || quote?.local || quote?.coupon_status === "applied" ? ""
+        : quote?.coupon_status === "not_found" ? `${esc(couponTyped)} — not a Holis coupon`
+        : quote?.coupon_status === "not_valid" ? `${esc(couponTyped)} — no longer valid`
+        : quote?.coupon_status === "not_for_this" ? `${esc(couponTyped)} — not valid for this private class`
+        : `${esc(couponTyped)} — to be checked by the Holis team`) +
       row("Preferred date & time", esc(preferred));
     const guestRows =
       row("Name", esc(guestName)) +

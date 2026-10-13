@@ -83,7 +83,10 @@ describe("the request", () => {
     expect(form).not.toMatch(/Price depends on the class and teacher/);
     const picker = read("src/components/booking/PrivateClassPicker.tsx");
     expect(picker).toMatch(/return buildPrivateChoices\(offerings \?\? \[\], schedule, kind, people\);/);
-    expect(picker).toMatch(/const c = findChoice\(options, preselect\);/);
+    expect(picker).toMatch(/const raw = findChoice\(allOptions, preselect\);/);
+    // Holis' list: the kinds of class, without the teacher (Evelina keeps hers), at the fixed price.
+    expect(picker).toMatch(/allOptions && !TEACHER_PANEL_ENABLED \? holisPrivateChoices\(allOptions\) : allOptions/);
+    expect(picker).toMatch(/studioPrice != null \? formatCRCWithUsd\(studioPrice \* USD_RATE\) : null/);
   });
 });
 

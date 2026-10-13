@@ -75,7 +75,9 @@ function shell(title: string, intro: string, rows: string[], footer = ""): strin
     ${footer}
     <p style="color:#9a9a9a;font-size:12px;margin-top:22px">
       Holis Wellness Center · Manuel Antonio, Costa Rica<br>
-      <a href="${SITE}/teacher" style="color:#7b9d87">Open your Teacher Panel</a>
+      ${TEACHER_EMAILS_ENABLED
+        ? `<a href="${SITE}/teacher" style="color:#7b9d87">Open your Teacher Panel</a>`
+        : `<a href="${SITE}" style="color:#7b9d87">spaholis.com</a>`}
     </p>
   </div>`, title);
 }
@@ -624,7 +626,7 @@ Deno.serve(async (req) => {
           `<strong>${esc(title)}</strong> has moved. The new time is ${esc(when)}.`,
           [row("Class", title), row("New time", when)],
           `<p style="color:#6b6b6b;font-size:13px;line-height:1.5;margin-top:16px">
-             If the new time does not work for you, please let your teacher know.
+             If the new time does not work for you, just reply to this email and the Holis team will help you.
              You can see every class on the
              <a href="${SITE}/classes/schedule" style="color:#7b9d87">class schedule</a>.
            </p>`,

@@ -155,11 +155,14 @@ describe("the emails", () => {
 describe("the pages", () => {
   it("class booking: the ID is asked when paying online, and the PayPal button waits for it", () => {
     const page = read("src/pages/ClassBooking.tsx");
-    expect(page).toMatch(/\{payMethod === "card" && canPayOnline && \(\s*<div[^>]*>\s*<IdDocumentField/);
+    expect(page).toMatch(/\{\(payMethod === "card" \|\| payMethod === "cash"\) && canPayOnline && \(\s*<div[^>]*>\s*<IdDocumentField/);
     expect(page).toMatch(/disabled=\{!formData\.name \|\| !formData\.email \|\| !idReady\}/);
     expect(page).toMatch(/coupon_code: isLocal \? null/);
-    // Cash at the class is the normal price.
-    expect(page).toMatch(/formatPrice\(cashTotal\(Number\(cls\.price\), quantity\)\)/);
+    // Cash at the studio takes the local discount too (2026-10), and the
+    // buttons say the price already discounted.
+    expect(page).toMatch(/formatPrice\(cashDueTotal\(Number\(cls\.price\), quantity\)\)/);
+    expect(page).toMatch(/`Pay \$\{formatPrice\(cardTotal\(Number\(cls\.price\), 1, cardDiscount\)\)\} by card`/);
+    expect(page).toMatch(/`Pay \$\{formatPrice\(cashDueTotal\(Number\(cls\.price\), 1\)\)\} in cash at the studio`/);
   });
 
   it("the drop-in opens its own window: a date, then PayPal to Holis", () => {

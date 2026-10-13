@@ -11,8 +11,12 @@ import {
   buildClassOptions, initials, type PrivateKind, type SessionWithClass, type TeacherRow,
 } from "@/lib/privateClassRequest";
 import {
-  buildPrivateChoices, findChoice, offeringPrice, usePrivateOfferings, type PrivateChoice,
+  buildPrivateChoices, findChoice, holisPrivateChoices, offeringPrice, toHolisChoice, usePrivateOfferings,
+  type PrivateChoice,
 } from "@/lib/privateOfferings";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { privatePricing } from "@/lib/otherOfferings";
+import { TEACHER_PANEL_ENABLED } from "@/lib/features";
 
 function Face({ name, photo }: { name: string | null; photo: string | null }) {
   if (photo) return <img src={photo} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-background" />;
@@ -45,6 +49,11 @@ function Row({ title, subtitle, name, photo }: { title: string; subtitle: string
  * ones offered for this kind and this many people. A teacher who has not
  * listed hers yet still appears with the classes she teaches on the schedule,
  * and the price is confirmed by her.
+ *
+ * Since 2026-10 Holis runs the private classes (TEACHER_PANEL_ENABLED off):
+ * the list is the kinds of class, one line each, at Holis' fixed prices, with
+ * no teacher's name — except the teachers in NAMED_PRIVATE_TEACHERS (Evelina),
+ * whose own classes keep it.
  *
  * A plain scrolling list rather than a Select: the wheel, the trackpad and a
  * finger then move it like the rest of the page, instead of the step-by-step
@@ -93,28 +102,52 @@ export function PrivateClassPicker({
     return () => { alive = false; };
   }, []);
 
-  const options = useMemo(() => {
+  // Every choice as the teachers set them up (her own private classes, her classes on the schedule).
+  const allOptions = useMemo(() => {
     if (loadingOfferings || loadingSessions || teachers === null || recent === null) return null;
     const schedule = buildClassOptions((sessions ?? []) as any, teachers, recent);
     // If her private classes could not be read, the schedule still works.
     return buildPrivateChoices(offerings ?? [], schedule, kind, people);
   }, [offerings, loadingOfferings, sessions, loadingSessions, teachers, recent, kind, people]);
+  // While Holis runs the private classes: the kinds of class at Holis' prices,
+  // without the teacher's name (except the teachers who keep theirs).
+  const options = useMemo(
+    () => (allOptions && !TEACHER_PANEL_ENABLED ? holisPrivateChoices(allOptions) : allOptions),
+    [allOptions],
+  );
+  const { data: siteContent } = useSiteContent();
+  const studio = privatePricing((siteContent as any)?.privateSessions);
+  const studioPrice = offeringPrice(
+    { price_one: studio.onePerson, price_two: studio.twoPeople, price_group: studio.upToFour, price_extra: studio.extraPerson },
+    kind, people,
+  );
 
   // Arriving from a teacher's page: her private class is already chosen, and
   // the guest can still change it. A teacher who is not found picks nothing,
   // so a request never goes to somebody else by accident.
   const preselected = useRef(false);
   useEffect(() => {
-    if (preselected.current || !options || !preselect) return;
+    if (preselected.current || !options || !allOptions || !preselect) return;
     preselected.current = true;
     if (value) return;
-    const c = findChoice(options, preselect);
+    const raw = findChoice(allOptions, preselect);
+    if (!raw) return;
+    if (TEACHER_PANEL_ENABLED) { onChange(raw); return; }
+    // Its line in Holis' list (the same class, the teacher's name only if she keeps it).
+    const h = toHolisChoice(raw);
+    const c = options.find((o) => o.key === h.key)
+      ?? options.find((o) => o.title === h.title && o.teacherName === h.teacherName);
     if (c) onChange(c);
-  }, [options, preselect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [options, allOptions, preselect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noClassTitle = t("consultation.privateNoClass", { defaultValue: "No specific class" });
   const noClassHint = t("consultation.privateNoClassHint", { defaultValue: "We'll help you choose" });
   const line = (c: PrivateChoice) => {
+    if (!TEACHER_PANEL_ENABLED) {
+      // Holis' fixed price, the same whoever teaches; the name only for the teachers who keep it.
+      const who = c.teacherName ? t("consultation.privateWith", { name: c.teacherName, defaultValue: "with {{name}}" }) : null;
+      return [who, studioPrice != null ? formatCRCWithUsd(studioPrice * USD_RATE) : null].filter(Boolean).join(" · ");
+    }
     if (!c.teacherName) return t("consultation.privateTeacherTbc", { defaultValue: "Teacher to be confirmed" });
     const who = t("consultation.privateWith", { name: c.teacherName, defaultValue: "with {{name}}" });
     const price = c.offering ? offeringPrice(c.offering, kind, people) : null;
@@ -144,10 +177,14 @@ export function PrivateClassPicker({
           <Sparkles className="h-3.5 w-3.5" /> {t("consultation.privateEyebrow", { defaultValue: "Make it yours" })}
         </p>
         <h2 className="font-heading text-xl sm:text-2xl font-light text-foreground">
-          {t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })}
+          {TEACHER_PANEL_ENABLED
+            ? t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })
+            : t("consultation.privatePickTitleHolis", { defaultValue: "Choose your class" })}
         </h2>
         <p className="font-body text-xs sm:text-sm text-muted-foreground leading-relaxed">
-          {t("consultation.privatePickSubtitle", { defaultValue: "Optional — pick a class you love and your request goes straight to its teacher." })}
+          {TEACHER_PANEL_ENABLED
+            ? t("consultation.privatePickSubtitle", { defaultValue: "Optional — pick a class you love and your request goes straight to its teacher." })
+            : t("consultation.privatePickSubtitleHolis", { defaultValue: "Optional — pick the class you would like and the Holis team arranges it with you." })}
         </p>
       </div>
 
@@ -161,7 +198,9 @@ export function PrivateClassPicker({
                 type="button"
                 role="combobox"
                 aria-expanded={open}
-                aria-label={t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })}
+                aria-label={TEACHER_PANEL_ENABLED
+                  ? t("consultation.privatePickTitle", { defaultValue: "Choose a class & teacher" })
+                  : t("consultation.privatePickTitleHolis", { defaultValue: "Choose your class" })}
                 className="flex w-full items-center justify-between gap-2 rounded-2xl border border-spa-sage/40 bg-background/90 px-3 py-2.5 text-left shadow-sm backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-spa-sage"
               >
                 {value
@@ -220,7 +259,14 @@ export function PrivateClassPicker({
       </div>
 
       <p className="relative mt-3 flex items-start gap-2 font-body text-xs text-muted-foreground">
-        {value?.teacherName ? (
+        {!TEACHER_PANEL_ENABLED ? (
+          <>
+            <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-spa-sage" />
+            <span>{value?.teacherName
+              ? t("consultation.privateGoesToHolisWith", { name: value.teacherName, defaultValue: "Your request goes to the Holis team, who will arrange it with {{name}} and you." })
+              : t("consultation.privateGoesToHolis", { defaultValue: "Your request goes to the Holis team, who will arrange your private class with you." })}</span>
+          </>
+        ) : value?.teacherName ? (
           <>
             <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-spa-sage" />
             <span>{t("consultation.privateGoesTo", { name: value.teacherName, defaultValue: "Your request goes straight to {{name}} and the Holis team." })}</span>

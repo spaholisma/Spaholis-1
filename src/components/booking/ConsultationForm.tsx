@@ -16,13 +16,13 @@ import { PhoneField, isValidPhoneNumber } from "@/components/booking/PhoneField"
 import { IdDocumentField } from "@/components/payments/IdDocumentField";
 import { useAccountDetails } from "@/hooks/useAccountDetails";
 import {
-  EMPTY_ID_DOCUMENT, idDocumentOk, localApplies, localDiscountAmount,
-  useStudioLocalPct, type IdDocument,
+  EMPTY_ID_DOCUMENT, holisCouponProblem, idDocumentOk, localApplies, localDiscountAmount,
+  quoteHolisPrice, useStudioLocalPct, type IdDocument,
 } from "@/lib/localDiscount";
 import { PrivateClassPicker } from "@/components/booking/PrivateClassPicker";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as contentDefaults } from "@/data/content";
-import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
+import { formatCRCWithUsd, formatPrice, USD_RATE } from "@/lib/currency";
 import {
   clampPeople, parsePrivateKind, privateClassIntake,
 } from "@/lib/privateClassRequest";
@@ -87,7 +87,45 @@ export const ConsultationForm = () => {
   const { data: studioPct = 0 } = useStudioLocalPct();
   const localPct = privateKind ? studioPct : 0;
   const isLocal = localApplies(idDoc, localPct);
-  const privateDiscount = privatePrice == null || !isLocal ? 0 : localDiscountAmount(privatePrice, localPct);
+  // A Holis coupon, checked on the server when "Apply" is pressed (holis_price):
+  // it works when it has no restriction, or is set for the class chosen. Kept
+  // as its rule, so the price follows the number of people. The local
+  // discount wins: then the coupon does not count.
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: string; value: number } | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
+  // Another class: a coupon set for one class may not work for the next one.
+  useEffect(() => { setAppliedCoupon(null); }, [classChoice?.key]);
+  const couponAmount = (base: number) => {
+    if (!appliedCoupon || !(base > 0)) return 0;
+    const d = appliedCoupon.type === "percentage"
+      ? Math.round(base * Math.min(Math.max(appliedCoupon.value, 0), 100)) / 100
+      : Math.min(base, Math.max(appliedCoupon.value, 0));
+    return Math.round(d * 100) / 100;
+  };
+  const couponOn = !!appliedCoupon && !isLocal;
+  const privateDiscount = privatePrice == null ? 0
+    : isLocal ? localDiscountAmount(privatePrice, localPct)
+    : couponOn ? couponAmount(privatePrice) : 0;
+  const applyPrivateCoupon = async () => {
+    const code = couponCode.trim();
+    if (!code || privatePrice == null || appliedCoupon || checkingCoupon) return;
+    setCheckingCoupon(true);
+    try {
+      const q = await quoteHolisPrice(privatePrice, idDoc, code, { classId: classChoice?.classId ?? null });
+      if (!q) { toast.error(t("idDocument.couponCheckFailed", { defaultValue: "Could not check the coupon — please try again." })); return; }
+      if (q.coupon_status === "applied" && q.coupon) {
+        setAppliedCoupon({ code: q.coupon, type: String(q.coupon_type ?? "fixed"), value: Number(q.coupon_value ?? q.discount) || 0 });
+        return;
+      }
+      const why = q.coupon_status === "not_for_this"
+        ? t("consultation.privateCouponNotHere", { defaultValue: "That coupon does not apply to this private class." })
+        : holisCouponProblem(q.coupon_status, "class");
+      if (q.coupon_status === "ignored_local") toast.info(why!);
+      else toast.error(why ?? "That code isn't a valid coupon.");
+    } finally {
+      setCheckingCoupon(false);
+    }
+  };
   const privateTotal = privatePrice == null ? null : Math.max(0, Math.round((privatePrice - privateDiscount) * 100) / 100);
 
   // Signed in: fill in what the account knows, without overwriting anything typed.
@@ -326,10 +364,12 @@ export const ConsultationForm = () => {
                       {privateDiscount > 0 && (
                         <p className="font-body text-xs text-background/60 line-through">{formatCRCWithUsd(privatePrice * USD_RATE)}</p>
                       )}
-                      <p className="font-heading text-xl font-semibold">{formatCRCWithUsd(privateTotal * USD_RATE)}</p>
+                      <p className="font-heading text-xl font-semibold">{formatPrice(privateTotal * USD_RATE)}</p>
                       {privateDiscount > 0 && (
                         <p className="font-body text-[11px] text-background/70">
-                          {t("idDocument.localLine", { pct: localPct, defaultValue: "Local discount ({{pct}}%)" })}
+                          {isLocal
+                            ? t("idDocument.localLine", { pct: localPct, defaultValue: "Local discount ({{pct}}%)" })
+                            : t("idDocument.couponLine", { code: appliedCoupon?.code, defaultValue: "Coupon ({{code}})" })}
                         </p>
                       )}
                     </div>
@@ -420,18 +460,37 @@ export const ConsultationForm = () => {
                   <Label htmlFor="private-coupon" className="font-body text-sm">
                     {t("idDocument.couponLabelGeneric", { defaultValue: "Have a coupon? (optional)" })}
                   </Label>
-                  <Input
-                    id="private-coupon"
-                    placeholder={t("idDocument.couponPlaceholder", { defaultValue: "Coupon code" })}
-                    value={couponCode}
-                    maxLength={64}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                  />
-                  {couponCode.trim() && (
+                  <div className="flex gap-2">
+                    <Input
+                      id="private-coupon"
+                      placeholder={t("idDocument.couponPlaceholder", { defaultValue: "Coupon code" })}
+                      value={couponCode}
+                      maxLength={64}
+                      disabled={!!appliedCoupon}
+                      onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); if (appliedCoupon) setAppliedCoupon(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyPrivateCoupon(); } }}
+                      onBlur={() => { if (couponCode.trim() && !appliedCoupon) applyPrivateCoupon(); }}
+                    />
+                    {appliedCoupon ? (
+                      <Button type="button" variant="ghost" onClick={() => { setAppliedCoupon(null); setCouponCode(""); }}>
+                        {t("idDocument.remove", { defaultValue: "Remove" })}
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="outline" disabled={!couponCode.trim() || checkingCoupon || privatePrice == null}
+                        onClick={applyPrivateCoupon}>
+                        {checkingCoupon ? "…" : t("idDocument.apply", { defaultValue: "Apply" })}
+                      </Button>
+                    )}
+                  </div>
+                  {appliedCoupon ? (
+                    <p className="font-body text-xs text-spa-sage">
+                      {t("consultation.privateCouponWithPrice", { code: appliedCoupon.code, defaultValue: "Coupon {{code}} applied — your price is shown above. Holis confirms it with your private class." })}
+                    </p>
+                  ) : couponCode.trim() ? (
                     <p className="font-body text-xs text-muted-foreground">
                       {t("idDocument.couponHolisWillApply", { defaultValue: "Holis will check your coupon and apply it when confirming your private class." })}
                     </p>
-                  )}
+                  ) : null}
                 </div>
               )}
 
