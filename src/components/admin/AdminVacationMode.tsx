@@ -93,7 +93,8 @@ export function AdminVacationMode() {
         <div>
           <h3 className="font-heading text-lg font-medium text-foreground">Vacation Mode</h3>
           <p className="font-body text-sm text-muted-foreground">
-            Shows a notice on the booking page and pauses online bookings. Only affects the Book page.
+            For <strong>treatments and massages</strong>: shows a notice on the Book page and pauses their online
+            bookings. Classes are not affected — to close days for classes, use Classes calendar → Closed days.
           </p>
         </div>
       </div>

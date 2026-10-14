@@ -5,7 +5,7 @@ import { teachersForPass, type HerPass, type PublicTeacher, type StudioPass } fr
 
 // Every pass except the Drop-in is sold by a teacher, at her own price:
 // pick the pass, then her. Only teachers who sell that pass are offered.
-const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8");
+const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8").replace(/\r\n/g, "\n");
 
 const pass = (name: string): StudioPass => ({
   id: name, name, description: null, type: "class_pass", price: 100, credits: 5, duration_days: 30, is_unlimited: false,
