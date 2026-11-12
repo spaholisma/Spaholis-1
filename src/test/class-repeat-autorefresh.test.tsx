@@ -98,3 +98,33 @@ describe("the calendars refresh themselves", () => {
       .toMatch(/useAutoRefresh\(\(\) => \{ loadScheduled\(\); refetchClosures\(\); \}\);/);
   });
 });
+
+describe("the calendars change the moment anyone changes them (2026-11)", () => {
+  it("listen to the database (Supabase Realtime) and keep the 15 s poll", () => {
+    const cal = read("src/components/admin/AdminInternalCalendars.tsx");
+    expect(cal).toMatch(/useRealtimeRefresh\(\["admin_calendar_entries", "bookings", "calendar_groups"\]/);
+    expect(cal).toMatch(/Live · updated \{format\(lastSync, "h:mm:ss a"\)\}/);
+    const classes = read("src/components/admin/AdminClassCalendarWithAttendees.tsx");
+    expect(classes).toMatch(/useRealtimeRefresh\(\["class_schedule", "class_bookings", "class_closures"\]/);
+    const hook = read("src/hooks/useRealtimeRefresh.ts");
+    expect(hook).toMatch(/channel\.on\("postgres_changes" as any, \{ event: "\*", schema: "public", table \}, kick\)/);
+    expect(hook).toMatch(/supabase\.removeChannel\(channel\)/);
+    const sql = read("supabase/migrations/20261112120000_calendar_realtime.sql");
+    for (const t of ["admin_calendar_entries", "bookings", "calendar_groups", "class_schedule", "class_bookings", "class_closures"]) {
+      expect(sql).toContain(`'${t}'`);
+    }
+    expect(sql).toMatch(/alter publication supabase_realtime add table public\.%I/);
+  });
+
+  it("an Admin tab left open moves onto a newly published version — never mid-dialog or mid-typing", async () => {
+    const { buildIn, busy, currentBuild } = await import("@/hooks/useNewVersionReload");
+    expect(buildIn('<script type="module" crossorigin src="/assets/index-CoQLEVha.js"></script>')).toBe("index-CoQLEVha.js");
+    const doc = document.implementation.createHTMLDocument("x");
+    const s = doc.createElement("script"); s.src = "https://www.spaholis.com/assets/index-AbC_12.js"; doc.head.appendChild(s);
+    expect(currentBuild(doc)).toBe("index-AbC_12.js");
+    expect(busy(doc)).toBe(false);
+    const dlg = doc.createElement("div"); dlg.setAttribute("role", "dialog"); doc.body.appendChild(dlg);
+    expect(busy(doc)).toBe(true);
+    expect(read("src/pages/AdminDashboard.tsx")).toMatch(/useNewVersionReload\(\);/);
+  });
+});

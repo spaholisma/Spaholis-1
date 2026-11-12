@@ -11,6 +11,7 @@ import { ClassClosuresDialog } from "@/components/admin/ClassClosuresDialog";
 import { useClassClosures } from "@/lib/classClosures";
 import { MAX_REPEAT_SESSIONS, WEEKDAYS, planRepeat, repeatDates, weekdayOf } from "@/lib/classRepeat";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO,
@@ -525,6 +526,10 @@ export function AdminClassCalendarWithAttendees() {
   // Several people work on this calendar at once: ask again every few seconds
   // (and when coming back to the tab) so everyone sees the others' changes.
   useAutoRefresh(() => { loadScheduled(); refetchClosures(); });
+  // And at once when anyone changes a session, a booking or a closed day.
+  useRealtimeRefresh(["class_schedule", "class_bookings", "class_closures"], () => {
+    loadScheduled(); refetchClosures();
+  });
 
   // Deep-link from Class Finances: open the "New Order" dialog on mount.
   useEffect(() => {

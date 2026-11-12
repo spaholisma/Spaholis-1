@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { BookingsTrash } from "./BookingsTrash";
 import { PushNotificationsButton } from "./PushNotificationsButton";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
@@ -437,6 +438,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     })();
   }, []);
 
+  // When the calendar last read the database — shown so everyone can see it is live.
+  const [lastSync, setLastSync] = useState<Date | null>(null);
   const loadEntries = useCallback(async () => {
     const start = format(startOfWeek(startOfMonth(currentDate)), "yyyy-MM-dd");
     const end = format(endOfWeek(endOfMonth(currentDate)), "yyyy-MM-dd");
@@ -450,6 +453,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       .or(`end_date.gte.${start},and(end_date.is.null,entry_date.gte.${start})`)
       .order("start_time", { ascending: true });
     setEntries((data as CalendarEntry[]) ?? []);
+    setLastSync(new Date());
   }, [calendarType, currentDate]);
 
   useEffect(() => { loadEntries(); }, [loadEntries]);
@@ -542,6 +546,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   // (and when coming back to the tab) so everyone sees the others' entries
   // and bookings without reloading the page.
   useAutoRefresh(() => { loadEntries(); loadBookings(); loadGroups(); });
+  // And at once when anyone changes an entry, a booking or a sub-calendar.
+  useRealtimeRefresh(["admin_calendar_entries", "bookings", "calendar_groups"], () => {
+    loadEntries(); loadBookings(); loadGroups();
+  });
 
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentDate)),
@@ -916,6 +924,15 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
           <p className="text-sm text-muted-foreground">
             {readOnly ? "Schedule overview — read only" : "Private scheduling for management only"}
           </p>
+          {lastSync && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground" title="Changes from everyone show here by themselves">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-spa-sage opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-spa-sage" />
+              </span>
+              Live · updated {format(lastSync, "h:mm:ss a")}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <CalendarSearch calendarType={calendarType} readOnly={readOnly} onPick={jumpToResult} />

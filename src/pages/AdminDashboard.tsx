@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNewVersionReload } from "@/hooks/useNewVersionReload";
 import { formatCRC, formatUsdRef } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,8 @@ const sidebarLinks = [
 const COORDINATOR_TABS = ["calendars", "appointments", "trash"];
 
 const AdminDashboard = () => {
+  // The Admin stays open all day: move onto a newly published version by itself.
+  useNewVersionReload();
   const [activeTab, setActiveTab] = useState("calendars");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
