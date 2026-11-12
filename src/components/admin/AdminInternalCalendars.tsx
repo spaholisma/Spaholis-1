@@ -12,6 +12,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths,
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AdminClassCalendarWithAttendees } from "./AdminClassCalendarWithAttendees";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { BookingsTrash } from "./BookingsTrash";
 import { PushNotificationsButton } from "./PushNotificationsButton";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
@@ -537,6 +538,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     setBookingEntries(mapped);
   }, [calendarType, currentDate, readOnly]);
   useEffect(() => { loadBookings(); }, [loadBookings]);
+  // Several people work on this calendar at once: ask again every few seconds
+  // (and when coming back to the tab) so everyone sees the others' entries
+  // and bookings without reloading the page.
+  useAutoRefresh(() => { loadEntries(); loadBookings(); loadGroups(); });
 
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentDate)),

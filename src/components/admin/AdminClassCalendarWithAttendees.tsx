@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, ChevronRight, Users, Mail, XCircle, CheckCircle2, Plus, Pencil, Ban, RotateCcw, Trash2, Search, Loader2, DollarSign, CalendarOff } from "lucide-react";
 import { ClassClosuresDialog } from "@/components/admin/ClassClosuresDialog";
 import { useClassClosures } from "@/lib/classClosures";
+import { MAX_REPEAT_SESSIONS, WEEKDAYS, planRepeat, repeatDates, weekdayOf } from "@/lib/classRepeat";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO,
@@ -260,6 +262,8 @@ export function AdminClassCalendarWithAttendees() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>({ class_id: "", date: format(new Date(), "yyyy-MM-dd"), time: "09:00", duration_minutes: 60, capacity: 15, instructor: "", location: DEFAULT_LOCATION });
   const [saving, setSaving] = useState(false);
+  // A new session can repeat every week on chosen weekdays until a last date.
+  const [repeat, setRepeat] = useState<{ on: boolean; days: number[]; until: string }>({ on: false, days: [], until: "" });
   // Cancelled sessions are hidden by default (they clutter the calendar); a
   // toggle reveals them. Nothing is deleted — is_cancelled is just filtered out.
   const [showCancelled, setShowCancelled] = useState(false);
@@ -518,6 +522,9 @@ export function AdminClassCalendarWithAttendees() {
   }, [currentDate]);
 
   useEffect(() => { loadScheduled(); }, [loadScheduled]);
+  // Several people work on this calendar at once: ask again every few seconds
+  // (and when coming back to the tab) so everyone sees the others' changes.
+  useAutoRefresh(() => { loadScheduled(); refetchClosures(); });
 
   // Deep-link from Class Finances: open the "New Order" dialog on mount.
   useEffect(() => {
@@ -595,6 +602,7 @@ export function AdminClassCalendarWithAttendees() {
       instructor: "",
       location: DEFAULT_LOCATION,
     });
+    setRepeat({ on: false, days: [], until: "" });
     setEditorOpen(true);
   };
 
@@ -651,6 +659,54 @@ export function AdminClassCalendarWithAttendees() {
           location: form.location.trim() || DEFAULT_LOCATION,
         }).eq("id", form.class_id);
         toast.success("Session updated");
+      } else if (repeat.on) {
+        // Every chosen weekday from the first date to the last one, at the same
+        // time — skipping closed days and dates this class already has then.
+        if (!repeat.days.length) { toast.error("Choose at least one day of the week"); setSaving(false); return; }
+        if (!repeat.until || repeat.until < form.date) { toast.error("Choose the last date (on or after the first)"); setSaving(false); return; }
+        const dates = repeatDates(form.date, repeat.days, repeat.until);
+        const startAt = (d: string) => { const t = new Date(`${d}T00:00:00`); t.setHours(h, m, 0, 0); return t; };
+        const { data: existing } = await supabase
+          .from("class_schedule")
+          .select("start_time")
+          .eq("class_id", form.class_id)
+          .eq("is_cancelled", false)
+          .gte("start_time", startAt(form.date).toISOString())
+          .lte("start_time", new Date(startAt(repeat.until).getTime() + 86_400_000).toISOString());
+        const existingStarts = new Set(((existing as { start_time: string }[]) ?? [])
+          .map((r) => format(parseISO(r.start_time), "yyyy-MM-dd HH:mm")));
+        const plan = planRepeat(dates, form.time, closedDays, existingStarts);
+        if (plan.tooMany) { toast.error(`That is more than ${MAX_REPEAT_SESSIONS} sessions — choose an earlier last date`); setSaving(false); return; }
+        if (!plan.create.length) {
+          toast.error(plan.closed.length || plan.existing.length
+            ? "Nothing to create — those dates are closed or already have this class at that time"
+            : "No date falls on the chosen days");
+          setSaving(false);
+          return;
+        }
+        const rows = plan.create.map((d) => {
+          const s0 = startAt(d);
+          return {
+            class_id: form.class_id,
+            start_time: s0.toISOString(),
+            end_time: new Date(s0.getTime() + form.duration_minutes * 60000).toISOString(),
+            spots_remaining: form.capacity,
+            is_cancelled: false,
+            instructor: form.instructor.trim() || null,
+          };
+        });
+        // Generated types predate the per-session teacher column.
+        const { error } = await supabase.from("class_schedule").insert(rows as any);
+        if (error) throw error;
+        await supabase.from("classes").update({
+          max_capacity: form.capacity,
+          location: form.location.trim() || DEFAULT_LOCATION,
+        }).eq("id", form.class_id);
+        const skipped = [
+          plan.closed.length ? `${plan.closed.length} closed day${plan.closed.length === 1 ? "" : "s"}` : "",
+          plan.existing.length ? `${plan.existing.length} already scheduled` : "",
+        ].filter(Boolean).join(", ");
+        toast.success(`Created ${rows.length} session${rows.length === 1 ? "" : "s"}${skipped ? ` (skipped: ${skipped})` : ""}`);
       } else {
         const { error } = await supabase.from("class_schedule").insert({
           class_id: form.class_id,
@@ -1338,6 +1394,76 @@ export function AdminClassCalendarWithAttendees() {
                 />
               </div>
             </div>
+            {!editingId && (() => {
+              const dates = repeat.on && repeat.until && repeat.until >= form.date && repeat.days.length
+                ? repeatDates(form.date, repeat.days, repeat.until) : [];
+              const plan = planRepeat(dates, form.time, closedDays);
+              const fmt = (d: string) => format(parseISO(d), "EEE, MMM d");
+              return (
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[hsl(var(--primary))]"
+                      checked={repeat.on}
+                      onChange={(e) => setRepeat((r) => ({
+                        ...r,
+                        on: e.target.checked,
+                        // Start from the weekday of the date chosen above.
+                        days: e.target.checked && !r.days.length ? [weekdayOf(form.date)] : r.days,
+                      }))}
+                    />
+                    Repeat every week
+                  </label>
+                  {repeat.on && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">On these days</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {WEEKDAYS.map(({ day, short }) => {
+                            const on = repeat.days.includes(day);
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                aria-pressed={on}
+                                onClick={() => setRepeat((r) => ({
+                                  ...r,
+                                  days: on ? r.days.filter((x) => x !== day) : [...r.days, day].sort(),
+                                }))}
+                                className={cn(
+                                  "h-8 min-w-[2.75rem] rounded-full border px-2 text-xs font-medium transition-colors",
+                                  on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted",
+                                )}
+                              >
+                                {short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Until (last date, included)</Label>
+                        <Input type="date" min={form.date} value={repeat.until}
+                          onChange={(e) => setRepeat((r) => ({ ...r, until: e.target.value }))} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {!repeat.days.length ? "Choose at least one day of the week."
+                          : !repeat.until ? "Choose the last date."
+                          : plan.tooMany ? `That is more than ${MAX_REPEAT_SESSIONS} sessions — choose an earlier last date.`
+                          : !plan.create.length ? "No session would be created with these dates."
+                          : <>
+                              <strong className="text-foreground">{plan.create.length} session{plan.create.length === 1 ? "" : "s"}</strong>
+                              {" "}from {fmt(plan.create[0])} to {fmt(plan.create[plan.create.length - 1])} at {form.time}
+                              {plan.closed.length ? ` · ${plan.closed.length} closed day${plan.closed.length === 1 ? "" : "s"} skipped` : ""}
+                              . Dates that already have this class at {form.time} are skipped too.
+                            </>}
+                      </p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <p className="text-xs text-muted-foreground">
               Teacher is saved on <strong>this session only</strong> (for per-teacher stats &amp; payroll). Location and capacity apply to this and future sessions of the same class. Capacity cannot go below the number of already-booked attendees.
             </p>
@@ -1345,7 +1471,7 @@ export function AdminClassCalendarWithAttendees() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button>
             <Button onClick={saveSession} disabled={saving}>
-              {saving ? "Saving..." : editingId ? "Save changes" : "Create session"}
+              {saving ? "Saving..." : editingId ? "Save changes" : repeat.on ? "Create sessions" : "Create session"}
             </Button>
           </DialogFooter>
         </DialogContent>
