@@ -48,6 +48,9 @@ export const ConsultationForm = () => {
   const privateKind = isRequest ? parsePrivateKind(searchParams.get("private")) : null;
   // A private class — a teacher's, or GYROTONIC at the studio price — is titled as one.
   const isPrivateRequest = !!privateKind || /^private\b/i.test(topic);
+  // A special event offered on request (Classes page → Request): no therapist,
+  // the team replies with the next dates (see classRequests.ts).
+  const isEventRequest = !privateKind && /^special event:/i.test(topic);
   const people = privateKind ? clampPeople(searchParams.get("people"), privateKind) : 0;
   const [classChoice, setClassChoice] = useState<PrivateChoice | null>(null);
   // Where the private class happens. The beach only with the teachers who give it there.
@@ -297,6 +300,8 @@ export const ConsultationForm = () => {
               {privateKind
                 // Holis arranges every private class (the teacher chosen is a preference).
                 ? t("consultation.privateThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email to arrange your private class — check your inbox for a copy." })
+                : isEventRequest
+                ? t("consultation.eventThankYou", { defaultValue: "Your request was sent to the Holis team. We'll reply by email with the next dates for this event — check your inbox." })
                 : isInfo
                 ? t("consultation.infoThankYou", { defaultValue: "Thank you! Our team will be in touch shortly with the course information — dates, pricing and how to register." })
                 : isRequest
@@ -327,6 +332,7 @@ export const ConsultationForm = () => {
               {isInfo
                 ? t("consultation.infoTitle", { defaultValue: "Request Course Information" })
                 : isPrivateRequest ? t("consultation.privateRequestTitle", { defaultValue: "Request a Private Class" })
+                : isEventRequest ? t("consultation.eventRequestTitle", { defaultValue: "Request a Special Event" })
                 : isRequest ? t("consultation.requestTitle", { defaultValue: "Request an Appointment" }) : t("consultation.title")}
             </h1>
             {isRequest && !privateKind ? (
@@ -338,6 +344,7 @@ export const ConsultationForm = () => {
               {isInfo
                 ? t("consultation.infoSubtitle", { defaultValue: "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register." })
                 : isPrivateRequest ? t("consultation.privateRequestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your private class." })
+                : isEventRequest ? t("consultation.eventRequestSubtitle", { defaultValue: "Leave your details and we'll contact you with the next dates for this event." })
                 : isRequest ? t("consultation.requestSubtitle", { defaultValue: "Leave your details and we'll contact you to arrange your appointment." }) : t("consultation.subtitle")}
             </p>
 
@@ -609,7 +616,9 @@ export const ConsultationForm = () => {
                     />
                   </div>
                   <p className="font-body text-xs text-muted-foreground">
-                    {t("consultation.preferredNote", { defaultValue: "We'll confirm the final time based on therapist availability." })}
+                    {isEventRequest
+                      ? t("consultation.eventPreferredNote", { defaultValue: "Tell us when suits you; we'll reply with the dates we can offer." })
+                      : t("consultation.preferredNote", { defaultValue: "We'll confirm the final time based on therapist availability." })}
                   </p>
                 </div>
               )}
@@ -621,7 +630,7 @@ export const ConsultationForm = () => {
                 className="w-full"
                 disabled={submitting}
               >
-                {submitting ? t("consultation.submitting") : (isInfo ? t("consultation.infoSubmit", { defaultValue: "Request Information" }) : t("consultation.submit"))}
+                {submitting ? t("consultation.submitting") : (isInfo ? t("consultation.infoSubmit", { defaultValue: "Request Information" }) : isEventRequest ? t("consultation.eventSubmit", { defaultValue: "Send Request" }) : t("consultation.submit"))}
               </Button>
 
               <p className="font-body text-xs text-center text-muted-foreground/60">

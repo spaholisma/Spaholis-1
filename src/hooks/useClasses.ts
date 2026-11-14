@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchClosedClassDays, spaDateKey } from "@/lib/classClosures";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { localizeRow, localizeRows } from "@/lib/localizeRow";
+import { fetchRequestClassIds } from "@/lib/classRequests";
 
 export interface ClassRow {
   id: string;
@@ -50,6 +51,26 @@ export function useClasses() {
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("is_active", true)
+        .order("title");
+      if (error) throw error;
+      return localizeRows(data as any[], language, CLASS_I18N_FIELDS) as ClassRow[];
+    },
+  });
+}
+
+/** Active special events offered on request (no date needed): see classRequests.ts. */
+export function useRequestEvents() {
+  const { language } = useLanguage();
+  return useQuery({
+    queryKey: ["request-events", language],
+    queryFn: async () => {
+      const ids = await fetchRequestClassIds();
+      if (ids.length === 0) return [] as ClassRow[];
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .in("id", ids)
         .eq("is_active", true)
         .order("title");
       if (error) throw error;

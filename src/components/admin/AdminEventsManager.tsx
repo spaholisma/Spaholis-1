@@ -1,5 +1,6 @@
 import { ImageFrameEditor } from "@/components/admin/ImageFrameEditor";
 import { framed } from "@/lib/imageFrame";
+import { fetchRequestClassIds, setClassOnRequest } from "@/lib/classRequests";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,14 +100,19 @@ export function AdminEventsManager() {
   };
 
   const [upcoming, setUpcoming] = useState<Record<string, number>>({});
+  // Special events offered "on request" (on the Classes page without a date).
+  const [requestIds, setRequestIds] = useState<string[]>([]);
+  const [onRequest, setOnRequest] = useState(false);
 
   const load = useCallback(async () => {
     // Also count the sessions ahead: an active class with none is invisible on
     // the website, because the site lists what is on the schedule.
-    const [{ data }, { data: sessions }] = await Promise.all([
+    const [{ data }, { data: sessions }, onRequestIds] = await Promise.all([
       supabase.from("classes").select("*").order("title"),
       supabase.from("class_schedule").select("class_id").eq("is_cancelled", false).gte("start_time", new Date().toISOString()),
+      fetchRequestClassIds(),
     ]);
+    setRequestIds(onRequestIds);
     setClasses((data as unknown as ClassRow[]) ?? []);
     const counts: Record<string, number> = {};
     for (const s of ((sessions as any[]) ?? [])) counts[s.class_id] = (counts[s.class_id] ?? 0) + 1;
@@ -156,14 +162,21 @@ export function AdminEventsManager() {
       payment_instructions_es: (editing.payment_instructions_es || "").trim() || null,
     };
 
+    let savedId: string | null = null;
     if ("id" in editing && editing.id) {
       const { error } = await supabase.from("classes").update(payload as any).eq("id", editing.id);
       if (error) { toast.error(error.message); return; }
+      savedId = editing.id;
       toast.success("Event updated");
     } else {
-      const { error } = await supabase.from("classes").insert(payload as any);
+      const { data: created, error } = await supabase.from("classes").insert(payload as any).select("id").single();
       if (error) { toast.error(error.message); return; }
+      savedId = (created as any)?.id ?? null;
       toast.success("Event created");
+    }
+    if (savedId && onRequest !== requestIds.includes(savedId)) {
+      const err = await setClassOnRequest(savedId, onRequest);
+      if (err) toast.error(`"On request" was not saved: ${err}`);
     }
     setEditing(null);
     load();
@@ -174,6 +187,7 @@ export function AdminEventsManager() {
     await supabase.from("class_schedule").delete().eq("class_id", id);
     const { error } = await supabase.from("classes").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
+    if (requestIds.includes(id)) await setClassOnRequest(id, false);
     toast.success("Deleted");
     load();
   };
@@ -411,6 +425,15 @@ export function AdminEventsManager() {
         {/* Featured + pay-to-teacher (for one-off special events) */}
         <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
           <p className="font-heading text-sm font-medium text-foreground">Special event options</p>
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-background p-3 cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={onRequest} onChange={(e) => setOnRequest(e.target.checked)} />
+            <span>
+              <span className="font-body text-sm font-medium text-foreground block">On request (no date needed)</span>
+              <span className="font-body text-xs text-muted-foreground block">
+                Shows this event on the Classes page under Workshops &amp; Special Events with a “Request” button, also when it has no date on the schedule. Guests send a request and Holis gets it by email to arrange the date. When you add a date, it is booked as usual.
+              </span>
+            </span>
+          </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Custom price label</label>
@@ -512,13 +535,14 @@ export function AdminEventsManager() {
 
   // Active but with nothing ahead on the calendar: the website only lists what
   // is scheduled, so these are switched on and still invisible.
-  const unscheduled = classes.filter((c) => c.is_active && (upcoming[c.id] ?? 0) === 0);
+  // On-request events show on the website without a date, so they are not missing anything.
+  const unscheduled = classes.filter((c) => c.is_active && (upcoming[c.id] ?? 0) === 0 && !requestIds.includes(c.id));
 
   return (
     <div className="bg-card rounded-2xl border border-border">
       <div className="p-5 border-b border-border flex items-center justify-between">
         <h3 className="font-heading text-lg font-medium text-foreground">Manage Events & Classes</h3>
-        <Button variant="default" size="sm" onClick={() => setEditing({ ...emptyClass })}>
+        <Button variant="default" size="sm" onClick={() => { setEditing({ ...emptyClass }); setOnRequest(false); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Event
         </Button>
       </div>
@@ -549,6 +573,13 @@ export function AdminEventsManager() {
               <span className="text-xs font-body px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
                 {upcoming[c.id]} on the schedule
               </span>
+            ) : requestIds.includes(c.id) ? (
+              <span
+                title="Shown on the Classes page with a Request button"
+                className="text-xs font-body font-semibold px-2.5 py-0.5 rounded-full bg-spa-sage/15 text-spa-sage whitespace-nowrap"
+              >
+                On request
+              </span>
             ) : (
               <span
                 title="Add dates with the calendar button so it shows on the website"
@@ -570,7 +601,7 @@ export function AdminEventsManager() {
             >
               <CalendarPlus className="h-4 w-4 text-muted-foreground" />
             </button>
-            <button onClick={() => setEditing(c)} className="p-2 hover:bg-muted rounded-lg" title="Edit">
+            <button onClick={() => { setEditing(c); setOnRequest(requestIds.includes(c.id)); }} className="p-2 hover:bg-muted rounded-lg" title="Edit">
               <Pencil className="h-4 w-4 text-muted-foreground" />
             </button>
             <button onClick={() => handleDelete(c.id)} className="p-2 hover:bg-destructive/10 rounded-lg" title="Delete">

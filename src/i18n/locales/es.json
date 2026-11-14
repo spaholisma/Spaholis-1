@@ -326,6 +326,9 @@
     "paymentFailed": "Pago fallido. Inténtalo de nuevo."
   },
   "classes": {
+    "onRequest": "Bajo solicitud",
+    "dateOnRequest": "Fecha a coordinar",
+    "requestEvent": "Solicitar",
     "ourTeachers": "Nuestros profesores",
     "title": "Clases",
     "schedule": "Horario",
@@ -688,6 +691,11 @@
     "submitting": "Enviando…",
     "thankYou": "Gracias",
     "thankYouMessage": "Te contactaremos en breve para agendar tu consulta holística gratuita.",
+    "eventRequestTitle": "Solicitar un evento especial",
+    "eventRequestSubtitle": "Déjanos tus datos y te contactaremos con las próximas fechas de este evento.",
+    "eventPreferredNote": "Cuéntanos cuándo te queda bien; te responderemos con las fechas disponibles.",
+    "eventThankYou": "Tu solicitud fue enviada al equipo de Holis. Te responderemos por correo con las próximas fechas de este evento — revisa tu bandeja de entrada.",
+    "eventSubmit": "Enviar solicitud",
     "appointmentThankYou": "Holis Wellness Center se pondrá en contacto contigo en breve para confirmar tu cita — o proponerte otro horario según la disponibilidad de nuestros terapeutas.",
     "infoTitle": "Solicitar información del curso",
     "infoSubtitle": "Déjanos tus datos y te enviaremos la información del curso — fechas, precio, requisitos y cómo inscribirte.",

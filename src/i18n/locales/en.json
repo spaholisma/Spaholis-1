@@ -326,6 +326,9 @@
     "paymentFailed": "Payment failed. Please try again."
   },
   "classes": {
+    "onRequest": "On request",
+    "dateOnRequest": "Date on request",
+    "requestEvent": "Request",
     "ourTeachers": "Our Teachers",
     "title": "Classes",
     "schedule": "Schedule",
@@ -688,6 +691,11 @@
     "submitting": "Sending…",
     "thankYou": "Thank You",
     "thankYouMessage": "We'll contact you shortly to schedule your complimentary holistic consultation.",
+    "eventRequestTitle": "Request a Special Event",
+    "eventRequestSubtitle": "Leave your details and we'll contact you with the next dates for this event.",
+    "eventPreferredNote": "Tell us when suits you; we'll reply with the dates we can offer.",
+    "eventThankYou": "Your request was sent to the Holis team. We'll reply by email with the next dates for this event — check your inbox.",
+    "eventSubmit": "Send Request",
     "appointmentThankYou": "Holis Wellness Center will reach out to you shortly to confirm your appointment — or suggest another time based on our therapists' availability.",
     "infoTitle": "Request Course Information",
     "infoSubtitle": "Leave your details and we'll send you the course information — dates, pricing, requirements and how to register.",

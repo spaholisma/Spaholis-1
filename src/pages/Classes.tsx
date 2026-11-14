@@ -6,8 +6,8 @@ import { SEO } from "@/components/SEO";
 import { useSiteContent, useSiteSeo } from "@/hooks/useSiteContent";
 import { content as defaults, seo as seoDefaults } from "@/data/content";
 import { cmsEditProps } from "@/lib/cmsEdit";
-import { EVENT_CATEGORIES, useUpcomingEvents } from "@/hooks/useClasses";
-import { EventCard } from "@/components/EventCard";
+import { EVENT_CATEGORIES, useRequestEvents, useUpcomingEvents } from "@/hooks/useClasses";
+import { EventCard, RequestEventCard } from "@/components/EventCard";
 import { TeacherPortfolios, usePublicTeachers } from "@/components/TeacherPortfolios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ShoppingBag , Ticket } from "lucide-react";
@@ -49,6 +49,11 @@ const ClassesPage = () => {
   // One-off events (workshops, special events, etc.) vs regular weekly classes.
   const specialEvents = events?.filter((e) => EVENT_CATEGORIES.has(e.classes.category)) ?? [];
   const regularEvents = events?.filter((e) => !EVENT_CATEGORIES.has(e.classes.category)) ?? [];
+  // Special events offered on request (no date yet): shown with a Request
+  // button — unless a date is already on the schedule, then it is booked as usual.
+  const { data: requestClasses = [] } = useRequestEvents();
+  const scheduledIds = new Set((events ?? []).map((e) => e.class_id));
+  const requestEvents = requestClasses.filter((c) => !scheduledIds.has(c.id));
   // The teachers always show, also in a week with no class on the schedule.
   const { data: teachers = [] } = usePublicTeachers();
   const showPortfolios = regularEvents.length > 0 || teachers.length > 0;
@@ -164,7 +169,7 @@ const ClassesPage = () => {
               <Skeleton key={i} className="h-64 rounded-2xl" />
             ))}
           </div>
-        ) : specialEvents.length === 0 && regularEvents.length === 0 && !showPortfolios ? (
+        ) : specialEvents.length === 0 && requestEvents.length === 0 && regularEvents.length === 0 && !showPortfolios ? (
           <motion.div {...fadeIn} className="text-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
@@ -175,7 +180,7 @@ const ClassesPage = () => {
         ) : (
           <>
             {/* Workshops & Special Events (one-off) */}
-            {specialEvents.length > 0 && (
+            {(specialEvents.length > 0 || requestEvents.length > 0) && (
               <motion.div {...fadeIn} className="mt-10">
                 <p className="text-center font-body text-xs font-semibold uppercase tracking-[0.2em] text-spa-sage mb-6">
                   {(cls as any).eventsEyebrow || "Workshops & Special Events"}
@@ -184,12 +189,15 @@ const ClassesPage = () => {
                   {specialEvents.map((event) => (
                     <EventCard key={event.id} event={event} />
                   ))}
+                  {requestEvents.map((c) => (
+                    <RequestEventCard key={c.id} cls={c} />
+                  ))}
                 </div>
               </motion.div>
             )}
 
             {/* No class on the schedule yet: say so, then the teachers. */}
-            {specialEvents.length === 0 && regularEvents.length === 0 && (
+            {specialEvents.length === 0 && requestEvents.length === 0 && regularEvents.length === 0 && (
               <motion.div {...fadeIn} className="text-center pt-16">
                 <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h2 {...cmsEditProps("classes.emptyTitle")} className="spa-heading-md text-foreground mb-2">{cls.emptyTitle}</h2>
