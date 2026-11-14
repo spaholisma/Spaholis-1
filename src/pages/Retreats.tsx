@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCRCWithUsd } from "@/lib/currency";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -32,8 +32,12 @@ type TabKey = (typeof tabKeys)[number];
 
 export default function RetreatsPage() {
   const [searchParams] = useSearchParams();
-  const initialTab = (searchParams.get("tab") as TabKey) || "retreats";
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  // Every click on a menu link is a new navigation (a new key), even to the same address.
+  const { key: navKey } = useLocation();
+  const tabParam = searchParams.get("tab");
+  const tabFromUrl: TabKey = (tabKeys as readonly string[]).includes(tabParam ?? "") ? (tabParam as TabKey) : "retreats";
+  const [activeTab, setActiveTab] = useState<TabKey>(tabFromUrl);
+  const tabBar = useRef<HTMLDivElement>(null);
   const { data: siteContent } = useSiteContent();
   const rt = (siteContent as any)?.retreats || (defaults as any).retreats;
   const { data: retreats, isLoading: retreatsLoading } = useRetreats();
@@ -53,6 +57,18 @@ export default function RetreatsPage() {
     setDirection(tabKeys.indexOf(key) > tabKeys.indexOf(activeTab) ? 1 : -1);
     setActiveTab(key);
   };
+
+  // The menu links here with ?tab=… — also while this page is already open
+  // ("Manuel Antonio Experiences" from the Retreats menu): follow it, and bring
+  // the tabs into view. Read only on load, the link changed the address but not the tab.
+  const seenNav = useRef(navKey);
+  useEffect(() => {
+    if (seenNav.current === navKey) return; // the page as it was opened
+    seenNav.current = navKey;
+    pick(tabFromUrl);
+    tabBar.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromUrl, navKey]);
 
   const isLoading = retreatsLoading || programsLoading || experiencesLoading;
   const [detailService, setDetailService] = useState<ServiceRow | null>(null);
@@ -117,7 +133,7 @@ export default function RetreatsPage() {
 
         {/* Tabs — a pill that slides to the one you pick */}
         <div className="mb-10">
-          <div role="tablist" aria-label={rt.heroTitle} className="flex w-full flex-col gap-1 rounded-3xl border border-border bg-muted/50 p-1.5 sm:inline-flex sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:rounded-full">
+          <div ref={tabBar} role="tablist" aria-label={rt.heroTitle} className="flex w-full flex-col gap-1 rounded-3xl border border-border bg-muted/50 p-1.5 sm:inline-flex sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:rounded-full">
             {tabs.map((tab) => {
               const on = activeTab === tab.key;
               const Icon = tab.icon;

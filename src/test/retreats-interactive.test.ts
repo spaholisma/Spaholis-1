@@ -33,3 +33,21 @@ describe("Retreats page — interactive tabs and cards", () => {
     expect(card).toMatch(/if \(e\.key === "Enter" \|\| e\.key === " "\)/);
   });
 });
+
+describe("Retreats page — the menu's ?tab= links (2026-11)", () => {
+  const page = read("src/pages/Retreats.tsx");
+
+  it("follows ?tab= also while the page is open, and on every menu click", () => {
+    // "Manuel Antonio Experiences" from the Retreats menu while on /retreats:
+    // the address changed but the tab did not — it was read only on load.
+    expect(page).toMatch(/const \{ key: navKey \} = useLocation\(\);/);
+    expect(page).toMatch(/if \(seenNav\.current === navKey\) return;/);
+    expect(page).toMatch(/pick\(tabFromUrl\);/);
+    expect(page).toMatch(/\}, \[tabFromUrl, navKey\]\);/);
+    expect(page).toMatch(/<div ref=\{tabBar\} role="tablist"/);
+  });
+
+  it("an unknown ?tab= opens the retreats tab", () => {
+    expect(page).toMatch(/\(tabKeys as readonly string\[\]\)\.includes\(tabParam \?\? ""\) \? \(tabParam as TabKey\) : "retreats"/);
+  });
+});
