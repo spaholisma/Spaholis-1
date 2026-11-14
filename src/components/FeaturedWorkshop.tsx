@@ -7,6 +7,7 @@ import { useUpcomingEvents, type ScheduleRow } from "@/hooks/useClasses";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatCRC } from "@/lib/currency";
 import { RichText } from "@/components/ui/rich-text";
+import { framed } from "@/lib/imageFrame";
 
 /**
  * A prominent, self-hiding highlight for one-off featured classes/workshops.
@@ -79,7 +80,7 @@ export function FeaturedWorkshop({ variant = "full" }: { variant?: "full" | "com
           {cls.image_url && (
             <div className="relative md:h-auto md:min-h-[190px] overflow-hidden bg-[#16424b]">
               {/* Mobile: show the full flyer (no crop). Desktop: fill the side column. */}
-              <img src={cls.image_url} alt={cls.title} className="w-full h-auto md:h-full object-contain md:object-cover object-center" loading="eager" />
+              <img {...framed(cls.image_url)} alt={cls.title} className="w-full h-auto md:h-full object-contain md:object-cover object-center" loading="eager" />
             </div>
           )}
 

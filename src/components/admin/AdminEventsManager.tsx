@@ -1,3 +1,5 @@
+import { ImageFrameEditor } from "@/components/admin/ImageFrameEditor";
+import { framed } from "@/lib/imageFrame";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -296,8 +298,11 @@ export function AdminEventsManager() {
 
         <div>
           <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Featured Image</label>
+          {/* Move and zoom the photo in its frame — every page that shows it follows. */}
           {editing.image_url && (
-            <img src={editing.image_url} alt="" className="w-40 h-28 object-cover rounded-xl mb-2" />
+            <div className="mb-2">
+              <ImageFrameEditor url={editing.image_url} onChange={(url) => setEditing({ ...editing, image_url: url })} />
+            </div>
           )}
           <div className="flex flex-wrap gap-2 items-center">
             <label className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg cursor-pointer text-sm font-body font-medium text-foreground hover:bg-muted/70 transition-colors">
@@ -529,7 +534,7 @@ export function AdminEventsManager() {
         {classes.map((c) => (
           <div key={c.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
             {c.image_url ? (
-              <img src={c.image_url} alt="" className="w-16 h-12 rounded-lg object-cover shrink-0" />
+              <span className="w-16 h-12 rounded-lg overflow-hidden shrink-0"><img {...framed(c.image_url)} alt="" className="w-full h-full object-cover" /></span>
             ) : (
               <div className="w-16 h-12 rounded-lg bg-muted shrink-0" />
             )}

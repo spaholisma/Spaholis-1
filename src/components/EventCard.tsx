@@ -7,6 +7,7 @@ import { ClassEligibilityBadge } from "@/components/ClassEligibilityBadge";
 import { formatCRC } from "@/lib/currency";
 import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
 import { RichText } from "@/components/ui/rich-text";
+import { framed } from "@/lib/imageFrame";
 
 // Branded default shown whenever a class has no image (or a broken one).
 const fallbackImg = "/class-placeholder.jpg";
@@ -22,7 +23,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
       {/* Image */}
       <div className="md:w-[320px] shrink-0 aspect-[4/3] md:aspect-auto overflow-hidden">
         <img
-          src={cls.image_url || fallbackImg}
+          {...framed(cls.image_url || fallbackImg)}
           alt={cls.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"

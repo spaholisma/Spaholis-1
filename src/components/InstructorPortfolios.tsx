@@ -6,6 +6,7 @@ import { useUpcomingEvents } from "@/hooks/useClasses";
 import { richTextToPlain } from "@/components/ui/rich-text";
 import { sizedImage } from "@/lib/sizedImage";
 import { cn } from "@/lib/utils";
+import { framed } from "@/lib/imageFrame";
 import {
   plural, useTeacherPortfolios, type AboutMember, type Portfolio,
 } from "@/components/TeacherPortfolios";
@@ -70,7 +71,7 @@ function InstructorCard({ member, portfolio, index }: { member: AboutMember; por
       <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] bg-spa-sage/15 shadow-sm transition-shadow duration-500 group-hover:shadow-xl">
         {photo ? (
           <img
-            src={photo}
+            {...framed(photo)}
             alt={name}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.06]"

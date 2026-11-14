@@ -19,6 +19,7 @@ import { localizeRow } from "@/lib/localizeRow";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { TEACHER_PANEL_ENABLED } from "@/lib/features";
+import { framed } from "@/lib/imageFrame";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -159,7 +160,7 @@ export default function ClassDetail() {
       {/* Hero */}
       <div className="relative flex flex-col min-h-[max(300px,46vh)] w-full overflow-hidden">
         <img
-          src={cls.image_url || fallbackImg}
+          {...framed(cls.image_url || fallbackImg)}
           alt={cls.title}
           className="absolute inset-0 h-full w-full object-cover"
           onError={(e) => {

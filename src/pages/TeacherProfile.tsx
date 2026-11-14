@@ -15,6 +15,7 @@ import { PrivateClassDialog, type PrivatePick } from "@/components/PrivateClassD
 import { fromPrice, offeringPrice } from "@/lib/privateOfferings";
 import { formatCRCWithUsd, USD_RATE } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { framed } from "@/lib/imageFrame";
 
 const usd = (n: number) => `$${Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 const crc = (n: number | null) => formatCRCWithUsd((n ?? 0) * USD_RATE);
@@ -154,7 +155,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
             <div className="relative aspect-[3/4] overflow-hidden rounded-[2rem] bg-spa-sage/20 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.45)]">
               {p.image ? (
                 <img
-                  src={p.image}
+                  {...framed(p.image)}
                   alt={p.portrait ? `${p.teacher}, teacher at Holis Wellness Center` : ""}
                   className={cn("h-full w-full object-cover", p.portrait && "object-[50%_20%]")}
                   onError={(e) => {
@@ -271,7 +272,7 @@ function Profile({ p, bio, onPass, onPrivate }: {
               {p.classes.map((block) => { const { cls, bookable, when } = block; return (
                 <article key={cls.id} className="group flex flex-col overflow-hidden rounded-3xl border border-border bg-card transition-shadow hover:shadow-xl">
                   <div className="relative h-44 overflow-hidden bg-spa-sage/15">
-                    <img src={cls.image_url || fallbackImg} alt="" aria-hidden loading="lazy"
+                    <img {...framed(cls.image_url || fallbackImg)} alt="" aria-hidden loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                       onError={(e) => { const el = e.currentTarget; if (!el.src.endsWith(fallbackImg)) el.src = fallbackImg; }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />

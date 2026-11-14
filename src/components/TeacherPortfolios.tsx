@@ -15,6 +15,7 @@ import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as contentDefaults } from "@/data/content";
 import { sizedImage } from "@/lib/sizedImage";
 import { TEACHER_PANEL_ENABLED } from "@/lib/features";
+import { framed } from "@/lib/imageFrame";
 
 const sb = supabase as any;
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -292,7 +293,7 @@ export function PortfolioHeader({ p, tall = false }: { p: Portfolio; tall?: bool
     <div className={cn("relative overflow-hidden bg-spa-sage/15", tall ? "h-72 sm:h-96" : p.portrait ? "h-56" : "h-40")}>
       {p.image && (
         <img
-          src={p.image}
+          {...framed(p.image)}
           alt=""
           aria-hidden
           loading={tall ? "eager" : "lazy"}

@@ -9,6 +9,7 @@ import { useSiteContent } from "@/hooks/useSiteContent";
 import { content as defaults } from "@/data/content";
 import { RichText } from "@/components/ui/rich-text";
 import { cmsEditProps } from "@/lib/cmsEdit";
+import { framed } from "@/lib/imageFrame";
 
 const fadeIn = {
   initial: { opacity: 0, y: 24 } as const,
@@ -237,7 +238,7 @@ export function WellnessSection() {
                 {/* Background Image */}
                 <div className="aspect-[4/3] relative">
                   <img
-                    src={col.image || "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1200&q=80"}
+                    {...framed(col.image || "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1200&q=80")}
                     alt={col.title}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     loading="lazy"
