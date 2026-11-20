@@ -437,8 +437,20 @@ Deno.serve(async (req) => {
     if (insertErr) {
       // If the row already exists (unique id) treat as idempotent success —
       // a concurrent retry of the SAME booking must not surface an error.
+      // 23505 is ALSO what the enforce_couples_room trigger raises when the
+      // room is taken: then nothing was saved, so it must not be reported as a
+      // success (the card step would fail on a booking that does not exist).
       if (String((insertErr as any).code) === "23505") {
-        return json({ ok: true, bookingId, status, depositRequired, totalPrice, idempotent: true });
+        const { data: saved } = await admin.from("bookings").select("id").eq("id", bookingId).maybeSingle();
+        if (saved) {
+          return json({ ok: true, bookingId, status, depositRequired, totalPrice, idempotent: true });
+        }
+        console.error("[create-booking] room taken at insert", { message: (insertErr as any).message });
+        return json({
+          ok: false,
+          reason: "slot_taken",
+          message: "This time slot was just booked by someone else. Please pick another time.",
+        }, 409);
       }
       throw insertErr;
     }
