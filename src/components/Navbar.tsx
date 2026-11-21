@@ -52,7 +52,7 @@ const MENU: NavEntry[] = [
   {
     labelKey: "nav.retreats", label: "Retreats", to: "/retreats",
     children: [
-      { labelKey: "nav.subPersonalRetreats", label: "Personal Wellness Retreats", to: "/retreats?tab=retreats" },
+      { labelKey: "nav.subPersonalRetreats", label: "Wellness Retreats", to: "/retreats?tab=retreats" },
       { labelKey: "nav.subDayRetreats", label: "Day Retreats", to: "/day-retreats" },
       { labelKey: "nav.subWellnessPrograms", label: "Wellness Programs", to: "/wellness-programs" },
       { labelKey: "nav.subGroupRetreat", label: "Plan a Group Retreat", to: "/custom-retreat" },
