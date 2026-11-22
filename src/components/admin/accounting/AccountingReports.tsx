@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  type AccountingEntry, type AccountingListItem, hotelReport, listIndex, money, therapistReport, totalsOf, treatmentReport,
+  type AccountingEntry, type AccountingListItem, hotelReport, listIndex, money, rowPoints, therapistReport, totalsOf, treatmentReport,
 } from "@/lib/accounting";
 
 // The reports the Excel kept in its summary sheets ("Vendor Commissions",
@@ -42,7 +42,7 @@ export function AccountingReports({
   const [kind, setKind] = useState<Kind>("hotels");
   const treatmentOf = useMemo(() => listIndex(lists, "treatment"), [lists]);
   const hotels = useMemo(() => hotelReport(entries), [entries]);
-  const therapists = useMemo(() => therapistReport(entries, (t) => treatmentOf(t)?.points ?? null), [entries, treatmentOf]);
+  const therapists = useMemo(() => therapistReport(entries, (e) => rowPoints(e, (t) => treatmentOf(t)?.points ?? null)), [entries, treatmentOf]);
   const treatments = useMemo(() => treatmentReport(entries, (t) => treatmentOf(t)?.category ?? null), [entries, treatmentOf]);
   const totals = useMemo(() => totalsOf(entries), [entries]);
 

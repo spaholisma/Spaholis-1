@@ -29,6 +29,8 @@ export interface AccountingEntry {
   hotel_pct: number;
   hotel_amount: number | null;
   notes: string | null;
+  /** The row's own therapist points; null = the treatment's points (Listas). */
+  points?: number | null;
   created_at?: string;
 }
 
@@ -97,7 +99,7 @@ export function parseNumber(input: string): number | null {
 }
 
 const CSV_HEADERS = [
-  "Cliente", "T/L", "Tratamiento", "Lugar", "Fecha", "Costo", "Terapeuta", "Com. terapeuta %", "Com. terapeuta $",
+  "Cliente", "T/L", "Tratamiento", "Lugar", "Fecha", "Costo", "Terapeuta", "Puntos", "Com. terapeuta %", "Com. terapeuta $",
   "Pagado al terapeuta", "HWC", "Hotel / Villa", "Com. hotel %", "Com. hotel $", "Notas",
 ];
 
@@ -107,23 +109,26 @@ const csvCell = (v: unknown) => {
 };
 
 /** The month as CSV (opens in Excel), with a totals row. */
-export function entriesToCsv(entries: AccountingEntry[]): string {
+export function entriesToCsv(entries: AccountingEntry[], pointsOf?: (e: AccountingEntry) => number | null): string {
   const lines = [CSV_HEADERS.join(",")];
+  let pts = 0;
   for (const e of entries) {
+    const p = pointsOf ? pointsOf(e) : e.points ?? null;
+    if (p != null) pts += num(p);
     lines.push([
-      e.client, e.tl, e.treatment, e.location, e.entry_date, num(e.cost), e.therapist, num(e.therapist_pct),
+      e.client, e.tl, e.treatment, e.location, e.entry_date, num(e.cost), e.therapist, p ?? "", num(e.therapist_pct),
       therapistCommission(e), e.therapist_paid ? "Sí" : "", hwcAmount(e), e.hotel, num(e.hotel_pct),
       hotelCommission(e), e.notes,
     ].map(csvCell).join(","));
   }
   const t = totalsOf(entries);
-  lines.push(["TOTAL", "", "", "", "", t.cost, "", "", t.therapist, "", t.hwc, "", "", t.hotel, ""].map(csvCell).join(","));
+  lines.push(["TOTAL", "", "", "", "", t.cost, "", Math.round(pts * 10) / 10, "", t.therapist, "", t.hwc, "", "", t.hotel, ""].map(csvCell).join(","));
   return "﻿" + lines.join("\r\n");
 }
 
 // ── Lists (the Excel's dropdowns) ────────────────────────────────────────────
 
-export type ListKind = "treatment" | "therapist" | "hotel" | "pct" | "tl" | "purchase_category";
+export type ListKind = "treatment" | "therapist" | "hotel" | "pct" | "tl" | "purchase_category" | "location";
 
 export interface AccountingListItem {
   id: string;
@@ -139,6 +144,18 @@ export interface AccountingListItem {
 /** Names compared the way people type them: case, accents and spaces ignored. */
 export const normName = (s: string | null | undefined) =>
   (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[´`']/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * A row's therapist points, like the Excel's column P: its own figure if one
+ * was typed, else the points of its treatment in "puntos terap" (Listas →
+ * Tratamientos). Salaries and commission payouts have none.
+ */
+export function rowPoints(e: Pick<AccountingEntry, "points" | "treatment">, treatmentPoints: (t: string | null) => number | null | undefined): number | null {
+  if (e.points != null) return num(e.points);
+  if (isPayroll(e.treatment) || !normName(e.treatment)) return null;
+  const p = treatmentPoints(e.treatment);
+  return p == null ? null : num(p);
+}
 
 /** Lookups by name for one kind of list. */
 export function listIndex(items: AccountingListItem[], kind: ListKind) {
@@ -203,7 +220,7 @@ export interface TherapistReportRow {
 }
 
 /** Each therapist's month (the Excel's "Staff" + "puntos terap"). */
-export function therapistReport(entries: AccountingEntry[], pointsOf: (treatment: string | null) => number | null | undefined): TherapistReportRow[] {
+export function therapistReport(entries: AccountingEntry[], pointsOf: (e: AccountingEntry) => number | null | undefined): TherapistReportRow[] {
   const rows = entries.filter((e) => normName(e.therapist) !== "");
   return groupBy(rows, (e) => e.therapist, "—",
     () => ({ services: 0, points: 0, sales: 0, treatmentCommission: 0, salary: 0, payrollCommission: 0, total: 0, missingPoints: 0 }),
@@ -216,7 +233,7 @@ export function therapistReport(entries: AccountingEntry[], pointsOf: (treatment
         a.services += 1;
         a.sales = round2(a.sales + num(e.cost));
         a.treatmentCommission = round2(a.treatmentCommission + amount);
-        const p = pointsOf(e.treatment);
+        const p = pointsOf(e);
         if (p == null) a.missingPoints += 1;
         else a.points = Math.round((a.points + num(p)) * 10) / 10;
       }

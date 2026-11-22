@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   type AccountingEntry, type AccountingListItem, type Asset, type ExpenseItem, type MonthSetting, MONTHS_ES, type Purchase,
-  entriesToCsv, hotelCommission, hwcAmount, incomeRow, listIndex, money, normName, parseNumber, therapistCommission, totalsOf,
+  entriesToCsv, hotelCommission, hwcAmount, incomeRow, listIndex, money, normName, parseNumber, rowPoints, therapistCommission, totalsOf,
 } from "@/lib/accounting";
 import { AccountingReports } from "@/components/admin/accounting/AccountingReports";
 import { AccountingLists } from "@/components/admin/accounting/AccountingLists";
@@ -32,7 +32,7 @@ const TEXT_FIELDS = ["client", "tl", "treatment", "location", "therapist", "hote
 type TextField = (typeof TEXT_FIELDS)[number];
 
 const ENTRY_COLUMNS =
-  "id, year, month, client, tl, treatment, location, entry_date, cost, therapist, therapist_pct, therapist_amount, therapist_paid, hotel, hotel_pct, hotel_amount, notes, created_at";
+  "id, year, month, client, tl, treatment, location, entry_date, cost, therapist, therapist_pct, therapist_amount, therapist_paid, hotel, hotel_pct, hotel_amount, notes, points, created_at";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -145,14 +145,14 @@ export function AdminAccounting() {
       hotel: of("hotel"),
       tl: of("tl"),
       pct: active.filter((l) => l.kind === "pct").map((l) => l.label).sort((a, b) => Number(a) - Number(b)),
-      // Places have no list in the Excel: what has been used before.
-      location: Array.from(new Set(["HWC", ...entries.map((e) => (e.location ?? "").trim()).filter(Boolean)])).sort((a, b) => a.localeCompare(b)),
+      location: of("location"),
     };
   }, [active, entries]);
   const known = useMemo(() => ({
     treatment: listIndex(lists, "treatment"),
     therapist: listIndex(lists, "therapist"),
     hotel: listIndex(lists, "hotel"),
+    location: listIndex(lists, "location"),
   }), [lists]);
 
   // A new hotel → its usual % (Listas), else the last % used with it.
@@ -191,6 +191,11 @@ export function AdminAccounting() {
       setSettings((prev) => (b ? prev.map((s) => (s.month === month ? b : s)) : prev.filter((s) => s.month !== month)));
     }
   }, [year]);
+
+  const pointsOf = useCallback(
+    (e: AccountingEntry) => rowPoints(e, (t) => known.treatment(t)?.points ?? null),
+    [known],
+  );
 
   const saveRow = useCallback(async (id: string, patch: Partial<AccountingEntry>) => {
     let before: AccountingEntry | undefined;
@@ -276,10 +281,11 @@ export function AdminAccounting() {
     );
   }, [monthAll, query]);
   const monthTotals = useMemo(() => totalsOf(monthRows), [monthRows]);
+  const monthPoints = useMemo(() => Math.round(monthRows.reduce((s, e) => s + (pointsOf(e) ?? 0), 0) * 10) / 10, [monthRows, pointsOf]);
 
   const exportCsv = () => {
     if (year == null || tab < 1) return;
-    const url = URL.createObjectURL(new Blob([entriesToCsv(monthRows)], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob([entriesToCsv(monthRows, pointsOf)], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `contabilidad-${year}-${pad2(tab)}-${MONTHS_ES[tab - 1].toLowerCase()}.csv`;
@@ -433,7 +439,7 @@ export function AdminAccounting() {
                         <tr className="text-[11px] font-semibold uppercase tracking-wider text-foreground/80">
                           <th className={cn(GH, GROUPS.service, "sticky left-0 z-30")} />
                           <th className={cn(GH, GROUPS.service)} colSpan={6}>Servicio</th>
-                          <th className={cn(GH, GROUPS.therapist)} colSpan={4}>Terapeuta</th>
+                          <th className={cn(GH, GROUPS.therapist)} colSpan={5}>Terapeuta</th>
                           <th className={cn(GH, GROUPS.holis)}>Holis</th>
                           <th className={cn(GH, GROUPS.hotel)} colSpan={3}>Hotel / Villa / Concierge</th>
                           <th className={cn(GH, GROUPS.notes)} colSpan={2}>Notas</th>
@@ -447,6 +453,7 @@ export function AdminAccounting() {
                           <Th className={cn(GROUPS.service, "min-w-[140px]")}>Fecha</Th>
                           <Th className={cn(GROUPS.service, "min-w-[95px] text-right")}>Costo</Th>
                           <Th className={cn(GROUPS.therapist, "min-w-[130px]")}>Terapeuta</Th>
+                          <Th className={cn(GROUPS.therapist, "min-w-[70px] text-right")}>Puntos</Th>
                           <Th className={cn(GROUPS.therapist, "min-w-[75px] text-right")}>Com. %</Th>
                           <Th className={cn(GROUPS.therapist, "min-w-[95px] text-right")}>Com. $</Th>
                           <Th className={cn(GROUPS.therapist, "min-w-[64px] text-center")}>¿Pagado?</Th>
@@ -472,11 +479,12 @@ export function AdminAccounting() {
                             hotelPctFor={hotelPctFor}
                             lastCost={lastCost}
                             known={known}
+                            points={pointsOf(e)}
                           />
                         ))}
                         {monthRows.length === 0 && (
                           <tr>
-                            <td colSpan={17} className="py-10 text-center text-muted-foreground">
+                            <td colSpan={18} className="py-10 text-center text-muted-foreground">
                               {query.trim() ? "Nada coincide con la búsqueda." : `Todavía no hay filas en ${MONTHS_ES[tab - 1]} ${year}. Usa “Agregar fila”.`}
                             </td>
                           </tr>
@@ -490,7 +498,9 @@ export function AdminAccounting() {
                               Total ({monthTotals.rows} {monthTotals.rows === 1 ? "fila" : "filas"}){query.trim() ? " — de la búsqueda" : ""}
                             </td>
                             <td className={cn(TF, "text-right")}>{money(monthTotals.cost)}</td>
-                            <td className={TF} colSpan={2} />
+                            <td className={TF} />
+                            <td className={cn(TF, "text-right tabular-nums")} title="Puntos de terapeutas del mes">{monthPoints}</td>
+                            <td className={TF} />
                             <td className={cn(TF, "text-right")}>{money(monthTotals.therapist)}</td>
                             <td className={TF} />
                             <td className={cn(TF, "text-right bg-emerald-50", monthTotals.hwc < 0 && "text-destructive")}>{money(monthTotals.hwc)}</td>
@@ -644,7 +654,7 @@ function YearSummary({
 
 // ── One editable row ─────────────────────────────────────────────────────────
 
-type Draft = Record<TextField | "entry_date" | "cost" | "therapist_pct" | "therapist_amount" | "hotel_pct" | "hotel_amount", string>;
+type Draft = Record<TextField | "entry_date" | "cost" | "therapist_pct" | "therapist_amount" | "hotel_pct" | "hotel_amount" | "points", string>;
 
 const toDraft = (e: AccountingEntry): Draft => ({
   client: e.client ?? "", tl: e.tl ?? "", treatment: e.treatment ?? "", location: e.location ?? "",
@@ -655,14 +665,15 @@ const toDraft = (e: AccountingEntry): Draft => ({
   hotel_pct: Number(e.hotel_pct) ? String(Number(e.hotel_pct)) : "",
   therapist_amount: e.therapist_amount == null ? "" : String(Number(e.therapist_amount)),
   hotel_amount: e.hotel_amount == null ? "" : String(Number(e.hotel_amount)),
+  points: e.points == null ? "" : String(Number(e.points)),
 });
 
 const clampPct = (n: number | null) => Math.min(100, Math.max(0, n ?? 0));
 
-type Known = Record<"treatment" | "therapist" | "hotel", (name: string | null | undefined) => AccountingListItem | undefined>;
+type Known = Record<"treatment" | "therapist" | "hotel" | "location", (name: string | null | undefined) => AccountingListItem | undefined>;
 
 function EntryRow({
-  n, entry, zebra, autoFocus, onSave, onDuplicate, onDelete, hotelPctFor, lastCost, known,
+  n, entry, zebra, autoFocus, onSave, onDuplicate, onDelete, hotelPctFor, lastCost, known, points,
 }: {
   n: number;
   entry: AccountingEntry;
@@ -674,15 +685,17 @@ function EntryRow({
   hotelPctFor: (hotel: string) => number | null;
   lastCost: (treatment: string) => number | null;
   known: Known;
+  /** The row's points: its own or its treatment's (shown in grey when from the list). */
+  points: number | null;
 }) {
   const [d, setD] = useState<Draft>(() => toDraft(entry));
   // Numbers read like the Excel ($83, 45%) and become plain while typed.
   const [focus, setFocus] = useState<keyof Draft | null>(null);
-  const shown = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount") => {
+  const shown = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount" | "points") => {
     if (focus === k || d[k] === "") return d[k];
     const v = parseNumber(d[k]);
     if (v == null) return d[k];
-    return k.endsWith("_pct") ? `${v}%` : money(v);
+    return k.endsWith("_pct") ? `${v}%` : k === "points" ? String(v) : money(v);
   };
   const firstRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (autoFocus) firstRef.current?.focus(); }, [autoFocus]);
@@ -711,7 +724,7 @@ function EntryRow({
     if (!takeDirty(k)) return;
     let v = d[k].replace(/\s+/g, " ").trim() || null;
     // Picked from a list → the list's spelling.
-    if (v && (k === "treatment" || k === "therapist" || k === "hotel")) v = known[k](v)?.label ?? v;
+    if (v && (k === "treatment" || k === "therapist" || k === "hotel" || k === "location")) v = known[k](v)?.label ?? v;
     if (v === (entry[k] ?? null)) { setD(toDraft(entry)); return; }
     const patch: Partial<AccountingEntry> = { [k]: v };
     // A new hotel with no % yet → its usual %.
@@ -733,11 +746,11 @@ function EntryRow({
     if (v !== (entry.entry_date ?? null)) onSave(entry.id, { entry_date: v });
   };
 
-  const commitNumber = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount") => () => {
+  const commitNumber = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount" | "points") => () => {
     setFocus(null);
     if (!takeDirty(k)) return;
     const v0 = parseNumber(d[k]);
-    if (k === "therapist_amount" || k === "hotel_amount") {
+    if (k === "therapist_amount" || k === "hotel_amount" || k === "points") {
       if (v0 !== (entry[k] == null ? null : Number(entry[k]))) onSave(entry.id, { [k]: v0 });
       else setD(toDraft(entry));
       return;
@@ -753,7 +766,7 @@ function EntryRow({
   };
 
   // A name typed that is not on its list (typo, or a new one to add in Listas).
-  const offList = (k: "treatment" | "therapist" | "hotel") => {
+  const offList = (k: "treatment" | "therapist" | "hotel" | "location") => {
     const v = (entry[k] ?? "").trim();
     if (!v || (k === "hotel" && normName(v) === "n/a")) return false;
     return !known[k](v);
@@ -779,7 +792,7 @@ function EntryRow({
       <td className={td}>{txt("client", undefined, firstRef)}</td>
       <td className={td}>{txt("tl", "acc-tl")}</td>
       <td className={cn(td, offList("treatment") && warn)} title={offList("treatment") ? offTitle : undefined}>{txt("treatment", "acc-treatments")}</td>
-      <td className={td}>{txt("location", "acc-locations")}</td>
+      <td className={cn(td, offList("location") && warn)} title={offList("location") ? offTitle : undefined}>{txt("location", "acc-locations")}</td>
       <td className={td}>
         <input type="date" className={cell} value={d.entry_date} onChange={set("entry_date")} onBlur={commitDate} onKeyDown={enterBlurs} aria-label="Fecha" />
       </td>
@@ -787,6 +800,19 @@ function EntryRow({
         <input className={numCell} inputMode="decimal" placeholder="$0" value={shown("cost")} onFocus={() => setFocus("cost")} onChange={set("cost")} onBlur={commitNumber("cost")} onKeyDown={enterBlurs} aria-label="Costo" />
       </td>
       <td className={cn(td, offList("therapist") && warn)} title={offList("therapist") ? offTitle : undefined}>{txt("therapist", "acc-therapists")}</td>
+      <td className={td}>
+        <input
+          className={cn(numCell, entry.points != null ? "font-semibold" : "placeholder:text-foreground/70")}
+          inputMode="decimal"
+          placeholder={points == null ? "—" : String(points)}
+          title={entry.points != null ? "Puntos escritos a mano (bórralos para usar los del tratamiento)" : "Puntos del tratamiento (Listas → Tratamientos)"}
+          value={shown("points")} onFocus={() => setFocus("points")}
+          onChange={set("points")}
+          onBlur={commitNumber("points")}
+          onKeyDown={enterBlurs}
+          aria-label="Puntos"
+        />
+      </td>
       <td className={td}>
         <input className={numCell} inputMode="decimal" list="acc-pct" placeholder="0%" value={shown("therapist_pct")} onFocus={() => setFocus("therapist_pct")} onChange={set("therapist_pct")} onBlur={commitNumber("therapist_pct")} onKeyDown={enterBlurs} aria-label="Comisión terapeuta %" />
       </td>

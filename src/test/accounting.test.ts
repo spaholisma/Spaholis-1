@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  type AccountingEntry, type Asset, type ExpenseItem, type Purchase, assetMonthly, assetYearly, colones, equipmentMonthly,
+  type AccountingEntry, type Asset, rowPoints, type ExpenseItem, type Purchase, assetMonthly, assetYearly, colones, equipmentMonthly,
   evalAmount, incomeRow, purchaseUsd, entriesToCsv, hotelCommission, hotelReport, hwcAmount, isPayroll, money, normName, parseNumber,
   therapistCommission, therapistReport, totalsOf, treatmentReport,
 } from "@/lib/accounting";
@@ -58,7 +58,7 @@ describe("Contabilidad sums, as in the Excel", () => {
     expect(totalsOf(rows)).toEqual({ rows: 2, cost: 83, therapist: 411, hotel: 8.3, hwc: -336.3 });
     const csv = entriesToCsv(rows);
     expect(csv.startsWith("﻿Cliente,T/L,Tratamiento")).toBe(true);
-    expect(csv.split("\r\n").pop()).toBe("TOTAL,,,,,83,,,411,,-336.3,,,8.3,");
+    expect(csv.split("\r\n").pop()).toBe("TOTAL,,,,,83,,0,,411,,-336.3,,,8.3,");
   });
 
   it("reads typed numbers", () => {
@@ -107,7 +107,7 @@ describe("Contabilidad reports (from every row, unlike the Excel's summaries)", 
   });
 
   it("therapists: salary, quincena commission and treatment commission apart; points from the list", () => {
-    const points = (t: string | null) => ({ "couples 60 min": 1, "holisynergie 60 min": 1, "pure bliss 60 min": 1 } as Record<string, number>)[normName(t)];
+    const points = (e: AccountingEntry) => ({ "couples 60 min": 1, "holisynergie 60 min": 1, "pure bliss 60 min": 1 } as Record<string, number>)[normName(e.treatment)];
     const r = therapistReport(rows, points);
     const susana = r.find((x) => x.name.startsWith("Susana"))!;
     expect(susana).toMatchObject({ services: 1, points: 1, sales: 83, treatmentCommission: 0, salary: 411, payrollCommission: 120, total: 531 });
@@ -151,7 +151,7 @@ describe("Contabilidad lists (the Excel's dropdowns)", () => {
     const ui = read("src/components/admin/AdminAccounting.tsx");
     expect(ui).toContain('<datalist id="acc-treatments">{options.treatment.map(');
     expect(ui).toContain('list="acc-pct"');
-    expect(ui).toContain("const offList = (k: \"treatment\" | \"therapist\" | \"hotel\") =>");
+    expect(ui).toContain("const offList = (k: \"treatment\" | \"therapist\" | \"hotel\" | \"location\") =>");
   });
 });
 
@@ -214,5 +214,38 @@ describe("Contabilidad net profit, as the Excel's Income sheet", () => {
     }
     expect(sql).toMatch(/revoke all on public\.%I from anon, authenticated/);
     expect(sql).not.toMatch(/insert into/i);
+  });
+});
+
+describe("Contabilidad points and places, as the Excel rows", () => {
+  const list = (t: string | null) => ({ "couples 60 min": 1, "share the magic": 3, "pura vida love couples": 2.5 } as Record<string, number>)[normName(t)] ?? null;
+
+  it("a row has the points of its treatment (puntos terap), unless it has its own", () => {
+    expect(rowPoints(row({ treatment: "Couples 60 min" }), list)).toBe(1);
+    expect(rowPoints(row({ treatment: "Share the Magic" }), list)).toBe(3);
+    expect(rowPoints(row({ treatment: "Pura Vida Love Couples" }), list)).toBe(2.5);
+    expect(rowPoints(row({ treatment: "Couples 60 min", points: 2 }), list)).toBe(2);
+    expect(rowPoints(row({ treatment: "Something new" }), list)).toBeNull();
+    expect(rowPoints(row({ treatment: "Salary" }), list)).toBeNull();
+  });
+
+  it("the CSV has the points", () => {
+    const csv = entriesToCsv([row({ treatment: "Share the Magic", cost: 260 })], (e) => rowPoints(e, list));
+    expect(csv.split("\r\n")[0]).toContain("Terapeuta,Puntos,");
+    expect(csv.split("\r\n").pop()).toBe("TOTAL,,,,,260,,3,,0,,260,,,0,");
+  });
+
+  it("the migration adds the row points, the places list and the VLOOKUP points", () => {
+    const sql = read("supabase/migrations/20261122180000_accounting_points_locations.sql");
+    expect(sql).toMatch(/add column if not exists points numeric\(4, 1\)/);
+    expect(sql).toContain("('location', 'HWC', 1)");
+    expect(sql).toMatch(/set points = 1\s+where kind = 'treatment' and lower\(btrim\(label\)\) = 'toning and sliming treatment'/);
+  });
+
+  it("the sheet shows Puntos next to the therapist and Lugar as a dropdown", () => {
+    const ui = read("src/components/admin/AdminAccounting.tsx");
+    expect(ui).toContain(">Puntos</Th>");
+    expect(ui).toContain('location: of("location")');
+    expect(ui).toContain("points={pointsOf(e)}");
   });
 });

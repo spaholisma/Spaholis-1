@@ -18,6 +18,7 @@ const KINDS: { id: ListKind; label: string; help: string; column?: keyof Account
   { id: "treatment", label: "Tratamientos", help: "Con su categoría (para el reporte de tratamientos) y los puntos del terapeuta.", column: "treatment" },
   { id: "therapist", label: "Terapeutas", help: "Los nombres del dropdown Terapeuta.", column: "therapist" },
   { id: "hotel", label: "Hoteles y villas", help: "Con el % de comisión de siempre: se pone solo al elegir el hotel en una fila.", column: "hotel" },
+  { id: "location", label: "Lugares", help: "Dónde se hizo el tratamiento (HWC o la villa). En el Excel se escribía a mano; ahora es un dropdown.", column: "location" },
   { id: "pct", label: "Comisiones %", help: "Los % del dropdown de comisión (terapeuta y hotel)." },
   { id: "tl", label: "T/L", help: "Tourist / Local." },
   { id: "purchase_category", label: "Categorías de compras", help: "Para las compras del mes (gastos)." },
