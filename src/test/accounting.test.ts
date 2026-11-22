@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  type AccountingEntry, entriesToCsv, hotelCommission, hwcAmount, money, parseNumber, therapistCommission, totalsOf,
+  type AccountingEntry, entriesToCsv, hotelCommission, hotelReport, hwcAmount, isPayroll, money, normName, parseNumber,
+  therapistCommission, therapistReport, totalsOf, treatmentReport,
 } from "@/lib/accounting";
 
 // 2026-11-22: Admin → Contabilidad replaces the monthly Excel sheets. The sums
@@ -81,5 +82,74 @@ describe("Contabilidad in the Admin", () => {
     expect(sql).toMatch(/revoke all on public\.accounting_entries from anon, authenticated;/);
     expect(sql.match(/using \(public\.has_role\(auth\.uid\(\), 'super_admin'\) or public\.has_role\(auth\.uid\(\), 'manager'\)\)/g)?.length).toBe(2);
     expect(sql).not.toMatch(/to anon/);
+  });
+});
+
+describe("Contabilidad reports (from every row, unlike the Excel's summaries)", () => {
+  const rows: AccountingEntry[] = [
+    row({ treatment: "Salary", therapist: "Susana ", therapist_amount: 411 }),
+    row({ treatment: "Therapist Treatments Commission", therapist: "Susana", therapist_amount: 120 }),
+    row({ treatment: "Couples 60 min", therapist: "Susana", cost: 83, hotel: "Escape Villas", hotel_pct: 20 }),
+    row({ treatment: "Holisynergie 60 min", therapist: "Thiara", cost: 95, therapist_pct: 45, hotel: "Wai (Kindra)", hotel_pct: 20 }),
+    row({ treatment: "couples 60 min", therapist: "Thiara", cost: 83, therapist_pct: 45, hotel: "escape villas ", hotel_pct: 20 }),
+    row({ treatment: "Pure Bliss 60 min", therapist: "Jenny", cost: 77, hotel: "N/A" }),
+    row({ treatment: "Something new", therapist: "Jenny", cost: 10 }),
+  ];
+
+  it("hotels: one line per hotel (spelling differences joined), N/A left out", () => {
+    const r = hotelReport(rows);
+    expect(r.map((x) => [x.name, x.services, x.commission])).toEqual([
+      ["Escape Villas", 2, 33.2],
+      ["Wai (Kindra)", 1, 19],
+    ]);
+    expect(r[0].pcts).toEqual([20]);
+  });
+
+  it("therapists: salary, quincena commission and treatment commission apart; points from the list", () => {
+    const points = (t: string | null) => ({ "couples 60 min": 1, "holisynergie 60 min": 1, "pure bliss 60 min": 1 } as Record<string, number>)[normName(t)];
+    const r = therapistReport(rows, points);
+    const susana = r.find((x) => x.name.startsWith("Susana"))!;
+    expect(susana).toMatchObject({ services: 1, points: 1, sales: 83, treatmentCommission: 0, salary: 411, payrollCommission: 120, total: 531 });
+    const thiara = r.find((x) => x.name === "Thiara")!;
+    expect(thiara).toMatchObject({ services: 2, points: 2, sales: 178, treatmentCommission: 64.08, total: 64.08 });
+    const jenny = r.find((x) => x.name === "Jenny")!;
+    expect(jenny.missingPoints).toBe(1);
+  });
+
+  it("treatments: by category, payroll last, and the total equals the month's HWC", () => {
+    const cat = (t: string | null) => ({ "couples 60 min": "MASSAGE + HOLISTIC", "holisynergie 60 min": "MASSAGE + HOLISTIC", "pure bliss 60 min": "MASSAGE + HOLISTIC" } as Record<string, string>)[normName(t)];
+    const r = treatmentReport(rows, cat);
+    expect(r.map((c) => c.category)).toEqual(["MASSAGE + HOLISTIC", "Sin categoría", "Planilla (salarios y comisiones)"]);
+    const couples = r[0].rows.find((x) => x.name === "Couples 60 min")!;
+    expect(couples.services).toBe(2);
+    const sum = Math.round(r.reduce((s, c) => s + c.hwc, 0) * 100) / 100;
+    expect(sum).toBe(totalsOf(rows).hwc);
+  });
+
+  it("names compare without capitals, accents or extra spaces", () => {
+    expect(normName("  Let´s  Party ")).toBe(normName("let's party"));
+    expect(isPayroll("SALARY")).toBe(true);
+    expect(isPayroll("Couples 60 min")).toBe(false);
+  });
+});
+
+describe("Contabilidad lists (the Excel's dropdowns)", () => {
+  it("are in their own admin-only table, filled from the Excel's lists", () => {
+    const sql = read("supabase/migrations/20261122140000_accounting_lists.sql");
+    expect(sql).toMatch(/create table if not exists public\.accounting_lists/);
+    expect(sql).toMatch(/revoke all on public\.accounting_lists from anon, authenticated;/);
+    expect(sql).not.toMatch(/to anon/);
+    expect(sql).toContain("('treatment', 'Couples 60 min', 'MASSAGE + HOLISTIC', 1.0,");
+    expect(sql).toContain("('therapist', 'Susana',");
+    expect(sql).toContain("('hotel', 'Escape Villas',");
+    expect(sql).toContain("('pct', '45',");
+    expect(sql).toContain("('tl', 'Tourist',");
+  });
+
+  it("the sheet shows the lists as dropdowns and marks names that are not on them", () => {
+    const ui = read("src/components/admin/AdminAccounting.tsx");
+    expect(ui).toContain('<datalist id="acc-treatments">{options.treatment.map(');
+    expect(ui).toContain('list="acc-pct"');
+    expect(ui).toContain("const offList = (k: \"treatment\" | \"therapist\" | \"hotel\") =>");
   });
 });

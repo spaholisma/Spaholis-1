@@ -120,3 +120,133 @@ export function entriesToCsv(entries: AccountingEntry[]): string {
   lines.push(["TOTAL", "", "", "", "", t.cost, "", "", t.therapist, "", t.hwc, "", "", t.hotel, ""].map(csvCell).join(","));
   return "﻿" + lines.join("\r\n");
 }
+
+// ── Lists (the Excel's dropdowns) ────────────────────────────────────────────
+
+export type ListKind = "treatment" | "therapist" | "hotel" | "pct" | "tl" | "purchase_category";
+
+export interface AccountingListItem {
+  id: string;
+  kind: ListKind;
+  label: string;
+  category: string | null;
+  points: number | null;
+  default_pct: number | null;
+  sort_order: number;
+  active: boolean;
+}
+
+/** Names compared the way people type them: case, accents and spaces ignored. */
+export const normName = (s: string | null | undefined) =>
+  (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[´`']/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Lookups by name for one kind of list. */
+export function listIndex(items: AccountingListItem[], kind: ListKind) {
+  const map = new Map<string, AccountingListItem>();
+  for (const it of items) if (it.kind === kind) map.set(normName(it.label), it);
+  return (name: string | null | undefined) => map.get(normName(name));
+}
+
+// ── Reports (what the Excel's summary sheets do, from every row) ─────────────
+
+/** Rows that are payroll, not a treatment: salaries and commission payouts. */
+const PAYROLL_SALARY = ["salary", "aguinaldo", "vacaciones"];
+const PAYROLL_COMMISSION = ["therapist treatments commission"];
+export const isPayroll = (treatment: string | null | undefined) =>
+  [...PAYROLL_SALARY, ...PAYROLL_COMMISSION].includes(normName(treatment));
+
+const label = (s: string | null | undefined, empty: string) => (s ?? "").replace(/\s+/g, " ").trim() || empty;
+
+/** Group by a name typed in different ways (spaces / capitals): the most used spelling wins. */
+function groupBy<T>(entries: AccountingEntry[], keyOf: (e: AccountingEntry) => string | null | undefined, empty: string, init: () => T, add: (acc: T, e: AccountingEntry) => void) {
+  const groups = new Map<string, { names: Map<string, number>; acc: T }>();
+  for (const e of entries) {
+    const raw = label(keyOf(e), empty);
+    const k = normName(raw);
+    let g = groups.get(k);
+    if (!g) { g = { names: new Map(), acc: init() }; groups.set(k, g); }
+    g.names.set(raw, (g.names.get(raw) ?? 0) + 1);
+    add(g.acc, e);
+  }
+  return [...groups.values()].map((g) => ({
+    name: [...g.names.entries()].sort((a, b) => b[1] - a[1])[0][0],
+    ...g.acc,
+  }));
+}
+
+export interface HotelReportRow { name: string; services: number; sales: number; commission: number; pcts: number[] }
+
+/** What is owed to each hotel / villa / concierge (the Excel's "Vendor Commissions"). */
+export function hotelReport(entries: AccountingEntry[]): HotelReportRow[] {
+  const rows = entries.filter((e) => !isPayroll(e.treatment) && normName(e.hotel) !== "" && normName(e.hotel) !== "n/a");
+  return groupBy(rows, (e) => e.hotel, "—", () => ({ services: 0, sales: 0, commission: 0, pcts: [] as number[] }), (a, e) => {
+    a.services += 1;
+    a.sales = round2(a.sales + num(e.cost));
+    a.commission = round2(a.commission + hotelCommission(e));
+    const p = num(e.hotel_pct);
+    if (!a.pcts.includes(p)) a.pcts.push(p);
+  })
+    .map((r) => ({ ...r, pcts: [...r.pcts].sort((a, b) => a - b) }))
+    .sort((a, b) => b.commission - a.commission || b.sales - a.sales);
+}
+
+export interface TherapistReportRow {
+  name: string;
+  services: number;
+  points: number;
+  sales: number;
+  treatmentCommission: number; // from the % on each treatment
+  salary: number;              // Salary / Aguinaldo / Vacaciones rows
+  payrollCommission: number;   // "Therapist Treatments Commission" rows (the quincena payout)
+  total: number;
+  missingPoints: number;       // treatments with no points on the list
+}
+
+/** Each therapist's month (the Excel's "Staff" + "puntos terap"). */
+export function therapistReport(entries: AccountingEntry[], pointsOf: (treatment: string | null) => number | null | undefined): TherapistReportRow[] {
+  const rows = entries.filter((e) => normName(e.therapist) !== "");
+  return groupBy(rows, (e) => e.therapist, "—",
+    () => ({ services: 0, points: 0, sales: 0, treatmentCommission: 0, salary: 0, payrollCommission: 0, total: 0, missingPoints: 0 }),
+    (a, e) => {
+      const amount = therapistCommission(e);
+      const t = normName(e.treatment);
+      if (PAYROLL_SALARY.includes(t)) a.salary = round2(a.salary + amount);
+      else if (PAYROLL_COMMISSION.includes(t)) a.payrollCommission = round2(a.payrollCommission + amount);
+      else {
+        a.services += 1;
+        a.sales = round2(a.sales + num(e.cost));
+        a.treatmentCommission = round2(a.treatmentCommission + amount);
+        const p = pointsOf(e.treatment);
+        if (p == null) a.missingPoints += 1;
+        else a.points = Math.round((a.points + num(p)) * 10) / 10;
+      }
+      a.total = round2(a.salary + a.payrollCommission + a.treatmentCommission);
+    })
+    .sort((a, b) => b.total - a.total || b.sales - a.sales);
+}
+
+export interface TreatmentReportRow { name: string; services: number; sales: number; hwc: number }
+export interface TreatmentCategory { category: string; rows: TreatmentReportRow[]; services: number; sales: number; hwc: number }
+
+/** What each treatment brings in, by category (the Excel's "Treatments"). Payroll comes last, on its own. */
+export function treatmentReport(entries: AccountingEntry[], categoryOf: (treatment: string | null) => string | null | undefined): TreatmentCategory[] {
+  const PAYROLL = "Planilla (salarios y comisiones)";
+  const NONE = "Sin categoría";
+  const byCat = new Map<string, AccountingEntry[]>();
+  for (const e of entries) {
+    const cat = isPayroll(e.treatment) ? PAYROLL : (categoryOf(e.treatment) || NONE);
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat)!.push(e);
+  }
+  const cats = [...byCat.entries()].map(([category, list]) => {
+    const rows = groupBy(list, (e) => e.treatment, "(sin tratamiento)", () => ({ services: 0, sales: 0, hwc: 0 }), (a, e) => {
+      a.services += 1;
+      a.sales = round2(a.sales + num(e.cost));
+      a.hwc = round2(a.hwc + hwcAmount(e));
+    }).sort((a, b) => b.hwc - a.hwc);
+    const sum = (k: "services" | "sales" | "hwc") => round2(rows.reduce((s, r) => s + r[k], 0));
+    return { category, rows, services: sum("services"), sales: sum("sales"), hwc: sum("hwc") };
+  });
+  const rank = (c: string) => (c === PAYROLL ? 2 : c === NONE ? 1 : 0);
+  return cats.sort((a, b) => rank(a.category) - rank(b.category) || b.hwc - a.hwc);
+}

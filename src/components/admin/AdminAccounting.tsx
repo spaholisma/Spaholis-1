@@ -2,21 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Download, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { BarChart3, Copy, Download, ListChecks, Loader2, Plus, Search, Table2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  type AccountingEntry, MONTHS_ES, entriesToCsv, hotelCommission, hwcAmount, money, parseNumber,
-  therapistCommission, totalsOf,
+  type AccountingEntry, type AccountingListItem, MONTHS_ES, entriesToCsv, hotelCommission, hwcAmount, listIndex, money,
+  normName, parseNumber, therapistCommission, totalsOf,
 } from "@/lib/accounting";
+import { AccountingReports } from "@/components/admin/accounting/AccountingReports";
+import { AccountingLists } from "@/components/admin/accounting/AccountingLists";
 
 // Admin → Contabilidad. The monthly accounting sheets (they used to live in
 // Excel on OneDrive): a year → its twelve months → each month's rows, with the
-// same columns and the same sums as the Excel. Full admins only (the tables'
-// RLS refuses anyone else).
+// same columns and the same sums as the Excel; the Excel's dropdowns (Listas)
+// and its summary sheets (Reportes). Full admins only (the tables' RLS refuses
+// anyone else).
 
 const sb = supabase as any;
 const SUMMARY = 0; // the "Resumen del año" tab; months are 1–12
+const LISTS = -1;  // the "Listas" view
 
 const TEXT_FIELDS = ["client", "tl", "treatment", "location", "therapist", "hotel", "notes"] as const;
 type TextField = (typeof TEXT_FIELDS)[number];
@@ -37,6 +41,7 @@ async function fetchYear(year: number): Promise<AccountingEntry[]> {
       .order("month")
       .order("entry_date", { ascending: true, nullsFirst: false })
       .order("created_at")
+      .order("id")
       .range(from, from + 999);
     if (error) throw error;
     out.push(...((data ?? []) as AccountingEntry[]));
@@ -47,17 +52,27 @@ async function fetchYear(year: number): Promise<AccountingEntry[]> {
 
 const isNewer = (a: AccountingEntry, b: AccountingEntry) => (a.created_at ?? "") > (b.created_at ?? "");
 
+// The column groups of the sheet, each with its own color (as in the Excel).
+// Solid colors: the header stays on top while scrolling.
+const GROUPS = {
+  service: "bg-muted",
+  therapist: "bg-sky-50",
+  holis: "bg-emerald-50",
+  hotel: "bg-amber-50",
+  notes: "bg-muted",
+};
+
 export function AdminAccounting() {
   const [years, setYears] = useState<number[]>([]);
   const [year, setYear] = useState<number | null>(null);
   const [tab, setTab] = useState<number>(SUMMARY);
+  const [view, setView] = useState<"rows" | "reports">("rows");
   const [entries, setEntries] = useState<AccountingEntry[]>([]);
+  const [lists, setLists] = useState<AccountingListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [services, setServices] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  // Years, and the treatment names of the website (for the Treatment suggestions).
   const loadYears = useCallback(async () => {
     const { data, error } = await sb.from("accounting_years").select("year").order("year");
     if (error) { toast.error(error.message); return []; }
@@ -76,8 +91,9 @@ export function AdminAccounting() {
       setTab(pick === thisYear ? now.getMonth() + 1 : SUMMARY);
       if (pick == null) setLoading(false);
     })();
-    supabase.from("services").select("title").order("title").then(({ data }) => {
-      setServices(Array.from(new Set(((data ?? []) as { title: string }[]).map((s) => s.title).filter(Boolean))));
+    sb.from("accounting_lists").select("*").order("kind").order("sort_order").then(({ data, error }: any) => {
+      if (error) toast.error(`Listas: ${error.message}`);
+      else setLists((data ?? []) as AccountingListItem[]);
     });
   }, [loadYears]);
 
@@ -92,49 +108,57 @@ export function AdminAccounting() {
     return () => { alive = false; };
   }, [year]);
 
-  // Suggestions for the typed columns: what the team has used before (+ the
-  // website's treatments), so the same name is spelled the same way.
-  const suggestions = useMemo(() => {
-    const collect = (f: TextField, extra: string[] = []) =>
-      Array.from(new Set([...extra, ...entries.map((e) => (e[f] ?? "").trim()).filter(Boolean)])).sort((a, b) => a.localeCompare(b));
+  // The dropdowns: the lists (Contabilidad → Listas), like the Excel's.
+  const active = useMemo(() => lists.filter((l) => l.active), [lists]);
+  const options = useMemo(() => {
+    const of = (k: AccountingListItem["kind"]) => active.filter((l) => l.kind === k).sort((a, b) => a.sort_order - b.sort_order).map((l) => l.label);
     return {
-      treatment: collect("treatment", ["Salary", "Therapist Treatments Commission", ...services]),
-      therapist: collect("therapist"),
-      hotel: collect("hotel", ["N/A", "Recepcion"]),
-      location: collect("location", ["HWC"]),
-      tl: collect("tl"),
+      treatment: of("treatment"),
+      therapist: of("therapist"),
+      hotel: of("hotel"),
+      tl: of("tl"),
+      pct: active.filter((l) => l.kind === "pct").map((l) => l.label).sort((a, b) => Number(a) - Number(b)),
+      // Places have no list in the Excel: what has been used before.
+      location: Array.from(new Set(["HWC", ...entries.map((e) => (e.location ?? "").trim()).filter(Boolean)])).sort((a, b) => a.localeCompare(b)),
     };
-  }, [entries, services]);
+  }, [active, entries]);
+  const known = useMemo(() => ({
+    treatment: listIndex(lists, "treatment"),
+    therapist: listIndex(lists, "therapist"),
+    hotel: listIndex(lists, "hotel"),
+  }), [lists]);
 
-  // The last % used with each hotel, and the last price of each treatment —
-  // filled in when a row gets that hotel / treatment and has none yet.
-  const lastHotelPct = useCallback((hotel: string) => {
+  // A new hotel → its usual % (Listas), else the last % used with it.
+  // A new treatment → its last price.
+  const hotelPctFor = useCallback((hotel: string) => {
+    const fromList = known.hotel(hotel)?.default_pct;
+    if (fromList != null) return Number(fromList);
     let best: AccountingEntry | null = null;
     for (const e of entries) {
-      if ((e.hotel ?? "").trim().toLowerCase() === hotel.toLowerCase() && Number(e.hotel_pct) > 0 && (!best || isNewer(e, best))) best = e;
+      if (normName(e.hotel) === normName(hotel) && Number(e.hotel_pct) > 0 && (!best || isNewer(e, best))) best = e;
     }
     return best ? Number(best.hotel_pct) : null;
-  }, [entries]);
+  }, [entries, known]);
   const lastCost = useCallback((treatment: string) => {
     let best: AccountingEntry | null = null;
     for (const e of entries) {
-      if ((e.treatment ?? "").trim().toLowerCase() === treatment.toLowerCase() && Number(e.cost) > 0 && (!best || isNewer(e, best))) best = e;
+      if (normName(e.treatment) === normName(treatment) && Number(e.cost) > 0 && (!best || isNewer(e, best))) best = e;
     }
     return best ? Number(best.cost) : null;
   }, [entries]);
 
   const saveRow = useCallback(async (id: string, patch: Partial<AccountingEntry>) => {
-    const before = entries.find((e) => e.id === id);
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    let before: AccountingEntry | undefined;
+    setEntries((prev) => prev.map((e) => { if (e.id === id) { before = e; return { ...e, ...patch }; } return e; }));
     const { error } = await sb.from("accounting_entries").update(patch).eq("id", id);
     if (error) {
       toast.error(`No se guardó: ${error.message}`);
-      if (before) setEntries((prev) => prev.map((e) => (e.id === id ? before : e)));
+      if (before) { const b = before; setEntries((prev) => prev.map((e) => (e.id === id ? b : e))); }
     }
-  }, [entries]);
+  }, []);
 
   const addRow = async (copyOf?: AccountingEntry) => {
-    if (year == null || tab === SUMMARY) return;
+    if (year == null || tab < 1) return;
     const today = new Date();
     const inThisMonth = today.getFullYear() === year && today.getMonth() + 1 === tab;
     const base = copyOf
@@ -153,6 +177,7 @@ export function AdminAccounting() {
       next.splice(i + 1, 0, data as AccountingEntry);
       return next;
     });
+    setQuery("");
     setFocusId((data as AccountingEntry).id);
   };
 
@@ -197,20 +222,18 @@ export function AdminAccounting() {
     toast.success(`Año ${year} eliminado`);
   };
 
+  const monthAll = useMemo(() => (tab >= 1 ? entries.filter((e) => e.month === tab) : []), [entries, tab]);
   const monthRows = useMemo(() => {
-    if (tab === SUMMARY) return [];
-    const rows = entries.filter((e) => e.month === tab);
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((e) =>
-      [e.client, e.tl, e.treatment, e.location, e.therapist, e.hotel, e.notes, e.entry_date]
-        .some((v) => (v ?? "").toLowerCase().includes(q)),
+    const q = normName(query);
+    if (!q) return monthAll;
+    return monthAll.filter((e) =>
+      [e.client, e.tl, e.treatment, e.location, e.therapist, e.hotel, e.notes, e.entry_date].some((v) => normName(v).includes(q)),
     );
-  }, [entries, tab, query]);
+  }, [monthAll, query]);
   const monthTotals = useMemo(() => totalsOf(monthRows), [monthRows]);
 
   const exportCsv = () => {
-    if (year == null || tab === SUMMARY) return;
+    if (year == null || tab < 1) return;
     const url = URL.createObjectURL(new Blob([entriesToCsv(monthRows)], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -218,6 +241,8 @@ export function AdminAccounting() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const showRowsOf = (text: string) => { setQuery(text); setView("rows"); };
 
   return (
     <div className="space-y-5">
@@ -228,6 +253,13 @@ export function AdminAccounting() {
             Cada año tiene sus 12 meses. Escribe en las celdas y se guarda solo al salir de la celda.
           </p>
         </div>
+        <Button
+          type="button"
+          variant={tab === LISTS ? "default" : "outline"}
+          onClick={() => setTab(tab === LISTS ? SUMMARY : LISTS)}
+        >
+          <ListChecks className="h-4 w-4 mr-1" /> Listas (dropdowns)
+        </Button>
       </div>
 
       {/* Years */}
@@ -250,7 +282,9 @@ export function AdminAccounting() {
         </Button>
       </div>
 
-      {year == null ? (
+      {tab === LISTS ? (
+        <AccountingLists lists={lists} setLists={setLists} entries={entries} year={year} />
+      ) : year == null ? (
         <p className="font-body text-sm text-muted-foreground">Todavía no hay ningún año. Agrega uno con “+ Año”.</p>
       ) : (
         <>
@@ -276,94 +310,142 @@ export function AdminAccounting() {
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
             </div>
           ) : tab === SUMMARY ? (
-            <YearSummary year={year} entries={entries} onOpenMonth={setTab} onDeleteYear={deleteYear} />
+            <YearSummary year={year} entries={entries} lists={lists} onOpenMonth={(m) => { setTab(m); setView("rows"); }} onDeleteYear={deleteYear} />
           ) : (
             <div className="space-y-4">
-              <TotalsCards totals={monthTotals} />
+              <TotalsCards totals={totalsOf(monthAll)} />
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" onClick={() => addRow()}>
-                  <Plus className="h-4 w-4 mr-1" /> Agregar fila
-                </Button>
-                <div className="relative flex-1 min-w-[200px] max-w-sm">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, terapeuta, hotel…" className="pl-8" />
+                <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
+                  {([["rows", "Filas", Table2], ["reports", "Reportes", BarChart3]] as const).map(([id, label, Icon]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setView(id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-body font-medium transition-colors",
+                        view === id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" /> {label}
+                    </button>
+                  ))}
                 </div>
-                <Button type="button" variant="outline" className="ml-auto" onClick={exportCsv} disabled={monthRows.length === 0}>
-                  <Download className="h-4 w-4 mr-1" /> Exportar a Excel (CSV)
-                </Button>
+                {view === "rows" && (
+                  <>
+                    <Button type="button" onClick={() => addRow()}>
+                      <Plus className="h-4 w-4 mr-1" /> Agregar fila
+                    </Button>
+                    <div className="relative flex-1 min-w-[200px] max-w-sm">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, terapeuta, hotel…" className="pl-8" />
+                    </div>
+                    <Button type="button" variant="outline" className="ml-auto" onClick={exportCsv} disabled={monthRows.length === 0}>
+                      <Download className="h-4 w-4 mr-1" /> Exportar a Excel (CSV)
+                    </Button>
+                  </>
+                )}
               </div>
 
-              <datalist id="acc-treatments">{suggestions.treatment.map((v) => <option key={v} value={v} />)}</datalist>
-              <datalist id="acc-therapists">{suggestions.therapist.map((v) => <option key={v} value={v} />)}</datalist>
-              <datalist id="acc-hotels">{suggestions.hotel.map((v) => <option key={v} value={v} />)}</datalist>
-              <datalist id="acc-locations">{suggestions.location.map((v) => <option key={v} value={v} />)}</datalist>
-              <datalist id="acc-tl">{suggestions.tl.map((v) => <option key={v} value={v} />)}</datalist>
+              {view === "reports" ? (
+                <AccountingReports
+                  entries={monthAll}
+                  lists={lists}
+                  periodLabel={`${MONTHS_ES[tab - 1]} ${year}`}
+                  fileStem={`contabilidad-${year}-${pad2(tab)}`}
+                  onFilter={showRowsOf}
+                />
+              ) : (
+                <>
+                  <datalist id="acc-treatments">{options.treatment.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-therapists">{options.therapist.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-hotels">{options.hotel.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-locations">{options.location.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-tl">{options.tl.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-pct">{options.pct.map((v) => <option key={v} value={v} />)}</datalist>
 
-              <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                <table className="w-full border-collapse font-body text-sm">
-                  <thead>
-                    <tr className="bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <Th className="min-w-[230px]">Cliente</Th>
-                      <Th className="min-w-[70px]">T/L</Th>
-                      <Th className="min-w-[210px]">Tratamiento</Th>
-                      <Th className="min-w-[120px]">Lugar</Th>
-                      <Th className="min-w-[140px]">Fecha</Th>
-                      <Th className="min-w-[90px] text-right">Costo</Th>
-                      <Th className="min-w-[120px]">Terapeuta</Th>
-                      <Th className="min-w-[70px] text-right">Com. %</Th>
-                      <Th className="min-w-[95px] text-right">Com. $</Th>
-                      <Th className="min-w-[60px] text-center">¿Pagado?</Th>
-                      <Th className="min-w-[95px] text-right bg-spa-sage/15 text-foreground">HWC</Th>
-                      <Th className="min-w-[210px]">Hotel / Villa</Th>
-                      <Th className="min-w-[70px] text-right">Com. %</Th>
-                      <Th className="min-w-[90px] text-right">Com. $</Th>
-                      <Th className="min-w-[170px]">Notas</Th>
-                      <Th className="w-[72px]" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthRows.map((e) => (
-                      <EntryRow
-                        key={e.id}
-                        entry={e}
-                        autoFocus={focusId === e.id}
-                        onSave={saveRow}
-                        onDuplicate={() => addRow(e)}
-                        onDelete={() => deleteRow(e)}
-                        lastHotelPct={lastHotelPct}
-                        lastCost={lastCost}
-                      />
-                    ))}
-                    {monthRows.length === 0 && (
-                      <tr>
-                        <td colSpan={16} className="py-10 text-center text-muted-foreground">
-                          {query.trim() ? "Nada coincide con la búsqueda." : `Todavía no hay filas en ${MONTHS_ES[tab - 1]} ${year}. Usa “Agregar fila”.`}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                  {monthRows.length > 0 && (
-                    <tfoot>
-                      <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                        <td className="px-2 py-2" colSpan={5}>Total ({monthTotals.rows} {monthTotals.rows === 1 ? "fila" : "filas"})</td>
-                        <td className="px-2 py-2 text-right">{money(monthTotals.cost)}</td>
-                        <td colSpan={2} />
-                        <td className="px-2 py-2 text-right">{money(monthTotals.therapist)}</td>
-                        <td />
-                        <td className={cn("px-2 py-2 text-right bg-spa-sage/15", monthTotals.hwc < 0 && "text-destructive")}>{money(monthTotals.hwc)}</td>
-                        <td colSpan={2} />
-                        <td className="px-2 py-2 text-right">{money(monthTotals.hotel)}</td>
-                        <td colSpan={2} />
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-              <p className="font-body text-xs text-muted-foreground">
-                HWC = Costo − comisión del hotel − comisión del terapeuta. La comisión del terapeuta se calcula sobre el costo menos la del hotel.
-                Las comisiones en $ se calculan solas; si escribes un monto (por ejemplo un salario), se usa ese — bórralo para volver al cálculo.
-              </p>
+                  <div className="overflow-auto max-h-[72vh] rounded-xl border border-border bg-card">
+                    <table className="w-full border-separate border-spacing-0 font-body text-sm">
+                      <thead className="sticky top-0 z-20">
+                        <tr className="text-[11px] font-semibold uppercase tracking-wider text-foreground/80">
+                          <th className={cn(GH, GROUPS.service, "sticky left-0 z-30")} />
+                          <th className={cn(GH, GROUPS.service)} colSpan={6}>Servicio</th>
+                          <th className={cn(GH, GROUPS.therapist)} colSpan={4}>Terapeuta</th>
+                          <th className={cn(GH, GROUPS.holis)}>Holis</th>
+                          <th className={cn(GH, GROUPS.hotel)} colSpan={3}>Hotel / Villa / Concierge</th>
+                          <th className={cn(GH, GROUPS.notes)} colSpan={2}>Notas</th>
+                        </tr>
+                        <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <Th className={cn(GROUPS.service, "sticky left-0 z-30 w-10 text-center")}>#</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[230px]")}>Cliente</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[90px]")}>T/L</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[220px]")}>Tratamiento</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[130px]")}>Lugar</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[140px]")}>Fecha</Th>
+                          <Th className={cn(GROUPS.service, "min-w-[95px] text-right")}>Costo</Th>
+                          <Th className={cn(GROUPS.therapist, "min-w-[130px]")}>Terapeuta</Th>
+                          <Th className={cn(GROUPS.therapist, "min-w-[75px] text-right")}>Com. %</Th>
+                          <Th className={cn(GROUPS.therapist, "min-w-[95px] text-right")}>Com. $</Th>
+                          <Th className={cn(GROUPS.therapist, "min-w-[64px] text-center")}>¿Pagado?</Th>
+                          <Th className={cn(GROUPS.holis, "min-w-[100px] text-right text-foreground")}>HWC</Th>
+                          <Th className={cn(GROUPS.hotel, "min-w-[220px]")}>Hotel / Villa</Th>
+                          <Th className={cn(GROUPS.hotel, "min-w-[75px] text-right")}>Com. %</Th>
+                          <Th className={cn(GROUPS.hotel, "min-w-[95px] text-right")}>Com. $</Th>
+                          <Th className={cn(GROUPS.notes, "min-w-[200px]")}>Notas</Th>
+                          <Th className={cn(GROUPS.notes, "w-[72px]")} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthRows.map((e, i) => (
+                          <EntryRow
+                            key={e.id}
+                            n={i + 1}
+                            entry={e}
+                            zebra={i % 2 === 1}
+                            autoFocus={focusId === e.id}
+                            onSave={saveRow}
+                            onDuplicate={() => addRow(e)}
+                            onDelete={() => deleteRow(e)}
+                            hotelPctFor={hotelPctFor}
+                            lastCost={lastCost}
+                            known={known}
+                          />
+                        ))}
+                        {monthRows.length === 0 && (
+                          <tr>
+                            <td colSpan={17} className="py-10 text-center text-muted-foreground">
+                              {query.trim() ? "Nada coincide con la búsqueda." : `Todavía no hay filas en ${MONTHS_ES[tab - 1]} ${year}. Usa “Agregar fila”.`}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {monthRows.length > 0 && (
+                        <tfoot className="sticky bottom-0 z-20">
+                          <tr className="font-semibold bg-muted">
+                            <td className={cn(TF, "sticky left-0 z-30 bg-muted")} />
+                            <td className={TF} colSpan={5}>
+                              Total ({monthTotals.rows} {monthTotals.rows === 1 ? "fila" : "filas"}){query.trim() ? " — de la búsqueda" : ""}
+                            </td>
+                            <td className={cn(TF, "text-right")}>{money(monthTotals.cost)}</td>
+                            <td className={TF} colSpan={2} />
+                            <td className={cn(TF, "text-right")}>{money(monthTotals.therapist)}</td>
+                            <td className={TF} />
+                            <td className={cn(TF, "text-right bg-emerald-50", monthTotals.hwc < 0 && "text-destructive")}>{money(monthTotals.hwc)}</td>
+                            <td className={TF} colSpan={2} />
+                            <td className={cn(TF, "text-right")}>{money(monthTotals.hotel)}</td>
+                            <td className={TF} colSpan={2} />
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Como en el Excel: Com. hotel = Costo × %; Com. terapeuta = (Costo − Com. hotel) × %; HWC = Costo − Com. terapeuta − Com. hotel.
+                    Si escribes un monto en $ (por ejemplo un salario), se usa ese — bórralo para volver al cálculo.
+                    Las celdas en <span className="text-amber-700 font-medium">ámbar</span> tienen un nombre que no está en Listas.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </>
@@ -372,8 +454,12 @@ export function AdminAccounting() {
   );
 }
 
+// Grid cells: every cell has its own lines, like a spreadsheet.
+const GH = "px-2 h-7 text-center border-b border-r border-border";
+const TF = "px-2 py-2 border-t-2 border-r border-border";
+
 function Th({ className, children }: { className?: string; children?: React.ReactNode }) {
-  return <th className={cn("px-2 py-2 text-left font-semibold border-b border-border whitespace-nowrap", className)}>{children}</th>;
+  return <th className={cn("px-2 py-2 text-left font-semibold border-b-2 border-r border-border whitespace-nowrap", className)}>{children}</th>;
 }
 
 function TotalsCards({ totals }: { totals: ReturnType<typeof totalsOf> }) {
@@ -396,49 +482,57 @@ function TotalsCards({ totals }: { totals: ReturnType<typeof totalsOf> }) {
 }
 
 function YearSummary({
-  year, entries, onOpenMonth, onDeleteYear,
-}: { year: number; entries: AccountingEntry[]; onOpenMonth: (m: number) => void; onDeleteYear: () => void }) {
+  year, entries, lists, onOpenMonth, onDeleteYear,
+}: { year: number; entries: AccountingEntry[]; lists: AccountingListItem[]; onOpenMonth: (m: number) => void; onDeleteYear: () => void }) {
   const perMonth = MONTHS_ES.map((name, i) => ({ name, month: i + 1, t: totalsOf(entries.filter((e) => e.month === i + 1)) }));
   const yearTotals = totalsOf(entries);
+  const th = "px-3 py-2 font-semibold border-b-2 border-r border-border last:border-r-0 whitespace-nowrap";
+  const td = "px-3 py-2 border-b border-r border-border/70 last:border-r-0";
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <TotalsCards totals={yearTotals} />
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full border-collapse font-body text-sm">
+        <table className="w-full border-separate border-spacing-0 font-body text-sm">
           <thead>
             <tr className="bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-              <Th>Mes</Th>
-              <Th className="text-right">Filas</Th>
-              <Th className="text-right">Costo</Th>
-              <Th className="text-right">Com. terapeutas</Th>
-              <Th className="text-right">Com. hoteles</Th>
-              <Th className="text-right bg-spa-sage/15 text-foreground">HWC</Th>
+              <th className={cn(th, "text-left")}>Mes</th>
+              <th className={cn(th, "text-right")}>Filas</th>
+              <th className={cn(th, "text-right")}>Costo</th>
+              <th className={cn(th, "text-right")}>Com. terapeutas</th>
+              <th className={cn(th, "text-right")}>Com. hoteles</th>
+              <th className={cn(th, "text-right bg-spa-sage/20 text-foreground")}>HWC</th>
             </tr>
           </thead>
           <tbody>
-            {perMonth.map(({ name, month, t }) => (
-              <tr key={month} className="border-b border-border/60 hover:bg-muted/30 cursor-pointer" onClick={() => onOpenMonth(month)}>
-                <td className="px-2 py-2 font-medium text-foreground underline-offset-2 hover:underline">{name}</td>
-                <td className="px-2 py-2 text-right text-muted-foreground">{t.rows || "—"}</td>
-                <td className="px-2 py-2 text-right">{t.rows ? money(t.cost) : "—"}</td>
-                <td className="px-2 py-2 text-right">{t.rows ? money(t.therapist) : "—"}</td>
-                <td className="px-2 py-2 text-right">{t.rows ? money(t.hotel) : "—"}</td>
-                <td className={cn("px-2 py-2 text-right bg-spa-sage/10 font-medium", t.hwc < 0 && "text-destructive")}>{t.rows ? money(t.hwc) : "—"}</td>
+            {perMonth.map(({ name, month, t }, i) => (
+              <tr key={month} className={cn("hover:bg-muted/40 cursor-pointer", i % 2 && "bg-muted/20")} onClick={() => onOpenMonth(month)}>
+                <td className={cn(td, "font-medium text-foreground underline-offset-2 hover:underline")}>{name}</td>
+                <td className={cn(td, "text-right tabular-nums text-muted-foreground")}>{t.rows || "—"}</td>
+                <td className={cn(td, "text-right tabular-nums")}>{t.rows ? money(t.cost) : "—"}</td>
+                <td className={cn(td, "text-right tabular-nums")}>{t.rows ? money(t.therapist) : "—"}</td>
+                <td className={cn(td, "text-right tabular-nums")}>{t.rows ? money(t.hotel) : "—"}</td>
+                <td className={cn(td, "text-right tabular-nums bg-spa-sage/10 font-medium", t.hwc < 0 && "text-destructive")}>{t.rows ? money(t.hwc) : "—"}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-              <td className="px-2 py-2">Total {year}</td>
-              <td className="px-2 py-2 text-right">{yearTotals.rows}</td>
-              <td className="px-2 py-2 text-right">{money(yearTotals.cost)}</td>
-              <td className="px-2 py-2 text-right">{money(yearTotals.therapist)}</td>
-              <td className="px-2 py-2 text-right">{money(yearTotals.hotel)}</td>
-              <td className={cn("px-2 py-2 text-right bg-spa-sage/15", yearTotals.hwc < 0 && "text-destructive")}>{money(yearTotals.hwc)}</td>
+            <tr className="bg-muted/50 font-semibold">
+              <td className={td}>Total {year}</td>
+              <td className={cn(td, "text-right tabular-nums")}>{yearTotals.rows}</td>
+              <td className={cn(td, "text-right tabular-nums")}>{money(yearTotals.cost)}</td>
+              <td className={cn(td, "text-right tabular-nums")}>{money(yearTotals.therapist)}</td>
+              <td className={cn(td, "text-right tabular-nums")}>{money(yearTotals.hotel)}</td>
+              <td className={cn(td, "text-right tabular-nums bg-spa-sage/20", yearTotals.hwc < 0 && "text-destructive")}>{money(yearTotals.hwc)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      <div className="space-y-3">
+        <h3 className="font-heading text-lg font-medium text-foreground">Reportes de {year}</h3>
+        <AccountingReports entries={entries} lists={lists} periodLabel={`Todo ${year}`} fileStem={`contabilidad-${year}`} />
+      </div>
+
       <div className="flex justify-end">
         <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={onDeleteYear}>
           <Trash2 className="h-4 w-4 mr-1" /> Eliminar el año {year}
@@ -465,25 +559,30 @@ const toDraft = (e: AccountingEntry): Draft => ({
 
 const clampPct = (n: number | null) => Math.min(100, Math.max(0, n ?? 0));
 
+type Known = Record<"treatment" | "therapist" | "hotel", (name: string | null | undefined) => AccountingListItem | undefined>;
+
 function EntryRow({
-  entry, autoFocus, onSave, onDuplicate, onDelete, lastHotelPct, lastCost,
+  n, entry, zebra, autoFocus, onSave, onDuplicate, onDelete, hotelPctFor, lastCost, known,
 }: {
+  n: number;
   entry: AccountingEntry;
+  zebra: boolean;
   autoFocus: boolean;
   onSave: (id: string, patch: Partial<AccountingEntry>) => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  lastHotelPct: (hotel: string) => number | null;
+  hotelPctFor: (hotel: string) => number | null;
   lastCost: (treatment: string) => number | null;
+  known: Known;
 }) {
   const [d, setD] = useState<Draft>(() => toDraft(entry));
   // Numbers read like the Excel ($83, 45%) and become plain while typed.
   const [focus, setFocus] = useState<keyof Draft | null>(null);
   const shown = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount") => {
     if (focus === k || d[k] === "") return d[k];
-    const n = parseNumber(d[k]);
-    if (n == null) return d[k];
-    return k.endsWith("_pct") ? `${n}%` : money(n);
+    const v = parseNumber(d[k]);
+    if (v == null) return d[k];
+    return k.endsWith("_pct") ? `${v}%` : money(v);
   };
   const firstRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (autoFocus) firstRef.current?.focus(); }, [autoFocus]);
@@ -510,12 +609,14 @@ function EntryRow({
 
   const commitText = (k: TextField) => () => {
     if (!takeDirty(k)) return;
-    const v = d[k].trim() || null;
-    if (v === (entry[k] ?? null)) return;
+    let v = d[k].replace(/\s+/g, " ").trim() || null;
+    // Picked from a list → the list's spelling.
+    if (v && (k === "treatment" || k === "therapist" || k === "hotel")) v = known[k](v)?.label ?? v;
+    if (v === (entry[k] ?? null)) { setD(toDraft(entry)); return; }
     const patch: Partial<AccountingEntry> = { [k]: v };
-    // A new hotel with no % yet → the % last used with it.
+    // A new hotel with no % yet → its usual %.
     if (k === "hotel" && v && !Number(entry.hotel_pct)) {
-      const pct = lastHotelPct(v);
+      const pct = hotelPctFor(v);
       if (pct) patch.hotel_pct = pct;
     }
     // A new treatment with no price yet → its last price.
@@ -535,14 +636,13 @@ function EntryRow({
   const commitNumber = (k: "cost" | "therapist_pct" | "hotel_pct" | "therapist_amount" | "hotel_amount") => () => {
     setFocus(null);
     if (!takeDirty(k)) return;
-    const n = parseNumber(d[k]);
+    const v0 = parseNumber(d[k]);
     if (k === "therapist_amount" || k === "hotel_amount") {
-      const v = n == null ? null : n;
-      if (v !== (entry[k] == null ? null : Number(entry[k]))) onSave(entry.id, { [k]: v });
+      if (v0 !== (entry[k] == null ? null : Number(entry[k]))) onSave(entry.id, { [k]: v0 });
       else setD(toDraft(entry));
       return;
     }
-    const v = k === "cost" ? (n ?? 0) : clampPct(n);
+    const v = k === "cost" ? (v0 ?? 0) : clampPct(v0);
     if (v !== Number(entry[k])) onSave(entry.id, { [k]: v });
     else setD(toDraft(entry));
   };
@@ -552,35 +652,47 @@ function EntryRow({
     if (ev.key === "Escape") { dirty.current.clear(); setD(toDraft(entry)); (ev.currentTarget as HTMLInputElement).blur(); }
   };
 
-  const cell = "h-8 w-full rounded-md bg-transparent px-2 text-sm text-foreground border border-transparent hover:border-border focus:border-ring focus:bg-background focus:outline-none";
-  const num = cn(cell, "text-right tabular-nums");
+  // A name typed that is not on its list (typo, or a new one to add in Listas).
+  const offList = (k: "treatment" | "therapist" | "hotel") => {
+    const v = (entry[k] ?? "").trim();
+    if (!v || (k === "hotel" && normName(v) === "n/a")) return false;
+    return !known[k](v);
+  };
+
+  const td = "px-0.5 py-0.5 border-b border-r border-border/70";
+  const cell = "h-8 w-full rounded-sm bg-transparent px-2 text-sm text-foreground border border-transparent hover:border-border focus:border-ring focus:bg-background focus:outline-none";
+  const numCell = cn(cell, "text-right tabular-nums");
+  const warn = "bg-amber-500/15";
   const txt = (k: TextField, list?: string, ref?: React.Ref<HTMLInputElement>) => (
     <input ref={ref} className={cell} value={d[k]} onChange={set(k)} onBlur={commitText(k)} onKeyDown={enterBlurs} list={list} aria-label={k} />
   );
+  const offTitle = "No está en Listas — elige uno de la lista o agrégalo en Listas";
 
   const therapistAuto = therapistCommission(entry);
   const hotelAuto = hotelCommission(entry);
   const hwc = hwcAmount(entry);
+  const rowBg = zebra ? "bg-muted/20" : "bg-card";
 
   return (
-    <tr className="border-b border-border/60 hover:bg-muted/20 group">
-      <td className="px-1 py-0.5">{txt("client", undefined, firstRef)}</td>
-      <td className="px-1 py-0.5">{txt("tl", "acc-tl")}</td>
-      <td className="px-1 py-0.5">{txt("treatment", "acc-treatments")}</td>
-      <td className="px-1 py-0.5">{txt("location", "acc-locations")}</td>
-      <td className="px-1 py-0.5">
+    <tr className={cn("group hover:[&>td:not(:first-child)]:bg-muted/40", rowBg)}>
+      <td className={cn(td, "sticky left-0 z-10 w-10 text-center text-[11px] tabular-nums text-muted-foreground", zebra ? "bg-muted" : "bg-card")}>{n}</td>
+      <td className={td}>{txt("client", undefined, firstRef)}</td>
+      <td className={td}>{txt("tl", "acc-tl")}</td>
+      <td className={cn(td, offList("treatment") && warn)} title={offList("treatment") ? offTitle : undefined}>{txt("treatment", "acc-treatments")}</td>
+      <td className={td}>{txt("location", "acc-locations")}</td>
+      <td className={td}>
         <input type="date" className={cell} value={d.entry_date} onChange={set("entry_date")} onBlur={commitDate} onKeyDown={enterBlurs} aria-label="Fecha" />
       </td>
-      <td className="px-1 py-0.5">
-        <input className={num} inputMode="decimal" placeholder="$0" value={shown("cost")} onFocus={() => setFocus("cost")} onChange={set("cost")} onBlur={commitNumber("cost")} onKeyDown={enterBlurs} aria-label="Costo" />
+      <td className={td}>
+        <input className={numCell} inputMode="decimal" placeholder="$0" value={shown("cost")} onFocus={() => setFocus("cost")} onChange={set("cost")} onBlur={commitNumber("cost")} onKeyDown={enterBlurs} aria-label="Costo" />
       </td>
-      <td className="px-1 py-0.5">{txt("therapist", "acc-therapists")}</td>
-      <td className="px-1 py-0.5">
-        <input className={num} inputMode="decimal" placeholder="0%" value={shown("therapist_pct")} onFocus={() => setFocus("therapist_pct")} onChange={set("therapist_pct")} onBlur={commitNumber("therapist_pct")} onKeyDown={enterBlurs} aria-label="Comisión terapeuta %" />
+      <td className={cn(td, offList("therapist") && warn)} title={offList("therapist") ? offTitle : undefined}>{txt("therapist", "acc-therapists")}</td>
+      <td className={td}>
+        <input className={numCell} inputMode="decimal" list="acc-pct" placeholder="0%" value={shown("therapist_pct")} onFocus={() => setFocus("therapist_pct")} onChange={set("therapist_pct")} onBlur={commitNumber("therapist_pct")} onKeyDown={enterBlurs} aria-label="Comisión terapeuta %" />
       </td>
-      <td className="px-1 py-0.5">
+      <td className={td}>
         <input
-          className={cn(num, entry.therapist_amount != null ? "font-semibold" : "placeholder:text-foreground/70")}
+          className={cn(numCell, entry.therapist_amount != null ? "font-semibold" : "placeholder:text-foreground/70")}
           inputMode="decimal"
           placeholder={money(therapistAuto)}
           title={entry.therapist_amount != null ? "Monto escrito a mano (bórralo para volver al cálculo)" : "Calculado del %"}
@@ -591,7 +703,7 @@ function EntryRow({
           aria-label="Comisión terapeuta $"
         />
       </td>
-      <td className="px-1 py-0.5 text-center">
+      <td className={cn(td, "text-center")}>
         <input
           type="checkbox"
           className="h-4 w-4 accent-primary"
@@ -600,14 +712,14 @@ function EntryRow({
           aria-label="Pagado al terapeuta"
         />
       </td>
-      <td className={cn("px-2 py-0.5 text-right tabular-nums font-medium bg-spa-sage/10", hwc < 0 && "text-destructive")}>{money(hwc)}</td>
-      <td className="px-1 py-0.5">{txt("hotel", "acc-hotels")}</td>
-      <td className="px-1 py-0.5">
-        <input className={num} inputMode="decimal" placeholder="0%" value={shown("hotel_pct")} onFocus={() => setFocus("hotel_pct")} onChange={set("hotel_pct")} onBlur={commitNumber("hotel_pct")} onKeyDown={enterBlurs} aria-label="Comisión hotel %" />
+      <td className={cn(td, "px-2 text-right tabular-nums font-medium bg-spa-sage/10", hwc < 0 && "text-destructive")}>{money(hwc)}</td>
+      <td className={cn(td, offList("hotel") && warn)} title={offList("hotel") ? offTitle : undefined}>{txt("hotel", "acc-hotels")}</td>
+      <td className={td}>
+        <input className={numCell} inputMode="decimal" list="acc-pct" placeholder="0%" value={shown("hotel_pct")} onFocus={() => setFocus("hotel_pct")} onChange={set("hotel_pct")} onBlur={commitNumber("hotel_pct")} onKeyDown={enterBlurs} aria-label="Comisión hotel %" />
       </td>
-      <td className="px-1 py-0.5">
+      <td className={td}>
         <input
-          className={cn(num, entry.hotel_amount != null ? "font-semibold" : "placeholder:text-foreground/70")}
+          className={cn(numCell, entry.hotel_amount != null ? "font-semibold" : "placeholder:text-foreground/70")}
           inputMode="decimal"
           placeholder={money(hotelAuto)}
           title={entry.hotel_amount != null ? "Monto escrito a mano (bórralo para volver al cálculo)" : "Calculado del %"}
@@ -618,8 +730,8 @@ function EntryRow({
           aria-label="Comisión hotel $"
         />
       </td>
-      <td className="px-1 py-0.5">{txt("notes")}</td>
-      <td className="px-1 py-0.5 whitespace-nowrap">
+      <td className={td}>{txt("notes")}</td>
+      <td className={cn(td, "whitespace-nowrap text-center")}>
         <button type="button" onClick={onDuplicate} title="Duplicar fila" className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
           <Copy className="h-3.5 w-3.5" />
         </button>
