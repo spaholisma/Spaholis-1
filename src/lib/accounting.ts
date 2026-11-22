@@ -250,3 +250,159 @@ export function treatmentReport(entries: AccountingEntry[], categoryOf: (treatme
   const rank = (c: string) => (c === PAYROLL ? 2 : c === NONE ? 1 : 0);
   return cats.sort((a, b) => rank(a.category) - rank(b.category) || b.hwc - a.hwc);
 }
+
+// ── Expenses and net profit (the Excel's "Income" sheet) ─────────────────────
+//
+//   Ganancia neta = HWC − Gastos mensuales − Depreciación − Compras   ('Income'!F = B − SUM(C:E))
+//   4%            = Ganancia neta × 4%                               ('Income'!H = F × 0.04)
+//
+//   Gastos mensuales = total colones of the month ÷ that month's exchange rate ('Monthly Expenses'!54)
+//   Depreciación     = the month's own figure, else the equipment total ('Initial Expenses'!H33)
+//   Compras          = Σ purchase dollars (colones ÷ the rate on each purchase)
+
+export interface MonthSetting { year: number; month: number; exchange_rate: number | null; depreciation: number | null }
+
+export interface ExpenseItem {
+  id: string;
+  year: number;
+  section: string | null;
+  label: string;
+  provider: string | null;
+  amounts: (number | null)[];
+  sort_order: number;
+}
+
+export interface Purchase {
+  id: string;
+  year: number;
+  month: number;
+  purchase_date: string | null;
+  category: string | null;
+  product: string | null;
+  amount_crc: number | null;
+  exchange_rate: number | null;
+  amount_usd: number | null;
+  quantity: number | null;
+  provider: string | null;
+  created_at?: string;
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  purchased: string | null;
+  amount_crc: number | null;
+  exchange_rate: number | null;
+  amount_usd: number | null;
+  salvage: number;
+  life_years: number | null;
+  provider: string | null;
+  active: boolean;
+  sort_order: number;
+}
+
+/** ₡5,765,352.15 */
+export function colones(n: number): string {
+  const abs = Math.abs(n);
+  const s = abs.toLocaleString("en-US", { minimumFractionDigits: abs % 1 ? 2 : 0, maximumFractionDigits: 2 });
+  return `${n < 0 ? "−" : ""}₡${s}`;
+}
+
+/** Dollars of something bought in colones (or the dollars typed). */
+export function purchaseUsd(p: Pick<Purchase, "amount_crc" | "exchange_rate" | "amount_usd">): number {
+  if (p.amount_usd != null) return num(p.amount_usd);
+  const rate = num(p.exchange_rate);
+  return rate > 0 ? num(p.amount_crc) / rate : 0;
+}
+
+export function assetUsd(a: Pick<Asset, "amount_crc" | "exchange_rate" | "amount_usd">): number {
+  return purchaseUsd(a);
+}
+/** ('Initial Expenses'!G) = (dollars − salvage) ÷ years. */
+export function assetYearly(a: Asset): number {
+  const life = num(a.life_years);
+  return life > 0 ? (assetUsd(a) - num(a.salvage)) / life : 0;
+}
+/** ('Initial Expenses'!H) = yearly ÷ 12. */
+export function assetMonthly(a: Asset): number {
+  return assetYearly(a) / 12;
+}
+/** ('Initial Expenses'!H33) = the monthly depreciation of all the equipment that counts. */
+export function equipmentMonthly(assets: Asset[]): number {
+  return assets.filter((a) => a.active).reduce((s, a) => s + assetMonthly(a), 0);
+}
+
+export function expensesCrc(items: ExpenseItem[], month: number): number {
+  return items.reduce((s, it) => s + num(it.amounts?.[month - 1]), 0);
+}
+
+export interface IncomeRow {
+  month: number;
+  hwc: number;
+  expensesCrc: number;
+  expenses: number;
+  depreciation: number;
+  depreciationIsAuto: boolean;
+  purchases: number;
+  net: number;
+  pct4: number;
+  rate: number | null;
+}
+
+/** One line of the "Income" sheet. */
+export function incomeRow(
+  month: number,
+  monthEntries: AccountingEntry[],
+  items: ExpenseItem[],
+  monthPurchases: Purchase[],
+  setting: MonthSetting | undefined,
+  assets: Asset[],
+): IncomeRow {
+  const hwc = totalsOf(monthEntries).hwc;
+  const rate = setting?.exchange_rate != null ? num(setting.exchange_rate) : null;
+  const crc = expensesCrc(items, month);
+  const expenses = rate && rate > 0 ? crc / rate : 0;
+  const depreciationIsAuto = setting?.depreciation == null;
+  const depreciation = depreciationIsAuto ? equipmentMonthly(assets) : num(setting!.depreciation);
+  const purchases = monthPurchases.reduce((s, p) => s + purchaseUsd(p), 0);
+  const net = hwc - (expenses + depreciation + purchases);
+  return { month, hwc, expensesCrc: crc, expenses, depreciation, depreciationIsAuto, purchases, net, pct4: net * 0.04, rate };
+}
+
+/**
+ * A number typed in a cell: "263953+56808", "9.99*525", "₡1,008,645", "$45".
+ * Only numbers and + − × ÷ ( ) — anything else gives null.
+ */
+export function evalAmount(input: string): number | null {
+  const s = String(input ?? "").replace(/[₡$,\s]/g, "").replace(/[−–]/g, "-").replace(/[×x]/gi, "*").replace(/÷/g, "/");
+  if (s === "") return null;
+  if (!/^[\d.+\-*/()]+$/.test(s)) return null;
+  let i = 0;
+  const peek = () => s[i];
+  const parseExpr = (): number => {
+    let v = parseTerm();
+    while (peek() === "+" || peek() === "-") { const op = s[i++]; const r = parseTerm(); v = op === "+" ? v + r : v - r; }
+    return v;
+  };
+  const parseTerm = (): number => {
+    let v = parseFactor();
+    while (peek() === "*" || peek() === "/") { const op = s[i++]; const r = parseFactor(); v = op === "*" ? v * r : v / r; }
+    return v;
+  };
+  const parseFactor = (): number => {
+    if (peek() === "-") { i++; return -parseFactor(); }
+    if (peek() === "+") { i++; return parseFactor(); }
+    if (peek() === "(") { i++; const v = parseExpr(); if (s[i++] !== ")") throw new Error("paren"); return v; }
+    const m = /^\d*\.?\d+|^\d+\.?/.exec(s.slice(i));
+    if (!m) throw new Error("number");
+    i += m[0].length;
+    return Number(m[0]);
+  };
+  try {
+    const v = parseExpr();
+    if (i !== s.length || !Number.isFinite(v)) return null;
+    return Math.round(v * 100) / 100;
+  } catch {
+    return null;
+  }
+}

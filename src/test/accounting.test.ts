@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  type AccountingEntry, entriesToCsv, hotelCommission, hotelReport, hwcAmount, isPayroll, money, normName, parseNumber,
+  type AccountingEntry, type Asset, type ExpenseItem, type Purchase, assetMonthly, assetYearly, colones, equipmentMonthly,
+  evalAmount, incomeRow, purchaseUsd, entriesToCsv, hotelCommission, hotelReport, hwcAmount, isPayroll, money, normName, parseNumber,
   therapistCommission, therapistReport, totalsOf, treatmentReport,
 } from "@/lib/accounting";
 
@@ -151,5 +152,67 @@ describe("Contabilidad lists (the Excel's dropdowns)", () => {
     expect(ui).toContain('<datalist id="acc-treatments">{options.treatment.map(');
     expect(ui).toContain('list="acc-pct"');
     expect(ui).toContain("const offList = (k: \"treatment\" | \"therapist\" | \"hotel\") =>");
+  });
+});
+
+describe("Contabilidad net profit, as the Excel's Income sheet", () => {
+  const asset = (p: Partial<Asset>): Asset => ({
+    id: "a", name: "x", purchased: null, amount_crc: null, exchange_rate: null, amount_usd: null, salvage: 0, life_years: 1,
+    provider: null, active: true, sort_order: 0, ...p,
+  });
+
+  it("equipment: (dollars − salvage) ÷ years ÷ 12 ('Initial Expenses'!G/H)", () => {
+    const hydrogen = asset({ amount_crc: 210000, amount_usd: 3500, life_years: 5 });
+    expect(assetYearly(hydrogen)).toBe(700);
+    expect(Math.round(assetMonthly(hydrogen) * 100) / 100).toBe(58.33);
+    const furniture = asset({ amount_crc: 686000, exchange_rate: 555, life_years: 3 });
+    expect(Math.round(assetMonthly(furniture) * 100) / 100).toBe(34.33);
+    expect(equipmentMonthly([hydrogen, { ...furniture, active: false }])).toBeCloseTo(58.3333, 3);
+  });
+
+  it("January 2026: HWC − expenses − depreciation − purchases = net, and 4%", () => {
+    // Expenses ₡5,765,352.15 ÷ 500 = $11,530.70; depreciation $479.06; purchases $1,799.05 (Income row 2).
+    const items: ExpenseItem[] = [{ id: "i", year: 2026, section: null, label: "Total", provider: null, sort_order: 0, amounts: [5765352.15, ...Array(11).fill(null)] }];
+    const purchases: Purchase[] = [{ id: "p", year: 2026, month: 1, purchase_date: null, category: null, product: null, amount_crc: 899523, exchange_rate: 500, amount_usd: null, quantity: null, provider: null }];
+    const entries = [row({ month: 1, cost: 20704.21 })];
+    const r = incomeRow(1, entries, items, purchases, { year: 2026, month: 1, exchange_rate: 500, depreciation: 479.06 }, []);
+    expect(Math.round(r.expenses * 100) / 100).toBe(11530.7);
+    expect(r.depreciation).toBe(479.06);
+    expect(Math.round(r.purchases * 100) / 100).toBe(1799.05);
+    expect(Math.round(r.net * 100) / 100).toBe(6895.4);
+    expect(Math.round(r.pct4 * 100) / 100).toBe(275.82);
+  });
+
+  it("depreciation: the month's own figure, else the equipment total", () => {
+    const eq = [asset({ amount_usd: 1200, life_years: 1 })]; // $100 a month
+    expect(incomeRow(10, [], [], [], { year: 2026, month: 10, exchange_rate: 440, depreciation: 399 }, eq).depreciation).toBe(399);
+    const auto = incomeRow(9, [], [], [], { year: 2026, month: 9, exchange_rate: 450, depreciation: null }, eq);
+    expect(auto.depreciation).toBe(100);
+    expect(auto.depreciationIsAuto).toBe(true);
+  });
+
+  it("purchases in dollars: colones ÷ the purchase's rate, or the dollars typed", () => {
+    expect(purchaseUsd({ amount_crc: 3350, exchange_rate: 500, amount_usd: null })).toBe(6.7);
+    expect(purchaseUsd({ amount_crc: 210000, exchange_rate: 440, amount_usd: 500 })).toBe(500);
+    expect(purchaseUsd({ amount_crc: 1000, exchange_rate: null, amount_usd: null })).toBe(0);
+  });
+
+  it("cells take sums like the Excel (=263953+56808, =9.99*525)", () => {
+    expect(evalAmount("263953+56808")).toBe(320761);
+    expect(evalAmount("9.99*525")).toBe(5244.75);
+    expect(evalAmount("₡1,008,645")).toBe(1008645);
+    expect(evalAmount("(100-20)/4")).toBe(20);
+    expect(evalAmount("o")).toBeNull();
+    expect(evalAmount("2+")).toBeNull();
+    expect(colones(5765352.15)).toBe("₡5,765,352.15");
+  });
+
+  it("the expense tables are admin-only and hold no data in the repository", () => {
+    const sql = read("supabase/migrations/20261122160000_accounting_expenses.sql");
+    for (const t of ["accounting_month_settings", "accounting_expense_items", "accounting_purchases", "accounting_assets"]) {
+      expect(sql).toContain(`'${t}'`);
+    }
+    expect(sql).toMatch(/revoke all on public\.%I from anon, authenticated/);
+    expect(sql).not.toMatch(/insert into/i);
   });
 });

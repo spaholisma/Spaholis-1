@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Copy, Download, ListChecks, Loader2, Plus, Search, Table2, Trash2 } from "lucide-react";
+import { BarChart3, Copy, Download, ListChecks, Loader2, Plus, Search, ShoppingBag, Table2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  type AccountingEntry, type AccountingListItem, MONTHS_ES, entriesToCsv, hotelCommission, hwcAmount, listIndex, money,
-  normName, parseNumber, therapistCommission, totalsOf,
+  type AccountingEntry, type AccountingListItem, type Asset, type ExpenseItem, type MonthSetting, MONTHS_ES, type Purchase,
+  entriesToCsv, hotelCommission, hwcAmount, incomeRow, listIndex, money, normName, parseNumber, therapistCommission, totalsOf,
 } from "@/lib/accounting";
 import { AccountingReports } from "@/components/admin/accounting/AccountingReports";
 import { AccountingLists } from "@/components/admin/accounting/AccountingLists";
+import { AccountingExpenses } from "@/components/admin/accounting/AccountingExpenses";
+import { AccountingPurchases } from "@/components/admin/accounting/AccountingPurchases";
+import { AccountingAssets } from "@/components/admin/accounting/AccountingAssets";
+import { AccountingIncome } from "@/components/admin/accounting/AccountingIncome";
 
 // Admin → Contabilidad. The monthly accounting sheets (they used to live in
 // Excel on OneDrive): a year → its twelve months → each month's rows, with the
@@ -21,6 +25,8 @@ import { AccountingLists } from "@/components/admin/accounting/AccountingLists";
 const sb = supabase as any;
 const SUMMARY = 0; // the "Resumen del año" tab; months are 1–12
 const LISTS = -1;  // the "Listas" view
+const EXPENSES = -2; // the year's "Gastos mensuales"
+const ASSETS = -3;   // "Equipos" (depreciation)
 
 const TEXT_FIELDS = ["client", "tl", "treatment", "location", "therapist", "hotel", "notes"] as const;
 type TextField = (typeof TEXT_FIELDS)[number];
@@ -66,9 +72,14 @@ export function AdminAccounting() {
   const [years, setYears] = useState<number[]>([]);
   const [year, setYear] = useState<number | null>(null);
   const [tab, setTab] = useState<number>(SUMMARY);
-  const [view, setView] = useState<"rows" | "reports">("rows");
+  const [view, setView] = useState<"rows" | "reports" | "purchases">("rows");
   const [entries, setEntries] = useState<AccountingEntry[]>([]);
   const [lists, setLists] = useState<AccountingListItem[]>([]);
+  // The expense side (the Excel's Monthly Expenses, purchases, Initial Expenses, Income).
+  const [settings, setSettings] = useState<MonthSetting[]>([]);
+  const [items, setItems] = useState<ExpenseItem[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -95,14 +106,30 @@ export function AdminAccounting() {
       if (error) toast.error(`Listas: ${error.message}`);
       else setLists((data ?? []) as AccountingListItem[]);
     });
+    sb.from("accounting_assets").select("*").order("sort_order").then(({ data, error }: any) => {
+      if (error) toast.error(`Equipos: ${error.message}`);
+      else setAssets((data ?? []) as Asset[]);
+    });
   }, [loadYears]);
 
   useEffect(() => {
     if (year == null) return;
     let alive = true;
     setLoading(true);
-    fetchYear(year)
-      .then((rows) => { if (alive) setEntries(rows); })
+    Promise.all([
+      fetchYear(year),
+      sb.from("accounting_month_settings").select("*").eq("year", year),
+      sb.from("accounting_expense_items").select("*").eq("year", year).order("sort_order"),
+      sb.from("accounting_purchases").select("*").eq("year", year).order("month").order("purchase_date", { ascending: true, nullsFirst: false }).order("created_at"),
+    ])
+      .then(([rows, st, it, pu]: any[]) => {
+        if (!alive) return;
+        setEntries(rows);
+        for (const r of [st, it, pu]) if (r.error) toast.error(r.error.message);
+        setSettings((st.data ?? []) as MonthSetting[]);
+        setItems((it.data ?? []) as ExpenseItem[]);
+        setPurchases((pu.data ?? []) as Purchase[]);
+      })
       .catch((e) => toast.error(e.message ?? String(e)))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -146,6 +173,24 @@ export function AdminAccounting() {
     }
     return best ? Number(best.cost) : null;
   }, [entries]);
+
+  // The month's exchange rate / its own depreciation figure ("Income" columns I and D).
+  const saveSetting = useCallback(async (month: number, patch: Partial<MonthSetting>) => {
+    if (year == null) return;
+    let before: MonthSetting | undefined;
+    setSettings((prev) => {
+      before = prev.find((s) => s.month === month);
+      const next = { year, month, exchange_rate: before?.exchange_rate ?? null, depreciation: before?.depreciation ?? null, ...patch };
+      return before ? prev.map((s) => (s.month === month ? next : s)) : [...prev, next];
+    });
+    const row = { year, month, exchange_rate: before?.exchange_rate ?? null, depreciation: before?.depreciation ?? null, ...patch };
+    const { error } = await sb.from("accounting_month_settings").upsert(row, { onConflict: "year,month" });
+    if (error) {
+      toast.error(`No se guardó: ${error.message}`);
+      const b = before;
+      setSettings((prev) => (b ? prev.map((s) => (s.month === month ? b : s)) : prev.filter((s) => s.month !== month)));
+    }
+  }, [year]);
 
   const saveRow = useCallback(async (id: string, patch: Partial<AccountingEntry>) => {
     let before: AccountingEntry | undefined;
@@ -290,7 +335,7 @@ export function AdminAccounting() {
         <>
           {/* Months — like the tabs at the bottom of the Excel */}
           <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-            {[SUMMARY, ...MONTHS_ES.map((_, i) => i + 1)].map((m) => (
+            {[SUMMARY, EXPENSES, ASSETS, ...MONTHS_ES.map((_, i) => i + 1)].map((m) => (
               <button
                 key={m}
                 type="button"
@@ -298,9 +343,10 @@ export function AdminAccounting() {
                 className={cn(
                   "shrink-0 rounded-lg px-3 py-1.5 text-sm font-body font-medium transition-colors",
                   m === tab ? "bg-spa-sage/20 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  m === ASSETS && "mr-3 relative after:absolute after:-right-2 after:top-1.5 after:bottom-1.5 after:w-px after:bg-border",
                 )}
               >
-                {m === SUMMARY ? `Resumen ${year}` : MONTHS_ES[m - 1]}
+                {m === SUMMARY ? `Resumen ${year}` : m === EXPENSES ? "Gastos mensuales" : m === ASSETS ? "Equipos" : MONTHS_ES[m - 1]}
               </button>
             ))}
           </div>
@@ -310,14 +356,26 @@ export function AdminAccounting() {
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
             </div>
           ) : tab === SUMMARY ? (
-            <YearSummary year={year} entries={entries} lists={lists} onOpenMonth={(m) => { setTab(m); setView("rows"); }} onDeleteYear={deleteYear} />
+            <YearSummary
+              year={year} entries={entries} lists={lists}
+              items={items} purchases={purchases} settings={settings} assets={assets} saveSetting={saveSetting}
+              onOpenMonth={(m) => { setTab(m); setView("rows"); }} onDeleteYear={deleteYear}
+            />
+          ) : tab === EXPENSES ? (
+            <AccountingExpenses year={year} items={items} setItems={setItems} settings={settings} saveSetting={saveSetting} />
+          ) : tab === ASSETS ? (
+            <AccountingAssets assets={assets} setAssets={setAssets} />
           ) : (
             <div className="space-y-4">
               <TotalsCards totals={totalsOf(monthAll)} />
+              <MonthNet
+                row={incomeRow(tab, monthAll, items, purchases.filter((p) => p.month === tab), settings.find((s) => s.month === tab), assets)}
+                onOpen={(v) => { if (v === "purchases") setView("purchases"); else setTab(v === "expenses" ? EXPENSES : ASSETS); }}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
-                  {([["rows", "Filas", Table2], ["reports", "Reportes", BarChart3]] as const).map(([id, label, Icon]) => (
+                  {([["rows", "Filas", Table2], ["reports", "Reportes", BarChart3], ["purchases", "Compras", ShoppingBag]] as const).map(([id, label, Icon]) => (
                     <button
                       key={id}
                       type="button"
@@ -347,7 +405,12 @@ export function AdminAccounting() {
                 )}
               </div>
 
-              {view === "reports" ? (
+              {view === "purchases" ? (
+                <AccountingPurchases
+                  year={year} month={tab} purchases={purchases} setPurchases={setPurchases} lists={lists}
+                  monthRate={(() => { const r = settings.find((s) => s.month === tab)?.exchange_rate; return r != null ? Number(r) : null; })()}
+                />
+              ) : view === "reports" ? (
                 <AccountingReports
                   entries={monthAll}
                   lists={lists}
@@ -481,15 +544,52 @@ function TotalsCards({ totals }: { totals: ReturnType<typeof totalsOf> }) {
   );
 }
 
+/** HWC − gastos − depreciación − compras = ganancia neta, for one month. */
+function MonthNet({ row, onOpen }: { row: ReturnType<typeof incomeRow>; onOpen: (v: "expenses" | "assets" | "purchases") => void }) {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const part = (label: string, value: number, v?: "expenses" | "assets" | "purchases") => (
+    <span className="inline-flex items-baseline gap-1">
+      {v ? <button type="button" onClick={() => onOpen(v)} className="text-muted-foreground hover:text-foreground hover:underline underline-offset-2">{label}</button> : <span className="text-muted-foreground">{label}</span>}
+      <span className="font-medium tabular-nums text-foreground">{money(r2(value))}</span>
+    </span>
+  );
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 font-body text-sm">
+      {part("HWC", row.hwc)}<span className="text-muted-foreground">−</span>
+      {part("Gastos mensuales", row.expenses, "expenses")}<span className="text-muted-foreground">−</span>
+      {part("Depreciación", row.depreciation, "assets")}<span className="text-muted-foreground">−</span>
+      {part("Compras", row.purchases, "purchases")}<span className="text-muted-foreground">=</span>
+      <span className="inline-flex items-baseline gap-1">
+        <span className="font-semibold text-foreground">Ganancia neta</span>
+        <span className={cn("font-heading text-base font-semibold tabular-nums", row.net < 0 ? "text-destructive" : "text-foreground")}>{money(r2(row.net))}</span>
+      </span>
+      {row.expensesCrc > 0 && !row.rate && <span className="text-xs text-amber-700">Falta el tipo de cambio de este mes (Gastos mensuales).</span>}
+    </div>
+  );
+}
+
 function YearSummary({
-  year, entries, lists, onOpenMonth, onDeleteYear,
-}: { year: number; entries: AccountingEntry[]; lists: AccountingListItem[]; onOpenMonth: (m: number) => void; onDeleteYear: () => void }) {
+  year, entries, lists, items, purchases, settings, assets, saveSetting, onOpenMonth, onDeleteYear,
+}: {
+  year: number; entries: AccountingEntry[]; lists: AccountingListItem[];
+  items: ExpenseItem[]; purchases: Purchase[]; settings: MonthSetting[]; assets: Asset[];
+  saveSetting: (month: number, patch: Partial<MonthSetting>) => void;
+  onOpenMonth: (m: number) => void; onDeleteYear: () => void;
+}) {
   const perMonth = MONTHS_ES.map((name, i) => ({ name, month: i + 1, t: totalsOf(entries.filter((e) => e.month === i + 1)) }));
   const yearTotals = totalsOf(entries);
   const th = "px-3 py-2 font-semibold border-b-2 border-r border-border last:border-r-0 whitespace-nowrap";
   const td = "px-3 py-2 border-b border-r border-border/70 last:border-r-0";
   return (
     <div className="space-y-6">
+      <div className="space-y-3">
+        <h3 className="font-heading text-lg font-medium text-foreground">Ganancia neta {year}</h3>
+        <AccountingIncome
+          year={year} entries={entries} items={items} purchases={purchases} settings={settings} assets={assets}
+          saveSetting={saveSetting} onOpenMonth={onOpenMonth}
+        />
+      </div>
+      <h3 className="font-heading text-lg font-medium text-foreground">Detalle del HWC {year}</h3>
       <TotalsCards totals={yearTotals} />
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full border-separate border-spacing-0 font-body text-sm">
