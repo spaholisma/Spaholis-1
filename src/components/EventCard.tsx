@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Play, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import type { ClassRow, ScheduleRow } from "@/hooks/useClasses";
@@ -9,10 +9,47 @@ import { formatSpaDate, formatSpaTime } from "@/lib/businessHours";
 import { RichText } from "@/components/ui/rich-text";
 import { framed } from "@/lib/imageFrame";
 import { classRequestHref } from "@/lib/classRequests";
+import { useClassVideo } from "@/lib/classVideos";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
 
 // Branded default shown whenever a class has no image (or a broken one).
 const fallbackImg = "/class-placeholder.jpg";
+
+/**
+ * "Watch video" for a class or event that has one (Admin → Edit Event → Event
+ * video): the card keeps its photo; the button opens the video large, with sound.
+ */
+export function WatchVideoButton({ classId, title }: { classId: string; title: string }) {
+  const { t } = useTranslation();
+  const url = useClassVideo(classId);
+  const [open, setOpen] = useState(false);
+  if (!url) return null;
+  return (
+    <>
+      <Button variant="ghost" size="default" className="min-w-[140px] rounded-full gap-2" onClick={() => setOpen(true)}>
+        <Play className="h-4 w-4" />
+        {t("classes.watchVideo", { defaultValue: "Watch video" })}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl p-3 pt-12 sm:p-4 sm:pt-12">
+          <DialogTitle className="sr-only">{title}</DialogTitle>
+          {/* Mounted only while open, so it starts when opened and stops when closed. */}
+          {open && (
+            <video
+              src={url}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              className="w-full max-h-[75dvh] rounded-lg bg-black"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export function EventCard({ event }: { event: ScheduleRow }) {
   const cls = event.classes;
@@ -89,7 +126,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
         )}
 
         {/* RSVP Button */}
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
           {soldOut ? (
             <span className="font-body text-sm font-semibold text-destructive">Sold Out</span>
           ) : (
@@ -97,6 +134,7 @@ export function EventCard({ event }: { event: ScheduleRow }) {
               <Link to={`/class-booking?class=${event.id}`}>RSVP</Link>
             </Button>
           )}
+          <WatchVideoButton classId={cls.id} title={cls.title} />
         </div>
       </div>
     </div>
@@ -169,10 +207,11 @@ export function RequestEventCard({ cls }: { cls: ClassRow }) {
           </p>
         )}
 
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
           <Button variant="outline" size="default" className="min-w-[140px] rounded-full" asChild>
             <Link to={classRequestHref(cls.title)}>{t("classes.requestEvent", { defaultValue: "Request" })}</Link>
           </Button>
+          <WatchVideoButton classId={cls.id} title={cls.title} />
         </div>
       </div>
     </div>

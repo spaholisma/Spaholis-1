@@ -1,6 +1,7 @@
 import { ImageFrameEditor } from "@/components/admin/ImageFrameEditor";
 import { framed } from "@/lib/imageFrame";
 import { fetchRequestClassIds, setClassOnRequest } from "@/lib/classRequests";
+import { fetchClassVideos, setClassVideo } from "@/lib/classVideos";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,16 +104,22 @@ export function AdminEventsManager() {
   // Special events offered "on request" (on the Classes page without a date).
   const [requestIds, setRequestIds] = useState<string[]>([]);
   const [onRequest, setOnRequest] = useState(false);
+  // Event video ("Watch video" on the Classes page), kept in site_content.
+  const [videoMap, setVideoMap] = useState<Record<string, string>>({});
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoUploading, setVideoUploading] = useState(false);
 
   const load = useCallback(async () => {
     // Also count the sessions ahead: an active class with none is invisible on
     // the website, because the site lists what is on the schedule.
-    const [{ data }, { data: sessions }, onRequestIds] = await Promise.all([
+    const [{ data }, { data: sessions }, onRequestIds, videos] = await Promise.all([
       supabase.from("classes").select("*").order("title"),
       supabase.from("class_schedule").select("class_id").eq("is_cancelled", false).gte("start_time", new Date().toISOString()),
       fetchRequestClassIds(),
+      fetchClassVideos(),
     ]);
     setRequestIds(onRequestIds);
+    setVideoMap(videos);
     setClasses((data as unknown as ClassRow[]) ?? []);
     const counts: Record<string, number> = {};
     for (const s of ((sessions as any[]) ?? [])) counts[s.class_id] = (counts[s.class_id] ?? 0) + 1;
@@ -178,6 +185,10 @@ export function AdminEventsManager() {
       const err = await setClassOnRequest(savedId, onRequest);
       if (err) toast.error(`"On request" was not saved: ${err}`);
     }
+    if (savedId && (videoMap[savedId] || "") !== videoUrl.trim()) {
+      const err = await setClassVideo(savedId, videoUrl.trim() || null);
+      if (err) toast.error(`The video was not saved: ${err}`);
+    }
     setEditing(null);
     load();
   };
@@ -188,6 +199,7 @@ export function AdminEventsManager() {
     const { error } = await supabase.from("classes").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     if (requestIds.includes(id)) await setClassOnRequest(id, false);
+    if (videoMap[id]) await setClassVideo(id, null);
     toast.success("Deleted");
     load();
   };
@@ -224,6 +236,25 @@ export function AdminEventsManager() {
     const { data: urlData } = supabase.storage.from("class-images").getPublicUrl(path);
     setEditing({ ...editing, image_url: urlData.publicUrl });
     setUploading(false);
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("This video is over 50 MB. Please use a shorter or smaller version (under 1 minute is ideal).");
+      return;
+    }
+    setVideoUploading(true);
+    const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+    const path = `videos/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("class-images").upload(path, file, { contentType: file.type || undefined });
+    if (error) { toast.error(error.message); setVideoUploading(false); return; }
+    const { data: urlData } = supabase.storage.from("class-images").getPublicUrl(path);
+    setVideoUrl(urlData.publicUrl);
+    setVideoUploading(false);
+    toast.success("Video uploaded — click Save to publish it");
   };
 
   if (scheduling) {
@@ -330,6 +361,32 @@ export function AdminEventsManager() {
               onChange={(e) => setEditing({ ...editing, image_url: e.target.value || null })}
               className="flex-1 min-w-[240px]"
             />
+          </div>
+        </div>
+
+        <div>
+          <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Event video (optional)</label>
+          <p className="font-body text-xs text-muted-foreground mb-2">
+            Adds a “Watch video” button on the Classes page; the photo stays. MP4 plays on every phone and computer (iPhone .mov may not play on Android). Under 1 minute and 50 MB.
+          </p>
+          {videoUrl && (
+            <video src={videoUrl} controls playsInline preload="metadata" className="mb-2 w-full max-w-sm rounded-lg bg-black" />
+          )}
+          <div className="flex flex-wrap gap-2 items-center">
+            <label className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg cursor-pointer text-sm font-body font-medium text-foreground hover:bg-muted/70 transition-colors">
+              <Upload className="h-4 w-4" />
+              {videoUploading ? "Uploading..." : "Upload Video"}
+              <input type="file" accept="video/mp4,video/quicktime,video/webm,video/*" onChange={handleVideoUpload} disabled={videoUploading} className="hidden" />
+            </label>
+            <Input
+              placeholder="…or paste a video URL (.mp4)"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="flex-1 min-w-[240px]"
+            />
+            {videoUrl && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setVideoUrl("")}>Remove video</Button>
+            )}
           </div>
         </div>
 
@@ -542,7 +599,7 @@ export function AdminEventsManager() {
     <div className="bg-card rounded-2xl border border-border">
       <div className="p-5 border-b border-border flex items-center justify-between">
         <h3 className="font-heading text-lg font-medium text-foreground">Manage Events & Classes</h3>
-        <Button variant="default" size="sm" onClick={() => { setEditing({ ...emptyClass }); setOnRequest(false); }}>
+        <Button variant="default" size="sm" onClick={() => { setEditing({ ...emptyClass }); setOnRequest(false); setVideoUrl(""); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Event
         </Button>
       </div>
@@ -601,7 +658,7 @@ export function AdminEventsManager() {
             >
               <CalendarPlus className="h-4 w-4 text-muted-foreground" />
             </button>
-            <button onClick={() => { setEditing(c); setOnRequest(requestIds.includes(c.id)); }} className="p-2 hover:bg-muted rounded-lg" title="Edit">
+            <button onClick={() => { setEditing(c); setOnRequest(requestIds.includes(c.id)); setVideoUrl(videoMap[c.id] || ""); }} className="p-2 hover:bg-muted rounded-lg" title="Edit">
               <Pencil className="h-4 w-4 text-muted-foreground" />
             </button>
             <button onClick={() => handleDelete(c.id)} className="p-2 hover:bg-destructive/10 rounded-lg" title="Delete">
