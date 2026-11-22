@@ -133,7 +133,7 @@ export function AccountingExpenses({
         <table className="w-full border-separate border-spacing-0 font-body text-sm">
           <thead className="sticky top-0 z-20">
             <tr className="text-[11px] uppercase tracking-wider text-muted-foreground bg-muted">
-              <th className={cn(TH, stickyName, "z-30 bg-muted min-w-[260px]")}>Concepto</th>
+              <th className={cn(TH, stickyName, "z-30 bg-muted min-w-[340px]")}>Concepto</th>
               <th className={cn(TH, "bg-muted min-w-[140px]")}>Proveedor</th>
               {months.map((m) => (
                 <th key={m} className={cn(TH, "bg-muted min-w-[120px] text-right")}>
