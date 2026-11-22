@@ -28,7 +28,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
 ];
 
 /** Links that are not in any section, always shown on their own at the top. */
-export const TOP_LEVEL = ["overview"];
+export const TOP_LEVEL = ["overview", "accounting"];
 
 const OTHER: Omit<SidebarGroup, "items"> = { id: "other", label: "More", icon: Settings };
 

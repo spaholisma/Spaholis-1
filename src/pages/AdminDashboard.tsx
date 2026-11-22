@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Calendar, Briefcase, UserCircle, Settings, Menu, X,
   TrendingUp, Gift, Tag, CalendarDays, GraduationCap, CreditCard, ShieldAlert, DoorOpen, FileEdit, Heart, Package, Sparkles, BookOpen, Image, HelpCircle, Clock, ArrowLeft, Mail, Trash2, Palmtree, Tent, Receipt, ClipboardList, Paintbrush,
-  GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw, ChevronDown, Search,
+  GripVertical, Eye, EyeOff, SlidersHorizontal, RotateCcw, ChevronDown, Search, Calculator,
 } from "lucide-react";
 import { groupIdOf, groupLinks, matchesLink } from "@/components/admin/adminSidebarGroups";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ import { ClientsDirectory } from "@/components/admin/clients/ClientsDirectory";
 import { AdminCouponsManager } from "@/components/admin/AdminCouponsManager";
 import { AdminLoyaltyManager } from "@/components/admin/AdminLoyaltyManager";
 import { AdminClassFinances } from "@/components/admin/AdminClassFinances";
+import { AdminAccounting } from "@/components/admin/AdminAccounting";
 import { AdminSettingsManager } from "@/components/admin/AdminSettingsManager";
 import { AdminRoomsManager } from "@/components/admin/AdminRoomsManager";
 import { AdminContentEditor } from "@/components/admin/AdminContentEditor";
@@ -55,6 +56,7 @@ import { format } from "date-fns";
 
 const sidebarLinks = [
   { label: "Dashboard", icon: LayoutDashboard, id: "overview" },
+  { label: "Contabilidad", icon: Calculator, id: "accounting" },
   { label: "Menu / Navigation", icon: Menu, id: "navigation" },
   { label: "Appointments", icon: Calendar, id: "appointments" },
   { label: "Trash", icon: Trash2, id: "trash" },
@@ -417,6 +419,7 @@ const AdminDashboard = () => {
           {activeTab === "giftcards" && <AdminGiftCardsManager />}
           {activeTab === "loyalty" && <AdminLoyaltyManager />}
           {activeTab === "class-finances" && <AdminClassFinances />}
+          {activeTab === "accounting" && canRender("accounting") && <AdminAccounting />}
           {activeTab === "coupons" && <AdminCouponsManager />}
           {activeTab === "rooms" && <AdminRoomsManager />}
           {activeTab === "calendars" && canRender("calendars") && <AdminInternalCalendars restrictToTreatment={isCoordinator || isViewer} readOnly={isViewer} />}
