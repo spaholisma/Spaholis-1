@@ -32,7 +32,7 @@ export function buildEntryFilter(term: string): string {
 }
 
 /** Same idea for the website bookings shown on the Treatments calendar. */
-export const BOOKING_FIELDS = ["title", "guest_name", "guest_email", "notes"] as const;
+export const BOOKING_FIELDS = ["title", "guest_name", "guest_email", "notes", "booked_by", "confirmed_by", "commission_to"] as const;
 
 export function buildBookingFilter(term: string): string {
   const t = sanitizeTerm(term);

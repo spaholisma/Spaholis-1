@@ -59,3 +59,32 @@ describe("Calendar entry: booking details in their own fields", () => {
     expect(ui).toMatch(/if \(!o && bookingReturnDay\) \{ setDayViewDate\(bookingReturnDay\); setBookingReturnDay\(null\); \}/);
   });
 });
+
+describe("Edit Booking: the same booking details", () => {
+  const modal = read("src/components/admin/calendar/BookingEditModal.tsx");
+  const sql = read("supabase/migrations/20261123140000_booking_staff_details.sql");
+
+  it("shows Reservó, Confirmó, Comisiona and the link under the notes", () => {
+    expect(modal).toContain("Detalles de la reserva");
+    for (const k of ["booked_by", "confirmed_by", "commission_to", "link_label", "link_url"]) {
+      expect(modal).toContain(`setDetail("${k}")`);
+    }
+    expect(modal.indexOf("Description / Notes")).toBeLessThan(modal.indexOf("Detalles de la reserva"));
+  });
+
+  it("reads them from the booking itself, and never blanks them before they are read", () => {
+    expect(modal).toContain("cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label");
+    expect(modal).toMatch(/\.\.\.\(detailsLoaded\s*\? \(\{\s*booked_by:/);
+  });
+
+  it("the migration adds nullable columns, keeps guests out of them, and duplicate copies them", () => {
+    for (const c of ["booked_by", "confirmed_by", "commission_to", "link_url", "link_label"]) {
+      expect(sql).toContain(`add column if not exists ${c} text`);
+      expect(sql).toContain(`new.${c} := null;`);
+      expect(sql).toContain(`v_src.${c}`);
+    }
+    expect(sql).toContain("before insert on public.bookings");
+    expect(sql).toContain("check (link_url is null or link_url ~* '^https?://')");
+    expect(sql).not.toMatch(/not null|drop column|delete from|update public/i);
+  });
+});

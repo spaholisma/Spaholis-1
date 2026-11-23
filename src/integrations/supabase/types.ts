@@ -459,6 +459,11 @@ export type Database = {
           booking_date: string
           booking_time: string
           blocks_availability: boolean
+          booked_by: string | null
+          commission_to: string | null
+          confirmed_by: string | null
+          link_label: string | null
+          link_url: string | null
           card_authorization: Json | null
           coupon_code: string | null
           created_at: string
@@ -489,6 +494,11 @@ export type Database = {
           booking_date: string
           booking_time: string
           blocks_availability?: boolean
+          booked_by?: string | null
+          commission_to?: string | null
+          confirmed_by?: string | null
+          link_label?: string | null
+          link_url?: string | null
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string
@@ -519,6 +529,11 @@ export type Database = {
           booking_date?: string
           booking_time?: string
           blocks_availability?: boolean
+          booked_by?: string | null
+          commission_to?: string | null
+          confirmed_by?: string | null
+          link_label?: string | null
+          link_url?: string | null
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string

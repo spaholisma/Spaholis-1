@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy, Ban } from "lucide-react";
+import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy, Ban, Link2 as LinkIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarBooking } from "./calendarUtils";
+import { normalizeLinkInput, sanitizeLinkLabel } from "../LinkifiedText";
 import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
 import { spaLocalToInstant, spaLocalParts } from "@/lib/businessHours";
 // Two decimals, like the cancellation email reception will get: $65.50, not $66.
@@ -208,6 +209,17 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   const [feeTouched, setFeeTouched] = useState(false);
   const [requestedAt, setRequestedAt] = useState<string>("");
   const [tab, setTab] = useState("details");
+  // Booking details, each in its own field (who booked, confirmed, commission,
+  // link). Loaded here from the booking itself, whoever opened the modal; until
+  // they are loaded, Save leaves them untouched.
+  const emptyDetails = { booked_by: "", confirmed_by: "", commission_to: "", link_url: "", link_label: "" };
+  const [details, setDetails] = useState(emptyDetails);
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
+  const setDetail = (k: keyof typeof emptyDetails) => (e: { target: { value: string } }) =>
+    setDetails((d) => ({ ...d, [k]: e.target.value }));
+  const [suggest, setSuggest] = useState<Record<"booked_by" | "confirmed_by" | "commission_to" | "link_label", string[]>>({
+    booked_by: [], confirmed_by: [], commission_to: [], link_label: [],
+  });
   const cancelPanelRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
@@ -239,20 +251,30 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     setFeeTouched(false);
     setRequestedAt("");
     setTab("details");
+    setDetails(emptyDetails);
+    setDetailsLoaded(false);
     if (!booking) return;
+    const fill = (row: any) => {
+      setDetails({
+        booked_by: row?.booked_by ?? "", confirmed_by: row?.confirmed_by ?? "", commission_to: row?.commission_to ?? "",
+        link_url: row?.link_url ?? "", link_label: row?.link_label ?? "",
+      });
+      setDetailsLoaded(!!row);
+    };
     // A viewer cannot read the bookings table; the calendar hands over the
     // whole row from get_treatment_booking_detail instead.
-    if (detail) { setTiming(detail as any); return; }
+    if (detail) { setTiming(detail as any); fill(detail); return; }
     // The calendar loads bookings through several different queries; asking
     // for these few columns here keeps every one of them working unchanged.
     supabase
       .from("bookings")
-      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at" as any)
+      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label" as any)
       .eq("id", booking.id)
       .maybeSingle()
       .then(({ data }) => {
         const t = (data as any) ?? null;
         setTiming(t);
+        fill(t);
         if (t?.cancellation_fee_percent != null) {
           setFeePercent(String(t.cancellation_fee_percent));
           setFeeTouched(true);
@@ -281,6 +303,23 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     setTab("details");
     requestAnimationFrame(() => cancelPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
+
+  useEffect(() => {
+    if (!open || readOnly) return;
+    const cols = "booked_by, confirmed_by, commission_to, link_label";
+    Promise.all([
+      supabase.from("bookings").select(cols as any).or("booked_by.not.is.null,confirmed_by.not.is.null,commission_to.not.is.null,link_label.not.is.null").order("created_at", { ascending: false }).limit(300),
+      supabase.from("admin_calendar_entries").select(cols as any).or("booked_by.not.is.null,confirmed_by.not.is.null,commission_to.not.is.null,link_label.not.is.null").order("created_at", { ascending: false }).limit(300),
+    ]).then((res) => {
+      const rows = res.flatMap((r) => ((r.data as any[]) ?? []));
+      const used = (k: string) => {
+        const seen = new Map<string, string>();
+        for (const r of rows) { const v = String(r[k] ?? "").trim(); if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v); }
+        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+      };
+      setSuggest({ booked_by: used("booked_by"), confirmed_by: used("confirmed_by"), commission_to: used("commission_to"), link_label: used("link_label") });
+    });
+  }, [open, readOnly]);
 
   useEffect(() => {
     setCard(null);
@@ -354,6 +393,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
       toast.error("Choose the cancellation fee: 50%, 100% or no charge.");
       return;
     }
+    const detailLink = details.link_url.trim() ? normalizeLinkInput(details.link_url) : null;
+    if (details.link_url.trim() && !detailLink) {
+      toast.error("Link: escribe una dirección web válida (https://…)");
+      return;
+    }
     const requestInstant = fromSpaInput(requestedAt);
     if (cancelling && (!requestInstant || requestInstant.getTime() > Date.now() + 5 * 60_000)) {
       toast.error("Enter when the cancellation request was received — it cannot be in the future.");
@@ -393,6 +437,16 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         group_id: form.group_id || null,
         start_time,
         end_time,
+        // Booking details — only once they were read, so a slow load can never blank them.
+        ...(detailsLoaded
+          ? ({
+              booked_by: details.booked_by.trim() || null,
+              confirmed_by: details.confirmed_by.trim() || null,
+              commission_to: details.commission_to.trim() || null,
+              link_url: detailLink,
+              link_label: detailLink ? (sanitizeLinkLabel(details.link_label) || null) : null,
+            } as any)
+          : {}),
         // Saved with the status change, so the cancellation email the database
         // sends on that change already knows what to tell the guest. (Cast: the
         // generated types predate the column.)
@@ -482,6 +536,49 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                   placeholder="Add descriptive text about this booking…"
                   className="min-h-[64px] text-sm"
                 />
+              </div>
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Detalles de la reserva</p>
+                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Cliente, servicio y precio están más abajo.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Reservó (quién / por dónde)</Label>
+                    <Input value={details.booked_by} onChange={setDetail("booked_by")} placeholder="ej. WhatsApp Peter" list="bk-booked-by" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Confirmó</Label>
+                    <Input value={details.confirmed_by} onChange={setDetail("confirmed_by")} placeholder="ej. Mario / Maryeling" list="bk-confirmed-by" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Comisiona</Label>
+                    <Input value={details.commission_to} onChange={setDetail("commission_to")} placeholder="ej. Recepción" list="bk-commission" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nombre del link</Label>
+                    <Input value={details.link_label} onChange={setDetail("link_label")} placeholder="ej. Link CC" list="bk-link-labels" className="h-9 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Link</Label>
+                    <div className="flex items-center gap-1">
+                      <Input value={details.link_url} onChange={setDetail("link_url")} placeholder="https://…" inputMode="url" className="h-9 text-sm" />
+                      {normalizeLinkInput(details.link_url) && (
+                        <Button asChild type="button" variant="outline" size="sm" className="h-9 shrink-0 text-xs">
+                          <a href={normalizeLinkInput(details.link_url)!} target="_blank" rel="noopener noreferrer">
+                            <LinkIcon className="h-3.5 w-3.5 mr-1" /> Abrir
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <datalist id="bk-booked-by">{suggest.booked_by.map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="bk-confirmed-by">{suggest.confirmed_by.map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="bk-commission">{suggest.commission_to.map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="bk-link-labels">{suggest.link_label.map((v) => <option key={v} value={v} />)}</datalist>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
