@@ -460,6 +460,7 @@ export type Database = {
           booking_time: string
           blocks_availability: boolean
           booked_by: string | null
+          charge_amount: number | null
           commission_to: string | null
           confirmed_by: string | null
           link_label: string | null
@@ -495,6 +496,7 @@ export type Database = {
           booking_time: string
           blocks_availability?: boolean
           booked_by?: string | null
+          charge_amount?: number | null
           commission_to?: string | null
           confirmed_by?: string | null
           link_label?: string | null
@@ -530,6 +532,7 @@ export type Database = {
           booking_time?: string
           blocks_availability?: boolean
           booked_by?: string | null
+          charge_amount?: number | null
           commission_to?: string | null
           confirmed_by?: string | null
           link_label?: string | null

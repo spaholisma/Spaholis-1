@@ -19,7 +19,7 @@ import { PushNotificationsButton } from "./PushNotificationsButton";
 import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
 import { BookingEditModal } from "./calendar/BookingEditModal";
-import type { CalendarBooking } from "./calendar/calendarUtils";
+import { parseCharge, type CalendarBooking } from "./calendar/calendarUtils";
 import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, normalizeLinkInput, sanitizeLinkLabel, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarSearch } from "./calendar/CalendarSearch";
@@ -310,16 +310,7 @@ const emptyForm = {
   recurrence_until: "",
 };
 
-/**
- * "Cobrar" as typed: "262", "$262", "1,262.50". Empty → null; anything that
- * isn't an amount → undefined (so the form can say so instead of guessing).
- */
-export function parseCharge(raw: string): number | null | undefined {
-  const t = String(raw ?? "").replace(/[$\s,]/g, "");
-  if (!t) return null;
-  if (!/^\d+(\.\d{1,2})?$/.test(t)) return undefined;
-  return Number(t);
-}
+export { parseCharge };
 
 /** The booking details of an entry as one short line, for lists and cards. */
 export function bookingDetailsLine(e: Partial<CalendarEntry>): string {

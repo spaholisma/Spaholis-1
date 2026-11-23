@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarDays, ClipboardList, Pencil, Trash2, CreditCard, Eye, EyeOff, Copy, Ban, Link2 as LinkIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { CalendarBooking } from "./calendarUtils";
+import { parseCharge, type CalendarBooking } from "./calendarUtils";
 import { normalizeLinkInput, sanitizeLinkLabel } from "../LinkifiedText";
 import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
 import { spaLocalToInstant, spaLocalParts } from "@/lib/businessHours";
@@ -212,7 +212,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   // Booking details, each in its own field (who booked, confirmed, commission,
   // link). Loaded here from the booking itself, whoever opened the modal; until
   // they are loaded, Save leaves them untouched.
-  const emptyDetails = { booked_by: "", confirmed_by: "", commission_to: "", link_url: "", link_label: "" };
+  const emptyDetails = { charge_amount: "", booked_by: "", confirmed_by: "", commission_to: "", link_url: "", link_label: "" };
   const [details, setDetails] = useState(emptyDetails);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
   const setDetail = (k: keyof typeof emptyDetails) => (e: { target: { value: string } }) =>
@@ -256,6 +256,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     if (!booking) return;
     const fill = (row: any) => {
       setDetails({
+        charge_amount: row?.charge_amount != null ? String(row.charge_amount) : "",
         booked_by: row?.booked_by ?? "", confirmed_by: row?.confirmed_by ?? "", commission_to: row?.commission_to ?? "",
         link_url: row?.link_url ?? "", link_label: row?.link_label ?? "",
       });
@@ -268,7 +269,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     // for these few columns here keeps every one of them working unchanged.
     supabase
       .from("bookings")
-      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label" as any)
+      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label, charge_amount" as any)
       .eq("id", booking.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -393,6 +394,11 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
       toast.error("Choose the cancellation fee: 50%, 100% or no charge.");
       return;
     }
+    const charge = parseCharge(details.charge_amount);
+    if (charge === undefined) {
+      toast.error("Cobrar: escribe solo el monto, por ejemplo 131 o 131.50");
+      return;
+    }
     const detailLink = details.link_url.trim() ? normalizeLinkInput(details.link_url) : null;
     if (details.link_url.trim() && !detailLink) {
       toast.error("Link: escribe una dirección web válida (https://…)");
@@ -440,6 +446,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         // Booking details — only once they were read, so a slow load can never blank them.
         ...(detailsLoaded
           ? ({
+              charge_amount: charge,
               booked_by: details.booked_by.trim() || null,
               confirmed_by: details.confirmed_by.trim() || null,
               commission_to: details.commission_to.trim() || null,
@@ -540,9 +547,13 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
                 <div>
                   <p className="text-sm font-medium">Detalles de la reserva</p>
-                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Cliente, servicio y precio están más abajo.</p>
+                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Cliente, servicio y precio están más abajo; Cobrar es lo que falta cobrarle, si no es el precio completo.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Cobrar ($)</Label>
+                    <Input value={details.charge_amount} onChange={setDetail("charge_amount")} placeholder="ej. 131" inputMode="decimal" className="h-9 text-sm" />
+                  </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Reservó (quién / por dónde)</Label>
                     <Input value={details.booked_by} onChange={setDetail("booked_by")} placeholder="ej. WhatsApp Peter" list="bk-booked-by" className="h-9 text-sm" />
@@ -555,7 +566,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                     <Label className="text-xs">Comisiona</Label>
                     <Input value={details.commission_to} onChange={setDetail("commission_to")} placeholder="ej. Recepción" list="bk-commission" className="h-9 text-sm" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 col-span-2">
                     <Label className="text-xs">Nombre del link</Label>
                     <Input value={details.link_label} onChange={setDetail("link_label")} placeholder="ej. Link CC" list="bk-link-labels" className="h-9 text-sm" />
                   </div>

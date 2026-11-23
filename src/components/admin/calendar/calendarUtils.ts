@@ -54,3 +54,14 @@ export function bookingToPosition(booking: CalendarBooking, hourStart: number) {
   const heightMinutes = booking.duration_minutes || 60;
   return { top: topMinutes, height: heightMinutes };
 }
+
+/**
+ * "Cobrar" as typed: "262", "$262", "1,262.50". Empty → null; anything that
+ * isn't an amount → undefined (so the form can say so instead of guessing).
+ */
+export function parseCharge(raw: string): number | null | undefined {
+  const t = String(raw ?? "").replace(/[$\s,]/g, "");
+  if (!t) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return undefined;
+  return Number(t);
+}

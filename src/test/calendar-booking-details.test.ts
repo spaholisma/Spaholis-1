@@ -74,7 +74,8 @@ describe("Edit Booking: the same booking details", () => {
 
   it("reads them from the booking itself, and never blanks them before they are read", () => {
     expect(modal).toContain("cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label");
-    expect(modal).toMatch(/\.\.\.\(detailsLoaded\s*\? \(\{\s*booked_by:/);
+    expect(modal).toContain("charge_amount: row?.charge_amount != null ? String(row.charge_amount) : \"\"");
+    expect(modal).toMatch(/\.\.\.\(detailsLoaded\s*\? \(\{\s*(charge_amount: charge,\s*)?booked_by:/);
   });
 
   it("the migration adds nullable columns, keeps guests out of them, and duplicate copies them", () => {
@@ -86,5 +87,23 @@ describe("Edit Booking: the same booking details", () => {
     expect(sql).toContain("before insert on public.bookings");
     expect(sql).toContain("check (link_url is null or link_url ~* '^https?://')");
     expect(sql).not.toMatch(/not null|drop column|delete from|update public/i);
+  });
+
+  it("has Cobrar too: read, checked and saved like the entry form's", () => {
+    expect(modal).toContain(`setDetail("charge_amount")`);
+    expect(modal).toContain("link_url, link_label, charge_amount\" as any)");
+    expect(modal).toContain("const charge = parseCharge(details.charge_amount);");
+    expect(modal).toMatch(/\.\.\.\(detailsLoaded\s*\? \(\{\s*charge_amount: charge,/);
+    const charge = read("supabase/migrations/20261123160000_booking_charge_amount.sql");
+    expect(charge).toContain("add column if not exists charge_amount numeric(10, 2)");
+    expect(charge).toContain("check (charge_amount is null or charge_amount >= 0)");
+    expect(charge).toContain("new.charge_amount := null;");
+    expect(charge).toContain("v_src.charge_amount");
+    // The guard still drops every other team field as before.
+    for (const c of ["booked_by", "confirmed_by", "commission_to", "link_url", "link_label"]) {
+      expect(charge).toContain(`new.${c} := null;`);
+      expect(charge).toContain(`v_src.${c}`);
+    }
+    expect(charge).not.toMatch(/not null|drop column|delete from|update public/i);
   });
 });
