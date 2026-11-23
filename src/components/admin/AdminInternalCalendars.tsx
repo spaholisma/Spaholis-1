@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy, Link2 as LinkIcon } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Copy, Link2 as LinkIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, addDays, startOfWeek, endOfWeek, isSameMonth, isSameDay, parseISO, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -312,6 +312,42 @@ const emptyForm = {
 
 export { parseCharge };
 
+/**
+ * A box of the entry form that opens and closes, so the form stays short.
+ * Closed, it still shows a one-line summary of what is inside.
+ */
+function FoldSection({
+  title, summary, open, onToggle, children,
+}: { title: string; summary?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 p-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">{title}</span>
+          {!open && <span className="block truncate text-xs text-muted-foreground">{summary || "Vacío — toca para abrir"}</span>}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && <div className="space-y-3 px-3 pb-3">{children}</div>}
+    </div>
+  );
+}
+
+/** What the Client notifications box will send, in one line. */
+export function notificationsLine(f: { client_email: string; client_reminder_hours: string; client_review: boolean }): string {
+  const parts: string[] = [];
+  if (f.client_email.trim()) parts.push(f.client_email.trim());
+  const h = Number(f.client_reminder_hours);
+  if (f.client_reminder_hours && h) parts.push(h % 24 === 0 ? `Recordatorio ${h / 24} día${h === 24 ? "" : "s"} antes` : `Recordatorio ${h} h antes`);
+  if (f.client_review) parts.push("Pide reseña");
+  return parts.join(" · ");
+}
+
 /** The booking details of an entry as one short line, for lists and cards. */
 export function bookingDetailsLine(e: Partial<CalendarEntry>): string {
   const parts: string[] = [];
@@ -368,6 +404,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   // Forces the Reminder select to stay on "Custom…" even when the typed
   // amount happens to equal a preset (e.g. 60 min).
   const [reminderCustom, setReminderCustom] = useState(false);
+  // "Detalles de la reserva" and "Client notifications" open on demand.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
@@ -745,6 +784,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     });
     setCreatingGroup(false);
     setReminderCustom(false);
+    setDetailsOpen(false);
+    setNotifyOpen(false);
     setModalOpen(true);
   };
 
@@ -783,6 +824,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     setEditScope("one");
     setCreatingGroup(false);
     setReminderCustom(false);
+    setDetailsOpen(false);
+    setNotifyOpen(false);
     setModalOpen(true);
   };
 
@@ -808,9 +851,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       return;
     }
     const charge = parseCharge(form.charge_amount);
-    if (charge === undefined) { toast.error("Cobrar: escribe solo el monto, por ejemplo 262 o 262.50"); return; }
+    if (charge === undefined) { setDetailsOpen(true); toast.error("Cobrar: escribe solo el monto, por ejemplo 262 o 262.50"); return; }
     const detailLink = form.link_url.trim() ? normalizeLinkInput(form.link_url) : null;
-    if (form.link_url.trim() && !detailLink) { toast.error("Link: escribe una dirección web válida (https://…)"); return; }
+    if (form.link_url.trim() && !detailLink) { setDetailsOpen(true); toast.error("Link: escribe una dirección web válida (https://…)"); return; }
     setSaving(true);
 
     const hours = Math.floor(form.duration_minutes / 60);
@@ -2084,11 +2127,13 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               </div>
             )}
             {!form.is_all_day && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
-                <div>
-                  <p className="text-sm font-medium">Detalles de la reserva</p>
-                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Todos son opcionales.</p>
-                </div>
+              <FoldSection
+                title="Detalles de la reserva"
+                summary={bookingDetailsLine({ client_name: form.client_name, treatment_label: form.treatment_label, charge_amount: parseCharge(form.charge_amount) ?? null, booked_by: form.booked_by, confirmed_by: form.confirmed_by, commission_to: form.commission_to })}
+                open={detailsOpen}
+                onToggle={() => setDetailsOpen((o) => !o)}
+              >
+                <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Todos son opcionales.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Cliente</Label>
@@ -2191,12 +2236,16 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 <datalist id="cal-confirmed-by">{usedValues(entries, "confirmed_by").map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="cal-commission">{usedValues(entries, "commission_to").map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="cal-link-labels">{usedValues(entries, "link_label").map((v) => <option key={v} value={v} />)}</datalist>
-              </div>
+              </FoldSection>
             )}
 
             {!form.is_all_day && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
-                <p className="text-sm font-medium">Client notifications</p>
+              <FoldSection
+                title="Client notifications"
+                summary={notificationsLine(form)}
+                open={notifyOpen}
+                onToggle={() => setNotifyOpen((o) => !o)}
+              >
                 <div className="space-y-1">
                   <Label className="text-xs">Client email</Label>
                   <Input
@@ -2234,7 +2283,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   Emails go to the client's address (needs a valid email). Edit the wording in{" "}
                   <strong>Client Emails → Appointment reminders &amp; reviews</strong>. The review sends ~5&nbsp;min after the appointment ends.
                 </p>
-              </div>
+              </FoldSection>
             )}
 
             <div className="space-y-1.5">

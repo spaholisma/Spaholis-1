@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { bookingDetailsLine, parseCharge } from "@/components/admin/AdminInternalCalendars";
+import { bookingDetailsLine, notificationsLine, parseCharge } from "@/components/admin/AdminInternalCalendars";
 import { describeMatch } from "@/components/admin/calendar/searchCalendar";
 
 const read = (p: string) => readFileSync(p, "utf8").replace(/\r\n/g, "\n");
@@ -50,7 +50,23 @@ describe("Calendar entry: booking details in their own fields", () => {
     }
     // The name is asked once (in the details), not again in Client notifications.
     expect(ui.match(/onChange=\{\(e\) => setForm\(\{ \.\.\.form, client_name: e\.target\.value \}\)\}/g)).toHaveLength(1);
-    expect(ui.indexOf("Detalles de la reserva")).toBeLessThan(ui.indexOf("Client notifications</p>"));
+    expect(ui.indexOf('title="Detalles de la reserva"')).toBeLessThan(ui.indexOf('title="Client notifications"'));
+  });
+
+  it("both boxes open and close, start closed, and show a summary while closed", () => {
+    const ui = read("src/components/admin/AdminInternalCalendars.tsx");
+    expect(ui).toMatch(/<FoldSection\s+title="Detalles de la reserva"[\s\S]*?open=\{detailsOpen\}/);
+    expect(ui).toMatch(/<FoldSection\s+title="Client notifications"[\s\S]*?open=\{notifyOpen\}/);
+    // Every way the form opens (new / edit) starts them closed.
+    expect(ui.match(/setDetailsOpen\(false\);\n\s*setNotifyOpen\(false\);/g)).toHaveLength(2);
+    // A wrong Cobrar or link opens the box, so the field is in sight.
+    expect(ui).toContain('setDetailsOpen(true); toast.error("Cobrar:');
+    expect(ui).toContain('setDetailsOpen(true); toast.error("Link:');
+    expect(notificationsLine({ client_email: " ana@x.com ", client_reminder_hours: "24", client_review: true }))
+      .toBe("ana@x.com · Recordatorio 1 día antes · Pide reseña");
+    expect(notificationsLine({ client_email: "", client_reminder_hours: "48", client_review: false })).toBe("Recordatorio 2 días antes");
+    expect(notificationsLine({ client_email: "", client_reminder_hours: "2", client_review: false })).toBe("Recordatorio 2 h antes");
+    expect(notificationsLine({ client_email: "", client_reminder_hours: "", client_review: false })).toBe("");
   });
 
   it("closing a website booking opened from the day pop-up goes back to that day", () => {
