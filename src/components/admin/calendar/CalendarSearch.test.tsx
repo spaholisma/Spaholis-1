@@ -69,7 +69,8 @@ describe("what gets sent to the database", () => {
 
   it("searches the fields a person would expect", () => {
     expect(buildEntryFilter("gyro")).toBe(
-      "title.ilike.%gyro%,notes.ilike.%gyro%,client_name.ilike.%gyro%,offsite_location.ilike.%gyro%",
+      "title.ilike.%gyro%,notes.ilike.%gyro%,client_name.ilike.%gyro%,offsite_location.ilike.%gyro%,"
+      + "treatment_label.ilike.%gyro%,booked_by.ilike.%gyro%,confirmed_by.ilike.%gyro%,commission_to.ilike.%gyro%,link_label.ilike.%gyro%",
     );
     expect(buildBookingFilter("ana")).toContain("guest_name.ilike.%ana%");
   });

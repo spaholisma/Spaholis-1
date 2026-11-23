@@ -37,6 +37,13 @@ export type Database = {
           therapist_count: number | null
           therapist_shifts: Json | null
           client_name: string | null
+          booked_by: string | null
+          charge_amount: number | null
+          commission_to: string | null
+          confirmed_by: string | null
+          link_label: string | null
+          link_url: string | null
+          treatment_label: string | null
           client_email: string | null
           client_reminder_hours: number | null
           client_reminder_sent_at: string | null
@@ -70,6 +77,13 @@ export type Database = {
           therapist_count?: number | null
           therapist_shifts?: Json | null
           client_name?: string | null
+          booked_by?: string | null
+          charge_amount?: number | null
+          commission_to?: string | null
+          confirmed_by?: string | null
+          link_label?: string | null
+          link_url?: string | null
+          treatment_label?: string | null
           client_email?: string | null
           client_reminder_hours?: number | null
           client_reminder_sent_at?: string | null
@@ -103,6 +117,13 @@ export type Database = {
           therapist_count?: number | null
           therapist_shifts?: Json | null
           client_name?: string | null
+          booked_by?: string | null
+          charge_amount?: number | null
+          commission_to?: string | null
+          confirmed_by?: string | null
+          link_label?: string | null
+          link_url?: string | null
+          treatment_label?: string | null
           client_email?: string | null
           client_reminder_hours?: number | null
           client_reminder_sent_at?: string | null

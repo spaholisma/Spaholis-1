@@ -19,7 +19,11 @@ export function sanitizeTerm(raw: string): string {
 }
 
 /** Fields worth searching on a hand-made entry. */
-export const ENTRY_FIELDS = ["title", "notes", "client_name", "offsite_location"] as const;
+export const ENTRY_FIELDS = [
+  "title", "notes", "client_name", "offsite_location",
+  // Booking details (each its own field).
+  "treatment_label", "booked_by", "confirmed_by", "commission_to", "link_label",
+] as const;
 
 /** The PostgREST `or` filter for a term across those fields. */
 export function buildEntryFilter(term: string): string {
@@ -52,6 +56,11 @@ const LABELS: Record<string, string> = {
   notes: "Notes",
   client_name: "Client",
   offsite_location: "Location",
+  treatment_label: "Tratamiento",
+  booked_by: "Reservó",
+  confirmed_by: "Confirmó",
+  commission_to: "Comisiona",
+  link_label: "Link",
   guest_name: "Client",
   guest_email: "Email",
 };
@@ -67,6 +76,11 @@ export function describeMatch(entry: CalendarEntry, term: string): { field: stri
     ["client_name", (entry as any).client_name],
     ["notes", entry.notes],
     ["offsite_location", entry.offsite_location],
+    ["treatment_label", entry.treatment_label],
+    ["booked_by", entry.booked_by],
+    ["confirmed_by", entry.confirmed_by],
+    ["commission_to", entry.commission_to],
+    ["link_label", entry.link_label],
     ["guest_name", entry.booking?.guest_name],
     ["guest_email", (entry.booking as any)?.guest_email],
   ];

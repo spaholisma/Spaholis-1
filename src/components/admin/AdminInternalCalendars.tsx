@@ -61,6 +61,14 @@ export interface CalendarEntry {
   client_email?: string | null;
   client_reminder_hours?: number | null;
   client_review?: boolean | null;
+  /** Booking details, each in its own field instead of typed into the notes. */
+  charge_amount?: number | null;
+  booked_by?: string | null;
+  confirmed_by?: string | null;
+  commission_to?: string | null;
+  treatment_label?: string | null;
+  link_url?: string | null;
+  link_label?: string | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -291,9 +299,49 @@ const emptyForm = {
   client_email: "",
   client_reminder_hours: "",
   client_review: false,
+  charge_amount: "",
+  booked_by: "",
+  confirmed_by: "",
+  commission_to: "",
+  treatment_label: "",
+  link_url: "",
+  link_label: "",
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
+
+/**
+ * "Cobrar" as typed: "262", "$262", "1,262.50". Empty → null; anything that
+ * isn't an amount → undefined (so the form can say so instead of guessing).
+ */
+export function parseCharge(raw: string): number | null | undefined {
+  const t = String(raw ?? "").replace(/[$\s,]/g, "");
+  if (!t) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return undefined;
+  return Number(t);
+}
+
+/** The booking details of an entry as one short line, for lists and cards. */
+export function bookingDetailsLine(e: Partial<CalendarEntry>): string {
+  const parts: string[] = [];
+  if (e.client_name) parts.push(e.client_name);
+  if (e.treatment_label) parts.push(e.treatment_label);
+  if (e.charge_amount != null) parts.push(`Cobrar $${Number(e.charge_amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
+  if (e.booked_by) parts.push(`Reservó: ${e.booked_by}`);
+  if (e.confirmed_by) parts.push(`Confirmó: ${e.confirmed_by}`);
+  if (e.commission_to) parts.push(`Comisiona: ${e.commission_to}`);
+  return parts.join(" · ");
+}
+
+/** Values already used in these entries — suggestions, never a fixed list. */
+function usedValues(entries: CalendarEntry[], key: "booked_by" | "confirmed_by" | "commission_to" | "link_label"): string[] {
+  const seen = new Map<string, string>();
+  for (const e of entries) {
+    const v = (e[key] ?? "").trim();
+    if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+  }
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+}
 
 export function AdminInternalCalendars({ restrictToTreatment = false, readOnly = false }: { restrictToTreatment?: boolean; readOnly?: boolean } = {}) {
   const [calendarType, setCalendarType] = useState<CalendarType>(
@@ -335,6 +383,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   /** The day to reopen once the entry form closes, so adding or editing from
    *  the day view doesn't kick you back out to the month. */
   const [returnToDay, setReturnToDay] = useState<Date | null>(null);
+  /** Same, for a website booking opened from the day view: closing it goes
+   *  back to that day's agenda, not out to the whole calendar. */
+  const [bookingReturnDay, setBookingReturnDay] = useState<Date | null>(null);
   /** When editing an occurrence: change just it, or the whole series. */
   const [editScope, setEditScope] = useState<"one" | "following" | "series">("one");
   const [deleteTarget, setDeleteTarget] = useState<CalendarEntry | null>(null);
@@ -655,11 +706,17 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
     // Viewers see everything, but edit nothing: a booking opens the full modal
     // locked; a manual entry opens the read-only detail card.
     if (readOnly) {
-      if (entry.booking) { setDayViewDate(null); openBookingForViewer(entry.booking.id); return; }
+      if (entry.booking) { setBookingReturnDay(dayViewDate); setDayViewDate(null); openBookingForViewer(entry.booking.id); return; }
       setViewerDetail(entry);
       return;
     }
-    if (entry.booking) { setDayViewDate(null); openBookingForEdit(entry.booking.id); return; }
+    if (entry.booking) {
+      // Only the day pop-up needs reopening; the day/agenda views stay put.
+      setBookingReturnDay(dayViewDate);
+      setDayViewDate(null);
+      openBookingForEdit(entry.booking.id);
+      return;
+    }
     if (fromDay !== undefined) setReturnToDay(fromDay);
     setDayViewDate(null);
     openEdit(entry);
@@ -722,6 +779,13 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       client_email: entry.client_email ?? "",
       client_reminder_hours: entry.client_reminder_hours != null ? String(entry.client_reminder_hours) : "",
       client_review: entry.client_review ?? false,
+      charge_amount: entry.charge_amount != null ? String(Number(entry.charge_amount)) : "",
+      booked_by: entry.booked_by ?? "",
+      confirmed_by: entry.confirmed_by ?? "",
+      commission_to: entry.commission_to ?? "",
+      treatment_label: entry.treatment_label ?? "",
+      link_url: entry.link_url ?? "",
+      link_label: entry.link_label ?? "",
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -752,6 +816,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       toast.error("The end date can't be before the start date");
       return;
     }
+    const charge = parseCharge(form.charge_amount);
+    if (charge === undefined) { toast.error("Cobrar: escribe solo el monto, por ejemplo 262 o 262.50"); return; }
+    const detailLink = form.link_url.trim() ? normalizeLinkInput(form.link_url) : null;
+    if (form.link_url.trim() && !detailLink) { toast.error("Link: escribe una dirección web válida (https://…)"); return; }
     setSaving(true);
 
     const hours = Math.floor(form.duration_minutes / 60);
@@ -787,6 +855,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       client_reminder_sent_at: null,
       client_review: !!form.client_review,
       client_review_sent_at: null,
+      // Booking details (each its own field).
+      charge_amount: charge,
+      booked_by: form.booked_by.trim() || null,
+      confirmed_by: form.confirmed_by.trim() || null,
+      commission_to: form.commission_to.trim() || null,
+      treatment_label: form.treatment_label.trim() || null,
+      link_url: detailLink,
+      link_label: detailLink ? (sanitizeLinkLabel(form.link_label) || null) : null,
       // Only meaningful on "Horario terapeutas" blocks — capacity cap for the
       // website. Shifts (per-therapist hours) replace the flat count.
       ...(() => {
@@ -1282,6 +1358,9 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                           : ` · ${entry.start_time.slice(0, 5)}${entry.end_time ? ` – ${entry.end_time.slice(0, 5)}` : ""} · ${entry.duration_minutes}min`}
                         {locationLabel(entry) && ` · ${locationLabel(entry)}`}
                       </p>
+                      {bookingDetailsLine(entry) && (
+                        <p className="text-xs mt-0.5 truncate">{bookingDetailsLine(entry)}</p>
+                      )}
                       {entry.notes && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
                           <LinkifiedText text={entry.notes} linkClassName="text-spa-sage" />
@@ -1486,10 +1565,19 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       <BookingEditModal
         booking={editBooking}
         open={bookingEditOpen}
-        onOpenChange={setBookingEditOpen}
+        onOpenChange={(o) => {
+          setBookingEditOpen(o);
+          if (!o && bookingReturnDay) { setDayViewDate(bookingReturnDay); setBookingReturnDay(null); }
+        }}
         onSaved={() => { loadBookings(); loadEntries(); }}
         services={servicesForEdit}
-        onDuplicated={(newId) => openBookingForEdit(newId)}
+        onDuplicated={(newId) => {
+          // The copy opens straight away: keep the day to return to for it,
+          // and don't show the day pop-up underneath in the meantime.
+          setDayViewDate(null);
+          setBookingReturnDay(bookingReturnDay);
+          openBookingForEdit(newId);
+        }}
         readOnly={readOnly}
         detail={readOnly ? bookingDetail : null}
       />
@@ -1545,6 +1633,28 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 )}
                 {!viewerDetail.booking && (viewerDetail as any).client_name && (
                   <p><span className="text-muted-foreground">Client:</span> <span className="font-medium">{(viewerDetail as any).client_name}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.treatment_label && (
+                  <p><span className="text-muted-foreground">Tratamiento:</span> <span className="font-medium">{viewerDetail.treatment_label}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.charge_amount != null && (
+                  <p><span className="text-muted-foreground">Cobrar:</span> <span className="font-medium">${Number(viewerDetail.charge_amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.booked_by && (
+                  <p><span className="text-muted-foreground">Reservó:</span> <span className="font-medium">{viewerDetail.booked_by}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.confirmed_by && (
+                  <p><span className="text-muted-foreground">Confirmó:</span> <span className="font-medium">{viewerDetail.confirmed_by}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.commission_to && (
+                  <p><span className="text-muted-foreground">Comisiona:</span> <span className="font-medium">{viewerDetail.commission_to}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.link_url && (
+                  <p><span className="text-muted-foreground">Link:</span>{" "}
+                    <a href={viewerDetail.link_url} target="_blank" rel="noopener noreferrer" className="font-medium text-spa-sage hover:underline">
+                      {viewerDetail.link_label || prettyUrl(viewerDetail.link_url)}
+                    </a>
+                  </p>
                 )}
                 {!viewerDetail.booking && (viewerDetail as any).client_email && (
                   <p><span className="text-muted-foreground">Email:</span> <span className="font-medium">{(viewerDetail as any).client_email}</span></p>
@@ -1951,59 +2061,6 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
               </div>
             )}
 
-            {!form.is_all_day && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
-                <p className="text-sm font-medium">Client notifications</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Client name</Label>
-                    <Input
-                      value={form.client_name}
-                      onChange={(e) => setForm({ ...form, client_name: e.target.value })}
-                      placeholder="e.g. Emma"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Client email</Label>
-                    <Input
-                      type="email"
-                      value={form.client_email}
-                      onChange={(e) => setForm({ ...form, client_email: e.target.value })}
-                      placeholder="cliente@correo.com"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Reminder before the appointment</Label>
-                  <select
-                    value={form.client_reminder_hours}
-                    onChange={(e) => setForm({ ...form, client_reminder_hours: e.target.value })}
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">No email reminder</option>
-                    <option value="1">1 hour before</option>
-                    <option value="2">2 hours before</option>
-                    <option value="4">4 hours before</option>
-                    <option value="24">1 day before</option>
-                    <option value="48">2 days before</option>
-                  </select>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={form.client_review}
-                    onCheckedChange={(v) => setForm({ ...form, client_review: !!v })}
-                  />
-                  <span className="text-sm">Ask for a review after the appointment</span>
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Emails go to the client's address (needs a valid email). Edit the wording in{" "}
-                  <strong>Client Emails → Appointment reminders &amp; reviews</strong>. The review sends ~5&nbsp;min after the appointment ends.
-                </p>
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <Label>Location</Label>
               <select
@@ -2035,6 +2092,160 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 />
               </div>
             )}
+            {!form.is_all_day && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Detalles de la reserva</p>
+                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Todos son opcionales.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cliente</Label>
+                    <Input
+                      value={form.client_name}
+                      onChange={(e) => setForm({ ...form, client_name: e.target.value })}
+                      placeholder="ej. Peter"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tratamiento y minutos</Label>
+                    <Input
+                      value={form.treatment_label}
+                      onChange={(e) => setForm({ ...form, treatment_label: e.target.value })}
+                      placeholder="ej. HS Couple Massage 90 mins"
+                      list="cal-treatments"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cobrar ($)</Label>
+                    <Input
+                      value={form.charge_amount}
+                      onChange={(e) => setForm({ ...form, charge_amount: e.target.value })}
+                      placeholder="ej. 262"
+                      inputMode="decimal"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Reservó (quién / por dónde)</Label>
+                    <Input
+                      value={form.booked_by}
+                      onChange={(e) => setForm({ ...form, booked_by: e.target.value })}
+                      placeholder="ej. WhatsApp Peter"
+                      list="cal-booked-by"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Confirmó</Label>
+                    <Input
+                      value={form.confirmed_by}
+                      onChange={(e) => setForm({ ...form, confirmed_by: e.target.value })}
+                      placeholder="ej. Mario / Maryeling"
+                      list="cal-confirmed-by"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Comisiona</Label>
+                    <Input
+                      value={form.commission_to}
+                      onChange={(e) => setForm({ ...form, commission_to: e.target.value })}
+                      placeholder="ej. Recepción"
+                      list="cal-commission"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Nombre del link</Label>
+                    <Input
+                      value={form.link_label}
+                      onChange={(e) => setForm({ ...form, link_label: e.target.value })}
+                      placeholder="ej. Link CC"
+                      list="cal-link-labels"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Link</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={form.link_url}
+                        onChange={(e) => setForm({ ...form, link_url: e.target.value })}
+                        placeholder="https://…"
+                        inputMode="url"
+                        className="h-9"
+                      />
+                      {normalizeLinkInput(form.link_url) && (
+                        <Button asChild type="button" variant="outline" size="sm" className="h-9 shrink-0 text-xs">
+                          <a href={normalizeLinkInput(form.link_url)!} target="_blank" rel="noopener noreferrer">
+                            <LinkIcon className="h-3.5 w-3.5 mr-1" /> Abrir
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <datalist id="cal-treatments">
+                  {Array.from(new Set(servicesForEdit
+                    .filter((sv: any) => sv.type === "treatment" && sv.title)
+                    .map((sv: any) => /\d\s*min/i.test(sv.title) || !sv.duration_minutes ? String(sv.title) : `${sv.title} ${sv.duration_minutes} mins`)))
+                    .map((t) => <option key={t} value={t} />)}
+                </datalist>
+                <datalist id="cal-booked-by">{usedValues(entries, "booked_by").map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="cal-confirmed-by">{usedValues(entries, "confirmed_by").map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="cal-commission">{usedValues(entries, "commission_to").map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="cal-link-labels">{usedValues(entries, "link_label").map((v) => <option key={v} value={v} />)}</datalist>
+              </div>
+            )}
+
+            {!form.is_all_day && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                <p className="text-sm font-medium">Client notifications</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">Client email</Label>
+                  <Input
+                    type="email"
+                    value={form.client_email}
+                    onChange={(e) => setForm({ ...form, client_email: e.target.value })}
+                    placeholder="cliente@correo.com"
+                    className="h-9"
+                  />
+                  <p className="text-[11px] text-muted-foreground">The emails greet the client by the name in <strong>Detalles de la reserva</strong>.</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Reminder before the appointment</Label>
+                  <select
+                    value={form.client_reminder_hours}
+                    onChange={(e) => setForm({ ...form, client_reminder_hours: e.target.value })}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">No email reminder</option>
+                    <option value="1">1 hour before</option>
+                    <option value="2">2 hours before</option>
+                    <option value="4">4 hours before</option>
+                    <option value="24">1 day before</option>
+                    <option value="48">2 days before</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={form.client_review}
+                    onCheckedChange={(v) => setForm({ ...form, client_review: !!v })}
+                  />
+                  <span className="text-sm">Ask for a review after the appointment</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Emails go to the client's address (needs a valid email). Edit the wording in{" "}
+                  <strong>Client Emails → Appointment reminders &amp; reviews</strong>. The review sends ~5&nbsp;min after the appointment ends.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>Notes (optional)</Label>
