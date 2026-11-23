@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseCharge, type CalendarBooking } from "./calendarUtils";
 import { normalizeLinkInput, sanitizeLinkLabel } from "../LinkifiedText";
+import { AccountingFields, accountingMissing, mergeOptions, useAccountingSuggestions } from "./AccountingFields";
 import { bodyZoneNames, bodyZoneExtraLabel } from "@/components/booking/BodyZoneSelector";
 import { spaLocalToInstant, spaLocalParts } from "@/lib/businessHours";
 // Two decimals, like the cancellation email reception will get: $65.50, not $66.
@@ -212,9 +213,13 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
   // Booking details, each in its own field (who booked, confirmed, commission,
   // link). Loaded here from the booking itself, whoever opened the modal; until
   // they are loaded, Save leaves them untouched.
-  const emptyDetails = { charge_amount: "", booked_by: "", confirmed_by: "", commission_to: "", link_url: "", link_label: "" };
+  const emptyDetails = {
+    charge_amount: "", booked_by: "", confirmed_by: "", commission_to: "", link_url: "", link_label: "",
+    treatment_label: "", therapist: "", therapist2: "", call_type: "", call_place: "",
+  };
   const [details, setDetails] = useState(emptyDetails);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
+  const accSuggest = useAccountingSuggestions(open && !readOnly);
   const setDetail = (k: keyof typeof emptyDetails) => (e: { target: { value: string } }) =>
     setDetails((d) => ({ ...d, [k]: e.target.value }));
   const [suggest, setSuggest] = useState<Record<"booked_by" | "confirmed_by" | "commission_to" | "link_label", string[]>>({
@@ -259,6 +264,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
         charge_amount: row?.charge_amount != null ? String(row.charge_amount) : "",
         booked_by: row?.booked_by ?? "", confirmed_by: row?.confirmed_by ?? "", commission_to: row?.commission_to ?? "",
         link_url: row?.link_url ?? "", link_label: row?.link_label ?? "",
+        treatment_label: row?.treatment_label ?? "", therapist: row?.therapist ?? "", therapist2: row?.therapist2 ?? "",
+        call_type: row?.call_type ?? "", call_place: row?.call_place ?? "",
       });
       setDetailsLoaded(!!row);
     };
@@ -269,7 +276,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
     // for these few columns here keeps every one of them working unchanged.
     supabase
       .from("bookings")
-      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label, charge_amount" as any)
+      .select("created_at, start_time, notification_sent_at, cancelled_at, cancellation_fee_percent, cancellation_requested_at, booked_by, confirmed_by, commission_to, link_url, link_label, charge_amount, treatment_label, therapist, therapist2, call_type, call_place" as any)
       .eq("id", booking.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -452,6 +459,12 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               commission_to: details.commission_to.trim() || null,
               link_url: detailLink,
               link_label: detailLink ? (sanitizeLinkLabel(details.link_label) || null) : null,
+              // Contabilidad: treatment name, who and where (the database passes it on).
+              treatment_label: details.treatment_label.trim() || null,
+              therapist: details.therapist.trim() || null,
+              therapist2: details.therapist.trim() ? (details.therapist2.trim() || null) : null,
+              call_type: details.call_type === "on" || details.call_type === "out" ? details.call_type : null,
+              call_place: details.call_type === "out" ? (details.call_place.trim() || null) : null,
             } as any)
           : {}),
         // Saved with the status change, so the cancellation email the database
@@ -547,7 +560,7 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
               <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
                 <div>
                   <p className="text-sm font-medium">Detalles de la reserva</p>
-                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Cliente, servicio y precio están más abajo; Cobrar es lo que falta cobrarle, si no es el precio completo.</p>
+                  <p className="text-xs text-muted-foreground">Cada dato en su campo, en vez de escribirlo en las notas. Cliente, servicio y precio están más abajo; Cobrar es lo que falta cobrarle, si no es el precio completo. A Contabilidad pasa el Price.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="space-y-1.5">
@@ -566,6 +579,32 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                     <Label className="text-xs">Comisiona</Label>
                     <Input value={details.commission_to} onChange={setDetail("commission_to")} placeholder="ej. Recepción" list="bk-commission" className="h-9 text-sm" />
                   </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-xs">Tratamiento <span className="text-muted-foreground">(nombre en Contabilidad)</span></Label>
+                    <Input
+                      value={details.treatment_label}
+                      onChange={setDetail("treatment_label")}
+                      placeholder={accSuggest.service_map[form.service_id] ? `Se usa: ${accSuggest.service_map[form.service_id]}` : "Elige de la lista"}
+                      list="bk-treatments"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <AccountingFields
+                  values={details}
+                  onChange={(k, v) => setDetails((d) => ({ ...d, [k]: v }))}
+                  suggestions={accSuggest}
+                  idPrefix="bk"
+                  dense
+                  offsitePlace={form.offsite_location}
+                  missing={accountingMissing({
+                    client: form.guest_name,
+                    treatment: details.treatment_label || accSuggest.service_map[form.service_id] || "",
+                    cost: form.total_price !== "" ? Number(form.total_price) : null,
+                    therapist: details.therapist,
+                  }, "Price")}
+                />
+                <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="space-y-1.5 col-span-2">
                     <Label className="text-xs">Nombre del link</Label>
                     <Input value={details.link_label} onChange={setDetail("link_label")} placeholder="ej. Link CC" list="bk-link-labels" className="h-9 text-sm" />
@@ -588,7 +627,8 @@ export function BookingEditModal({ booking, open, onOpenChange, onSaved, service
                 </div>
                 <datalist id="bk-booked-by">{suggest.booked_by.map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="bk-confirmed-by">{suggest.confirmed_by.map((v) => <option key={v} value={v} />)}</datalist>
-                <datalist id="bk-commission">{suggest.commission_to.map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="bk-commission">{mergeOptions(accSuggest.hotel, suggest.commission_to).map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="bk-treatments">{accSuggest.treatment.map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="bk-link-labels">{suggest.link_label.map((v) => <option key={v} value={v} />)}</datalist>
               </div>
               <div className="grid grid-cols-2 gap-3">

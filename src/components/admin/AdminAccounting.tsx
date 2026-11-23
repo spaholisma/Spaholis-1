@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Copy, Download, ListChecks, Loader2, Plus, Search, ShoppingBag, Table2, Trash2 } from "lucide-react";
+import { BarChart3, CalendarDays, Copy, Download, ListChecks, Loader2, Plus, Search, ShoppingBag, Table2, Trash2 } from "lucide-react";
+import { mergeOptions, useAccountingSuggestions } from "@/components/admin/calendar/AccountingFields";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -32,7 +33,7 @@ const TEXT_FIELDS = ["client", "tl", "treatment", "location", "therapist", "hote
 type TextField = (typeof TEXT_FIELDS)[number];
 
 const ENTRY_COLUMNS =
-  "id, year, month, client, tl, treatment, location, entry_date, cost, therapist, therapist_pct, therapist_amount, therapist_paid, hotel, hotel_pct, hotel_amount, notes, points, created_at";
+  "id, year, month, client, tl, treatment, location, entry_date, cost, therapist, therapist_pct, therapist_amount, therapist_paid, hotel, hotel_pct, hotel_amount, notes, points, created_at, source_entry_id, source_booking_id";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -135,6 +136,13 @@ export function AdminAccounting() {
     return () => { alive = false; };
   }, [year]);
 
+  // Clients: the names already in Contabilidad + the website's clients.
+  const suggestions = useAccountingSuggestions(true);
+  const clientOptions = useMemo(
+    () => mergeOptions(entries.map((e) => (e.client ?? "").replace(/\s+/g, " ").trim()), suggestions.client).sort((a, b) => a.localeCompare(b)),
+    [entries, suggestions.client],
+  );
+
   // The dropdowns: the lists (Contabilidad → Listas), like the Excel's.
   const active = useMemo(() => lists.filter((l) => l.active), [lists]);
   const options = useMemo(() => {
@@ -212,7 +220,8 @@ export function AdminAccounting() {
     const today = new Date();
     const inThisMonth = today.getFullYear() === year && today.getMonth() + 1 === tab;
     const base = copyOf
-      ? (({ id: _id, created_at: _c, ...rest }) => rest)(copyOf)
+      // A copy is the team's own row: it does not follow the agenda.
+      ? (({ id: _id, created_at: _c, source_entry_id: _se, source_booking_id: _sb, ...rest }) => rest)(copyOf)
       : {
           year, month: tab,
           entry_date: `${year}-${pad2(tab)}-${pad2(inThisMonth ? today.getDate() : 1)}`,
@@ -233,7 +242,10 @@ export function AdminAccounting() {
 
   const deleteRow = async (e: AccountingEntry) => {
     const label = [e.client, e.treatment].filter(Boolean).join(" · ") || "esta fila";
-    if (!confirm(`¿Eliminar ${label}?`)) return;
+    const fromAgenda = e.source_entry_id || e.source_booking_id;
+    if (!confirm(fromAgenda
+      ? `¿Eliminar ${label}?\n\nEsta fila viene de la agenda: si esa cita se vuelve a guardar, la fila vuelve a aparecer. Para quitarla del todo, borra la cita o quítale el Terapeuta en la agenda.`
+      : `¿Eliminar ${label}?`)) return;
     const { error } = await sb.from("accounting_entries").delete().eq("id", e.id);
     if (error) { toast.error(error.message); return; }
     setEntries((prev) => prev.filter((x) => x.id !== e.id));
@@ -402,7 +414,10 @@ export function AdminAccounting() {
                     </Button>
                     <div className="relative flex-1 min-w-[200px] max-w-sm">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, terapeuta, hotel…" className="pl-8" />
+                      <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, terapeuta, hotel…" className="pl-8" list="acc-search" />
+                      <datalist id="acc-search">
+                        {mergeOptions(options.therapist, options.hotel, options.location, options.treatment, clientOptions).map((v) => <option key={v} value={v} />)}
+                      </datalist>
                     </div>
                     <Button type="button" variant="outline" className="ml-auto" onClick={exportCsv} disabled={monthRows.length === 0}>
                       <Download className="h-4 w-4 mr-1" /> Exportar a Excel (CSV)
@@ -432,6 +447,7 @@ export function AdminAccounting() {
                   <datalist id="acc-locations">{options.location.map((v) => <option key={v} value={v} />)}</datalist>
                   <datalist id="acc-tl">{options.tl.map((v) => <option key={v} value={v} />)}</datalist>
                   <datalist id="acc-pct">{options.pct.map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="acc-clients">{clientOptions.map((v) => <option key={v} value={v} />)}</datalist>
 
                   <div className="overflow-auto max-h-[72vh] rounded-xl border border-border bg-card">
                     <table className="w-full border-separate border-spacing-0 font-body text-sm">
@@ -788,8 +804,15 @@ function EntryRow({
 
   return (
     <tr className={cn("group hover:[&>td:not(:first-child)]:bg-muted/40", rowBg)}>
-      <td className={cn(td, "sticky left-0 z-10 w-10 text-center text-[11px] tabular-nums text-muted-foreground", zebra ? "bg-muted" : "bg-card")}>{n}</td>
-      <td className={td}>{txt("client", undefined, firstRef)}</td>
+      <td className={cn(td, "sticky left-0 z-10 w-10 text-center text-[11px] tabular-nums text-muted-foreground", zebra ? "bg-muted" : "bg-card")}>
+        {n}
+        {(entry.source_entry_id || entry.source_booking_id) && (
+          <span title="Viene de la agenda: si allá cambia la fecha, el cliente, el tratamiento, el monto, el terapeuta, el lugar o quién comisiona, se actualiza aquí sola. Lo demás (%, pagado, notas) es tuyo.">
+            <CalendarDays className="inline h-3 w-3 ml-0.5 text-primary" aria-label="De la agenda" />
+          </span>
+        )}
+      </td>
+      <td className={td}>{txt("client", "acc-clients", firstRef)}</td>
       <td className={td}>{txt("tl", "acc-tl")}</td>
       <td className={cn(td, offList("treatment") && warn)} title={offList("treatment") ? offTitle : undefined}>{txt("treatment", "acc-treatments")}</td>
       <td className={cn(td, offList("location") && warn)} title={offList("location") ? offTitle : undefined}>{txt("location", "acc-locations")}</td>

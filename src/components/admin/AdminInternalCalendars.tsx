@@ -20,6 +20,7 @@ import { CalendarGroupsBar, type CalendarGroup } from "./CalendarGroupsBar";
 import { readableOn, PALETTE } from "./AttendeeLabelPicker";
 import { BookingEditModal } from "./calendar/BookingEditModal";
 import { parseCharge, type CalendarBooking } from "./calendar/calendarUtils";
+import { AccountingFields, accountingMissing, mergeOptions, useAccountingSuggestions } from "./calendar/AccountingFields";
 import { LinkifiedText, extractLinks, renameLinkInText, prettyUrl, normalizeLinkInput, sanitizeLinkLabel, type ParsedLink } from "./LinkifiedText";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarSearch } from "./calendar/CalendarSearch";
@@ -69,6 +70,11 @@ export interface CalendarEntry {
   treatment_label?: string | null;
   link_url?: string | null;
   link_label?: string | null;
+  /** Who did it (couples: two) and where — these pass to Contabilidad. */
+  therapist?: string | null;
+  therapist2?: string | null;
+  call_type?: string | null;
+  call_place?: string | null;
   /** Shared by every occurrence of a repeating entry. Null when standalone. */
   series_id: string | null;
   recurrence: string;
@@ -306,6 +312,10 @@ const emptyForm = {
   treatment_label: "",
   link_url: "",
   link_label: "",
+  therapist: "",
+  therapist2: "",
+  call_type: "",
+  call_place: "",
   recurrence: "none" as Recurrence,
   recurrence_until: "",
 };
@@ -353,6 +363,8 @@ export function bookingDetailsLine(e: Partial<CalendarEntry>): string {
   const parts: string[] = [];
   if (e.client_name) parts.push(e.client_name);
   if (e.treatment_label) parts.push(e.treatment_label);
+  const who = [e.therapist, e.therapist2].map((t) => (t ?? "").trim()).filter(Boolean).join(" y ");
+  if (who) parts.push(who);
   if (e.charge_amount != null) parts.push(`Cobrar $${Number(e.charge_amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
   if (e.booked_by) parts.push(`Reservó: ${e.booked_by}`);
   if (e.confirmed_by) parts.push(`Confirmó: ${e.confirmed_by}`);
@@ -406,6 +418,8 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
   const [reminderCustom, setReminderCustom] = useState(false);
   // "Detalles de la reserva" and "Client notifications" open on demand.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Contabilidad's lists, for the dropdowns of the details.
+  const accSuggest = useAccountingSuggestions(!readOnly && modalOpen);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -818,6 +832,10 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       treatment_label: entry.treatment_label ?? "",
       link_url: entry.link_url ?? "",
       link_label: entry.link_label ?? "",
+      therapist: entry.therapist ?? "",
+      therapist2: entry.therapist2 ?? "",
+      call_type: entry.call_type ?? "",
+      call_place: entry.call_place ?? "",
       recurrence: (entry.recurrence as Recurrence) ?? "none",
       recurrence_until: entry.recurrence_until ?? "",
     });
@@ -897,6 +915,11 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
       treatment_label: form.treatment_label.trim() || null,
       link_url: detailLink,
       link_label: detailLink ? (sanitizeLinkLabel(form.link_label) || null) : null,
+      // Contabilidad: who and where (the database passes the entry on).
+      therapist: form.therapist.trim() || null,
+      therapist2: form.therapist.trim() ? (form.therapist2.trim() || null) : null,
+      call_type: form.call_type === "on" || form.call_type === "out" ? form.call_type : null,
+      call_place: form.call_type === "out" ? (form.call_place.trim() || null) : null,
       // Only meaningful on "Horario terapeutas" blocks — capacity cap for the
       // website. Shifts (per-therapist hours) replace the flat count.
       ...(() => {
@@ -1671,6 +1694,12 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                 {!viewerDetail.booking && viewerDetail.treatment_label && (
                   <p><span className="text-muted-foreground">Tratamiento:</span> <span className="font-medium">{viewerDetail.treatment_label}</span></p>
                 )}
+                {!viewerDetail.booking && viewerDetail.therapist && (
+                  <p><span className="text-muted-foreground">Terapeuta:</span> <span className="font-medium">{[viewerDetail.therapist, viewerDetail.therapist2].filter(Boolean).join(" y ")}</span></p>
+                )}
+                {!viewerDetail.booking && viewerDetail.call_type && (
+                  <p><span className="text-muted-foreground">{viewerDetail.call_type === "out" ? "Out call" : "On call"}:</span> <span className="font-medium">{viewerDetail.call_type === "out" ? (viewerDetail.call_place || "—") : "HWC"}</span></p>
+                )}
                 {!viewerDetail.booking && viewerDetail.charge_amount != null && (
                   <p><span className="text-muted-foreground">Cobrar:</span> <span className="font-medium">${Number(viewerDetail.charge_amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></p>
                 )}
@@ -2129,7 +2158,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
             {!form.is_all_day && (
               <FoldSection
                 title="Detalles de la reserva"
-                summary={bookingDetailsLine({ client_name: form.client_name, treatment_label: form.treatment_label, charge_amount: parseCharge(form.charge_amount) ?? null, booked_by: form.booked_by, confirmed_by: form.confirmed_by, commission_to: form.commission_to })}
+                summary={bookingDetailsLine({ client_name: form.client_name, treatment_label: form.treatment_label, therapist: form.therapist, therapist2: form.therapist2, charge_amount: parseCharge(form.charge_amount) ?? null, booked_by: form.booked_by, confirmed_by: form.confirmed_by, commission_to: form.commission_to })}
                 open={detailsOpen}
                 onToggle={() => setDetailsOpen((o) => !o)}
               >
@@ -2141,6 +2170,7 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                       value={form.client_name}
                       onChange={(e) => setForm({ ...form, client_name: e.target.value })}
                       placeholder="ej. Peter"
+                      list="cal-clients"
                       className="h-9"
                     />
                   </div>
@@ -2195,6 +2225,14 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                     />
                   </div>
                 </div>
+                <AccountingFields
+                  values={form}
+                  onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+                  suggestions={accSuggest}
+                  idPrefix="cal"
+                  offsitePlace={form.location === OFFSITE ? form.offsite_location : ""}
+                  missing={accountingMissing({ client: form.client_name, treatment: form.treatment_label, cost: parseCharge(form.charge_amount) ?? null, therapist: form.therapist })}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Nombre del link</Label>
@@ -2227,14 +2265,15 @@ export function AdminInternalCalendars({ restrictToTreatment = false, readOnly =
                   </div>
                 </div>
                 <datalist id="cal-treatments">
-                  {Array.from(new Set(servicesForEdit
+                  {(accSuggest.treatment.length ? accSuggest.treatment : Array.from(new Set(servicesForEdit
                     .filter((sv: any) => sv.type === "treatment" && sv.title)
-                    .map((sv: any) => /\d\s*min/i.test(sv.title) || !sv.duration_minutes ? String(sv.title) : `${sv.title} ${sv.duration_minutes} mins`)))
+                    .map((sv: any) => /\d\s*min/i.test(sv.title) || !sv.duration_minutes ? String(sv.title) : `${sv.title} ${sv.duration_minutes} mins`))))
                     .map((t) => <option key={t} value={t} />)}
                 </datalist>
+                <datalist id="cal-clients">{accSuggest.client.map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="cal-booked-by">{usedValues(entries, "booked_by").map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="cal-confirmed-by">{usedValues(entries, "confirmed_by").map((v) => <option key={v} value={v} />)}</datalist>
-                <datalist id="cal-commission">{usedValues(entries, "commission_to").map((v) => <option key={v} value={v} />)}</datalist>
+                <datalist id="cal-commission">{mergeOptions(accSuggest.hotel, usedValues(entries, "commission_to")).map((v) => <option key={v} value={v} />)}</datalist>
                 <datalist id="cal-link-labels">{usedValues(entries, "link_label").map((v) => <option key={v} value={v} />)}</datalist>
               </FoldSection>
             )}

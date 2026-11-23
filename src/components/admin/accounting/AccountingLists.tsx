@@ -6,6 +6,8 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { type AccountingEntry, type AccountingListItem, type ListKind, normName, parseNumber } from "@/lib/accounting";
+import { AccountingServiceMap } from "./AccountingServiceMap";
+import { resetAccountingSuggestions } from "@/components/admin/calendar/AccountingFields";
 
 // Contabilidad → Listas: the dropdowns of the sheet (the Excel kept them in its
 // "Treatments", "Staff", "Vendor Commissions", "puntos terap" and "Purchases"
@@ -76,6 +78,7 @@ export function AccountingLists({
   }, [entries, lists, kind, meta.column]);
 
   const save = async (id: string, patch: Partial<AccountingListItem>) => {
+    resetAccountingSuggestions();
     const before = lists.find((l) => l.id === id);
     setLists((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     const { error } = await sb.from("accounting_lists").update(patch).eq("id", id);
@@ -86,6 +89,7 @@ export function AccountingLists({
   };
 
   const add = async (label: string) => {
+    resetAccountingSuggestions();
     const name = label.trim();
     if (!name) return;
     if (lists.some((l) => l.kind === kind && normName(l.label) === normName(name))) { toast.error("Ya está en la lista"); return; }
@@ -97,6 +101,7 @@ export function AccountingLists({
   };
 
   const remove = async (item: AccountingListItem) => {
+    resetAccountingSuggestions();
     const used = usage.get(normName(item.label)) ?? 0;
     if (!confirm(`¿Quitar “${item.label}” de la lista?${used ? `\n\nHay ${used} fila(s) de ${year} con este nombre: se quedan como están.` : ""}`)) return;
     const { error } = await sb.from("accounting_lists").delete().eq("id", item.id);
@@ -178,6 +183,8 @@ export function AccountingLists({
         </table>
       </div>
       <datalist id="acc-list-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+
+      {kind === "treatment" && <AccountingServiceMap lists={lists} />}
 
       {notOnList.length > 0 && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 space-y-2">

@@ -43,6 +43,10 @@ export type Database = {
           confirmed_by: string | null
           link_label: string | null
           link_url: string | null
+          therapist: string | null
+          therapist2: string | null
+          call_type: string | null
+          call_place: string | null
           treatment_label: string | null
           client_email: string | null
           client_reminder_hours: number | null
@@ -83,6 +87,10 @@ export type Database = {
           confirmed_by?: string | null
           link_label?: string | null
           link_url?: string | null
+          therapist?: string | null
+          therapist2?: string | null
+          call_type?: string | null
+          call_place?: string | null
           treatment_label?: string | null
           client_email?: string | null
           client_reminder_hours?: number | null
@@ -123,6 +131,10 @@ export type Database = {
           confirmed_by?: string | null
           link_label?: string | null
           link_url?: string | null
+          therapist?: string | null
+          therapist2?: string | null
+          call_type?: string | null
+          call_place?: string | null
           treatment_label?: string | null
           client_email?: string | null
           client_reminder_hours?: number | null
@@ -465,6 +477,11 @@ export type Database = {
           confirmed_by: string | null
           link_label: string | null
           link_url: string | null
+          treatment_label: string | null
+          therapist: string | null
+          therapist2: string | null
+          call_type: string | null
+          call_place: string | null
           card_authorization: Json | null
           coupon_code: string | null
           created_at: string
@@ -501,6 +518,11 @@ export type Database = {
           confirmed_by?: string | null
           link_label?: string | null
           link_url?: string | null
+          treatment_label?: string | null
+          therapist?: string | null
+          therapist2?: string | null
+          call_type?: string | null
+          call_place?: string | null
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string
@@ -537,6 +559,11 @@ export type Database = {
           confirmed_by?: string | null
           link_label?: string | null
           link_url?: string | null
+          treatment_label?: string | null
+          therapist?: string | null
+          therapist2?: string | null
+          call_type?: string | null
+          call_place?: string | null
           card_authorization?: Json | null
           coupon_code?: string | null
           created_at?: string

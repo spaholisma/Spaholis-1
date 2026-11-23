@@ -31,6 +31,9 @@ export interface AccountingEntry {
   notes: string | null;
   /** The row's own therapist points; null = the treatment's points (Listas). */
   points?: number | null;
+  /** Set when the row came from the agenda (it follows that entry / booking). */
+  source_entry_id?: string | null;
+  source_booking_id?: string | null;
   created_at?: string;
 }
 

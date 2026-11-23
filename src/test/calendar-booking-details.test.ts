@@ -107,7 +107,7 @@ describe("Edit Booking: the same booking details", () => {
 
   it("has Cobrar too: read, checked and saved like the entry form's", () => {
     expect(modal).toContain(`setDetail("charge_amount")`);
-    expect(modal).toContain("link_url, link_label, charge_amount\" as any)");
+    expect(modal).toContain("link_url, link_label, charge_amount");
     expect(modal).toContain("const charge = parseCharge(details.charge_amount);");
     expect(modal).toMatch(/\.\.\.\(detailsLoaded\s*\? \(\{\s*charge_amount: charge,/);
     const charge = read("supabase/migrations/20261123160000_booking_charge_amount.sql");
